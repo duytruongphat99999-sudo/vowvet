@@ -1,17 +1,17 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-30 (buổi 2)**: 🌌 Constellation WOW v197-203 · 📈 Trend polish v204-205 · 🧭 TopBar v206-207 · ✨ Dashboard WOW v208 · 🔒 token rotated. **SW hiện tại = `vowvet-v208-dashboard-wow`**.
+> Snapshot kỹ thuật — cập nhật **2026-05-30 (buổi 2)**: 🌌 Constellation WOW v197-203 · 📈 Trend polish v204-205 · 🧭 TopBar v206-207 · ✨ Dashboard WOW v208 · 🎨 Color-sync v209 · 🏅 Tier-gold v210 · 🔒 token rotated. **SW hiện tại = `vowvet-v210-tier-gold`**.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
-> Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-208** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
+> Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
 ---
 
 ## 1. TRẠNG THÁI HIỆN TẠI — Pet Score redesign HOÀN CHỈNH
 
-> **STATUS: ✅ COMPLETE & PRODUCTION-READY** — Phase 1→8 (12 deliverables) **+ WOW arc v197-205** (Constellation sống động + Trend dễ hiểu). **SW hiện tại = `vowvet-v208-dashboard-wow`** (sau arc TopBar + dashboard wow). → Bảng "8 section" dưới là baseline Phase-8; Constellation + Trend đã nâng cấp lớn ở section **🌌 WOW ARC v197-205**.
+> **STATUS: ✅ COMPLETE & PRODUCTION-READY** — Phase 1→8 (12 deliverables) **+ WOW arc v197-205** (Constellation sống động + Trend dễ hiểu). **SW hiện tại = `vowvet-v210-tier-gold`** (sau arc TopBar + dashboard wow + color-sync). → Bảng "8 section" dưới là baseline Phase-8; Constellation + Trend đã nâng cấp lớn ở section **🌌 WOW ARC v197-205**.
 
 **File chính**: `web/src/pages/pets/[id]/pet-score.astro` (inline JS `scorePage()` + SSR frontmatter `stars`/`edges`).
-**SW version cuối**: `vowvet-v208-dashboard-wow` (`web/public/sw.js` line 17).
+**SW version cuối**: `vowvet-v210-tier-gold` (`web/public/sw.js` line 17).
 **Backup**: `pet-score.astro.phase8-pre.bak` (+ các phase trước: phase2/3/4/45/451/5/51/53/6/7-pre.bak).
 
 ### 8 section theo thứ tự + status
@@ -54,7 +54,7 @@ User quyết bỏ vì: (a) perf risk (35 simultaneous animations + drop-shadow r
 
 ---
 
-## 🧭 TOPBAR + DASHBOARD WOW v206-208 (2026-05-30 buổi 2 — tiếp)
+## 🧭 TOPBAR + DASHBOARD WOW v206-210 (2026-05-30 buổi 2 — tiếp)
 
 > Quy ước: recon→plan→approve→code→restart→verify→commit mỗi bước; secret-safe commit (value-scan `.env`, count-only); **chưa push**.
 
@@ -67,9 +67,14 @@ User quyết bỏ vì: (a) perf risk (35 simultaneous animations + drop-shadow r
 - **v208**: **score ring fill 0→490 đồng bộ count-up** — cách **A2**: drive `dashOffset` + `score` trong **CÙNG 1 rAF tick, cùng `e=1-(1-p)³`** (1800ms) → khớp 100%; bỏ transition inline; SSR `stroke-dashoffset={ARC}` (rỗng → không flash full-ring); reduced-motion → nhánh `if(reduced){jump}`. **tier badge pop-in** (`psc-badge-pop`, giữ `translateX(-50%)` CẢ 2 step → căn giữa, không lệch trái). **chips stagger** (`psc-chip-in` + `animation-delay 1.6+i*0.1s`, `both` fill). **hero halo pulse** (`phc-halo-pulse` trên **halo div [177]**, KHÔNG phải `<img>` đang breathe) + **CTA shine** (`phc-cta-shine` trên `::after`, KHÔNG đụng transform `<a>` hover-scale). **brand-sync chrome** (slate→ink/cream, GIỮ TIER_META semantic).
 - 4 keyframe mới prefix `psc-*`/`phc-*` (không trùng 27 cái cũ — đã grep) + **reduced-motion guard riêng** (badge chỉ `animation:none`, KHÔNG `transform:none` để giữ căn giữa).
 
+**Color-sync + tier-gold (5 component dashboard + global.css):**
+- **v209 color-sync**: ~38 chỗ slate/zinc → ink/cream (text→`mmp-ink/70-55-45-35-25`, border→`mmp-cream`, track→`mmp-ink/[0.06]`, hover ink) trên **5 file** (dashboard.astro + QuestStrip/QuickAccess/CarePlanProgress/CommunityMini); **CommunityMini 5-màu event-type → gold/ink đồng nhất** (GIỮ icon trophy/medal/hero/hearts/cake phân biệt loại); logout đỏ→ink. **GIỮ functional**: đỏ/amber severity (UrgencyBar), emerald done/success + live ping, difficulty traffic-light (emerald/amber/rose = Dễ/TB/Khó), amber gold-adjacent. KHÔNG đụng EcosystemNav (shared 3 trang)/Logo/PetHeroCard/PetScoreCompact.
+- **v210 tier-gold**: `TIER_META` (PetScoreCompact) → **hệ sắc độ gold/ink** — bỏ màu lạc (silver `#64748b` slate, platinum `#3b82f6` xanh, diamond `#7c3aed` tím). Phân biệt qua **độ sáng tăng dần + hiệu ứng tăng dần**: bronze `#a87a1e→#6e5417` (tối) → silver `#ddc77f→#c9a84a` (pale) → gold `#ecb921→#fde68a` (bright) → platinum (bright + **`psc-tier-glow`** filter halo) → diamond (sáng nhất + **`psc-tier-shimmer`** vệt sáng). Hiệu ứng đặt trên **BADGE** (glow=`filter`, shimmer=`::after`, delay 2s sau pop-in) → KHÔNG đụng A2 ring fill. Thêm field `fx`; giữ icon/label.
+- → **Dashboard giờ đồng bộ gold/ink/cream TOÀN BỘ** — chỉ giữ màu functional có chủ đích (severity đỏ/amber · done/live emerald · difficulty traffic-light · tier glow/shimmer · TIER_META đã về họ gold).
+
 **🏛️ Ghi chú kiến trúc (quan trọng):** TopBar full-width **KHÔNG phủ toàn app được** — ~45 sub-page đã có **nav ngữ cảnh riêng** (back-button + title + action) mà TopBar không thay được; nhồi TopBar vào Layout → **chồng 2 thanh** + mất back-nav nếu gỡ header cũ (mobile-first → ăn ~120px). → Chọn **Hướng A** (TopBar ở dashboard, khai tử quick-nav floating). Phủ toàn app thật = **Hướng B** (chuẩn hoá ~45 header thành `PageHeader` dưới TopBar — đại phẫu, dự án riêng — xem 🚨 Tomorrow Queue #1).
 
-**Git checkpoints arc:** v206 `e1d235d` · v207 `2eb7d3c` · v208 `685b35c` (trên nền `a204aea`). 3 commit, history 0 secret, **chưa push**.
+**Git checkpoints arc:** v206 `e1d235d` · v207 `2eb7d3c` · v208 `685b35c` · *(docs `61d302c`)* · v209 `3d19d67` · v210 `0f03f15` (trên nền `a204aea`). 5 code + 2 docs commit, history 0 secret, **chưa push**.
 
 ---
 
@@ -188,7 +193,7 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 3. **Chuyển `astro dev` → `astro build` production** — dev server đang làm prod (chậm 1-3.7s/req, file-watch restart). Xem `docker/docker-compose.yml` + `docker/web.Dockerfile`. *(Lưu ý: build mode → sửa code phải rebuild, mất cold-start nhanh — cân nhắc trade-off.)*
 4. **(Optional) Rotate `BASEROW_USER_PASSWORD`** — xem 🔒 SECURITY (rủi ro thấp, local-only, user tự quản) → xong thì xoá `MIGRATION_REPORT.md`.
 
-**✅ Đã xong buổi 2:** rotate token · xoá `.env.backup` · WOW arc v197-205 (6 commit) · **TopBar v206-207** (component dùng chung + khai tử quick-nav + dọn 2 rác) · **Dashboard WOW v208** (ring fill + badge/chips + hero polish). Tổng 5 commit `e1d235d→685b35c`, chưa push.
+**✅ Đã xong buổi 2:** rotate token · xoá `.env.backup` · WOW arc v197-205 (6 commit) · **TopBar v206-207** · **Dashboard WOW v208** · **Color-sync v209** · **Tier-gold v210**. Tổng 8 commit `e1d235d→0f03f15`, chưa push.
 **Backlog (chưa ưu tiên):** Fix SW reload loop (`controllerchange→reload` — chưa gây sự cố thực qua nhiều lần bump SW, hạ ưu tiên) · CTA `/hui-pet/register` route · `#ffd56b` cosmetic · Phase 5.2 orbit · dashboard polish (phần còn lại — v208 đã làm ring + hero) · DESIGN.md · M28 Vet Buddy.
 
 ---
@@ -239,7 +244,7 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 - **Phases applied (theo thứ tự)**: 1 (setup) → 2 (Hero) → 2-after (fix VV monogram/flourish) → 3 (Achievement) → 4 (Rec) → 4.5 (polish) → 4.5.1 (tweaks) → 5 (Constellation) → 5.1 (galaxy + ticker) → 5.3 (xóa nebula, SKIP 5.2 orbit) → 6 (Trend-Community merge) → 7 (Hụi Pet teaser) → 8 (cleanup tier accordion)
 - **Protocol mỗi phase**: plan + diff text → user APPROVE → backup `.phaseN-pre.bak` → Edit tool literal match → 6 checkpoint (backup/size/markers/SW/curl 302/node new Function) → restart vowvet-web → authed render 200 → screenshot user verify → next phase
 - **11 backup files** trong scope: `pet-score.astro.{phase2,phase3,phase4,phase45,phase451,phase5,phase51,phase53,phase6,phase7,phase8}-pre.bak`
-- **SW version progression**: v184 → v185 → v186 → v187 → v188 → v189 → v190 → v191 → **v193** (skip v192 = Phase 5.2 skipped) → v194 → v195 → **v196** (redesign final) → v197-205 (WOW arc) → **v206-208** (TopBar + dashboard wow; current `vowvet-v208-dashboard-wow`)
+- **SW version progression**: v184 → v185 → v186 → v187 → v188 → v189 → v190 → v191 → **v193** (skip v192 = Phase 5.2 skipped) → v194 → v195 → **v196** (redesign final) → v197-205 (WOW arc) → v206-208 (TopBar + dashboard wow) → **v209-210** (color-sync + tier-gold; current `vowvet-v210-tier-gold`)
 - **File pet-score.astro size**: 26.8KB (v184 start) → 79.1KB (v196 end). Tăng chủ yếu inline CSS các phase + SSR stars data + ticker logic + Hụi Pet teaser.
 - **Verification record**: 6/6 checkpoint pass mỗi phase. Authed render `[200] /pets/12/pet-score` verified Phase 2, 5, 5.1, 8 (logs `vowvet-web --tail`).
 - **ZERO rollback** cần dùng. Backup mechanism proven nhưng chưa kích hoạt thật.
