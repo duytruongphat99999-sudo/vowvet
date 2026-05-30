@@ -94,13 +94,17 @@ function psStarStateClass(v: number, m: number): string {
   if (m > 0 && v / m > 0.5) return "star-bright";
   return "star-faint";
 }
-const stars = (scoreData.breakdown?.components || []).map((c: any) => {
+const stars = (scoreData.breakdown?.components || []).map((c: any, idx: number) => {
   const pos = STAR_POSITIONS[c.key] || { x: 160, y: 160 };
   const bucket = psStarBucket(c.current_value, c.max_possible);
   const r = bucket === "sm" ? 4 : bucket === "md" ? 7 : 10;
   return {
     key: c.key,
     enterExpr: `hoveredComponent = score.breakdown.components.find(s => s.key === '${c.key}')`,
+    // v197 — precomputed Alpine expr strings (proven-safe vs inline template-literal-in-JSX)
+    activeClassExpr: `displayedComponent && displayedComponent.key === '${c.key}' ? 'star-active' : (displayedComponent ? 'star-dimmed' : '')`,
+    threadOnExpr: `displayedComponent && displayedComponent.key === '${c.key}' ? 'thread-on' : ''`,
+    breathStyle: `animation-delay:-${(idx * 0.24).toFixed(2)}s`,
     x: pos.x,
     y: pos.y,
     r,
@@ -114,6 +118,9 @@ const stars = (scoreData.breakdown?.components || []).map((c: any) => {
     tipY: Math.max(4, pos.y - 70),
   };
 });
+
+// v198 — đếm số sao "bright" (star-bright) ở SSR cho counter header constellation.
+const brightCount = stars.filter((s) => s.stateClass === "star-bright").length;
 ---
 
 <Layout title={`Pet Score ${pet.name} · VowVet`} description={`Mon Min Pet Score ${scoreData.score}/1000 - ${scoreData.level.name_vi}`}>
@@ -410,7 +417,7 @@ const stars = (scoreData.breakdown?.components || []).map((c: any) => {
     .ticker-panel { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; padding: 4px; }
     .ticker-panel.ticker-auto { animation: ticker-fade-in 0.6s ease-out; }
     .ticker-panel.ticker-hovered { animation: ticker-pop 0.2s ease-out; }
-    .ticker-icon { font-size: 16px; line-height: 1; }
+    .ticker-icon { width: 18px; height: 18px; color: #ecb921; display: inline-flex; align-items: center; justify-content: center; }
     .ticker-label { font-family: var(--font-display, 'Fraunces', serif); font-style: italic; font-size: 10px; font-weight: 600; color: #ecb921; line-height: 1.1; display: block; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ticker-value { font-family: var(--font-mono); font-size: 9px; color: rgba(255,255,255,0.75); letter-spacing: 0.05em; }
     @keyframes ticker-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
@@ -422,9 +429,27 @@ const stars = (scoreData.breakdown?.components || []).map((c: any) => {
     .legend-faint { background: rgba(236,185,33,0.4); }
     .legend-neutral { background: rgba(255,255,255,0.2); }
     .legend-penalty { background: rgba(255,255,255,0.25); border: 1px solid #B48608; }
+    /* ── v197: Active Star Sync — ambient drift + breath + active glow + gold thread ── */
+    .star-dust { animation: dust-drift 7s ease-in-out infinite; }
+    @keyframes dust-drift { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(2px, -3px); } }
+    .star-breath { transform-box: fill-box; transform-origin: center; animation: star-breath 3.6s ease-in-out infinite; }
+    @keyframes star-breath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+    .star-wrapper { transition: opacity 0.4s ease; }
+    .star-dimmed { opacity: 0.55; }
+    .star-wrapper.star-active .star-dot { transform: scale(1.5); fill: #ecb921; filter: drop-shadow(0 0 10px rgba(236,185,33,0.95)); will-change: transform, filter; }
+    .star-thread { stroke: #ecb921; stroke-opacity: 0; stroke-width: 1; pointer-events: none; transition: stroke-opacity 0.4s ease; }
+    .star-thread.thread-on { stroke-opacity: 0.5; stroke-dasharray: 4 4; animation: thread-pull 1s linear infinite; }
+    @keyframes thread-pull { to { stroke-dashoffset: -8; } }
+    /* ── v198: Bright-star counter pill (header, góc phải) — gold brand only ── */
+    .bright-counter { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 9999px; border: 1px solid rgba(180,134,8,0.35); background: rgba(236,185,33,0.05); font-family: var(--font-mono, ui-monospace); line-height: 1.5; }
+    .bright-counter-dot { width: 6px; height: 6px; border-radius: 50%; background: #ecb921; box-shadow: 0 0 6px rgba(236,185,33,0.85); flex-shrink: 0; animation: bright-dot-pulse 2.4s ease-in-out infinite; }
+    .bright-counter-dot.is-zero { background: rgba(180,134,8,0.4); box-shadow: none; animation: none; }
+    .bright-counter-num { color: #ecb921; font-weight: 800; font-size: 12px; letter-spacing: 0.02em; }
+    .bright-counter-rest { color: rgba(180,134,8,0.7); font-weight: 600; font-size: 8px; text-transform: uppercase; letter-spacing: 0.14em; }
+    @keyframes bright-dot-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(236,185,33,0.85); } 50% { opacity: 0.6; box-shadow: 0 0 2px rgba(236,185,33,0.4); } }
     @media (prefers-reduced-motion: reduce) {
-      .const-rings, .star-bright .star-dot, .star-dust circle, .ticker-panel { animation: none !important; }
-      .star-wrapper:hover .star-dot { transform: none; }
+      .const-rings, .star-bright .star-dot, .star-dust circle, .star-dust, .star-breath, .star-thread, .ticker-panel, .bright-counter-dot { animation: none !important; }
+      .star-dot, .star-wrapper, .star-thread { transition: none !important; }
     }
 
     /* === Phase 6: Trend + Community merged === */
@@ -821,12 +846,16 @@ const stars = (scoreData.breakdown?.components || []).map((c: any) => {
 
       <!-- Constellation Star Map — Phase 5 (SSR) -->
       <section class="constellation-section" aria-labelledby="map-heading">
-        <div class="flex items-baseline justify-between mb-3">
-          <h2 id="map-heading" class="font-bold text-white flex items-center gap-2">
+        <div class="flex items-start justify-between mb-3">
+          <h2 id="map-heading" class="font-bold flex items-center gap-2" style="color: rgba(255,255,255,0.55)">
             <span class="w-5 h-5 inline-flex shrink-0 text-mmp-gold" x-html="iconSvg('star')" aria-hidden="true"></span>
             <span>Constellation — 15 cực của Bé <span x-text="pet.name" class="italic"></span></span>
           </h2>
-          <span class="text-[10px] italic text-mmp-gold/65">15 thành tố</span>
+          <span class="bright-counter" aria-label={`${brightCount} trên ${stars.length} cực sáng`}>
+            <span class={brightCount > 0 ? "bright-counter-dot" : "bright-counter-dot is-zero"} aria-hidden="true"></span>
+            <span class="bright-counter-num">{brightCount}</span>
+            <span class="bright-counter-rest">/ {stars.length} cực sáng</span>
+          </span>
         </div>
         <div class="constellation-svg-wrapper">
           <svg viewBox="0 0 320 320" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
@@ -856,9 +885,21 @@ const stars = (scoreData.breakdown?.components || []).map((c: any) => {
               <circle cx="160" cy="160" r="130" fill="none" stroke="rgba(236,185,33,0.18)" stroke-width="0.8" stroke-dasharray="3 5"/>
               <circle cx="160" cy="160" r="95" fill="none" stroke="rgba(236,185,33,0.12)" stroke-width="0.6" stroke-dasharray="2 4"/>
             </g>
+            <g class="star-threads" aria-hidden="true">
+              {stars.map((s) => (
+                <line x1={s.x} y1={s.y} x2="160" y2="160" class="star-thread" :class={s.threadOnExpr} />
+              ))}
+            </g>
             {stars.map((s) => (
-              <g class={`star-wrapper ${s.stateClass} star-size-${s.bucket}`} @mouseenter={s.enterExpr} @mouseleave="hoveredComponent = null">
-                <circle cx={s.x} cy={s.y} r={s.r} class="star-dot" />
+              <g
+                class={`star-wrapper ${s.stateClass} star-size-${s.bucket}`}
+                :class={s.activeClassExpr}
+                @mouseenter={s.enterExpr}
+                @mouseleave="hoveredComponent = null"
+              >
+                <g class="star-breath" style={s.breathStyle}>
+                  <circle cx={s.x} cy={s.y} r={s.r} class="star-dot" />
+                </g>
                 <foreignObject x={s.tipX} y={s.tipY} width="180" height="84" class="star-tooltip">
                   <div xmlns="http://www.w3.org/1999/xhtml" class="star-tooltip-inner">
                     <strong>{s.label_vi}</strong>
@@ -871,7 +912,7 @@ const stars = (scoreData.breakdown?.components || []).map((c: any) => {
             <circle cx="160" cy="160" r="42" fill="rgba(236,185,33,0.08)" stroke="rgba(236,185,33,0.4)" stroke-width="1"/>
             <foreignObject x="115" y="125" width="90" height="70" style="pointer-events: none;">
               <div xmlns="http://www.w3.org/1999/xhtml" class="ticker-panel" x-show="displayedComponent" :class="hoveredComponent ? 'ticker-hovered' : 'ticker-auto'">
-                <span class="ticker-icon" x-text="displayedComponent?.icon || '✦'"></span>
+                <span class="ticker-icon" x-html="displayedComponent ? iconSvg(componentIconKey(displayedComponent.key)) : ''" aria-hidden="true"></span>
                 <span class="ticker-label" x-text="displayedComponent?.label_vi"></span>
                 <span class="ticker-value" x-text="`${displayedComponent?.current_value > 0 ? '+' : ''}${displayedComponent?.current_value} / ${displayedComponent?.max_possible}`"></span>
               </div>
