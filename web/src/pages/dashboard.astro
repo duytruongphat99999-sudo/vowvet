@@ -56,21 +56,17 @@ let nudges: any = null;
 let scoreInfo: any = null;
 let community: any = null;
 let urgentAlerts: any = null;
-let chatUnreadTotal = 0;
-let hasUrgentClimate = false;
 let carePlanSummary: any = null;
 let carePlanTotalItems = 0;
 
 if (primaryPet) {
-  const [m, q, n, s, c, u, chat, climate, cps, cpp] = await Promise.all([
+  const [m, q, n, s, c, u, cps, cpp] = await Promise.all([
     safeJson(`${API_INTERNAL}/api/v1/mood/pets/${primaryPet.id}`),
     safeJson(`${API_INTERNAL}/api/v1/quests/pets/${primaryPet.id}/today`),
     safeJson(`${API_INTERNAL}/api/v1/nudges/pets/${primaryPet.id}`),
     safeJson(`${API_INTERNAL}/api/v1/pets/${primaryPet.id}/pet-score`),
     safeJson(`${API_INTERNAL}/api/v1/community/feed?limit=3`),
     safeJson(`${API_INTERNAL}/api/v1/alerts/urgent/${primaryPet.id}`),
-    safeJson(`${API_INTERNAL}/api/v1/chat/threads?limit=50`),
-    safeJson(`${API_INTERNAL}/api/v1/alerts/today`),
     safeJson(`${API_INTERNAL}/api/v1/pets/${primaryPet.id}/care-plan/completions/summary`),
     safeJson(`${API_INTERNAL}/api/v1/pets/${primaryPet.id}/care-plan/v2/preview`),
   ]);
@@ -87,18 +83,6 @@ if (primaryPet) {
       (cpp.plan.eating?.items?.length || 0) +
       (cpp.plan.exercise?.items?.length || 0) +
       (cpp.plan.monitoring?.length || 0);
-  }
-  if (chat) {
-    chatUnreadTotal = (chat.threads || []).reduce(
-      (sum: number, t: any) => sum + (t.unread_count_owner || 0),
-      0,
-    );
-  }
-  if (climate) {
-    hasUrgentClimate = (climate.alerts || []).some((a: any) => {
-      const sev = typeof a.severity === "object" ? a.severity?.value : a.severity;
-      return (sev === "urgent" || sev === "critical") && !a.dismissed_at;
-    });
   }
 }
 

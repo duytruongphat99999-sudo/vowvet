@@ -3,9 +3,8 @@
  * Layout chính cho mọi trang VowVet.
  * Bao gồm: meta tags VN, Alpine.js, global CSS, PWA manifest tự inject.
  *
- * v83: Global quick-nav — floating top-right cluster (brand logo + pet avatar).
- * Visible on all pages when logged in. Click brand → /dashboard, click pet → /pets/:id.
- * Hidden when logged out + on print.
+ * v207: Quick-nav floating đã gỡ — mỗi page dùng header ngữ cảnh (back+title),
+ * dashboard dùng TopBar. Layout chỉ còn meta/PWA/SW shell.
  */
 interface Props {
   title?: string;
@@ -18,33 +17,6 @@ const {
 } = Astro.props;
 
 const locale = Astro.locals.locale ?? "vi";
-
-// v83: SSR fetch user's first pet for quick-nav avatar (silent fail, best effort)
-const sessionUser = Astro.locals.user;
-let quickNavPet: { id: number; name: string; photo_url: string | null } | null = null;
-if (sessionUser) {
-  try {
-    const cookieHeader = Astro.request.headers.get("cookie") || "";
-    const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
-    const res = await fetch(`${API_INTERNAL}/api/v1/pets`, {
-      headers: { cookie: cookieHeader },
-      signal: AbortSignal.timeout(800),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data?.pets) && data.pets.length > 0) {
-        const p = data.pets[0];
-        quickNavPet = {
-          id: Number(p.id),
-          name: String(p.name || "Pet"),
-          photo_url: p.photo_url || null,
-        };
-      }
-    }
-  } catch (_) {
-    // Silent — quick-nav hides pet avatar gracefully if API fails
-  }
-}
 ---
 
 <!doctype html>
@@ -81,29 +53,7 @@ if (sessionUser) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <slot name="head" />
   </head>
-  <body data-route={Astro.url.pathname}>
-    {sessionUser && (
-      <div class="vowvet-quick-nav no-print" aria-label="VowVet quick nav">
-        <a href="/dashboard" class="vowvet-quick-nav__brand" aria-label="VowVet · Trang chính" title="VowVet · Trang chính">
-          <img src="/logo-mmp.png" alt="" width="32" height="32" />
-        </a>
-        {quickNavPet && (() => {
-          const petName = String(quickNavPet.name || "").trim() || "Pet";
-          const petPhoto = quickNavPet.photo_url || "";
-          const initial = petName.charAt(0).toUpperCase() || "?";
-          return (
-            <a href={`/pets/${quickNavPet.id}`} class="vowvet-quick-nav__pet" aria-label={`Đến hồ sơ ${petName}`} title={`Đến hồ sơ ${petName}`}>
-              {petPhoto ? (
-                <img src={petPhoto} alt={petName} loading="eager" decoding="async" />
-              ) : (
-                <span class="vowvet-quick-nav__pet-fallback">{initial}</span>
-              )}
-              <span class="vowvet-quick-nav__pet-ping" aria-hidden="true"></span>
-            </a>
-          );
-        })()}
-      </div>
-    )}
+  <body>
     <slot />
 
     <!-- v136: SW update toast — hiển thị khi service worker activate phiên bản mới.
