@@ -110,15 +110,15 @@ const cardDataJson = JSON.stringify(cardData);
       </span>
       <div class="min-w-0">
         <h2 class="font-bold text-mmp-ink leading-tight">Hoạt động tích điểm</h2>
-        <p class="text-[10px] text-slate-500 leading-tight">Tăng Pet Score · khám phá tính năng</p>
+        <p class="text-[10px] text-mmp-ink/55 leading-tight">Tăng Pet Score · khám phá tính năng</p>
       </div>
     </div>
 
     <div class="flex items-center gap-2 shrink-0">
       <!-- Counter pill -->
-      <span class="inline-flex items-center gap-1 text-sm font-bold tabular-nums px-2.5 py-1 rounded-full bg-white border border-slate-200">
+      <span class="inline-flex items-center gap-1 text-sm font-bold tabular-nums px-2.5 py-1 rounded-full bg-white border border-mmp-cream">
         <span class="text-mmp-ink">{completed_count}</span>
-        <span class="text-slate-300 font-normal">/</span>
+        <span class="text-mmp-ink/25 font-normal">/</span>
         <span style="color: var(--c-gold);">3</span>
       </span>
 
@@ -136,7 +136,7 @@ const cardDataJson = JSON.stringify(cardData);
       )}
 
       {/* Chevron — rotates 180° when widget collapsed */}
-      <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 group-hover:text-mmp-ink transition">
+      <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-mmp-ink/45 group-hover:text-mmp-ink transition">
         <svg class="w-4 h-4 transition-transform duration-200"
              :class="!widgetOpen && '-rotate-90'"
              viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -161,7 +161,7 @@ const cardDataJson = JSON.stringify(cardData);
        class="space-y-3">
 
     <!-- Progress bar — solid brand gold (v30: synced với toàn site, không gradient nhạt giữa) -->
-    <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+    <div class="h-1.5 bg-mmp-ink/[0.06] rounded-full overflow-hidden">
       <div class="h-full rounded-full transition-all duration-700"
            style={`width: ${progressPct}%; background-color: var(--c-gold);`}>
       </div>
@@ -169,12 +169,12 @@ const cardDataJson = JSON.stringify(cardData);
 
     {quests.length === 0 ? (
       <!-- Empty state (rare after API top-up) -->
-      <div class="bg-white border border-slate-100 rounded-3xl p-6 text-center">
+      <div class="bg-white border border-mmp-cream rounded-3xl p-6 text-center">
         <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-mmp-cream mx-auto mb-3">
           <FeatureIcon name="clock" class="w-6 h-6" strokeWidth={1.7} style="color: var(--c-gold);" />
         </span>
         <p class="text-sm font-bold text-mmp-ink">Quest hôm nay sắp tới</p>
-        <p class="text-xs text-slate-500 mt-1">Tự động assign mỗi 7h sáng</p>
+        <p class="text-xs text-mmp-ink/55 mt-1">Tự động assign mỗi 7h sáng</p>
       </div>
     ) : (
       <!-- 3-card grid (tap a card to expand inline detail below) -->
@@ -189,7 +189,7 @@ const cardDataJson = JSON.stringify(cardData);
                       class={`group relative block w-full h-full bg-white border rounded-2xl p-3 text-center overflow-hidden transition-all ${
                         c.completed
                           ? "border-emerald-200"
-                          : "border-slate-200 hover:border-mmp-ink hover:shadow-md active:scale-95"
+                          : "border-mmp-cream hover:border-mmp-ink hover:shadow-md active:scale-95"
                       }`}
                       :aria-expanded={`expandedIdx === ${idx}`}>
                 {/* Top difficulty stripe */}
@@ -201,7 +201,7 @@ const cardDataJson = JSON.stringify(cardData);
                 </div>
 
                 <p class={`text-[11px] font-medium leading-tight line-clamp-2 min-h-[2.1em] bg-transparent ${
-                  c.completed ? "text-zinc-400 opacity-40" : "text-mmp-ink"
+                  c.completed ? "text-mmp-ink/35 opacity-40" : "text-mmp-ink"
                 }`}>
                   {c.name}
                 </p>
@@ -257,7 +257,7 @@ const cardDataJson = JSON.stringify(cardData);
               )}
             </div>
             <button type="button" @click="expandedIdx = null"
-                    class="text-slate-400 hover:text-mmp-ink shrink-0 -mt-1 -mr-1 p-1" aria-label="Đóng">
+                    class="text-mmp-ink/45 hover:text-mmp-ink shrink-0 -mt-1 -mr-1 p-1" aria-label="Đóng">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <path d="M6 6l12 12M6 18L18 6"/>
               </svg>
@@ -270,7 +270,7 @@ const cardDataJson = JSON.stringify(cardData);
               <FeatureIcon name="info" class="w-3 h-3" strokeWidth={2} style="color: var(--c-gold);" />
               Tại sao quest này?
             </p>
-            <p class="text-xs text-slate-700 leading-relaxed">{c.why_text}</p>
+            <p class="text-xs text-mmp-ink/70 leading-relaxed">{c.why_text}</p>
           </div>
 
           {/* CTA or completed state */}
@@ -288,7 +288,7 @@ const cardDataJson = JSON.stringify(cardData);
             </div>
           ) : (
             <a href={c.cta_link}
-               class="inline-flex items-center justify-center w-full gap-2 bg-mmp-ink text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-slate-800 active:scale-[0.99] transition">
+               class="inline-flex items-center justify-center w-full gap-2 bg-mmp-ink text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-mmp-ink/90 active:scale-[0.99] transition">
               <span>{c.cta_button_label}</span>
             </a>
           )}
@@ -298,7 +298,7 @@ const cardDataJson = JSON.stringify(cardData);
 
     {/* Pedagogical hint when 0/3 done */}
     {completed_count === 0 && quests.length === 3 && (
-      <p class="text-center text-[11px] text-slate-500 italic">
+      <p class="text-center text-[11px] text-mmp-ink/55 italic">
         Hoàn thành cả 3 quest → <strong class="not-italic" style="color: var(--c-gold);">+{trifecta_bonus} Pet Score bonus</strong>
       </p>
     )}

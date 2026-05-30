@@ -35,24 +35,24 @@ const TYPE_META: Record<string, {
   render: (e: CommunityEvent) => string;
 }> = {
   tier_up: {
-    icon: "trophy", ringColor: "ring-amber-300", textColor: "text-amber-700", bgTint: "bg-amber-50/50", accent: "#f59e0b",
-    render: (e) => `Bé <strong>${e.pet_name}</strong> lên tier <strong style="color:#f59e0b">${e.event_data?.new_tier || "mới"}</strong>`,
+    icon: "trophy", ringColor: "ring-mmp-gold/30", textColor: "text-mmp-gold", bgTint: "bg-mmp-cream/40", accent: "#ecb921",
+    render: (e) => `Bé <strong>${e.pet_name}</strong> lên tier <strong style="color:#ecb921">${e.event_data?.new_tier || "mới"}</strong>`,
   },
   achievement_unlock: {
-    icon: "medal", ringColor: "ring-yellow-300", textColor: "text-yellow-700", bgTint: "bg-yellow-50/50", accent: "#ecb921",
+    icon: "medal", ringColor: "ring-mmp-gold/30", textColor: "text-mmp-gold", bgTint: "bg-mmp-cream/40", accent: "#ecb921",
     render: (e) => `Bé <strong>${e.pet_name}</strong> mở khoá <strong style="color:#ecb921">huy hiệu mới</strong>`,
   },
   hero_action: {
-    icon: "hero", ringColor: "ring-emerald-300", textColor: "text-emerald-700", bgTint: "bg-emerald-50/50", accent: "#10b981",
-    render: (e) => `<strong>${e.pet_name}</strong> vừa <strong style="color:#10b981">giúp tìm pet hàng xóm</strong>`,
+    icon: "hero", ringColor: "ring-mmp-gold/30", textColor: "text-mmp-gold", bgTint: "bg-mmp-cream/40", accent: "#ecb921",
+    render: (e) => `<strong>${e.pet_name}</strong> vừa <strong style="color:#ecb921">giúp tìm pet hàng xóm</strong>`,
   },
   new_match: {
-    icon: "hearts", ringColor: "ring-rose-300", textColor: "text-rose-600", bgTint: "bg-rose-50/50", accent: "#f43f5e",
-    render: (e) => `Bé <strong>${e.pet_name}</strong> vừa <strong style="color:#f43f5e">match Playdate</strong>`,
+    icon: "hearts", ringColor: "ring-mmp-gold/30", textColor: "text-mmp-gold", bgTint: "bg-mmp-cream/40", accent: "#ecb921",
+    render: (e) => `Bé <strong>${e.pet_name}</strong> vừa <strong style="color:#ecb921">match Playdate</strong>`,
   },
   birthday: {
-    icon: "cake", ringColor: "ring-pink-300", textColor: "text-pink-600", bgTint: "bg-pink-50/50", accent: "#ec4899",
-    render: (e) => `Hôm nay <strong style="color:#ec4899">sinh nhật</strong> bé <strong>${e.pet_name}</strong>`,
+    icon: "cake", ringColor: "ring-mmp-gold/30", textColor: "text-mmp-gold", bgTint: "bg-mmp-cream/40", accent: "#ecb921",
+    render: (e) => `Hôm nay <strong style="color:#ecb921">sinh nhật</strong> bé <strong>${e.pet_name}</strong>`,
   },
 };
 
@@ -96,13 +96,13 @@ function relativeTime(iso: string): { text: string; isFresh: boolean } {
 
     <div class="space-y-2.5">
       {top.map((e, idx) => {
-        const meta = TYPE_META[e.event_type] || { icon: "star", ringColor: "ring-slate-300", textColor: "text-slate-500", bgTint: "bg-slate-50", accent: "#94a3b8", render: () => `Bé <strong>${e.pet_name}</strong>` };
+        const meta = TYPE_META[e.event_type] || { icon: "star", ringColor: "ring-mmp-gold/30", textColor: "text-mmp-gold", bgTint: "bg-mmp-cream/40", accent: "#ecb921", render: () => `Bé <strong>${e.pet_name}</strong>` };
         const text = meta.render(e);
         const rel = relativeTime(e.created_at);
         return (
           <a
             href="/community"
-            class={`group relative flex items-center gap-3 p-3 sm:p-3.5 ${meta.bgTint} bg-white rounded-2xl border border-slate-100 hover:border-mmp-ink/20 hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden`}
+            class={`group relative flex items-center gap-3 p-3 sm:p-3.5 ${meta.bgTint} bg-white rounded-2xl border border-mmp-cream hover:border-mmp-ink/20 hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden`}
             style={`background-image: linear-gradient(90deg, ${meta.accent}10 0%, transparent 12%, transparent 100%);`}
           >
             {/* LEFT accent stripe (gradient — widens on hover) */}
@@ -131,9 +131,9 @@ function relativeTime(iso: string): { text: string; isFresh: boolean } {
 
             {/* Content */}
             <div class="flex-1 min-w-0">
-              <p class="text-sm text-slate-700 leading-snug" set:html={text}></p>
+              <p class="text-sm text-mmp-ink/70 leading-snug" set:html={text}></p>
               <div class="flex items-center gap-1.5 mt-1">
-                <span class="text-[10px] text-slate-400 tabular-nums">{rel.text}</span>
+                <span class="text-[10px] text-mmp-ink/45 tabular-nums">{rel.text}</span>
                 {rel.isFresh && (
                   <span class="inline-flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                     <span class="relative flex h-1 w-1">
@@ -147,7 +147,7 @@ function relativeTime(iso: string): { text: string; isFresh: boolean } {
             </div>
 
             {/* Right chevron — subtle, slides on hover */}
-            <span class="text-slate-300 group-hover:text-mmp-ink group-hover:translate-x-0.5 transition flex-shrink-0">
+            <span class="text-mmp-ink/25 group-hover:text-mmp-ink group-hover:translate-x-0.5 transition flex-shrink-0">
               <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2.2} />
             </span>
           </a>
@@ -156,7 +156,7 @@ function relativeTime(iso: string): { text: string; isFresh: boolean } {
     </div>
 
     {/* "X người chăm pet đang online" footer ticker */}
-    <p class="text-center text-[10px] text-slate-500 mt-2 inline-flex items-center justify-center gap-1 w-full">
+    <p class="text-center text-[10px] text-mmp-ink/55 mt-2 inline-flex items-center justify-center gap-1 w-full">
       <span class="relative flex h-1.5 w-1.5">
         <span class="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping bg-emerald-400"></span>
         <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>

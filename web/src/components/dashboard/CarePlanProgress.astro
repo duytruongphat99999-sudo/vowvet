@@ -40,7 +40,7 @@ const fullyDone = totalItems > 0 && completedCount >= totalItems;
 ---
 
 <a href={`/pets/${petId}/care-plan`}
-   class="group block bg-white rounded-3xl border border-slate-100 hover:border-mmp-ink hover:shadow-md p-5 transition-all">
+   class="group block bg-white rounded-3xl border border-mmp-cream hover:border-mmp-ink hover:shadow-md p-5 transition-all">
 
   <div class="flex items-start justify-between gap-3 mb-3">
     <div class="inline-flex items-center gap-2 min-w-0">
@@ -49,20 +49,20 @@ const fullyDone = totalItems > 0 && completedCount >= totalItems;
       </span>
       <div class="min-w-0">
         <h3 class="font-bold text-mmp-ink leading-tight">Care Plan hôm nay</h3>
-        <p class="text-[11px] text-slate-500 leading-tight mt-0.5">
+        <p class="text-[11px] text-mmp-ink/55 leading-tight mt-0.5">
           {totalItems > 0
             ? `${completedCount}/${totalItems} hoạt động · ${pct}%`
             : `${completedCount} hoạt động đã làm hôm nay`}
         </p>
       </div>
     </div>
-    <span class="inline-flex items-center text-slate-400 group-hover:text-mmp-ink group-hover:translate-x-0.5 transition" aria-hidden="true">
+    <span class="inline-flex items-center text-mmp-ink/45 group-hover:text-mmp-ink group-hover:translate-x-0.5 transition" aria-hidden="true">
       <FeatureIcon name="arrow" class="w-4 h-4" strokeWidth={2} />
     </span>
   </div>
 
   {/* Progress bar — gold gradient, identical to QuestStrip style */}
-  <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+  <div class="h-1.5 bg-mmp-ink/[0.06] rounded-full overflow-hidden">
     <div class="h-full rounded-full transition-all duration-700"
          style={`width: ${pct}%; background: linear-gradient(90deg, var(--c-gold) 0%, #fde68a 50%, var(--c-gold) 100%);`}>
     </div>
@@ -84,7 +84,7 @@ const fullyDone = totalItems > 0 && completedCount >= totalItems;
         Còn <span style="color: var(--c-gold);">{Math.max(0, (totalItems || 0) - completedCount)}</span> hoạt động →
       </span>
     ) : (
-      <span class="text-[11px] font-medium text-slate-500 italic">
+      <span class="text-[11px] font-medium text-mmp-ink/55 italic">
         Mở Care Plan để bắt đầu →
       </span>
     )}

@@ -43,13 +43,13 @@ const items = [
     {items.map((item) => (
       <a
         href={item.href}
-        class="group block bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 hover:border-mmp-ink hover:shadow-md transition-all"
+        class="group block bg-white rounded-2xl p-4 sm:p-5 border border-mmp-cream hover:border-mmp-ink hover:shadow-md transition-all"
       >
         <div class="w-12 h-12 rounded-xl bg-mmp-ink/5 flex items-center justify-center mb-3 group-hover:bg-mmp-gold/15 transition">
           <FeatureIcon name={item.icon} class="w-6 h-6 text-mmp-ink" strokeWidth={1.7} />
         </div>
         <h3 class="font-bold text-sm text-mmp-ink">{item.label}</h3>
-        <p class="text-[11px] text-slate-500 mt-0.5">{item.sub}</p>
+        <p class="text-[11px] text-mmp-ink/55 mt-0.5">{item.sub}</p>
       </a>
     ))}
   </div>

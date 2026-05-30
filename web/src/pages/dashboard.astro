@@ -114,7 +114,7 @@ const urgentList = urgentAlerts?.alerts || [];
           </div>
           <div class="flex-1 min-w-0">
             <p class="font-bold text-mmp-ink">Chào mừng đến VowVet, {displayName}!</p>
-            <p class="text-xs text-slate-700 mt-0.5">Bé yêu đã được tạo. Bắt đầu chăm sóc bé nào.</p>
+            <p class="text-xs text-mmp-ink/70 mt-0.5">Bé yêu đã được tạo. Bắt đầu chăm sóc bé nào.</p>
           </div>
         </div>
       )}
@@ -128,13 +128,13 @@ const urgentList = urgentAlerts?.alerts || [];
 
       {!primaryPet ? (
         <!-- Empty state — no pets yet -->
-        <section class="bg-white rounded-3xl border border-slate-200 p-10 text-center">
+        <section class="bg-white rounded-3xl border border-mmp-cream p-10 text-center">
           <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-mmp-cream mb-4 text-mmp-ink/40">
             <FeatureIcon name="paw" class="w-10 h-10" />
           </div>
           <h2 class="text-xl font-bold text-mmp-ink mb-2">Chưa có pet nào</h2>
-          <p class="text-sm text-slate-600 mb-6">Thêm bé đầu tiên để bắt đầu hành trình chăm sóc.</p>
-          <a href="/pets/new" class="inline-flex items-center gap-2 bg-mmp-ink hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-xl transition">
+          <p class="text-sm text-mmp-ink/70 mb-6">Thêm bé đầu tiên để bắt đầu hành trình chăm sóc.</p>
+          <a href="/pets/new" class="inline-flex items-center gap-2 bg-mmp-ink hover:bg-mmp-ink/90 text-white font-bold px-6 py-3 rounded-xl transition">
             <FeatureIcon name="plus" class="w-4 h-4" strokeWidth={2.5} />
             Thêm pet đầu tiên
           </a>
@@ -212,7 +212,7 @@ const urgentList = urgentAlerts?.alerts || [];
               </div>
               <div class="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
                 {pets.slice(0, 8).map((p: any) => (
-                  <a href={`/pets/${p.id}`} class="block bg-white rounded-2xl border border-slate-100 hover:border-mmp-ink hover:shadow transition overflow-hidden">
+                  <a href={`/pets/${p.id}`} class="block bg-white rounded-2xl border border-mmp-cream hover:border-mmp-ink hover:shadow transition overflow-hidden">
                     <div class="aspect-square bg-mmp-cream flex items-center justify-center text-mmp-ink/30">
                       {p.photo_url ? (
                         <img src={p.photo_url} alt={p.name} class="w-full h-full object-cover" loading="lazy" />
@@ -252,20 +252,20 @@ const urgentList = urgentAlerts?.alerts || [];
         </div>
 
         <!-- Row 2: secondary links (smaller, muted) — NOTE: Cài đặt removed (already in top nav ⚙) -->
-        <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+        <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-mmp-ink/55">
           <a href="/why-vowvet" class="hover:text-mmp-ink transition">Vì sao VowVet</a>
-          <span class="text-slate-300">·</span>
+          <span class="text-mmp-ink/25">·</span>
           <a href="/insurance" class="hover:text-mmp-ink transition">Bảo hiểm</a>
-          <span class="text-slate-300">·</span>
+          <span class="text-mmp-ink/25">·</span>
           <a href="https://bio.monminpet.com" target="_blank" rel="noopener" class="hover:text-mmp-ink transition inline-flex items-center gap-1">
             Tư vấn BSTY
             <FeatureIcon name="external" class="w-3 h-3" strokeWidth={2} />
           </a>
-          <span class="text-slate-300">·</span>
-          <a href="/logout" class="hover:text-red-600 transition">Đăng xuất</a>
+          <span class="text-mmp-ink/25">·</span>
+          <a href="/logout" class="hover:text-mmp-ink transition">Đăng xuất</a>
         </div>
 
-        <p class="text-center mt-3 text-[10px] text-slate-400">
+        <p class="text-center mt-3 text-[10px] text-mmp-ink/45">
           VowVet by Mon Min Pet · © 2026 CTY TNHH Duy Trường Phát
         </p>
       </footer>
