@@ -11,13 +11,13 @@
  *   6. QuickAccess  — 3×2 grid quick links
  *   7. CommunityMini — top 3 community events
  *
- * Plus: sticky header with Logo + actions, EcosystemNav footer.
+ * Plus: sticky TopBar (logo + actions, client-side counts), EcosystemNav footer.
  *
  * SSR-first with parallel fetches. Fail-soft: any failed endpoint just hides
  * its zone — dashboard stays usable.
  */
 import Layout from "../layouts/Layout.astro";
-import Logo from "../components/Logo.astro";
+import TopBar from "../components/TopBar.astro";
 import FeatureIcon from "../components/FeatureIcon.astro";
 import EcosystemNav from "../components/EcosystemNav.astro";
 import PetHeroCard from "../components/dashboard/PetHeroCard.astro";
@@ -117,41 +117,8 @@ const urgentList = urgentAlerts?.alerts || [];
 <Layout title={`${primaryPet ? primaryPet.name + " · " : ""}VowVet`}>
   <main class="min-h-screen pb-24 relative" style="background: linear-gradient(180deg, #f5f1eb 0%, #fafaf7 30%, #fafafa 60%, #f5f1eb 100%);">
 
-    <!-- ─── Sticky header with brand Logo + actions ─── -->
-    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200">
-      <div class="max-w-screen-md mx-auto px-4 h-16 flex items-center justify-between gap-3">
-        <Logo variant="default" href="/dashboard" />
-        <nav class="flex items-center gap-1 sm:gap-1.5">
-          {primaryPet && (
-            <a href={`/pets/${primaryPet.id}`} class="dashboard-pet-jump" aria-label={`Đến hồ sơ ${primaryPet.name}`} title={`Hồ sơ ${primaryPet.name}`}>
-              {primaryPet.photo_url ? (
-                <img src={primaryPet.photo_url} alt={primaryPet.name} loading="eager" decoding="async" />
-              ) : (
-                <span class="dashboard-pet-jump__fallback">{(primaryPet.name || "?").charAt(0).toUpperCase()}</span>
-              )}
-              <span class="dashboard-pet-jump__ping" aria-hidden="true"></span>
-            </a>
-          )}
-          <a href="/alerts" class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 hover:text-mmp-ink hover:bg-slate-100 transition" title="Cảnh báo">
-            <FeatureIcon name="bell" class="w-5 h-5" strokeWidth={1.7} />
-            {hasUrgentClimate && (
-              <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-            )}
-          </a>
-          <a href="/chat" class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 hover:text-mmp-ink hover:bg-slate-100 transition" title="Chat">
-            <FeatureIcon name="message-circle" class="w-5 h-5" strokeWidth={1.7} />
-            {chatUnreadTotal > 0 && (
-              <span class="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center ring-2 ring-white">
-                {chatUnreadTotal}
-              </span>
-            )}
-          </a>
-          <a href="/settings" class="inline-flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 hover:text-mmp-ink hover:bg-slate-100 transition" title="Cài đặt">
-            <FeatureIcon name="settings" class="w-5 h-5" strokeWidth={1.7} />
-          </a>
-        </nav>
-      </div>
-    </header>
+    <!-- ─── Sticky TopBar (shared component — GĐ1) ─── -->
+    <TopBar pet={primaryPet} />
 
     <div class="max-w-screen-md mx-auto px-4 py-5 space-y-4 sm:space-y-5">
 
