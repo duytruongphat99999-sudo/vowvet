@@ -1,0 +1,419 @@
+---
+/**
+ * /chat — Thread list page (M9.2) — Brand Sync Pass 3 WOW v2.
+ *
+ * Sections (in order):
+ *   1. Sticky header (ink-on-white) — back + "Tin nhắn" + gold "+ Mới"
+ *   2. VET HERO ink card — avatar with emerald online dot + name + 3 credentials chips
+ *      + response time + privacy badge. Decorative gold orb top-right.
+ *   3. Empty state → "Bắt đầu nhanh" eyebrow + 4 quick-prompt cards
+ *      + "Hỏi câu khác" CTA + 3 trust signals (Riêng tư / BS thật / Lưu lịch sử)
+ *   4. List state → conversation cards with status badge + unread gold pill
+ *   5. Bottom info card — clinic + hours + emergency fallback
+ *
+ * Identity (brand-safe per task #57):
+ *   Vet name: env CLINIC_VET_NAME ?? "BSTY Mon Min Pet" (NOT "BS Duy Trường Phát")
+ *   Brand: "Mon Min Pet" (NOT "Mon Min PetCoach" — fixed in task #97)
+ *
+ * Pre-fill flow: quick-prompt cards link to /chat/new?subject={subject}
+ * — `chat/new.astro` reads ?subject= and pre-fills the form.
+ *
+ * No /messages route — only /chat (alias messages.astro 308-redirects to here).
+ */
+import Layout from "../../layouts/Layout.astro";
+import Button from "../../components/ui/Button.astro";
+import Badge from "../../components/ui/Badge.astro";
+import FeatureIcon from "../../components/FeatureIcon.astro";
+import {
+  getClinicInfo,
+  isClinicOpenNow,
+  getNextOpenTime,
+  getResponseTimeLabel,
+} from "../../../../shared/clinic-info.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login?return_to=/chat");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let threads: any[] = [];
+let loadError: string | null = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/chat/threads?limit=50`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) {
+    const j = await res.json();
+    threads = j.threads || [];
+  } else if (res.status === 401) {
+    return Astro.redirect("/login");
+  } else {
+    loadError = `Lỗi tải danh sách (${res.status})`;
+  }
+} catch (err: any) {
+  loadError = err?.message || "Lỗi kết nối";
+}
+
+const clinic = getClinicInfo();
+const vet = clinic.vet;
+const isOpen = isClinicOpenNow();
+const nextOpen = isOpen ? null : getNextOpenTime();
+const responseTime = getResponseTimeLabel();
+
+// Total unread across all threads (server-side aggregate from thread list)
+const totalUnread = threads.reduce(
+  (n, t) => n + (typeof t.unread_count_owner === "number" ? t.unread_count_owner : 0),
+  0
+);
+
+// Quick prompt suggestions — 4 cards on empty state (icon = FeatureIcon name, SVG only)
+const quickPrompts = [
+  {
+    icon: "bowl",
+    title: "Tư vấn dinh dưỡng",
+    description: "Brand nào phù hợp với bé? Calo bao nhiêu mỗi ngày?",
+    subject: "Tư vấn dinh dưỡng cho bé",
+  },
+  {
+    icon: "syringe",
+    title: "Lịch tiêm vaccine",
+    description: "Bé chưa tiêm gì, cần làm sao theo WSAVA?",
+    subject: "Tư vấn lịch tiêm vaccine",
+  },
+  {
+    icon: "stethoscope",
+    title: "Triệu chứng bất thường",
+    description: "Bé có dấu hiệu lạ — cần khám gấp không?",
+    subject: "Triệu chứng bất thường — cần khám không?",
+  },
+  {
+    icon: "paw",
+    title: "Chăm sóc hằng ngày",
+    description: "Cách chăm sóc đúng cho từng giai đoạn",
+    subject: "Hỏi cách chăm sóc hằng ngày cho bé",
+  },
+];
+
+// Format relative time VN
+function relTime(iso: string): string {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "—";
+  const diff = Date.now() - t;
+  if (diff < 60_000) return "Vừa xong";
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} phút trước`;
+  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} giờ trước`;
+  if (diff < 2 * 86400_000) return "Hôm qua";
+  if (diff < 7 * 86400_000) return `${Math.floor(diff / 86400_000)} ngày trước`;
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function statusBadge(status: string): { label: string; variant: "neutral" | "warning" | "success" } {
+  if (status === "waiting_vet") return { label: "Chờ bác sĩ", variant: "warning" };
+  if (status === "open") return { label: "Đang chat", variant: "success" };
+  if (status === "closed") return { label: "Đã đóng", variant: "neutral" };
+  return { label: status || "—", variant: "neutral" };
+}
+---
+
+<Layout title="Tin nhắn · VowVet" description="Tin nhắn với bác sĩ thú y Mon Min Pet">
+  <main class="min-h-screen bg-mmp-cream pb-12">
+
+    <!-- Sticky header -->
+    <header class="sticky top-0 z-30 bg-white border-b border-slate-200">
+      <div class="max-w-2xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-mmp-ink inline-flex items-center gap-1 transition">
+          <FeatureIcon name="arrow" class="w-4 h-4 rotate-180" strokeWidth={2} />
+          <span class="hidden sm:inline">Dashboard</span>
+        </a>
+        <h1 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-mmp-cream">
+            <FeatureIcon name="message-circle" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+          </span>
+          Tin nhắn
+          {totalUnread > 0 && (
+            <Badge variant="danger" size="sm">{totalUnread}</Badge>
+          )}
+        </h1>
+        <Button variant="gold" size="sm" href="/chat/new">+ Mới</Button>
+      </div>
+    </header>
+
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-6">
+
+      <!-- VET HERO CARD (always rendered — independent of thread count) -->
+      <div class="relative rounded-3xl bg-mmp-ink text-white overflow-hidden mb-6 shadow-lg">
+        <!-- Decorative orb -->
+        <div aria-hidden="true" class="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"
+             style="background: rgba(236, 185, 33, 0.16);"></div>
+
+        <div class="relative p-5 sm:p-6">
+          <div class="flex items-start gap-4">
+            <!-- Vet avatar with online indicator -->
+            <div class="relative shrink-0">
+              <div class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center ring-2 ring-amber-400/40"
+                   style="background: rgba(236, 185, 33, 0.18);">
+                {vet.photo_url ? (
+                  <img src={vet.photo_url} alt={vet.name} class="w-full h-full object-cover" />
+                ) : (
+                  <FeatureIcon name="user-md" class="w-8 h-8" strokeWidth={1.7} style="color: var(--c-gold);" />
+                )}
+              </div>
+              <!-- Online dot — emerald pulse khi mở -->
+              <span class={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-mmp-ink ${
+                isOpen ? "bg-emerald-500" : "bg-slate-500"
+              }`}>
+                {isOpen && (
+                  <span class="absolute inset-0 rounded-full bg-emerald-400 opacity-75 animate-ping" aria-hidden="true"></span>
+                )}
+              </span>
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <p class="text-[11px] uppercase tracking-[0.28em] font-bold mb-1" style="color: var(--c-gold);">
+                Mon Min Pet
+              </p>
+              <h2 class="font-bold text-lg sm:text-xl leading-tight">{vet.name}</h2>
+              <p class="text-xs text-white/70 mt-0.5">{vet.title}</p>
+
+              <!-- Online / offline status pill -->
+              <div class="mt-3">
+                {isOpen ? (
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-400/30"
+                        style="background: rgba(16, 185, 129, 0.18);">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                    <span class="text-[10px] font-bold text-emerald-200 uppercase tracking-wider">Đang online</span>
+                  </span>
+                ) : (
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/15"
+                        style="background: rgba(255,255,255,0.06);">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    <span class="text-[10px] font-bold text-white/70 uppercase tracking-wider">
+                      Offline · trả lời {nextOpen}
+                    </span>
+                  </span>
+                )}
+              </div>
+
+              <!-- Credentials chips -->
+              <div class="flex flex-wrap gap-1.5 mt-3">
+                {vet.credentials.map((c) => (
+                  <span class="inline-block px-2 py-0.5 rounded-full text-[10px] text-white/80 border border-white/15"
+                        style="background: rgba(255,255,255,0.08);">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <!-- Response time + privacy -->
+          <div class="mt-5 pt-4 border-t border-white/10 flex items-center justify-between gap-2 flex-wrap">
+            <div class="inline-flex items-center gap-1.5 text-xs text-white/70">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <span>Phản hồi {responseTime}</span>
+            </div>
+            <div class="inline-flex items-center gap-1.5 text-xs text-white/70">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>Riêng tư + mã hoá</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {loadError && (
+        <div class="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+          <p class="text-sm text-red-800">{loadError}</p>
+        </div>
+      )}
+
+      {!loadError && threads.length === 0 ? (
+        <!-- EMPTY STATE — quick prompts + trust signals -->
+        <div>
+          <div class="text-center mb-6">
+            <p class="text-[11px] uppercase tracking-[0.3em] font-bold mb-2" style="color: var(--c-gold);">Bắt đầu nhanh</p>
+            <h3 class="font-display italic text-xl sm:text-2xl font-semibold text-mmp-ink mb-2">
+              Bạn cần tư vấn gì hôm nay?
+            </h3>
+            <p class="text-sm text-slate-500">Chọn chủ đề bên dưới hoặc gõ câu hỏi tự do</p>
+          </div>
+
+          <!-- 4 quick-prompt cards (2-col responsive) -->
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            {quickPrompts.map((p) => (
+              <a href={`/chat/new?subject=${encodeURIComponent(p.subject)}`}
+                 class="group block p-4 rounded-2xl bg-white border border-slate-100 hover:border-mmp-ink hover:shadow-md transition-all">
+                <div class="w-12 h-12 rounded-xl bg-mmp-cream flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <FeatureIcon name={p.icon} class="w-6 h-6 text-mmp-ink" strokeWidth={1.7} />
+                </div>
+                <h4 class="font-bold text-mmp-ink text-sm leading-tight mb-1">{p.title}</h4>
+                <p class="text-xs text-slate-500 leading-relaxed">{p.description}</p>
+                <div class="mt-2 inline-flex items-center gap-1 text-xs font-semibold" style="color: var(--c-gold);">
+                  Hỏi
+                  <span class="transition-transform group-hover:translate-x-1">→</span>
+                </div>
+              </a>
+            ))}
+          </div>
+
+          <!-- "Hỏi câu khác" custom CTA -->
+          <a href="/chat/new"
+             class="group block p-4 rounded-2xl bg-white border border-slate-100 hover:border-mmp-ink hover:shadow-md transition-all mb-8">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                     style="background: rgba(236, 185, 33, 0.12);">
+                  <FeatureIcon name="edit-pencil" class="w-5 h-5" strokeWidth={1.7} style="color: var(--c-gold);" />
+                </div>
+                <div class="min-w-0">
+                  <p class="font-bold text-mmp-ink">Hỏi câu khác</p>
+                  <p class="text-xs text-slate-500">Tự gõ câu hỏi của bạn</p>
+                </div>
+              </div>
+              <span class="text-xl transition-transform group-hover:translate-x-1" style="color: var(--c-gold);">→</span>
+            </div>
+          </a>
+
+          <!-- Trust signals (SVG icons matching homepage convention) -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="text-center p-4 rounded-2xl bg-white border border-slate-100">
+              <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream mb-2">
+                <FeatureIcon name="lock" class="w-5 h-5 text-mmp-ink" strokeWidth={1.8} />
+              </span>
+              <p class="text-[11px] font-bold text-mmp-ink leading-tight">Riêng tư</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Mã hoá đường truyền</p>
+            </div>
+            <div class="text-center p-4 rounded-2xl bg-white border border-slate-100">
+              <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream mb-2">
+                <FeatureIcon name="stethoscope" class="w-5 h-5 text-mmp-ink" strokeWidth={1.8} />
+              </span>
+              <p class="text-[11px] font-bold text-mmp-ink leading-tight">BS thật</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Không phải AI bot</p>
+            </div>
+            <div class="text-center p-4 rounded-2xl bg-white border border-slate-100">
+              <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream mb-2">
+                <FeatureIcon name="clipboard" class="w-5 h-5 text-mmp-ink" strokeWidth={1.8} />
+              </span>
+              <p class="text-[11px] font-bold text-mmp-ink leading-tight">Lưu lịch sử</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Tra cứu dễ dàng</p>
+            </div>
+          </div>
+        </div>
+      ) : !loadError && (
+        <!-- THREAD LIST -->
+        <div class="space-y-2">
+          {threads.map((t: any) => {
+            const badge = statusBadge(t.status);
+            const unread = t.unread_count_owner || 0;
+            const hasUnread = unread > 0;
+            return (
+              <a href={`/chat/${t.id}`}
+                 class={`group block p-4 rounded-2xl border transition-all ${
+                   hasUnread
+                     ? "bg-white border-amber-300 shadow-sm"
+                     : "bg-white border-slate-100 hover:border-mmp-ink hover:shadow-md"
+                 }`}>
+                <div class="flex items-start gap-3">
+                  <div class="relative w-12 h-12 rounded-2xl bg-mmp-cream flex items-center justify-center shrink-0">
+                    <FeatureIcon name="user-md" class="w-6 h-6 text-mmp-ink" strokeWidth={1.7} />
+                    {hasUnread && (
+                      <span class="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full text-[10px] font-bold text-mmp-ink flex items-center justify-center"
+                            style="background: var(--c-gold);">
+                        {unread}
+                      </span>
+                    )}
+                  </div>
+
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between gap-2 mb-1">
+                      <h3 class={`font-bold leading-tight truncate ${hasUnread ? "text-mmp-ink" : "text-slate-700"}`}>
+                        {t.subject || "Mon Min Pet"}
+                      </h3>
+                      <Badge variant={badge.variant} size="sm" dot>{badge.label}</Badge>
+                    </div>
+
+                    <p class={`text-sm leading-relaxed line-clamp-2 ${hasUnread ? "text-mmp-ink" : "text-slate-500"}`}>
+                      {t.last_message_preview || "(chưa có tin nhắn)"}
+                    </p>
+
+                    <div class="mt-2 inline-flex items-center gap-1 text-xs text-slate-400">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      <time datetime={t.last_message_at}>{relTime(t.last_message_at)}</time>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+
+          <!-- Start new conversation -->
+          <a href="/chat/new"
+             class="group block p-4 rounded-2xl bg-white border border-slate-100 hover:border-mmp-ink hover:shadow-md transition-all mt-2">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                     style="background: rgba(236, 185, 33, 0.12);">
+                  <svg class="w-5 h-5" style="color: var(--c-gold);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <p class="font-bold text-mmp-ink">Cuộc trò chuyện mới</p>
+                  <p class="text-xs text-slate-500">Hỏi câu hỏi mới với BSTY Mon Min Pet</p>
+                </div>
+              </div>
+              <span class="text-xl transition-transform group-hover:translate-x-1" style="color: var(--c-gold);">→</span>
+            </div>
+          </a>
+        </div>
+      )}
+
+      <!-- Bottom info card -->
+      <div class="mt-8 p-5 rounded-2xl bg-white border border-slate-100 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 w-10 h-10 rounded-xl bg-mmp-cream flex items-center justify-center">
+            <FeatureIcon name="info" class="w-5 h-5" strokeWidth={2} style="color: var(--c-gold);" />
+          </div>
+          <div class="text-xs text-slate-600 leading-relaxed">
+            <p class="mb-1">
+              Cuộc chat giữa bạn và <strong class="text-mmp-ink">{vet.name}</strong> tại
+              <strong class="text-mmp-ink">{clinic.name}</strong>.
+            </p>
+            <p>
+              Phản hồi trong giờ làm việc <strong>{clinic.hours_weekday}</strong>.
+              Ngoài giờ, vui lòng <a href={`tel:${clinic.phone_tel_link}`} class="font-semibold hover:underline" style="color: var(--c-gold);">gọi {clinic.phone}</a>
+              hoặc <a href="/emergency" class="font-semibold hover:underline" style="color: var(--c-gold);">cấp cứu thú y</a> nếu khẩn cấp.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAB mobile (only show when threads exist — otherwise the quick-prompt cards cover the action) -->
+    {threads.length > 0 && (
+      <a href="/chat/new" aria-label="Cuộc chat mới"
+         class="sm:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center shadow-xl text-mmp-ink transition active:scale-95"
+         style="background: var(--c-gold);">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </a>
+    )}
+  </main>
+</Layout>
+
+<style is:global>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>

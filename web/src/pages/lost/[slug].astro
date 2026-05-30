@@ -1,0 +1,408 @@
+---
+/**
+ * /lost/[slug] — Public lost pet page (M20).
+ *
+ * No auth required. Anyone with the link can view + report sighting.
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const slug = String(Astro.params.slug || "").toLowerCase();
+if (!slug || !/^[a-z0-9]{6,16}$/.test(slug)) return Astro.redirect("/");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let data: any = null;
+let clusters: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/public/lost/${slug}`);
+  if (res.ok) data = await res.json();
+} catch (_) {}
+
+if (!data?.report) return Astro.redirect("/");
+
+try {
+  const cr = await fetch(`${API_INTERNAL}/api/v1/public/lost/${slug}/clusters`);
+  if (cr.ok) clusters = (await cr.json()).clusters || [];
+} catch (_) {}
+
+const APP_DOMAIN = import.meta.env.APP_DOMAIN || process.env.APP_DOMAIN || "https://vowvet.monminpet.com";
+const fullUrl = `${APP_DOMAIN}/lost/${slug}`;
+const isActive = data.report.status === "active";
+
+const initialData = JSON.stringify({
+  slug,
+  fullUrl,
+  report: data.report,
+  pet: data.pet,
+  isActive,
+  clusters,
+});
+---
+
+<Layout
+  title={isActive ? `🚨 Tìm bé ${data.pet?.name || "thú cưng"}` : `Bé ${data.pet?.name || "thú cưng"}`}
+  description={isActive
+    ? `Bé mất tại ${data.report.last_seen_location}. Nếu thấy, vui lòng giúp đỡ!`
+    : `Báo cáo mất tích đã đóng`}
+>
+  <main class="min-h-screen bg-gradient-to-b from-red-50 via-orange-50 to-amber-50 px-4 py-6 pb-16">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <div class="max-w-lg mx-auto" x-data={`lostPublicPage(${initialData})`} x-init="$nextTick(() => initClusterMap())">
+
+      <p class="text-center text-xs text-slate-500 uppercase tracking-wider mb-2">🐾 Mon Min Pet</p>
+
+      <!-- Status banner -->
+      <template x-if="!isActive">
+        <div class="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 mb-4 text-center">
+          <p class="text-3xl mb-1">✅</p>
+          <p class="font-bold text-emerald-900">Báo cáo đã đóng</p>
+          <p class="text-xs text-emerald-700 mt-1">
+            <span x-show="report.status === 'found'">Bé đã được tìm thấy! 🎉</span>
+            <span x-show="report.status === 'cancelled'">Đã huỷ</span>
+            <span x-show="report.status === 'resolved_no_match'">Đã đóng</span>
+          </p>
+        </div>
+      </template>
+
+      <!-- URGENT hero (when active) -->
+      <template x-if="isActive">
+        <div class="bg-gradient-to-br from-red-600 to-rose-600 text-white rounded-3xl p-6 shadow-2xl mb-4 text-center animate-pulse">
+          <p class="text-6xl mb-2">🚨</p>
+          <p class="text-xs uppercase tracking-widest font-bold opacity-90">URGENT</p>
+          <h1 class="text-2xl font-extrabold mt-1">Đang tìm bé <span x-text="pet?.name || '...'"></span></h1>
+          <p class="text-sm opacity-95 mt-2" x-text="`Mất lúc: ${formatDateTime(report.last_seen_at)}`"></p>
+        </div>
+      </template>
+
+      <!-- Pet info card -->
+      <article class="bg-white rounded-3xl border border-slate-100 shadow-md overflow-hidden mb-4">
+        <template x-if="pet?.photo_url">
+          <img :src="pet.photo_url" :alt="pet.name" class="w-full h-56 object-cover" />
+        </template>
+        <template x-if="!pet?.photo_url">
+          <div class="w-full h-40 bg-gradient-to-br from-orange-200 to-amber-200 flex items-center justify-center text-7xl">
+            <span x-text="pet?.species === 'cat' ? '🐱' : '🐶'"></span>
+          </div>
+        </template>
+
+        <div class="p-5">
+          <h2 class="text-2xl font-extrabold text-slate-900" x-text="pet?.name || '—'"></h2>
+          <p class="text-sm text-slate-600 mt-1">
+            <span x-text="pet?.species === 'cat' ? 'Mèo' : 'Chó'"></span>
+            <template x-if="pet?.breed"><span> · <span x-text="pet.breed"></span></span></template>
+            <template x-if="pet?.gender"><span> · <span x-text="pet.gender === 'male' ? 'đực' : 'cái'"></span></span></template>
+          </p>
+
+          <div class="mt-4 space-y-2 text-sm">
+            <div>
+              <p class="text-xs text-slate-500 uppercase font-semibold mb-0.5">📍 Vị trí cuối</p>
+              <p class="text-slate-800" x-text="report.last_seen_location"></p>
+            </div>
+
+            <template x-if="report.circumstances">
+              <div>
+                <p class="text-xs text-slate-500 uppercase font-semibold mb-0.5">📝 Tình huống</p>
+                <p class="text-slate-800 leading-relaxed" x-text="report.circumstances"></p>
+              </div>
+            </template>
+
+            <template x-if="report.distinguishing_features">
+              <div>
+                <p class="text-xs text-slate-500 uppercase font-semibold mb-0.5">🔍 Đặc điểm nhận dạng</p>
+                <p class="text-slate-800 leading-relaxed" x-text="report.distinguishing_features"></p>
+              </div>
+            </template>
+
+          </div>
+
+          <!-- Reward Badge — prominent above-fold -->
+          <template x-if="report.reward_amount > 0 && report.reward_status !== 'paid_out'">
+            <div class="my-4 py-4 px-3 rounded-2xl bg-gradient-to-br from-amber-100 to-yellow-100 border-2 border-amber-400 text-center shadow-md">
+              <p class="text-3xl font-extrabold text-amber-900">
+                <span x-text="rewardBadge.emoji"></span> THƯỞNG <span x-text="fmtVnd(report.reward_amount)"></span>
+              </p>
+              <p class="text-sm text-amber-800 mt-1">Cho người giúp tìm thấy bé</p>
+              <p class="text-[10px] text-amber-700 italic mt-1">VowVet không giữ tiền — chủ tự trao tay khi nhận bé</p>
+            </div>
+          </template>
+
+          <template x-if="report.reward_status === 'paid_out'">
+            <div class="my-4 py-3 px-3 rounded-2xl bg-emerald-50 border border-emerald-300 text-center">
+              <p class="text-sm font-bold text-emerald-900">✅ Đã trao thưởng — bé đã được tìm thấy</p>
+            </div>
+          </template>
+
+          <!-- Map iframe -->
+          <template x-if="report.last_seen_lat && report.last_seen_lng">
+            <div class="mt-4 rounded-xl overflow-hidden border border-slate-200">
+              <iframe
+                :src="`https://www.openstreetmap.org/export/embed.html?bbox=${report.last_seen_lng - 0.005},${report.last_seen_lat - 0.003},${report.last_seen_lng + 0.005},${report.last_seen_lat + 0.003}&marker=${report.last_seen_lat},${report.last_seen_lng}`"
+                class="w-full h-48 border-0"></iframe>
+            </div>
+          </template>
+
+          <!-- Contact -->
+          <template x-if="isActive && report.contact_phone">
+            <div class="mt-4 flex flex-wrap gap-2">
+              <a :href="`tel:${report.contact_phone}`"
+                class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm text-center shadow-lg">
+                📞 Gọi <span x-text="report.contact_phone"></span>
+              </a>
+              <button @click="copyShareLink()"
+                class="bg-mmp-ink hover:bg-slate-800 text-white font-semibold px-4 py-3 rounded-xl text-sm">
+                <span x-show="!copied">📋 Copy link</span>
+                <span x-show="copied">✓ Copied!</span>
+              </button>
+            </div>
+          </template>
+        </div>
+      </article>
+
+      <!-- Sighting submit form -->
+      <template x-if="isActive && !sightingSent">
+        <article class="bg-white rounded-3xl border-2 border-emerald-200 p-5 shadow-md mb-4">
+          <h3 class="text-lg font-bold text-emerald-900 mb-1">🔍 Bạn thấy bé?</h3>
+          <p class="text-xs text-emerald-700 mb-4">Để lại thông tin — chủ bé sẽ nhận được thông báo ngay</p>
+
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tên bạn *</label>
+          <input type="text" x-model="sighting.spotter_name" maxlength="60" placeholder="Tên bạn..."
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-3" />
+
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">SĐT để chủ liên hệ *</label>
+          <input type="tel" x-model="sighting.spotter_phone" maxlength="20" placeholder="0901234567"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-3" />
+
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Bạn thấy bé ở đâu? *</label>
+          <input type="text" x-model="sighting.sighting_address" maxlength="300" placeholder="VD: Đường Lê Lợi gần café X..."
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-2" />
+
+          <button @click="useGeolocation()" class="text-xs text-mmp-ink hover:underline mb-3">
+            📍 Hoặc dùng vị trí hiện tại
+          </button>
+
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Mô tả thêm</label>
+          <textarea x-model="sighting.description" maxlength="1000" rows="2" placeholder="Bé đang chạy hướng nào, có ai theo, vẻ ngoài..."
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none mb-3"></textarea>
+
+          <template x-if="sightingError">
+            <p class="bg-red-50 border border-red-200 rounded-xl p-2 text-xs text-red-700 mb-3" x-text="sightingError"></p>
+          </template>
+
+          <button @click="submitSighting()" :disabled="sightingLoading || !canSubmitSighting"
+            class="w-full bg-gradient-to-r from-emerald-600 to-slate-800 hover:opacity-95 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-lg">
+            <span x-show="!sightingLoading">🔍 Gửi báo thấy bé</span>
+            <span x-show="sightingLoading">Đang gửi…</span>
+          </button>
+        </article>
+      </template>
+
+      <template x-if="sightingSent">
+        <article class="bg-gradient-to-br from-emerald-50 to-slate-800 border-2 border-emerald-300 rounded-3xl p-6 text-center shadow-md mb-4">
+          <p class="text-5xl mb-3">🙏</p>
+          <h3 class="text-lg font-bold text-emerald-900">Cảm ơn bạn!</h3>
+          <p class="text-sm text-emerald-700 mt-2">Chủ của bé sẽ nhận được thông báo và liên hệ với bạn sớm nhất.</p>
+        </article>
+      </template>
+
+      <!-- Cluster Heatmap (if there are sightings) -->
+      <template x-if="clusters.length > 0">
+        <article class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm mb-4">
+          <h3 class="text-base font-bold text-slate-900 mb-1">📍 Khu vực được báo thấy
+            (<span x-text="clusters.reduce((s, c) => s + c.sighting_count, 0)"></span> báo, <span x-text="clusters.length"></span> khu)
+          </h3>
+          <p class="text-xs text-slate-500 mb-3">Chấm to = nhiều người báo. Đỏ = hot zone.</p>
+          <div id="cluster-map" class="h-72 rounded-xl overflow-hidden border border-slate-200"></div>
+
+          <template x-if="hottestCluster">
+            <div class="mt-3 p-3 rounded-xl bg-red-50 border border-red-200">
+              <p class="font-bold text-red-900 text-sm">🔥 Khu vực hot nhất</p>
+              <p class="text-xs text-red-700 mt-0.5">
+                <span x-text="hottestCluster.sighting_count"></span> người báo thấy quanh đây
+                <template x-if="hottestCluster.avg_match_score > 0">
+                  · AI match TB <span x-text="hottestCluster.avg_match_score"></span>%
+                </template>
+              </p>
+              <p class="text-[11px] text-red-600 mt-1">→ Đề xuất tập trung tìm ở khu vực này</p>
+            </div>
+          </template>
+        </article>
+      </template>
+
+      <!-- Share buttons -->
+      <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm mb-4">
+        <p class="text-xs text-slate-500 mb-2 font-semibold">📤 Chia sẻ trang để tìm bé nhanh hơn</p>
+        <div class="grid grid-cols-3 gap-2">
+          <a :href="`https://zalo.me/share/url?url=${encodeURIComponent(fullUrl)}&title=${encodeURIComponent('🚨 Tìm bé ' + (pet?.name || 'thú cưng') + '!')}`"
+            target="_blank"
+            class="bg-mmp-ink hover:bg-mmp-ink text-white font-semibold py-2 rounded-lg text-xs text-center">
+            💬 Zalo
+          </a>
+          <a :href="`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`"
+            target="_blank"
+            class="bg-[#1877f2] hover:bg-[#166fe5] text-white font-semibold py-2 rounded-lg text-xs text-center">
+            👍 Facebook
+          </a>
+          <button @click="copyShareLink()"
+            class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg text-xs">
+            <span x-show="!copied">📋 Copy</span>
+            <span x-show="copied">✓ Copied</span>
+          </button>
+        </div>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 mt-6">
+        🐾 <a href="/" class="hover:underline">Mon Min Pet</a> · Lost Pet Network
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function lostPublicPage(initial) {
+      return {
+        slug: initial.slug,
+        fullUrl: initial.fullUrl,
+        report: initial.report,
+        pet: initial.pet,
+        isActive: initial.isActive,
+        clusters: initial.clusters || [],
+        copied: false,
+        sightingSent: false,
+        sightingLoading: false,
+        sightingError: "",
+
+        get rewardBadge() {
+          const t = this.report?.reward_tier;
+          const map = {
+            none: { emoji: "🤝", color_class: "" },
+            bronze: { emoji: "🥉", color_class: "" },
+            silver: { emoji: "🥈", color_class: "" },
+            gold: { emoji: "🥇", color_class: "" },
+            diamond: { emoji: "💎", color_class: "" },
+            custom: { emoji: "💰", color_class: "" },
+          };
+          return map[t] || map.none;
+        },
+
+        get hottestCluster() {
+          return this.clusters.find((c) => c.hottest) || null;
+        },
+
+        async initClusterMap() {
+          if (!this.clusters.length) return;
+          if (!document.getElementById("cluster-map")) return;
+          // Load Leaflet dynamically
+          if (typeof L === "undefined") {
+            await new Promise((resolve, reject) => {
+              const s = document.createElement("script");
+              s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+              s.onload = resolve; s.onerror = reject;
+              document.head.appendChild(s);
+            });
+          }
+          const lostLat = this.report.last_seen_lat;
+          const lostLng = this.report.last_seen_lng;
+          const map = L.map("cluster-map").setView([lostLat, lostLng], 14);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '© OpenStreetMap',
+          }).addTo(map);
+
+          // Marker for last_seen
+          L.marker([lostLat, lostLng]).addTo(map).bindPopup("🚨 Nơi mất gốc");
+
+          // Circle markers for clusters
+          for (const c of this.clusters) {
+            const radius = 10 + c.sighting_count * 6;
+            const color = c.hottest ? "#dc2626" : (c.avg_match_score >= 70 ? "#ea580c" : "#f59e0b");
+            L.circleMarker([c.center_lat, c.center_lng], {
+              radius,
+              fillColor: color,
+              color: "white",
+              weight: 2,
+              fillOpacity: 0.6,
+            }).addTo(map).bindPopup(`<p style="margin:0;font-weight:bold">${c.sighting_count} báo thấy</p>${c.avg_match_score > 0 ? `<p style="margin:0;font-size:11px">AI match TB: ${c.avg_match_score}%</p>` : ""}${c.hottest ? "<p style=\"margin:0;font-size:11px;color:#dc2626;font-weight:bold\">🔥 Hot zone</p>" : ""}`);
+          }
+
+          // Fit bounds to include last_seen + all clusters
+          const points = [[lostLat, lostLng], ...this.clusters.map((c) => [c.center_lat, c.center_lng])];
+          if (points.length > 1) {
+            map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+          }
+        },
+        sighting: {
+          spotter_name: "",
+          spotter_phone: "",
+          sighting_address: "",
+          sighting_at: new Date().toISOString(),
+          description: "",
+          sighting_lat: null,
+          sighting_lng: null,
+        },
+
+        get canSubmitSighting() {
+          return this.sighting.spotter_name.trim().length >= 2 &&
+                 this.sighting.spotter_phone.length >= 8 &&
+                 this.sighting.sighting_address.trim().length >= 3;
+        },
+
+        formatDateTime(iso) {
+          if (!iso) return "—";
+          try {
+            return new Date(iso).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+          } catch { return iso; }
+        },
+
+        fmtVnd(n) {
+          try {
+            return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
+          } catch { return n + "đ"; }
+        },
+
+        async copyShareLink() {
+          try {
+            await navigator.clipboard.writeText(this.fullUrl);
+            this.copied = true;
+            setTimeout(() => (this.copied = false), 2500);
+          } catch (_) {}
+        },
+
+        useGeolocation() {
+          if (!navigator.geolocation) return;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              this.sighting.sighting_lat = Number(pos.coords.latitude.toFixed(6));
+              this.sighting.sighting_lng = Number(pos.coords.longitude.toFixed(6));
+              if (!this.sighting.sighting_address) {
+                this.sighting.sighting_address = `Vị trí ${this.sighting.sighting_lat}, ${this.sighting.sighting_lng}`;
+              }
+            },
+            (err) => { this.sightingError = "Không lấy được vị trí: " + err.message; }
+          );
+        },
+
+        async submitSighting() {
+          if (!this.canSubmitSighting) return;
+          this.sightingError = "";
+          this.sightingLoading = true;
+          try {
+            const res = await fetch(`/api/v1/public/lost/${this.slug}/sighting`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(this.sighting),
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              this.sightingError = j?.error?.message || "Lỗi gửi";
+              return;
+            }
+            this.sightingSent = true;
+          } catch (err) {
+            this.sightingError = "Không kết nối được server";
+          } finally {
+            this.sightingLoading = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

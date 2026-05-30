@@ -1,0 +1,332 @@
+---
+/**
+ * /pets/[id]/share — Owner-only public profile management (M12).
+ *
+ * Toggle is_public + edit bio/quote + preview + QR + stats.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+if (!Number.isFinite(petId) || petId <= 0) return Astro.redirect("/dashboard");
+
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+if (status === 403) return new Response("403 Forbidden", { status: 403 });
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// SSR fetch public state
+let publicState: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/public`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) publicState = await res.json();
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, species: pet.species },
+  publicState: publicState || {
+    is_public: false,
+    public_slug: null,
+    view_count: 0,
+    share_count: 0,
+    public_bio: null,
+    public_quote: null,
+    public_url: null,
+  },
+});
+---
+
+<Layout title={`Chia sẻ ${pet.name} · VowVet`} description="Quản lý public profile cho pet">
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-12">
+    <div class="max-w-2xl mx-auto" x-data={`sharePage(${initialData})`}>
+      <header class="flex items-center justify-between mb-6 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900">🌐 Public Profile</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <!-- Toggle main switch -->
+      <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+        <div class="flex items-start gap-3">
+          <div class="flex-1 min-w-0">
+            <h2 class="font-bold text-slate-900">Public profile</h2>
+            <p class="text-sm text-slate-600 mt-1">
+              Profile bé sẽ visible với mọi người có link.
+              <strong class="text-slate-900">Health data + thông tin cá nhân KHÔNG bị share.</strong>
+            </p>
+          </div>
+          <button @click="toggle()" :disabled="toggling"
+            :class="state.is_public ? 'bg-emerald-600' : 'bg-slate-300'"
+            class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-50">
+            <span :class="state.is_public ? 'translate-x-6' : 'translate-x-1'"
+              class="inline-block h-5 w-5 transform rounded-full bg-white transition"></span>
+          </button>
+        </div>
+
+        <!-- URL display when enabled -->
+        <template x-if="state.is_public && state.public_url">
+          <div class="mt-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
+            <p class="text-xs text-sky-700 uppercase tracking-wider font-semibold mb-1">URL public</p>
+            <div class="flex items-center gap-2">
+              <code class="flex-1 font-mono text-xs text-slate-900 truncate" x-text="state.public_url"></code>
+              <button @click="copyUrl()" class="text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold px-3 py-1 rounded shrink-0">
+                <span x-show="!urlCopied">Copy</span>
+                <span x-show="urlCopied">✓</span>
+              </button>
+            </div>
+            <div class="mt-3 flex gap-2">
+              <a :href="state.public_url" target="_blank" rel="noopener"
+                class="flex-1 text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2 rounded text-center transition">
+                👁️ Preview
+              </a>
+              <button @click="showQrModal = true"
+                class="flex-1 text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 rounded transition">
+                📱 QR
+              </button>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- Bio + quote editor (only show khi enabled) -->
+      <template x-if="state.is_public">
+        <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+          <h2 class="text-base font-semibold text-slate-900 mb-3">✏️ Nội dung public</h2>
+
+          <div class="mb-4">
+            <label class="block text-xs text-slate-600 mb-1">
+              Câu của bé <span class="text-slate-400">(thay lời bé nói, tối đa 200 ký tự)</span>
+            </label>
+            <input type="text" x-model="form.public_quote" maxlength="200"
+              placeholder="VD: Hôm nay tôi đói lắm rồi 🍴"
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:outline-none text-sm" />
+            <p class="text-[10px] text-slate-400 mt-1"><span x-text="(form.public_quote || '').length"></span>/200</p>
+          </div>
+
+          <div class="mb-4">
+            <label class="block text-xs text-slate-600 mb-1">
+              Bio <span class="text-slate-400">(giới thiệu về bé, tối đa 500 ký tự)</span>
+            </label>
+            <textarea x-model="form.public_bio" maxlength="500" rows="4"
+              placeholder="VD: Bé Mon thích phơi nắng và ngủ trên bàn phím. Sống cùng gia đình từ 2024..."
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:outline-none text-sm resize-none"></textarea>
+            <p class="text-[10px] text-slate-400 mt-1"><span x-text="(form.public_bio || '').length"></span>/500</p>
+          </div>
+
+          <button @click="saveBio()" :disabled="saving || !dirty"
+            class="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-semibold py-2.5 rounded-lg transition">
+            <span x-show="!saving && !saved">Lưu</span>
+            <span x-show="saving">Đang lưu…</span>
+            <span x-show="saved">✓ Đã lưu</span>
+          </button>
+        </section>
+      </template>
+
+      <!-- Stats -->
+      <template x-if="state.is_public">
+        <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+          <h2 class="text-base font-semibold text-slate-900 mb-3">📊 Thống kê</h2>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-sky-50 rounded-xl p-3 text-center">
+              <p class="text-[10px] text-sky-700 uppercase tracking-wider">👁️ Lượt xem</p>
+              <p class="text-3xl font-bold text-sky-900" x-text="state.view_count"></p>
+            </div>
+            <div class="bg-emerald-50 rounded-xl p-3 text-center">
+              <p class="text-[10px] text-emerald-700 uppercase tracking-wider">📤 Lượt share</p>
+              <p class="text-3xl font-bold text-emerald-900" x-text="state.share_count"></p>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- Disable danger zone -->
+      <template x-if="state.is_public">
+        <section class="bg-white rounded-2xl border border-red-100 p-5">
+          <h2 class="text-base font-semibold text-red-900 mb-1">⚠️ Tắt public profile</h2>
+          <p class="text-xs text-slate-500 mb-3">Sẽ ẩn profile. Link cũ sẽ 404. Có thể bật lại sau với cùng URL.</p>
+          <button @click="disableConfirm()" :disabled="toggling"
+            class="text-sm bg-red-50 hover:bg-red-100 text-red-700 font-semibold px-4 py-2 rounded-lg">
+            Tắt public profile
+          </button>
+        </section>
+      </template>
+
+      <!-- Not enabled — info -->
+      <template x-if="!state.is_public">
+        <section class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
+          <h2 class="text-base font-semibold text-emerald-900 mb-1">🌱 Chưa bật public profile</h2>
+          <p class="text-sm text-emerald-800 mb-3">Bật để tạo URL share với bạn bè qua TikTok, Zalo, Facebook. Không lo lộ thông tin cá nhân — chỉ ảnh + tên + breed + bio + tính cách được public.</p>
+          <p class="text-xs text-emerald-700">Bật toggle phía trên để bắt đầu.</p>
+        </section>
+      </template>
+
+      <!-- QR modal -->
+      <template x-if="showQrModal && state.public_url">
+        <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" @click.self="showQrModal = false">
+          <div class="bg-white rounded-3xl p-6 max-w-sm w-full">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-bold text-slate-900">📱 QR Collar</h3>
+              <button @click="showQrModal = false" class="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border-2 border-slate-100 flex items-center justify-center">
+              <canvas x-ref="qrCanvas" width="260" height="260"></canvas>
+            </div>
+            <p class="text-xs text-slate-600 mt-4">
+              In ra → gắn collar bé. Người nhặt được scan → thấy profile public.
+            </p>
+            <button @click="downloadQr()" class="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg text-sm">
+              ⬇️ Tải PNG
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <script is:inline src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <script is:inline>
+    function sharePage(initial) {
+      return {
+        pet: initial.pet,
+        state: initial.publicState,
+        form: {
+          public_bio: initial.publicState.public_bio || "",
+          public_quote: initial.publicState.public_quote || "",
+        },
+        toggling: false,
+        saving: false,
+        saved: false,
+        urlCopied: false,
+        showQrModal: false,
+        _initialBio: initial.publicState.public_bio || "",
+        _initialQuote: initial.publicState.public_quote || "",
+
+        get dirty() {
+          return this.form.public_bio !== this._initialBio || this.form.public_quote !== this._initialQuote;
+        },
+
+        async toggle() {
+          if (!this.state.is_public) {
+            // Enable
+            if (!confirm("Bật public profile?\n\nProfile bé sẽ visible với mọi người có link.\nHealth data + thông tin cá nhân KHÔNG bị share.")) return;
+            this.toggling = true;
+            try {
+              const res = await fetch(`/api/v1/pets/${this.pet.id}/public/enable`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  public_bio: this.form.public_bio || null,
+                  public_quote: this.form.public_quote || null,
+                }),
+              });
+              const j = await res.json();
+              if (!res.ok) {
+                alert(j.error?.message || "Lỗi bật public");
+                return;
+              }
+              this.state.is_public = true;
+              this.state.public_slug = j.public_slug;
+              this.state.public_url = j.public_url;
+            } catch (_) {
+              alert("Lỗi kết nối");
+            } finally {
+              this.toggling = false;
+            }
+          } else {
+            await this.disableConfirm();
+          }
+        },
+
+        async disableConfirm() {
+          if (!confirm("Tắt public profile? Link cũ sẽ 404.")) return;
+          this.toggling = true;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/public/disable`, { method: "POST" });
+            if (res.ok) this.state.is_public = false;
+          } catch (_) {} finally {
+            this.toggling = false;
+          }
+        },
+
+        async saveBio() {
+          this.saving = true;
+          this.saved = false;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/public`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                public_bio: this.form.public_bio || null,
+                public_quote: this.form.public_quote || null,
+              }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              alert(j.error?.message || "Lỗi lưu");
+              return;
+            }
+            this._initialBio = this.form.public_bio;
+            this._initialQuote = this.form.public_quote;
+            this.state.public_bio = this.form.public_bio;
+            this.state.public_quote = this.form.public_quote;
+            this.saved = true;
+            setTimeout(() => (this.saved = false), 2500);
+          } catch (_) {
+            alert("Lỗi kết nối");
+          } finally {
+            this.saving = false;
+          }
+        },
+
+        async _trackShare(platform) {
+          // Quest hook: fire share_pet trigger (fire-and-forget)
+          try {
+            fetch("/api/v1/quests/track/share-pet", {
+              method: "POST", credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ pet_id: this.pet.id, platform }),
+            }).catch(() => {});
+          } catch (_) {}
+        },
+
+        async copyUrl() {
+          if (!this.state.public_url) return;
+          try {
+            await navigator.clipboard.writeText(this.state.public_url);
+            this.urlCopied = true;
+            setTimeout(() => (this.urlCopied = false), 2000);
+            this._trackShare("copy");
+          } catch (_) {}
+        },
+
+        downloadQr() {
+          const canvas = this.$refs.qrCanvas;
+          if (!canvas) return;
+          const link = document.createElement("a");
+          link.download = `qr-${this.state.public_slug || "pet"}.png`;
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+          this._trackShare("qr_download");
+        },
+
+        init() {
+          this.$watch("showQrModal", (open) => {
+            if (open && window.QRCode && this.$refs.qrCanvas && this.state.public_url) {
+              this.$nextTick(() => {
+                window.QRCode.toCanvas(this.$refs.qrCanvas, this.state.public_url, { width: 260, margin: 1 }, () => {});
+              });
+            }
+          });
+        },
+      };
+    }
+  </script>
+</Layout>

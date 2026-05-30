@@ -1,0 +1,261 @@
+---
+/**
+ * /pets/[id]/water — Daily water intake logging (M25).
+ *
+ * Auto-calc expected range based on pet weight + weather (if user provides).
+ * Status:
+ *   low    = < 70% expected_min → warning
+ *   normal = within range
+ *   high   = > 130% expected_max → possible polydipsia
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let logs: any[] = [];
+let expected: any = null;
+try {
+  const [lRes, eRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/water?days=30`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/water/expected`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (lRes.ok) logs = (await lRes.json()).logs || [];
+  if (eRes.ok) expected = await eRes.json();
+} catch (_) {}
+
+const todayIso = new Date().toISOString().slice(0, 10);
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, weight_kg: pet.weight_kg },
+  logs,
+  expected,
+  todayIso,
+});
+---
+
+<Layout title={`Lượng nước · ${pet.name}`} description="Theo dõi lượng nước uống hằng ngày">
+  <main class="min-h-screen bg-gradient-to-b from-sky-50 to-slate-800 px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`waterPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg font-bold text-slate-900">💧 Lượng nước</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <!-- No weight warning -->
+      <template x-if="!expected?.weight_kg">
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+          <p class="text-sm font-semibold text-amber-900">⚠️ Cần cập nhật cân nặng</p>
+          <p class="text-xs text-amber-700 mt-1">Để tính lượng nước khuyến nghị, vui lòng cập nhật cân nặng ở hồ sơ bé.</p>
+          <a :href="`/pets/${pet.id}/profile/complete`" class="inline-block mt-2 text-xs bg-amber-600 text-white font-bold px-3 py-1.5 rounded-lg">Cập nhật ngay →</a>
+        </div>
+      </template>
+
+      <!-- Today log -->
+      <template x-if="expected?.weight_kg">
+        <div class="bg-gradient-to-br from-sky-500 to-slate-800 text-white rounded-3xl p-5 shadow-xl mb-4">
+          <p class="text-xs opacity-90 uppercase tracking-wider">Hôm nay (<span x-text="fmtDate(todayIso)"></span>)</p>
+          <p class="text-5xl font-extrabold mt-1"><span x-text="todayAmount"></span> <span class="text-2xl opacity-80">ml</span></p>
+          <p class="text-sm opacity-95 mt-1">
+            Khuyến nghị: <strong x-text="`${expected.expected_min_ml}-${expected.expected_max_ml} ml`"></strong>
+            <span class="text-xs opacity-80">(cân nặng <span x-text="expected.weight_kg"></span>kg)</span>
+          </p>
+          <div class="mt-3 h-2.5 bg-white/25 rounded-full overflow-hidden">
+            <div class="h-full bg-white transition-all" :style="`width: ${Math.min(100, (todayAmount / expected.expected_max_ml) * 100)}%`"></div>
+          </div>
+          <p class="text-xs opacity-90 mt-2" x-text="todayStatusText"></p>
+        </div>
+      </template>
+
+      <!-- Log new -->
+      <div class="bg-white rounded-2xl border border-slate-100 p-4 mb-4 shadow-sm">
+        <h2 class="text-sm font-bold text-slate-900 mb-3">➕ Ghi lượng nước</h2>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <input type="date" x-model="form.log_date" :max="todayIso"
+            class="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+          <input type="number" min="1" max="10000" x-model.number="form.amount_ml" placeholder="ml" inputmode="numeric"
+            class="border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono" />
+        </div>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <input type="number" step="0.1" x-model.number="form.weather_celsius" placeholder="Nhiệt độ (°C, optional)"
+            class="border border-slate-200 rounded-lg px-3 py-2 text-xs" />
+          <input type="text" x-model="form.notes" placeholder="Ghi chú (optional)" maxlength="200"
+            class="border border-slate-200 rounded-lg px-3 py-2 text-xs" />
+        </div>
+
+        <!-- Quick add buttons -->
+        <div class="flex flex-wrap gap-1.5 mb-3">
+          <template x-for="amt in [100, 200, 300, 500]" :key="amt">
+            <button @click="form.amount_ml = (form.amount_ml || 0) + amt" type="button"
+              class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold px-3 py-1.5 rounded-lg">
+              +<span x-text="amt"></span>ml
+            </button>
+          </template>
+          <button @click="form.amount_ml = 0" type="button" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3 py-1.5 rounded-lg">
+            Reset
+          </button>
+        </div>
+
+        <template x-if="error">
+          <p class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 mb-2" x-text="error"></p>
+        </template>
+
+        <button @click="submit()" :disabled="!canSubmit || saving"
+          class="w-full bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm">
+          <span x-show="!saving">💧 Ghi</span>
+          <span x-show="saving">Đang ghi...</span>
+        </button>
+      </div>
+
+      <!-- 30-day chart -->
+      <template x-if="logs.length > 0">
+        <div class="bg-white rounded-2xl border border-slate-100 p-4">
+          <h2 class="text-sm font-bold text-slate-900 mb-3">📊 30 ngày gần nhất (<span x-text="logs.length"></span> ngày có ghi)</h2>
+          <!-- Simple bar chart SVG -->
+          <svg viewBox="0 0 300 100" class="w-full h-32">
+            <template x-for="(l, i) in chartLogs" :key="l.id">
+              <g>
+                <rect :x="i * (300 / chartLogs.length)" :y="100 - l._barHeight"
+                  :width="(300 / chartLogs.length) - 1" :height="l._barHeight"
+                  :class="l.status === 'low' ? 'fill-red-400' : l.status === 'high' ? 'fill-orange-400' : 'fill-emerald-400'"></rect>
+              </g>
+            </template>
+            <!-- Expected range line -->
+            <template x-if="expected">
+              <line x1="0" :y1="100 - chartScaleY(expected.expected_min_ml)" x2="300" :y2="100 - chartScaleY(expected.expected_min_ml)"
+                stroke="rgba(0,0,0,0.2)" stroke-dasharray="2,2"></line>
+            </template>
+          </svg>
+          <div class="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+            <span>30 ngày trước</span>
+            <span>Hôm nay</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- History list -->
+      <template x-if="logs.length > 0">
+        <details class="bg-white rounded-2xl border border-slate-100 p-4 mt-3">
+          <summary class="text-sm font-semibold text-slate-900 cursor-pointer">📜 Chi tiết</summary>
+          <div class="mt-3 space-y-1.5">
+            <template x-for="l in logs.slice(0, 30)" :key="l.id">
+              <div class="flex items-center gap-3 bg-slate-50 rounded-lg px-3 py-2 text-xs">
+                <span class="font-mono text-slate-500 w-20" x-text="fmtDate(l.log_date)"></span>
+                <span class="font-semibold flex-1" x-text="`${l.amount_ml} ml`"></span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  :class="l.status === 'low' ? 'bg-red-100 text-red-700' : l.status === 'high' ? 'bg-orange-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
+                  x-text="l.status === 'low' ? 'Thấp' : l.status === 'high' ? 'Cao' : 'Bình thường'"></span>
+              </div>
+            </template>
+          </div>
+        </details>
+      </template>
+
+      <p class="text-[11px] text-slate-400 text-center italic mt-4">
+        💡 Lượng nước chuẩn: 50-100ml/kg/ngày. Trời nóng tăng thêm 10% mỗi 5°C trên 25°C.
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function waterPage(initial) {
+      return {
+        pet: initial.pet,
+        logs: initial.logs,
+        expected: initial.expected,
+        todayIso: initial.todayIso,
+        form: {
+          log_date: initial.todayIso,
+          amount_ml: 0,
+          weather_celsius: null,
+          notes: "",
+        },
+        saving: false,
+        error: "",
+
+        get todayLog() {
+          return this.logs.find((l) => l.log_date === this.todayIso);
+        },
+
+        get todayAmount() {
+          return this.todayLog?.amount_ml || 0;
+        },
+
+        get todayStatusText() {
+          if (!this.expected) return "—";
+          const a = this.todayAmount;
+          if (a === 0) return "Chưa ghi nước hôm nay";
+          if (a < this.expected.expected_min_ml * 0.7) return "⚠️ Thấp — khuyến khích bé uống thêm";
+          if (a > this.expected.expected_max_ml * 1.3) return "⚠️ Cao — có thể uống quá nhiều, theo dõi";
+          return "✓ Bình thường";
+        },
+
+        get canSubmit() {
+          return this.form.amount_ml > 0 && this.form.log_date && !!this.expected?.weight_kg;
+        },
+
+        get chartLogs() {
+          // Sort by date ASC, scale bar heights
+          const sorted = [...this.logs].sort((a, b) => a.log_date.localeCompare(b.log_date));
+          const max = Math.max(this.expected?.expected_max_ml || 0, ...sorted.map((l) => l.amount_ml)) || 1;
+          return sorted.map((l) => ({ ...l, _barHeight: (l.amount_ml / max) * 90 }));
+        },
+
+        chartScaleY(value) {
+          const max = Math.max(this.expected?.expected_max_ml || 0, ...this.logs.map((l) => l.amount_ml)) || 1;
+          return (value / max) * 90;
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "—";
+          try { return new Date(iso + "T00:00:00").toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }); }
+          catch { return iso; }
+        },
+
+        async submit() {
+          this.error = "";
+          if (!this.canSubmit) {
+            this.error = "Cần nhập lượng nước > 0 và cập nhật cân nặng bé.";
+            return;
+          }
+          this.saving = true;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/water`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(this.form),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.error = j?.error?.message || "Lỗi ghi";
+              return;
+            }
+            // Update local logs — replace if same date, else prepend
+            const idx = this.logs.findIndex((l) => l.log_date === this.form.log_date);
+            if (idx >= 0) this.logs[idx] = j;
+            else this.logs = [j, ...this.logs];
+            // Reset form
+            this.form.amount_ml = 0;
+            this.form.notes = "";
+          } catch (err) {
+            this.error = "Lỗi kết nối.";
+          } finally {
+            this.saving = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

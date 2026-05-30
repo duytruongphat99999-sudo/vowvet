@@ -1,0 +1,174 @@
+---
+/**
+ * /community — PUBLIC activity feed.
+ *
+ * Real-time stream of: tier-ups, achievements, hero actions, matches, birthdays.
+ * No auth required. Anonymized to pet name (no full user names).
+ */
+import Layout from "../layouts/Layout.astro";
+import { getZaloLink } from "../../../shared/contact-info.ts";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let events: any[] = [];
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/community/feed?limit=50`);
+  if (r.ok) events = (await r.json()).events || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({ events, zaloUrl: getZaloLink() });
+---
+
+<Layout title="Cộng đồng VowVet · Hoạt động gần đây" description="Live feed cộng đồng VowVet — pet lên cấp, unlock huy hiệu, cứu pet hàng xóm, sinh nhật bé">
+  <main class="min-h-screen bg-mmp-cream px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`communityPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700">← Dashboard</a>
+        <h1 class="text-lg font-bold text-slate-900">📣 Cộng đồng</h1>
+        <a href="/leaderboard" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">🏆 Top</a>
+      </header>
+
+      <!-- Hero -->
+      <div class="text-center py-6 mb-5 rounded-3xl bg-mmp-ink hover:bg-slate-800 text-white shadow-xl">
+        <p class="text-5xl mb-2">📣</p>
+        <h2 class="text-2xl font-extrabold">Live Activity</h2>
+        <p class="text-sm opacity-95 mt-1">Pet HCM hôm nay làm gì?</p>
+      </div>
+
+      <!-- Filter chips -->
+      <div class="flex gap-2 mb-4 overflow-x-auto -mx-1 px-1">
+        <template x-for="f in filters" :key="f.key">
+          <button @click="activeFilter = f.key"
+            :class="activeFilter === f.key ? 'bg-mmp-ink text-white' : 'bg-white text-slate-700 border border-slate-200'"
+            class="text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition shrink-0">
+            <span x-text="f.emoji"></span>
+            <span x-text="f.label"></span>
+          </button>
+        </template>
+      </div>
+
+      <!-- Empty -->
+      <template x-if="filteredEvents.length === 0">
+        <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
+          <p class="text-5xl mb-2">🌱</p>
+          <p class="text-base font-bold text-slate-900">Chưa có hoạt động</p>
+          <p class="text-sm text-slate-600 mt-1">Hãy là người đầu tiên — unlock huy hiệu / check-in / giúp pet để hiện trên feed.</p>
+        </div>
+      </template>
+
+      <!-- Event cards -->
+      <div class="space-y-2.5">
+        <template x-for="e in filteredEvents" :key="e.id">
+          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+            <div class="flex items-start gap-3">
+              <template x-if="e.pet_avatar_url">
+                <img :src="e.pet_avatar_url" alt="" class="w-11 h-11 rounded-full object-cover border-2 border-slate-200 shrink-0" />
+              </template>
+              <template x-if="!e.pet_avatar_url">
+                <div class="w-11 h-11 rounded-full bg-mmp-cream flex items-center justify-center text-xl shrink-0">🐾</div>
+              </template>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm leading-snug">
+                  <span :class="eventColor(e.event_type)" class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold mr-1" x-text="eventLabel(e.event_type)"></span>
+                  <span class="font-bold" x-text="e.pet_name"></span>
+                  <span class="text-slate-700" x-text="eventMessage(e)"></span>
+                </p>
+                <p class="text-[10px] text-slate-400 mt-1" x-text="fmtRel(e.created_at)"></p>
+              </div>
+              <span class="text-2xl shrink-0" x-text="eventEmoji(e)"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- CTA -->
+      <div class="mt-8 p-5 rounded-2xl bg-white border border-slate-200 text-center">
+        <p class="font-bold text-slate-900 mb-1">Muốn bé bạn lên feed?</p>
+        <p class="text-xs text-slate-600 mb-3">Check-in, làm BCS, hoàn thiện vaccine để unlock huy hiệu + lên cấp.</p>
+        <a href="/dashboard" class="inline-block bg-mmp-ink hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-sm">
+          Về Dashboard →
+        </a>
+      </div>
+
+      <p class="text-[11px] text-slate-400 text-center italic mt-4">
+        Feed cập nhật khi user khác active trong app. Refresh để xem mới nhất.
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function communityPage(initial) {
+      return {
+        events: initial.events,
+        zaloUrl: initial.zaloUrl,
+        activeFilter: 'all',
+
+        filters: [
+          { key: 'all',                label: 'Tất cả',     emoji: '✨' },
+          { key: 'tier_up',            label: 'Tier-up',    emoji: '🏆' },
+          { key: 'achievement_unlock', label: 'Huy hiệu',   emoji: '🎯' },
+          { key: 'hero_action',        label: 'Hero',       emoji: '🦸' },
+          { key: 'new_match',          label: 'Match',      emoji: '💜' },
+          { key: 'birthday',           label: 'Sinh nhật',  emoji: '🎂' },
+        ],
+
+        get filteredEvents() {
+          if (this.activeFilter === 'all') return this.events;
+          return this.events.filter(e => e.event_type === this.activeFilter);
+        },
+
+        eventColor(t) {
+          return ({
+            tier_up:            'bg-yellow-100 text-yellow-700',
+            achievement_unlock: 'bg-mmp-cream text-mmp-ink',
+            hero_action:        'bg-mmp-cream text-mmp-ink',
+            new_match:          'bg-mmp-cream text-mmp-ink',
+            birthday:           'bg-orange-100 text-amber-700',
+          })[t] || 'bg-slate-100 text-slate-600';
+        },
+
+        eventLabel(t) {
+          return ({
+            tier_up:            'Tier-up',
+            achievement_unlock: 'Huy hiệu',
+            hero_action:        'Hero',
+            new_match:          'Match',
+            birthday:           'Sinh nhật',
+          })[t] || t;
+        },
+
+        eventEmoji(e) {
+          if (e.event_type === 'tier_up') return e.event_data?.after_tier === 'diamond' ? '👑' : '🏆';
+          if (e.event_type === 'achievement_unlock') return e.event_data?.emoji || '🎯';
+          if (e.event_type === 'hero_action') return '🦸';
+          if (e.event_type === 'new_match') return '💜';
+          if (e.event_type === 'birthday') return '🎂';
+          return '✨';
+        },
+
+        eventMessage(e) {
+          const d = e.event_data || {};
+          if (e.event_type === 'tier_up') return ` vừa lên cấp ${d.after_tier || 'mới'}!`;
+          if (e.event_type === 'achievement_unlock') return ` unlock "${d.name || d.achievement_code}"!`;
+          if (e.event_type === 'hero_action') return ` vừa giúp tìm 1 pet hàng xóm` + (d.reward_amount > 0 ? ` (+${(d.reward_amount/1000).toFixed(0)}k)` : '');
+          if (e.event_type === 'new_match') return ` vừa match Playdate!`;
+          if (e.event_type === 'birthday') return ` hôm nay sinh nhật! 🎉`;
+          return '';
+        },
+
+        fmtRel(iso) {
+          if (!iso) return '';
+          try {
+            const ago = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+            if (ago < 1) return 'vừa xong';
+            if (ago < 60) return `${ago} phút trước`;
+            if (ago < 1440) return `${Math.floor(ago / 60)}h trước`;
+            return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+          } catch { return ''; }
+        },
+      };
+    }
+  </script>
+</Layout>

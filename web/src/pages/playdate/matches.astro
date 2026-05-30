@@ -1,0 +1,104 @@
+---
+/**
+ * /playdate/matches — List my matches (M27).
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let matches: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/playdate/matches`, { headers: { cookie: cookieHeader } });
+  if (res.ok) matches = (await res.json()).matches || [];
+} catch (_) {}
+
+// Resolve other pet info for each match
+const otherPets: Record<number, any> = {};
+await Promise.all(matches.map(async (m) => {
+  const otherPetId = m.user_a_id === user.sub ? m.pet_b_id : m.pet_a_id;
+  m._otherPetId = otherPetId;
+  try {
+    const res = await fetch(`${API_INTERNAL}/api/v1/pets/${otherPetId}`, { headers: { cookie: cookieHeader } });
+    if (res.ok) otherPets[otherPetId] = await res.json();
+  } catch (_) {}
+}));
+
+const initialData = JSON.stringify({ matches, otherPets });
+---
+
+<Layout title="Matches · Playdate" description="Cuộc trò chuyện Playdate">
+  <main class="min-h-screen bg-mmp-cream px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`matchesPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/playdate" class="text-sm text-slate-500 hover:text-slate-700">← Playdate</a>
+        <h1 class="text-lg font-bold text-slate-900">💬 Matches</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <template x-if="matches.length === 0">
+        <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
+          <p class="text-5xl">💔</p>
+          <p class="text-sm font-bold text-slate-900 mt-2">Chưa có match nào</p>
+          <p class="text-xs text-slate-600 mt-1">Hãy swipe để tìm bé phù hợp.</p>
+          <a href="/playdate" class="inline-block mt-3 text-sm bg-mmp-ink text-white font-bold px-4 py-2 rounded-xl">Bắt đầu →</a>
+        </div>
+      </template>
+
+      <div class="space-y-3">
+        <template x-for="m in matches" :key="m.id">
+          <a :href="`/playdate/chat/${m.id}`" class="block bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+            <div class="flex items-center gap-3">
+              <template x-if="otherPets[m._otherPetId]?.photo_url">
+                <img :src="otherPets[m._otherPetId].photo_url" alt="" class="w-14 h-14 rounded-full object-cover border-2 border-mmp-cream" />
+              </template>
+              <template x-if="!otherPets[m._otherPetId]?.photo_url">
+                <div class="w-14 h-14 rounded-full bg-mmp-cream flex items-center justify-center text-2xl">🐾</div>
+              </template>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <p class="font-bold text-slate-900" x-text="otherPets[m._otherPetId]?.name || 'Bé ẩn danh'"></p>
+                  <template x-if="m.status === 'pending'">
+                    <span class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">Mới · Chưa chat</span>
+                  </template>
+                  <template x-if="m.status === 'active'">
+                    <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">Đang chat</span>
+                  </template>
+                  <template x-if="m.status === 'blocked'">
+                    <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">Đã chặn</span>
+                  </template>
+                </div>
+                <p class="text-[11px] text-slate-500" x-text="m.last_message_at ? `Tin gần nhất ${fmtRel(m.last_message_at)}` : `Match ${fmtRel(m.matched_at)}`"></p>
+              </div>
+              <span class="text-2xl text-slate-300">›</span>
+            </div>
+          </a>
+        </template>
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function matchesPage(initial) {
+      return {
+        matches: initial.matches,
+        otherPets: initial.otherPets,
+        fmtRel(iso) {
+          if (!iso) return "—";
+          try {
+            const ago = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+            if (ago < 1) return "vừa xong";
+            if (ago < 60) return `${ago} phút trước`;
+            if (ago < 1440) return `${Math.floor(ago / 60)}h trước`;
+            return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+          } catch { return ""; }
+        },
+      };
+    }
+  </script>
+</Layout>

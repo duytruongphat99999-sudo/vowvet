@@ -1,0 +1,53 @@
+{
+  "session_history": [
+    { "session": 1, "date": "2026-05-19", "completed": ["M21", "M23", "M24", "M25", "M29"] },
+    { "session": 2, "date": "2026-05-19", "completed": ["M26 Pet Map + Pet-Friendly Places"] },
+    { "session": 3, "date": "2026-05-19", "completed": ["M22 BCS AI Vision", "M30 Memorial Hall (placeholder)"], "deferred": ["M27 Pet Playdate", "M28 Vet Buddy"] },
+    { "session": 4, "date": "2026-05-19", "completed": ["M27 Pet Playdate (5 tables)"], "deferred": ["M28 Vet Buddy"] },
+    { "session": 5, "date": "2026-05-19", "completed": ["M31 Triage decision tree + Baserow FAQ"] },
+    { "session": 6, "date": "2026-05-19", "completed": ["Contact info migration (Zalo OA + 0779029133)"] },
+    { "session": 7, "date": "2026-05-19", "completed": ["M27 Lost Pet upgrade: AI Match + Reward + Heatmap + Pet Hero"] },
+    { "session": 8, "date": "2026-05-19", "completed": ["Places auth fix", "Places photo upload"] },
+    { "session": 9, "date": "2026-05-19", "completed": ["/why-vowvet + safety-tips why_safer"] },
+    { "session": 10, "date": "2026-05-19", "completed": ["Gamification Session A: Achievements + Rewards + Feature Gates + Pet Score celebration"] },
+    { "session": 11, "date": "2026-05-19", "completed": ["Gamification Session B: Smart Nudges + Pet Score Leaderboard + Daily Quests + Pet Mood"] },
+    { "session": 12, "date": "2026-05-19", "completed": ["Gamification Session C: Community Feed + Celebrations + Sound/Haptic + Trend Chart + Social Proof"] }
+  ],
+  "gamification_session_a": {
+    "status": "complete",
+    "tables_added": 5,
+    "seeded": "20 achievements + 15 rewards + 8 gates",
+    "api_version": "0.34.0",
+    "e2e_pass": "37/37"
+  },
+  "gamification_session_b": {
+    "status": "complete",
+    "tables_added": 4,
+    "users_fields_added": 3,
+    "seeded": "15 quest templates",
+    "cron_jobs_added": 3,
+    "api_version": "0.35.0",
+    "e2e_pass": "39/39"
+  },
+  "gamification_session_c": {
+    "status": "complete",
+    "tables_added": 1,
+    "api_version": "0.36.0",
+    "e2e_pass": "43/43",
+    "sound_files_status": "placeholders_only — README in /web/public/sounds/ with drop-in instructions"
+  },
+  "gamification_total": {
+    "tables_added": 10,
+    "frontend_pages_new": 7,
+    "cron_jobs_added": 3,
+    "total_e2e_pass": "119/119"
+  },
+  "pending": [
+    { "milestone": "M28", "feature": "Vet Buddy (telehealth + primary care)", "scope": "3 tables, seed 8 mock vets, bot auto-reply triage logic", "estimated_effort": "2 days", "ready_to_build": true }
+  ],
+  "api_version": "0.36.0",
+  "baserow_tables": 54,
+  "pet_score_components": 14,
+  "cron_jobs": 14,
+  "last_updated": "2026-05-19"
+}

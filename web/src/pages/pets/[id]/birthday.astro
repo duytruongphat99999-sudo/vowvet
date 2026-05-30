@@ -1,0 +1,387 @@
+---
+/**
+ * /pets/[id]/birthday — Main birthday experience (M11).
+ *
+ * 4 states based on days_until:
+ *   no_date   — Pet has no DOB
+ *   normal    — > 30 days away
+ *   upcoming  — 1–30 days (party planner, invite friends)
+ *   today     — Birthday! (confetti, Gemini narrative, wishes wall)
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const APP_DOMAIN = import.meta.env.APP_DOMAIN || process.env.APP_DOMAIN || "https://vowvet.monminpet.com";
+
+let birthday: any = null;
+let wallData: any = null;
+let slideshow: string | null = null;
+
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/birthday`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) birthday = await res.json();
+} catch (_) {}
+
+const daysUntil = birthday?.days_until ?? null;
+const isToday = daysUntil === 0;
+const isUpcoming = daysUntil !== null && daysUntil > 0 && daysUntil <= 30;
+
+if (isToday || isUpcoming) {
+  try {
+    const wRes = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/birthday/wall-data`, {
+      headers: { cookie: cookieHeader },
+    });
+    if (wRes.ok) wallData = await wRes.json();
+  } catch (_) {}
+}
+
+if (isToday) {
+  try {
+    const sRes = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/birthday/slideshow`, {
+      method: "POST",
+      headers: { cookie: cookieHeader, "Content-Type": "application/json" },
+    });
+    if (sRes.ok) {
+      const s = await sRes.json();
+      slideshow = s.content || null;
+    }
+  } catch (_) {}
+}
+
+const wallUrl = `${APP_DOMAIN}/birthday/${petId}`;
+const cardUrl = `${APP_DOMAIN}/api/v1/pets/${petId}/birthday-card.svg`;
+
+const state = !birthday?.dob
+  ? "no_date"
+  : isToday
+  ? "today"
+  : isUpcoming
+  ? "upcoming"
+  : "normal";
+
+const wishes: any[] = wallData?.wishes || [];
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, photo_url: pet.photo_url },
+  birthday,
+  wallUrl,
+  cardUrl,
+  slideshow,
+  wishes,
+  state,
+});
+---
+
+<Layout
+  title={`Sinh nhật ${pet.name} · VowVet`}
+  description={birthday?.days_until === 0 ? `Hôm nay sinh nhật bé ${pet.name}! 🎂` : `Còn ${birthday?.days_until} ngày sinh nhật ${pet.name}`}
+>
+  {isToday && (
+    <style is:inline>{`
+      @keyframes confetti-fall {
+        0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+      }
+      .confetti-piece {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        top: -20px;
+        animation: confetti-fall linear forwards;
+        z-index: 999;
+        pointer-events: none;
+      }
+    `}</style>
+  )}
+
+  <main class="min-h-screen bg-gradient-to-b from-pink-50 via-orange-50 to-amber-50 px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`birthdayPage(${initialData})`}>
+
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900">🎂 Sinh nhật</h1>
+        <a href={`/pets/${pet.id}/birthday-party`} class="text-xs text-pink-600 hover:underline font-medium">Party planner →</a>
+      </header>
+
+      <!-- ───── STATE: no_date ───── -->
+      {state === "no_date" && (
+        <div class="bg-white rounded-3xl border border-dashed border-slate-200 p-10 text-center">
+          <p class="text-5xl mb-4">🐾</p>
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Chưa có ngày sinh nhật</h2>
+          <p class="text-slate-500 text-sm mb-6">Thêm ngày sinh để xem đếm ngược, nhận nhắc nhở và tổ chức party cho bé.</p>
+          <a href={`/pets/${pet.id}`}
+            class="inline-block bg-pink-500 hover:bg-pink-600 text-white font-semibold px-6 py-3 rounded-xl text-sm transition">
+            ✏️ Thêm ngày sinh
+          </a>
+        </div>
+      )}
+
+      <!-- ───── STATE: normal (>30 days) ───── -->
+      {state === "normal" && (
+        <div>
+          <div class="bg-gradient-to-br from-pink-400 to-orange-500 rounded-3xl p-8 text-white text-center shadow-xl mb-4">
+            <p class="text-6xl mb-3">🎂</p>
+            <p class="text-5xl font-extrabold">{birthday.days_until}</p>
+            <p class="text-lg font-medium opacity-90 mt-1">ngày nữa tới sinh nhật</p>
+            <p class="text-sm opacity-80 mt-2">
+              Bé <strong>{pet.name}</strong> sắp tròn <strong>{birthday.age_turning} tuổi</strong> vào {birthday.next_birthday}
+            </p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <a href={`/pets/${pet.id}/birthday-party`}
+              class="bg-white border border-slate-200 rounded-2xl p-4 text-center hover:border-pink-300 hover:bg-pink-50 transition">
+              <p class="text-3xl mb-1">🎊</p>
+              <p class="text-sm font-semibold text-slate-800">Party planner</p>
+              <p class="text-xs text-slate-500 mt-0.5">Chuẩn bị party</p>
+            </a>
+            <a href={wallUrl} target="_blank"
+              class="bg-white border border-slate-200 rounded-2xl p-4 text-center hover:border-pink-300 hover:bg-pink-50 transition">
+              <p class="text-3xl mb-1">💌</p>
+              <p class="text-sm font-semibold text-slate-800">Birthday wall</p>
+              <p class="text-xs text-slate-500 mt-0.5">Trang chúc mừng</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      <!-- ───── STATE: upcoming (1-30 days) ───── -->
+      {state === "upcoming" && (
+        <div class="space-y-4">
+          <!-- Big countdown -->
+          <div class="bg-gradient-to-br from-pink-500 via-fuchsia-500 to-orange-500 rounded-3xl p-8 text-white text-center shadow-xl">
+            <p class="text-6xl mb-2">🎂</p>
+            <p class="text-6xl font-extrabold drop-shadow">{birthday.days_until}</p>
+            <p class="text-xl font-semibold opacity-95 mt-1">ngày nữa</p>
+            <p class="text-sm opacity-85 mt-2">
+              Bé {pet.name} tròn <strong>{birthday.age_turning} tuổi</strong> — {birthday.next_birthday}
+            </p>
+          </div>
+
+          <!-- Share wall card -->
+          <div class="bg-gradient-to-br from-violet-50 to-pink-50 border-2 border-violet-200 rounded-2xl p-5">
+            <h2 class="text-base font-bold text-violet-900 mb-1">💌 Mời bạn bè chúc mừng bé</h2>
+            <p class="text-xs text-violet-700 mb-3">Chia sẻ link birthday wall — bạn bè để lại lời chúc, bé sẽ thấy vào đúng ngày sinh nhật 🎉</p>
+            <div class="bg-white border border-violet-300 rounded-xl p-3 flex items-center gap-2 mb-3">
+              <code class="text-xs text-violet-800 flex-1 truncate" x-text="wallUrl"></code>
+              <button @click="copyWallUrl()"
+                class="shrink-0 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
+                <span x-show="!wallCopied">📋 Copy</span>
+                <span x-show="wallCopied">✓ Copied!</span>
+              </button>
+            </div>
+            <div class="flex gap-2">
+              <a :href="`https://zalo.me/share/url?url=${encodeURIComponent(wallUrl)}&title=${encodeURIComponent('🎂 Sinh nhật bé ' + birthday.pet_name + '! Để lại lời chúc nhé!')}`"
+                target="_blank"
+                class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-center text-xs font-semibold py-2 rounded-lg">
+                📲 Chia sẻ Zalo
+              </a>
+              <button @click="shareFacebook()"
+                class="flex-1 bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs font-semibold py-2 rounded-lg">
+                👍 Facebook
+              </button>
+            </div>
+          </div>
+
+          <!-- Wishes preview -->
+          <template x-if="wishes.length > 0">
+            <div class="bg-white rounded-2xl border border-slate-100 p-4">
+              <h2 class="text-sm font-semibold text-slate-900 mb-3">💌 Lời chúc sớm (<span x-text="wishes.length"></span>)</h2>
+              <div class="space-y-2">
+                <template x-for="w in wishes.slice(0, 3)" :key="w.created_at">
+                  <div class="bg-pink-50 rounded-xl p-3 flex items-start gap-2">
+                    <span class="text-xl" x-text="w.emoji"></span>
+                    <div>
+                      <p class="text-xs font-bold text-slate-800" x-text="w.name"></p>
+                      <p class="text-xs text-slate-600 mt-0.5" x-text="w.message"></p>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <a :href="wallUrl" target="_blank" class="block mt-3 text-center text-xs text-violet-600 hover:underline font-medium">
+                Xem tất cả trên birthday wall →
+              </a>
+            </div>
+          </template>
+
+          <!-- Party planner link -->
+          <a href={`/pets/${pet.id}/birthday-party`}
+            class="block bg-gradient-to-br from-orange-400 to-pink-500 text-white rounded-2xl p-4 text-center shadow-lg hover:opacity-95 transition">
+            <p class="text-2xl mb-1">🎊</p>
+            <p class="text-sm font-bold">Mở Party Planner</p>
+            <p class="text-xs opacity-90 mt-0.5">Checklist, cake, quà, voucher 15%</p>
+          </a>
+        </div>
+      )}
+
+      <!-- ───── STATE: today 🎂 ───── -->
+      {state === "today" && (
+        <div class="space-y-4" id="birthday-today-wrap">
+          <!-- Hero banner -->
+          <div class="bg-gradient-to-br from-pink-500 via-fuchsia-500 to-orange-400 rounded-3xl p-8 text-white text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px), radial-gradient(circle at 50% 80%, white 1px, transparent 1px); background-size: 40px 40px;"></div>
+            <p class="text-5xl mb-2 relative">🎉🎂🎉</p>
+            <p class="text-3xl sm:text-4xl font-extrabold drop-shadow relative">HÔM NAY SINH NHẬT!</p>
+            <p class="text-lg font-semibold opacity-95 mt-2 relative">
+              Bé <strong>{pet.name}</strong> tròn <strong>{birthday.age_turning} tuổi</strong>
+            </p>
+            <p class="text-xs opacity-80 mt-1 relative">{birthday.next_birthday}</p>
+            <p class="text-2xl mt-3 relative">🥰🐾🎊</p>
+          </div>
+
+          <!-- Gemini slideshow narrative -->
+          {slideshow && (
+            <div class="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-5">
+              <h2 class="text-base font-bold text-amber-900 mb-3">📖 {pet.name} kể chuyện năm qua</h2>
+              <p class="text-sm text-slate-700 leading-relaxed italic whitespace-pre-line">{slideshow}</p>
+              <p class="text-xs text-amber-600 mt-3 text-right">✨ Được tạo bởi Mon Min AI</p>
+            </div>
+          )}
+
+          <!-- Birthday card + download -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-5">
+            <h2 class="text-base font-semibold text-slate-900 mb-3">🖼️ Card sinh nhật</h2>
+            <div class="bg-gradient-to-br from-pink-100 to-orange-100 rounded-xl p-2">
+              <img src={cardUrl} alt="Birthday card" class="w-full rounded-lg shadow"
+                onerror="this.style.display='none'" />
+            </div>
+            <div class="flex gap-2 mt-3">
+              <a href={cardUrl} download={`birthday-${pet.name}.svg`}
+                class="flex-1 bg-pink-500 hover:bg-pink-600 text-white text-center font-semibold py-2.5 rounded-lg text-sm">
+                ⬇️ Tải card
+              </a>
+              <button @click="shareCard()"
+                class="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2.5 rounded-lg text-sm">
+                <span x-show="!cardShared">📤 Share</span>
+                <span x-show="cardShared">✓ Copied!</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Birthday wall -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-base font-semibold text-slate-900">💌 Lời chúc từ bạn bè (<span x-text="wishes.length"></span>)</h2>
+              <a :href="wallUrl" target="_blank" class="text-xs text-violet-600 hover:underline">Mở wall →</a>
+            </div>
+
+            <template x-if="wishes.length === 0">
+              <p class="text-sm text-slate-400 text-center py-6 italic">Chưa có lời chúc nào. Chia sẻ link để bạn bè chúc mừng bé!</p>
+            </template>
+
+            <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+              <template x-for="w in wishes" :key="w.created_at">
+                <div class="bg-pink-50 rounded-xl p-3 flex items-start gap-2">
+                  <span class="text-xl shrink-0" x-text="w.emoji"></span>
+                  <div class="min-w-0">
+                    <p class="text-xs font-bold text-slate-800" x-text="w.name"></p>
+                    <p class="text-xs text-slate-600 mt-0.5" x-text="w.message"></p>
+                    <p class="text-[10px] text-slate-400 mt-1" x-text="fmtTime(w.created_at)"></p>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Share wall link -->
+            <div class="mt-4 pt-4 border-t border-slate-100">
+              <p class="text-xs text-slate-500 mb-2">Mời bạn bè để lại lời chúc:</p>
+              <div class="flex gap-2">
+                <input type="text" :value="wallUrl" readonly
+                  class="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 truncate" />
+                <button @click="copyWallUrl()"
+                  class="shrink-0 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-2 rounded-lg">
+                  <span x-show="!wallCopied">Copy</span>
+                  <span x-show="wallCopied">✓</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function birthdayPage(initial) {
+      return {
+        pet: initial.pet,
+        birthday: initial.birthday,
+        wallUrl: initial.wallUrl,
+        cardUrl: initial.cardUrl,
+        slideshow: initial.slideshow,
+        wishes: initial.wishes || [],
+        state: initial.state,
+        wallCopied: false,
+        cardShared: false,
+
+        init() {
+          if (this.state === "today") this.launchConfetti();
+        },
+
+        launchConfetti() {
+          const colors = ["#f43f5e", "#f97316", "#fbbf24", "#34d399", "#818cf8", "#e879f9"];
+          const count = 80;
+          for (let i = 0; i < count; i++) {
+            const el = document.createElement("div");
+            el.className = "confetti-piece";
+            el.style.left = Math.random() * 100 + "vw";
+            el.style.background = colors[Math.floor(Math.random() * colors.length)];
+            el.style.borderRadius = Math.random() > 0.5 ? "50%" : "0";
+            el.style.width = (6 + Math.random() * 8) + "px";
+            el.style.height = (6 + Math.random() * 8) + "px";
+            el.style.animationDuration = (2 + Math.random() * 3) + "s";
+            el.style.animationDelay = Math.random() * 2 + "s";
+            document.body.appendChild(el);
+            el.addEventListener("animationend", () => el.remove());
+          }
+        },
+
+        async copyWallUrl() {
+          try {
+            await navigator.clipboard.writeText(this.wallUrl);
+            this.wallCopied = true;
+            setTimeout(() => (this.wallCopied = false), 2500);
+          } catch (_) {}
+        },
+
+        async shareCard() {
+          const text = `🎂 Sinh nhật bé ${this.birthday?.pet_name}! Tròn ${this.birthday?.age_turning} tuổi hôm nay 🎉`;
+          try {
+            if (navigator.share) {
+              await navigator.share({ text, url: this.cardUrl });
+            } else {
+              await navigator.clipboard.writeText(`${text}\n${this.cardUrl}`);
+            }
+            this.cardShared = true;
+            setTimeout(() => (this.cardShared = false), 2500);
+          } catch (_) {}
+        },
+
+        shareFacebook() {
+          const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(this.wallUrl)}`;
+          window.open(url, "_blank", "width=600,height=500");
+        },
+
+        fmtTime(iso) {
+          if (!iso) return "";
+          try {
+            return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+          } catch { return ""; }
+        },
+      };
+    }
+  </script>
+</Layout>

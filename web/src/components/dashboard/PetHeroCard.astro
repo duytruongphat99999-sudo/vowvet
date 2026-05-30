@@ -1,0 +1,205 @@
+---
+/**
+ * ZONE 1 — Pet Hero (refined: clean avatar, mood SVG icons, no emoji stickers).
+ *
+ * Matches homepage ecosystem-card aesthetic:
+ *   - Dark ink full-width section
+ *   - Clean photo (gold ring + offset, NO overlays covering it)
+ *   - Mood shown as INLINE chip with SVG face icon (not emoji bubble)
+ *   - Pet Score removed from hero (it has its own zone below)
+ *   - Fraunces italic huge name + glass-pill chips + gold CTA
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+
+interface Props {
+  pet: any;
+  mood: any | null;
+  /**
+   * Set of link destinations đã được hiển thị ở chỗ khác trên dashboard
+   * (QuestStrip header + 6 QuickAccess cards). PetHeroCard CTA sẽ tránh
+   * những destination này để KHÔNG TRÙNG. Pass từ dashboard.astro.
+   */
+  occupiedLinks?: string[];
+}
+const { pet, mood, occupiedLinks = [] } = Astro.props;
+
+const speciesRaw = typeof pet.species === "object" ? pet.species?.value : pet.species;
+const moodState = mood?.state || "chill";
+const moodLabel = mood?.label_vi || "Bình thường";
+const moodMessage = mood?.message || `Hôm nay là ngày mới cùng ${pet.name}.`;
+
+// Strip leading emoji from suggested action labels (data comes with emoji prefix
+// like "🎯 Quest hôm nay" — UI chrome should be SVG only)
+const EMOJI_RE = /^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F900}-\u{1F9FF}]\s*/u;
+const allActions: any[] = Array.isArray(mood?.suggested_actions) ? mood.suggested_actions : [];
+
+// Pick the best top-action — anti-duplication strategy:
+//   1. Skip actions whose link is already shown elsewhere on dashboard (QuestStrip / QuickAccess).
+//   2. Among the remaining, prefer actions with a "deeper" URL path (more specific = more interesting CTA).
+//      e.g. /pets/{id}/personality > /pets/{id}/quests > /pets/{id}
+//   3. Always fall back to first raw action if filter removes everything (so we never show empty CTA).
+const occupiedSet = new Set(occupiedLinks);
+
+function pathDepth(link: string): number {
+  return String(link || "").split("?")[0].split("#")[0].split("/").filter(Boolean).length;
+}
+
+const filteredActions = allActions.filter((a) => !occupiedSet.has(String(a?.link || "")));
+// Stable sort: deepest path first; preserve original order on tie.
+const rankedActions = filteredActions
+  .map((a, i) => ({ a, depth: pathDepth(a?.link), i }))
+  .sort((x, y) => (y.depth - x.depth) || (x.i - y.i))
+  .map((x) => x.a);
+
+const candidateAction = rankedActions[0] || allActions[0] || null;
+
+const topAction = candidateAction
+  ? {
+      ...candidateAction,
+      label: (candidateAction.label || "").replace(EMOJI_RE, "").trim(),
+      reward: (candidateAction.reward || "").replace(EMOJI_RE, "").trim(),
+    }
+  : null;
+
+// When topAction is quest-related, scroll to QuestStrip anchor on same page
+// instead of navigating away. Detection: label "nhiệm vụ"/"quest" OR link to /quests.
+const isQuestAction = !!topAction && (
+  /nhi[ệê]m\s*v[ụu]|quest/i.test(String(topAction.label || "")) ||
+  /\/quests(\/?|\?|#|$)/i.test(String(topAction.link || ""))
+);
+const heroCtaHref = isQuestAction ? "#daily-quests-section" : topAction?.link;
+
+// Map mood state → SVG icon name (replaces emoji stickers)
+const MOOD_ICON: Record<string, string> = {
+  happy:    "mood-happy",
+  excited:  "mood-excited",
+  chill:    "mood-chill",
+  needy:    "mood-needy",
+  sad:      "mood-sad",
+  sleeping: "mood-sleeping",
+};
+const moodIconName = MOOD_ICON[moodState] || "mood-chill";
+
+// Time-of-day greeting (Vietnam TZ UTC+7)
+const vnDate = new Date(Date.now() + 7 * 3600 * 1000);
+const hour = vnDate.getUTCHours();
+let greeting = "Chào buổi sáng";
+if (hour >= 11 && hour < 13) greeting = "Chào buổi trưa";
+else if (hour >= 13 && hour < 18) greeting = "Chào buổi chiều";
+else if (hour >= 18 || hour < 5) greeting = "Chào buổi tối";
+
+function calcAge(dob?: string): string | null {
+  if (!dob) return null;
+  try {
+    const d = new Date(dob);
+    const now = new Date();
+    const years = now.getFullYear() - d.getFullYear();
+    const months = now.getMonth() - d.getMonth();
+    const totalMonths = years * 12 + months;
+    if (totalMonths < 12) return `${totalMonths} tháng`;
+    return `${Math.floor(totalMonths / 12)} tuổi`;
+  } catch { return null; }
+}
+const ageStr = calcAge(pet.dob);
+---
+
+<section class="relative bg-mmp-ink text-white rounded-3xl overflow-hidden">
+  {/* Ambient gold spotlights (matching homepage hero) */}
+  <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
+    <div class="absolute -top-20 -right-20 w-[420px] h-[420px] rounded-full opacity-40"
+         style="background: radial-gradient(circle, rgba(236,185,33,0.55) 0%, transparent 65%);"></div>
+    <div class="absolute -bottom-32 -left-16 w-[360px] h-[360px] rounded-full opacity-25"
+         style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+  </div>
+  <div class="absolute inset-0 opacity-[0.04] pointer-events-none" aria-hidden="true"
+       style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 28px 28px;"></div>
+
+  <div class="relative px-5 sm:px-7 py-7 sm:py-9">
+    <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-6 sm:gap-8 items-center">
+
+      {/* ─── LEFT: greeting + name + chips + CTA ─── */}
+      <div class="hero-fade hero-fade-d1 min-w-0 order-2 sm:order-1">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="relative flex h-2 w-2">
+            <span class="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style="background: var(--c-gold);"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2" style="background: var(--c-gold);"></span>
+          </span>
+          <p class="text-[10px] sm:text-xs uppercase tracking-widest font-semibold" style="color: var(--c-gold);">{greeting}</p>
+        </div>
+
+        <h1 class="font-display italic font-semibold leading-[0.95] tracking-tight">
+          <span class="block text-4xl sm:text-5xl md:text-6xl text-white truncate">{pet.name}</span>
+        </h1>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          {speciesRaw && (
+            <span class="px-2.5 py-1 rounded-full bg-white/10 backdrop-blur border border-white/15 text-white/90">{speciesRaw}</span>
+          )}
+          {pet.breed && (
+            <span class="px-2.5 py-1 rounded-full bg-white/10 backdrop-blur border border-white/15 text-white/80">{pet.breed}</span>
+          )}
+          {ageStr && (
+            <span class="px-2.5 py-1 rounded-full bg-white/10 backdrop-blur border border-white/15 text-white/80">{ageStr}</span>
+          )}
+          {/* Mood chip — SVG icon (no emoji) */}
+          <span class="px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 backdrop-blur"
+                style="background: rgba(236,185,33,0.18); border: 1px solid rgba(236,185,33,0.35); color: var(--c-gold);">
+            <FeatureIcon name={moodIconName} class="w-3.5 h-3.5" strokeWidth={2} />
+            <span class="font-semibold capitalize">{moodLabel}</span>
+          </span>
+        </div>
+
+        <p class="text-sm sm:text-base text-white/70 italic mt-4 leading-relaxed line-clamp-2 max-w-xl">
+          "{moodMessage}"
+        </p>
+
+        {topAction && (
+          <a href={heroCtaHref}
+             class="hero-fade hero-fade-d3 mt-6 inline-flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-mmp-gold text-mmp-ink hover:scale-[1.02] hover:shadow-lg hover:shadow-mmp-gold/30 active:scale-[0.99] transition-all font-bold text-sm sm:text-base group">
+            <span>{topAction.label}</span>
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-mmp-ink/10 group-hover:bg-mmp-ink/20 transition">
+              <FeatureIcon name="arrow" class="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
+            </span>
+          </a>
+        )}
+        {topAction?.reward && (
+          <p class="hero-fade hero-fade-d4 mt-2 text-xs text-white/60 inline-flex items-center gap-1.5">
+            <FeatureIcon name="sparkles" class="w-3 h-3" strokeWidth={2} style="color: var(--c-gold);" />
+            <span>{topAction.reward}</span>
+          </p>
+        )}
+      </div>
+
+      {/* ─── RIGHT: CLEAN avatar (no overlays covering photo) — LARGER ─── */}
+      <div class="hero-fade hero-fade-d2 relative shrink-0 order-1 sm:order-2 mx-auto sm:mx-0">
+        <div class="relative w-44 h-44 sm:w-52 sm:h-52 md:w-60 md:h-60">
+          {/* Gold halo blur behind */}
+          <div class="absolute -inset-4 rounded-3xl opacity-60 blur-2xl pointer-events-none"
+               style="background: radial-gradient(circle, rgba(236,185,33,0.45) 0%, transparent 70%);"></div>
+          {/* Clean photo with gold ring */}
+          <div class="relative w-full h-full rounded-3xl overflow-hidden ring-2 ring-offset-4 ring-offset-mmp-ink shadow-2xl"
+               style="--tw-ring-color: var(--c-gold);">
+            {pet.photo_url ? (
+              <img
+                src={pet.photo_url}
+                alt={pet.name}
+                class="animate-subtle-breathe w-full h-full object-cover"
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <div class="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-mmp-gold/40">
+                <FeatureIcon name="paw" class="w-20 h-20" />
+              </div>
+            )}
+          </div>
+          {/* Mood indicator (slightly larger to scale with photo) */}
+          <span class="absolute -bottom-2 -right-2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-white shadow-lg ring-2 ring-mmp-ink"
+                style="color: var(--c-gold);" title={moodLabel}>
+            <FeatureIcon name={moodIconName} class="w-5 h-5" strokeWidth={2} />
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

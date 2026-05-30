@@ -1,0 +1,228 @@
+---
+/**
+ * /places/[id] — Place detail (public, M26).
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const placeId = Number(Astro.params.id);
+if (!Number.isFinite(placeId)) return Astro.redirect("/map");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let place: any = null;
+let checkins: any[] = [];
+try {
+  const [pRes, cRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/places/${placeId}`),
+    fetch(`${API_INTERNAL}/api/v1/places/${placeId}/checkins`),
+  ]);
+  if (pRes.ok) place = await pRes.json();
+  if (cRes.ok) checkins = (await cRes.json()).checkins || [];
+} catch (_) {}
+
+if (!place) return Astro.redirect("/map");
+
+const session = Astro.locals.user;
+
+const initialData = JSON.stringify({ place, checkins, isLoggedIn: !!session });
+---
+
+<Layout title={`${place.name} · VowVet Map`} description={place.address}>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+  <main class="min-h-screen bg-slate-50 pb-12" x-data={`placeDetail(${initialData})`}>
+
+    <header class="bg-white border-b border-slate-100 sticky top-0 z-10">
+      <div class="max-w-2xl mx-auto p-4 flex items-center justify-between gap-3">
+        <a href="/map" class="text-sm text-slate-500 hover:text-slate-700">← Bản đồ</a>
+        <h1 class="text-base font-bold text-slate-900 truncate" x-text="place.name"></h1>
+        <span class="w-12"></span>
+      </div>
+    </header>
+
+    <div class="max-w-2xl mx-auto p-4">
+
+      <!-- Hero -->
+      <div class="bg-white rounded-3xl border border-slate-100 p-5 mb-3 shadow-sm">
+        <div class="flex items-start gap-3 mb-2">
+          <span class="text-5xl shrink-0" x-text="catEmoji"></span>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-xl font-extrabold text-slate-900" x-text="place.name"></h2>
+            <p class="text-xs text-slate-500 mt-1" x-text="catLabel"></p>
+            <template x-if="place.verified">
+              <span class="inline-block mt-1 bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                ✓ Đã verify
+              </span>
+            </template>
+          </div>
+        </div>
+
+        <p class="text-sm text-slate-700 mt-3" x-text="place.address"></p>
+
+        <div class="flex flex-wrap gap-2 mt-3 text-xs">
+          <span class="bg-amber-50 text-amber-800 px-2 py-1 rounded-full" x-text="policyLabel"></span>
+          <template x-for="a in place.amenities" :key="a">
+            <span class="bg-slate-100 text-slate-700 px-2 py-1 rounded-full" x-text="amenityLabel(a)"></span>
+          </template>
+        </div>
+
+        <template x-if="place.total_checkins > 0">
+          <p class="text-sm text-slate-600 mt-3">
+            ⭐ <strong x-text="place.avg_rating.toFixed(1)"></strong>
+            <span class="text-xs">· <span x-text="place.total_checkins"></span> check-in · <span x-text="place.total_reviews"></span> review</span>
+          </p>
+        </template>
+      </div>
+
+      <!-- Actions -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+        <template x-if="isLoggedIn">
+          <a :href="`/places/checkin?placeId=${place.id}`"
+            class="bg-mmp-ink hover:bg-slate-800 text-white font-bold text-sm py-3 rounded-xl text-center">
+            📍 Check-in
+          </a>
+        </template>
+        <template x-if="!isLoggedIn">
+          <a href="/login"
+            class="bg-mmp-ink hover:bg-slate-800 text-white font-bold text-sm py-3 rounded-xl text-center">
+            Đăng nhập để check-in
+          </a>
+        </template>
+        <a :href="googleMapsUrl"
+          target="_blank"
+          class="bg-mmp-ink hover:bg-mmp-ink text-white font-bold text-sm py-3 rounded-xl text-center">
+          🧭 Chỉ đường
+        </a>
+        <template x-if="place.contact_phone">
+          <a :href="`tel:${place.contact_phone}`"
+            class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm py-3 rounded-xl text-center">
+            📞 Gọi
+          </a>
+        </template>
+        <template x-if="place.contact_website">
+          <a :href="place.contact_website" target="_blank"
+            class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-sm py-3 rounded-xl text-center">
+            🌐 Web
+          </a>
+        </template>
+      </div>
+
+      <!-- Photo gallery -->
+      <template x-if="place.photo_urls && place.photo_urls.length > 0">
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-bold text-slate-900">📸 Ảnh thực tế (<span x-text="place.photo_urls.length"></span>)</h2>
+            <template x-if="!place.verified">
+              <span class="text-[10px] bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-bold">⚠ Chưa verify</span>
+            </template>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <template x-for="url in place.photo_urls" :key="url">
+              <a :href="url" target="_blank" rel="noopener" class="block">
+                <img :src="url" alt="" class="w-full aspect-square object-cover rounded-lg border border-slate-200 hover:opacity-90 transition" />
+              </a>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Map -->
+      <div class="bg-white rounded-2xl border border-slate-100 p-3 mb-3 overflow-hidden">
+        <div id="place-mini-map" style="height: 220px; width: 100%; border-radius: 12px;"></div>
+      </div>
+
+      <!-- Reviews/Check-ins -->
+      <div class="bg-white rounded-2xl border border-slate-100 p-5">
+        <h3 class="text-base font-bold text-slate-900 mb-3">💬 Check-ins từ pet bạn (<span x-text="checkins.length"></span>)</h3>
+
+        <template x-if="checkins.length === 0">
+          <p class="text-sm text-slate-400 italic text-center py-6">
+            Chưa có check-in nào. Hãy là người đầu tiên!
+          </p>
+        </template>
+
+        <div class="space-y-3">
+          <template x-for="c in checkins" :key="c.id">
+            <div class="bg-slate-50 rounded-xl p-3">
+              <div class="flex items-start gap-2 mb-1">
+                <span class="text-xl shrink-0">🐾</span>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs text-slate-500" x-text="fmtDate(c.visited_at)"></p>
+                    <template x-if="c.rating > 0">
+                      <span class="text-xs">
+                        <template x-for="i in 5" :key="i">
+                          <span x-text="i <= c.rating ? '★' : '☆'" class="text-amber-500"></span>
+                        </template>
+                      </span>
+                    </template>
+                  </div>
+                  <template x-if="c.review">
+                    <p class="text-sm text-slate-800 mt-1" x-text="c.review"></p>
+                  </template>
+                  <template x-if="c.photo_urls && c.photo_urls.length > 0">
+                    <div class="grid grid-cols-3 gap-1.5 mt-2">
+                      <template x-for="url in c.photo_urls" :key="url">
+                        <a :href="url" target="_blank" rel="noopener" class="block">
+                          <img :src="url" alt="" class="w-full aspect-square object-cover rounded border border-slate-200 hover:opacity-90" />
+                        </a>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script is:inline>
+    function placeDetail(initial) {
+      const CATEGORY_MAP = {
+        park: { label: "Công viên", emoji: "🌳" }, cafe: { label: "Cafe", emoji: "☕" },
+        vet: { label: "Phòng khám", emoji: "🏥" }, restaurant: { label: "Nhà hàng", emoji: "🍽️" },
+        hotel: { label: "Khách sạn", emoji: "🏨" }, grooming: { label: "Grooming", emoji: "✂️" },
+        pet_shop: { label: "Pet shop", emoji: "🛒" }, beach: { label: "Bãi biển", emoji: "🏖️" },
+        other: { label: "Khác", emoji: "📍" }
+      };
+      return {
+        place: initial.place,
+        checkins: initial.checkins,
+        isLoggedIn: initial.isLoggedIn,
+
+        get catEmoji() { return CATEGORY_MAP[this.place.category]?.emoji || "📍"; },
+        get catLabel() { return CATEGORY_MAP[this.place.category]?.label || this.place.category; },
+        get googleMapsUrl() { return `https://www.google.com/maps/dir/?api=1&destination=${this.place.lat},${this.place.lng}`; },
+        get policyLabel() {
+          return ({ allowed: "🐾 Pet welcome", leash_only: "🦮 Có dây xích", small_pets_only: "🐱 Chỉ pet nhỏ", private_only: "🔒 Đặt trước", by_request: "❓ Hỏi trước" })[this.place.pet_policy] || this.place.pet_policy;
+        },
+
+        amenityLabel(a) {
+          return ({ water_bowl: "💧 Bowl nước", outdoor_seating: "🌤️ Ngoài trời", indoor: "🏠 Trong nhà", off_leash_area: "🦮 Off-leash", shade: "🌳 Bóng mát", poop_bag: "🛍️ Bag rác" })[a] || a;
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "";
+          try { return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+          catch { return iso; }
+        },
+
+        init() {
+          setTimeout(() => this.initMap(), 50);
+        },
+
+        initMap() {
+          if (!window.L) return;
+          const m = L.map("place-mini-map", { zoomControl: false }).setView([this.place.lat, this.place.lng], 15);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OSM" }).addTo(m);
+          L.marker([this.place.lat, this.place.lng]).addTo(m).bindPopup(this.place.name);
+        },
+      };
+    }
+  </script>
+</Layout>

@@ -1,0 +1,613 @@
+[samples] PET_IDS_TO_SAMPLE empty — auto-picking first 10 pets...
+[samples] Generating care plans for 10 pets...
+[samples] pet 1 () ...
+[samples] pet 2 () ...
+[samples] pet 3 (Beo) ...
+[care-plan-v2] cache MISS pet=3 date=2026-05-22 force_refresh=true
+[care-plan-v2] generated pet=3 cost=$0.0030 tok=2390/933 elapsed=15921ms
+  ✓ done in 15922ms
+[samples] pet 5 (Mon) ...
+[care-plan-v2] cache MISS pet=5 date=2026-05-22 force_refresh=true
+[care-plan-v2] generated pet=5 cost=$0.0022 tok=2402/574 elapsed=14258ms
+  ✓ done in 14258ms
+[samples] pet 6 (Mon) ...
+[care-plan-v2] cache MISS pet=6 date=2026-05-22 force_refresh=true
+[care-plan-v2] generated pet=6 cost=$0.0028 tok=2386/853 elapsed=14066ms
+  ✓ done in 14066ms
+[samples] pet 7 (Pugy) ...
+[care-plan-v2] cache MISS pet=7 date=2026-05-22 force_refresh=true
+[care-plan-v2] generated pet=7 cost=$0.0027 tok=2433/771 elapsed=12896ms
+  ✓ done in 12896ms
+[samples] pet 9 (M7Test) ...
+[care-plan-v2] cache MISS pet=9 date=2026-05-22 force_refresh=true
+[samples] pet 11 (Bug Test Pet) ...
+[care-plan-v2] cache MISS pet=11 date=2026-05-22 force_refresh=true
+[samples] pet 12 (min) ...
+[care-plan-v2] cache MISS pet=12 date=2026-05-22 force_refresh=true
+[care-plan-v2] generated pet=12 cost=$0.0026 tok=2391/769 elapsed=11718ms
+  ✓ done in 11718ms
+[samples] pet 13 (Mega Pet) ...
+[care-plan-v2] cache MISS pet=13 date=2026-05-22 force_refresh=true
+
+[samples] Done. 10 plans generated. Total errors: 5
+[
+  {
+    "pet_id": 1,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 0,
+    "timestamp": "2026-05-21T20:25:21.995Z",
+    "error": "Pet has no user_id link"
+  },
+  {
+    "pet_id": 2,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 0,
+    "timestamp": "2026-05-21T20:25:21.995Z",
+    "error": "Pet has no user_id link"
+  },
+  {
+    "pet_id": 3,
+    "pet_name": "Beo",
+    "species": "dog",
+    "breed": "Phú Quốc",
+    "age_label": "2023-01-01",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-22",
+      "pet_name": "Beo",
+      "pet_breed": "Phú Quốc",
+      "pet_age_label": "3 tuổi 4 tháng",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 28.4,
+        "feels_like_celsius": 34.1,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 80,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Phú Quốc — Năng lượng cực cao — KHÔNG phù hợp apartment, cần sân/đất rộng",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "06:30",
+            "what": "100g hạt khô Mon Min Dry + 50g pate Mon Min",
+            "reason": "Bữa sáng đầy đủ dinh dưỡng, bổ sung protein cho bé Phú Quốc năng động"
+          },
+          {
+            "time": "12:30",
+            "what": "1 miếng ức gà luộc nhỏ (khoảng 20g)",
+            "reason": "Snack bổ sung protein, ít béo"
+          },
+          {
+            "time": "18:30",
+            "what": "100g hạt khô Mon Min Dry",
+            "reason": "Bữa tối cân bằng, dễ tiêu hoá"
+          }
+        ],
+        "water_note": "Bổ sung 300ml nước (tăng 25% do nắng nóng và mức năng lượng cao của giống Phú Quốc). Đặt 2-3 bát nước ở các vị trí dễ tiếp cận trong nhà nha."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:00",
+            "activity": "Chạy tự do, chơi ném bóng",
+            "duration_min": 45,
+            "location_type": "công viên có rào chắn hoặc sân nhà rộng"
+          },
+          {
+            "time": "19:30",
+            "activity": "Chơi kéo co, tìm đồ vật",
+            "duration_min": 45,
+            "location_type": "trong sân nhà hoặc khu vực an toàn"
+          }
+        ],
+        "warning": "Beo là chó Phú Quốc năng lượng cao nhưng trời Sài Gòn hôm nay nóng gắt (cảm giác 34.1°C) — KHÔNG ra nắng 10h-17h để tránh sốc nhiệt. Ưu tiên vận động sáng sớm và tối muộn thôi nha."
+      },
+      "training": {
+        "focus_this_week": "Dạy lệnh 'Về đây' (recall) để kiểm soát bé tốt hơn khi vận động ngoài trời",
+        "sessions": "3 lượt × 5 phút (sáng + chiều + tối)"
+      },
+      "monitoring": [
+        {
+          "metric": "Mức năng lượng",
+          "current_value": "Cao",
+          "recommendation": "Đảm bảo Beo được vận động đủ 1.5-2 tiếng mỗi ngày để giải toả năng lượng, tránh phá phách trong nhà nha."
+        },
+        {
+          "metric": "Nước uống",
+          "current_value": "Cần theo dõi",
+          "recommendation": "Kiểm tra xem Beo có uống đủ nước không, đặc biệt sau khi vận động. Thay nước mới thường xuyên để khuyến khích bé uống nhiều hơn."
+        },
+        {
+          "metric": "Đệm chân",
+          "current_value": "Bình thường",
+          "recommendation": "Kiểm tra đệm chân của Beo sau mỗi lần đi dạo ngoài trời để tránh bỏng rát do mặt đường nóng nha."
+        },
+        {
+          "metric": "Thái độ cảnh giác",
+          "current_value": "Bình thường",
+          "recommendation": "Tiếp tục cho Beo tiếp xúc với môi trường và người lạ có kiểm soát để duy trì sự hòa đồng và giảm bớt tính cảnh giác quá mức nha."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 15,
+          "event": "Vaccine định kỳ",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Chào Beo! Hôm nay bé cưng vẫn khoẻ mạnh, năng lượng dồi dào lắm nha. Trời Sài Gòn hơi nóng (cảm giác 34.1°C) nên mình cần chú ý cho Beo uống đủ nước và vận động vào khung giờ mát mẻ thôi nè.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.003,
+        "input_tokens": 2390,
+        "output_tokens": 933,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T20:25:37.707Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 15922,
+    "timestamp": "2026-05-21T20:25:37.917Z"
+  },
+  {
+    "pet_id": 5,
+    "pet_name": "Mon",
+    "species": "cat",
+    "breed": "Anh lông ngắn (British Shorthair)",
+    "age_label": "2023-12-06",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-22",
+      "pet_name": "Mon",
+      "pet_breed": "Anh lông ngắn (British Shorthair)",
+      "pet_age_label": "2 tuổi 5 tháng",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 28.4,
+        "feels_like_celsius": 34.1,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 80,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Anh lông ngắn (British Shorthair) — HCM (Hypertrophic Cardiomyopathy) — siêu âm tim 1 năm/lần từ 3 tuổi",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "Ngay lập tức",
+            "what": "Không cho ăn gì",
+            "reason": "Bé Mon đang nôn ra máu, cần được bác sĩ thú y thăm khám và hướng dẫn khẩu phần ăn phù hợp."
+          }
+        ],
+        "water_note": "Chỉ cho bé Mon uống từng ngụm nước nhỏ nếu bé không nôn thêm. Nếu bé nôn liên tục, không cho uống nữa và báo bác sĩ ngay nha."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "Cả ngày",
+            "activity": "Nghỉ ngơi hoàn toàn",
+            "duration_min": 0,
+            "location_type": "trong nhà, nơi yên tĩnh"
+          }
+        ],
+        "warning": "Bé Mon cần nghỉ ngơi tuyệt đối để cơ thể hồi phục. Tránh mọi hoạt động thể chất nha."
+      },
+      "training": null,
+      "monitoring": [
+        {
+          "metric": "Tần suất và màu sắc chất nôn",
+          "current_value": "Cần theo dõi sát",
+          "recommendation": "Ghi lại chi tiết thời gian, tần suất và màu sắc chất nôn để báo bác sĩ thú y ngay lập tức."
+        },
+        {
+          "metric": "Mức độ lờ đờ, mệt mỏi",
+          "current_value": "Cần theo dõi sát",
+          "recommendation": "Quan sát xem bé Mon có lờ đờ, yếu ớt hơn không. Báo bác sĩ nếu bé có dấu hiệu này."
+        },
+        {
+          "metric": "Màu nướu",
+          "current_value": "Cần kiểm tra",
+          "recommendation": "Kiểm tra màu nướu của bé Mon. Nướu nhợt nhạt hoặc trắng bệch là dấu hiệu nguy hiểm, cần báo bác sĩ ngay."
+        },
+        {
+          "metric": "Cân nặng",
+          "current_value": "5.5kg",
+          "recommendation": "Bé Anh lông ngắn dễ béo phì. Sau khi bé ổn định, mình cần kiểm soát khẩu phần ăn và cân nặng định kỳ nha."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 27,
+          "event": "Vaccine nhắc lại",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "emergency",
+      "summary": "Bé Mon đang có dấu hiệu nôn ra máu rất nghiêm trọng, cần được cấp cứu ngay lập tức. Thời tiết Sài Gòn hôm nay khá nóng, mình cần giữ bé ở nơi mát mẻ và yên tĩnh nha.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0022,
+        "input_tokens": 2402,
+        "output_tokens": 574,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T20:25:52.006Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 14258,
+    "timestamp": "2026-05-21T20:25:52.175Z"
+  },
+  {
+    "pet_id": 6,
+    "pet_name": "Mon",
+    "species": "cat",
+    "breed": "Anh lông ngắn (British Shorthair)",
+    "age_label": "2023-12-16",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-22",
+      "pet_name": "Mon",
+      "pet_breed": "Anh lông ngắn (British Shorthair)",
+      "pet_age_label": "2 tuổi 5 tháng",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 28.4,
+        "feels_like_celsius": 34.1,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 80,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Anh lông ngắn (British Shorthair) — HCM (Hypertrophic Cardiomyopathy) — siêu âm tim 1 năm/lần từ 3 tuổi",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "1 gói pate Mon Min (85g) + 10g hạt khô Mon Min Dry",
+            "reason": "Cung cấp đủ dinh dưỡng, kiểm soát cân nặng cho bé Anh lông ngắn"
+          },
+          {
+            "time": "18:00",
+            "what": "1 gói pate Mon Min (85g) + 10g hạt khô Mon Min Dry",
+            "reason": "Chia bữa để dễ tiêu hóa và kiểm soát khẩu phần"
+          }
+        ],
+        "water_note": "Bổ sung ít nhất 150ml nước sạch, chia làm nhiều lần trong ngày. Đặt 2-3 chén nước ở các vị trí khác nhau trong nhà để khuyến khích bé uống nhiều hơn do trời nóng."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:30",
+            "activity": "Chơi cần câu mèo hoặc đồ chơi tương tác",
+            "duration_min": 10,
+            "location_type": "trong nhà"
+          },
+          {
+            "time": "19:30",
+            "activity": "Chơi với bóng hoặc laser pointer (không chiếu vào mắt)",
+            "duration_min": 10,
+            "location_type": "trong nhà"
+          }
+        ],
+        "warning": "Bé Mon là Anh lông ngắn, cần vận động trong nhà. Tuyệt đối KHÔNG cho bé ra ngoài trời từ 10:00-17:00 hôm nay vì trời rất nóng (cảm giác 34.1°C)."
+      },
+      "training": {
+        "focus_this_week": "Tập làm quen với lược chải lông và bàn chải đánh răng",
+        "sessions": "2 lượt x 5 phút (sáng + tối)"
+      },
+      "monitoring": [
+        {
+          "metric": "Cân nặng",
+          "current_value": "3.8kg",
+          "recommendation": "Bé Anh lông ngắn dễ béo phì, mình nên duy trì cân nặng lý tưởng và kiểm tra chỉ số BCS (Body Condition Score) thường xuyên để đảm bảo bé không bị thừa cân nha."
+        },
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Do bé có ho nhẹ và trời nóng, mình đếm nhịp thở khi bé ngủ hoặc nghỉ ngơi. Nếu >30-40 hơi/phút hoặc thở hổn hển liên tục, nên quay clip và tham khảo bác sĩ thú y liền nha."
+        },
+        {
+          "metric": "Nướu răng",
+          "current_value": "Kiểm tra",
+          "recommendation": "Mèo Anh lông ngắn dễ bị viêm nha chu. Mình kiểm tra nướu của bé Mon xem có hồng hào, không sưng đỏ hay có mùi hôi không nha."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 25,
+          "event": "Vaccine booster",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé Mon hôm nay cần được chăm sóc đặc biệt xíu nha cưng. Thời tiết Sài Gòn nóng (cảm giác 34.1°C) cộng với việc bé Mon có ho nhẹ gần đây, mình cần theo dõi sát hơn. Bé là Anh lông ngắn nên dễ béo phì, mình nhớ kiểm soát khẩu phần ăn và cho bé vận động trong nhà nha.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0028,
+        "input_tokens": 2386,
+        "output_tokens": 853,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T20:26:06.064Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 14066,
+    "timestamp": "2026-05-21T20:26:06.241Z"
+  },
+  {
+    "pet_id": 7,
+    "pet_name": "Pugy",
+    "species": "dog",
+    "breed": "Pug",
+    "age_label": "2023-05-16",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-22",
+      "pet_name": "Pugy",
+      "pet_breed": "Pug",
+      "pet_age_label": "3 tuổi",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 28.4,
+        "feels_like_celsius": 34.1,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 80,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Pug — 🚨 BRACHYCEPHALIC — sốc nhiệt risk cao gấp 3 lần. HCM nóng → KHÔNG ra nắng 11h-16h",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "80g hạt khô Mon Min Dry + 30ml nước ấm",
+            "reason": "Giúp dễ tiêu hoá và tăng nước cho bé"
+          },
+          {
+            "time": "18:30",
+            "what": "80g pate Mon Min",
+            "reason": "Bổ sung độ ẩm, dễ ăn và dễ tiêu hoá"
+          }
+        ],
+        "water_note": "Bổ sung thêm 250ml nước sạch (tăng 25% so với bình thường) do thời tiết nóng và bé là giống Pug. Đặt 2 chén nước ở các vị trí dễ tiếp cận trong nhà."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:30",
+            "activity": "đi dạo nhẹ nhàng",
+            "duration_min": 20,
+            "location_type": "vỉa hè khu nhà"
+          },
+          {
+            "time": "19:30",
+            "activity": "chơi kéo co trong nhà",
+            "duration_min": 15
+          }
+        ],
+        "warning": "Bé Pugy là giống chó mũi ngắn (brachycephalic) nên rất dễ sốc nhiệt. Tuyệt đối KHÔNG ra ngoài từ 10:00-17:00 hôm nay (cảm giác 34.1°C) để tránh nguy hiểm nha."
+      },
+      "training": {
+        "focus_this_week": "Tập lệnh 'Ngồi yên' khi có khách đến nhà",
+        "sessions": "2 lượt x 5 phút (sáng + tối)"
+      },
+      "monitoring": [
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Pugy bình thường 15-30 hơi/phút. Nếu bé thở >35 hơi/phút hoặc thở hổn hển liên tục, mình cần theo dõi sát hoặc liên hệ bác sĩ thú y ngay nhé."
+        },
+        {
+          "metric": "Mức độ ho/hắt hơi",
+          "current_value": "Đã có 1 lần ho, 1 lần hắt hơi",
+          "recommendation": "Mình theo dõi tần suất và mức độ ho/hắt hơi của bé. Nếu tăng hoặc có đờm, cần liên hệ bác sĩ để được tư vấn thêm."
+        },
+        {
+          "metric": "Nướu và lưỡi",
+          "current_value": "Màu hồng nhạt",
+          "recommendation": "Kiểm tra màu sắc nướu và lưỡi của bé. Nếu chuyển sang màu đỏ sẫm hoặc xanh tím, đây là dấu hiệu cấp cứu nhiệt đó nha."
+        },
+        {
+          "metric": "Cân nặng",
+          "current_value": "9.5kg",
+          "recommendation": "Cân nặng của Pugy đang ổn định. Mình duy trì khẩu phần ăn và vận động hợp lý để bé luôn khoẻ mạnh nhé."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 25,
+          "event": "Vaccine nhắc lại",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé Pugy hôm nay trời nóng, cần chú ý đặc biệt do bé là giống chó mũi ngắn. Gần đây bé có ho, hắt hơi nhẹ nên mình theo dõi thêm nha.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0027,
+        "input_tokens": 2433,
+        "output_tokens": 771,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T20:26:18.747Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 12896,
+    "timestamp": "2026-05-21T20:26:19.137Z"
+  },
+  {
+    "pet_id": 9,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 892,
+    "timestamp": "2026-05-21T20:26:20.029Z",
+    "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\\nPlease retry in 40.282513925s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-2.5-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"40s\"}]}}"
+  },
+  {
+    "pet_id": 11,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 690,
+    "timestamp": "2026-05-21T20:26:20.719Z",
+    "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\\nPlease retry in 39.607441507s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-2.5-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"39s\"}]}}"
+  },
+  {
+    "pet_id": 12,
+    "pet_name": "min",
+    "species": "cat",
+    "breed": "Anh lông ngắn (British Shorthair)",
+    "age_label": "2024-05-20",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-22",
+      "pet_name": "min",
+      "pet_breed": "Anh lông ngắn (British Shorthair)",
+      "pet_age_label": "2 tuổi",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 28.4,
+        "feels_like_celsius": 34.1,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 80,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Anh lông ngắn (British Shorthair) — HCM (Hypertrophic Cardiomyopathy) — siêu âm tim 1 năm/lần từ 3 tuổi",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "70g pate Mon Min cho mèo",
+            "reason": "Cung cấp đủ nước và dinh dưỡng, kiểm soát cân nặng"
+          },
+          {
+            "time": "12:00",
+            "what": "10g hạt khô Mon Min Dry",
+            "reason": "Bữa phụ nhẹ, tránh free-feeding"
+          },
+          {
+            "time": "18:00",
+            "what": "60g pate Mon Min cho mèo",
+            "reason": "Kiểm soát cân nặng và hỗ trợ tiêu hóa"
+          }
+        ],
+        "water_note": "Bổ sung nước liên tục, đặt 2-3 bát nước sạch ở các vị trí khác nhau trong nhà. Có thể dùng bát nước lớn hoặc đài phun nước để khuyến khích bé uống nhiều hơn do trời nóng."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:30",
+            "activity": "chơi với cần câu mèo",
+            "duration_min": 10,
+            "location_type": "trong nhà"
+          },
+          {
+            "time": "19:00",
+            "activity": "chơi trên cây mèo (cat tree)",
+            "duration_min": 10,
+            "location_type": "trong nhà"
+          }
+        ],
+        "warning": "Bé Min là mèo Anh lông ngắn và trời nóng, nên chỉ vận động nhẹ nhàng trong nhà để tránh sốc nhiệt và giữ sức khoẻ tim mạch nha."
+      },
+      "training": null,
+      "monitoring": [
+        {
+          "metric": "Cân nặng",
+          "current_value": "4.5kg",
+          "recommendation": "Bé Anh lông ngắn dễ béo phì, nên cân bé 1 lần/tuần để đảm bảo cân nặng ổn định. Nếu tăng cân, tham khảo bác sĩ để điều chỉnh khẩu phần."
+        },
+        {
+          "metric": "Sức khoẻ răng miệng",
+          "current_value": "Cần kiểm tra",
+          "recommendation": "Kiểm tra nướu và răng bé Min định kỳ, nếu thấy đỏ hoặc có mùi lạ thì nên hỏi bác sĩ thú y nha."
+        },
+        {
+          "metric": "Phản ứng dị ứng",
+          "current_value": "Cần theo dõi",
+          "recommendation": "Theo dõi kỹ các dấu hiệu ngứa, nôn mửa, tiêu chảy sau khi ăn để đảm bảo không có phản ứng với thức ăn mới hoặc các thành phần lạ. Tránh tuyệt đối thức ăn có rau củ."
+        },
+        {
+          "metric": "Mức độ hoạt động",
+          "current_value": "Cần theo dõi",
+          "recommendation": "Dù bé Min ít vận động, nhưng vẫn cần đảm bảo bé có hứng thú chơi đùa. Nếu bé lờ đờ, bỏ ăn thì cần theo dõi 24h."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 30,
+          "event": "Vaccine nhắc lại",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé Min hôm nay cần được theo dõi thêm một chút nha. Trời Sài Gòn khá nóng, cộng thêm bé Min là giống Anh lông ngắn có xu hướng ít vận động và dễ béo phì, nên mình cần chú ý khẩu phần ăn và tăng cường nước cho bé. Nhớ là bé Min dị ứng rau củ nên mình cẩn thận khi chọn thức ăn nha. ⚠️ AI output bị safety check flag (1 cảnh báo) — tham khảo BS trước khi áp dụng.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0026,
+        "input_tokens": 2391,
+        "output_tokens": 769,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T20:26:32.276Z"
+      }
+    },
+    "safety_validation": {
+      "safe": false,
+      "violations": [
+        "Toxic food \"hành\" mentioned without warning prefix (cat)"
+      ]
+    },
+    "duration_ms": 11718,
+    "timestamp": "2026-05-21T20:26:32.437Z"
+  },
+  {
+    "pet_id": 13,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 897,
+    "timestamp": "2026-05-21T20:26:33.334Z",
+    "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\\nPlease retry in 26.980108516s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-2.5-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"26s\"}]}}"
+  }
+]

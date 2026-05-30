@@ -1,0 +1,237 @@
+---
+/**
+ * /playdate/chat/[matchId] — Chat with polling 5s (M27).
+ *
+ * Includes: report button, block button, message input.
+ * Polling stops when blocked or page hidden.
+ */
+import Layout from "../../../layouts/Layout.astro";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const matchId = Number(Astro.params.matchId);
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let match: any = null;
+let messages: any[] = [];
+let otherPet: any = null;
+try {
+  const mRes = await fetch(`${API_INTERNAL}/api/v1/playdate/matches/${matchId}`, { headers: { cookie: cookieHeader } });
+  if (mRes.status === 200) {
+    match = (await mRes.json()).match;
+    const otherPetId = match.user_a_id === user.sub ? match.pet_b_id : match.pet_a_id;
+    const [msgRes, petRes] = await Promise.all([
+      fetch(`${API_INTERNAL}/api/v1/playdate/matches/${matchId}/messages`, { headers: { cookie: cookieHeader } }),
+      fetch(`${API_INTERNAL}/api/v1/pets/${otherPetId}`, { headers: { cookie: cookieHeader } }),
+    ]);
+    if (msgRes.ok) messages = (await msgRes.json()).messages || [];
+    if (petRes.ok) otherPet = await petRes.json();
+  }
+} catch (_) {}
+
+if (!match) {
+  return Astro.redirect("/playdate/matches");
+}
+
+const initialData = JSON.stringify({
+  match,
+  messages,
+  otherPet,
+  userId: user.sub,
+});
+---
+
+<Layout title={`Chat · ${otherPet?.name || 'Playdate'}`} description="Trò chuyện playdate">
+  <main class="min-h-screen bg-mmp-cream flex flex-col" x-data={`chatPage(${initialData})`} x-init="startPolling()">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+      <a href="/playdate/matches" class="text-slate-500">←</a>
+      <template x-if="otherPet?.photo_url">
+        <img :src="otherPet.photo_url" alt="" class="w-10 h-10 rounded-full object-cover border-2 border-mmp-cream" />
+      </template>
+      <template x-if="!otherPet?.photo_url">
+        <div class="w-10 h-10 rounded-full bg-mmp-cream flex items-center justify-center text-lg">🐾</div>
+      </template>
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-slate-900 text-sm" x-text="otherPet?.name || 'Bé ẩn danh'"></p>
+        <p class="text-[10px] text-slate-500" x-text="statusLabel"></p>
+      </div>
+      <button @click="menuOpen = !menuOpen" class="text-slate-500 text-xl px-2">⋮</button>
+    </header>
+
+    <!-- Menu drawer -->
+    <div x-show="menuOpen" x-cloak class="absolute right-3 top-14 bg-white shadow-xl rounded-xl border border-slate-200 py-1 z-20 min-w-[180px]">
+      <button @click="reportUser(); menuOpen = false" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50">🚩 Báo cáo</button>
+      <button @click="blockMatch(); menuOpen = false" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">🚫 Chặn match</button>
+      <a href="/playdate/safety-tips" class="block px-4 py-2 text-sm hover:bg-slate-50">🛡️ An toàn</a>
+    </div>
+
+    <!-- Messages -->
+    <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2" x-ref="msgList" id="msg-list">
+      <template x-if="messages.length === 0 && !blocked">
+        <div class="text-center text-xs text-slate-400 italic py-8">
+          <p>💬 Chưa có tin nhắn</p>
+          <p class="mt-1">Hãy nói lời chào trước!</p>
+        </div>
+      </template>
+
+      <template x-for="m in messages" :key="m.id">
+        <div :class="m.sender_user_id === userId ? 'flex justify-end' : 'flex justify-start'">
+          <div :class="m.sender_user_id === userId ? 'bg-mmp-ink text-white' : 'bg-white border border-slate-100 text-slate-900'"
+            class="rounded-2xl px-3.5 py-2 max-w-[75%] shadow-sm">
+            <p class="text-sm whitespace-pre-wrap break-words" x-text="m.body"></p>
+            <p class="text-[9px] mt-0.5" :class="m.sender_user_id === userId ? 'text-yellow-700' : 'text-slate-400'" x-text="fmtTime(m.sent_at)"></p>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="blocked">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-center text-xs text-red-700 mt-4">
+          🚫 Match này đã bị chặn — không thể gửi/nhận tin nữa.
+        </div>
+      </template>
+    </div>
+
+    <!-- Input -->
+    <template x-if="!blocked">
+      <div class="bg-white border-t border-slate-100 px-3 py-2 flex items-center gap-2 sticky bottom-0">
+        <input type="text" x-model="input" @keydown.enter="send()" maxlength="2000" placeholder="Nói gì đó..."
+          class="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mmp-gold" />
+        <button @click="send()" :disabled="!input.trim() || sending"
+          class="bg-mmp-ink hover:bg-slate-800 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-full text-sm">
+          <span x-show="!sending">Gửi</span>
+          <span x-show="sending">...</span>
+        </button>
+      </div>
+    </template>
+  </main>
+
+  <script is:inline>
+    function chatPage(initial) {
+      return {
+        match: initial.match,
+        messages: initial.messages,
+        otherPet: initial.otherPet,
+        userId: initial.userId,
+        input: "",
+        sending: false,
+        menuOpen: false,
+        pollTimer: null,
+
+        get blocked() {
+          return this.match.status === 'blocked';
+        },
+
+        get statusLabel() {
+          if (this.match.status === 'blocked') return "Đã chặn";
+          if (this.match.status === 'active') return "Đang chat";
+          if (this.match.status === 'pending') return "Match mới — hãy nói lời chào";
+          return this.match.status;
+        },
+
+        fmtTime(iso) {
+          if (!iso) return "";
+          try {
+            return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+          } catch { return ""; }
+        },
+
+        scrollDown() {
+          this.$nextTick(() => {
+            const el = this.$refs.msgList;
+            if (el) el.scrollTop = el.scrollHeight;
+          });
+        },
+
+        async fetchMessages() {
+          if (this.blocked) return;
+          if (document.hidden) return;
+          try {
+            const res = await fetch(`/api/v1/playdate/matches/${this.match.id}/messages`, { credentials: 'include' });
+            if (!res.ok) return;
+            const j = await res.json();
+            const before = this.messages.length;
+            this.messages = j.messages || [];
+            if (j.blocked) this.match.status = 'blocked';
+            if (this.messages.length > before) this.scrollDown();
+          } catch (_) {}
+        },
+
+        startPolling() {
+          this.scrollDown();
+          this.pollTimer = setInterval(() => this.fetchMessages(), 5000);
+        },
+
+        async send() {
+          const text = this.input.trim();
+          if (!text || this.sending || this.blocked) return;
+          this.sending = true;
+          try {
+            const res = await fetch(`/api/v1/playdate/matches/${this.match.id}/messages`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ body: text }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              alert(j?.error?.message || 'Lỗi gửi');
+              return;
+            }
+            this.messages.push(j.message);
+            this.match.status = 'active';
+            this.input = "";
+            this.scrollDown();
+          } catch (_) {
+            alert("Lỗi kết nối.");
+          } finally {
+            this.sending = false;
+          }
+        },
+
+        async reportUser() {
+          const reasons = ['spam', 'harassment', 'inappropriate', 'fake', 'other'];
+          const reason = prompt(`Lý do (${reasons.join('/')})?`, "harassment");
+          if (!reason || !reasons.includes(reason)) return;
+          const notes = prompt("Ghi chú (optional):", "") || "";
+          try {
+            const otherPetId = this.match.user_a_id === this.userId ? this.match.pet_b_id : this.match.pet_a_id;
+            const res = await fetch('/api/v1/playdate/report', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ reported_pet_id: otherPetId, reason, notes }),
+            });
+            const j = await res.json();
+            if (!res.ok) { alert(j?.error?.message || 'Lỗi'); return; }
+            alert(j.auto_hidden ? "Đã báo cáo. Profile đã bị ẩn." : "Đã báo cáo. Mon Min sẽ review.");
+          } catch (_) { alert("Lỗi kết nối."); }
+        },
+
+        async blockMatch() {
+          if (!confirm("Chặn match này? Không thể chat tiếp.")) return;
+          const reason = prompt("Lý do chặn (tuỳ chọn):", "") || "Owner blocked";
+          try {
+            const res = await fetch(`/api/v1/playdate/matches/${this.match.id}/block`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ reason }),
+            });
+            if (res.ok) {
+              this.match.status = 'blocked';
+              if (this.pollTimer) clearInterval(this.pollTimer);
+            }
+          } catch (_) { alert("Lỗi kết nối."); }
+        },
+      };
+    }
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</Layout>

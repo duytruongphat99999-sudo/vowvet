@@ -1,0 +1,307 @@
+---
+/**
+ * /rewards/[claimId] — Voucher detail page (v104 luxury redesign).
+ *
+ * Ink+gold "premium ticket stub" with QR code for staff scan,
+ * tap-to-copy code with shimmer, brand-aligned status, live countdown.
+ */
+import Layout from "../../layouts/Layout.astro";
+import FeatureIcon from "../../components/FeatureIcon.astro";
+import { getZaloLink, getHotlineDisplay, getHotlineE164 } from "../../../../shared/contact-info.ts";
+
+const claimId = Number(Astro.params.claimId);
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let claim: any = null;
+let def: any = null;
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/rewards/claims/${claimId}`, { headers: { cookie: cookieHeader } });
+  if (r.ok) {
+    const j = await r.json();
+    claim = j.claim;
+    def = j.definition;
+  }
+} catch (_) {}
+
+if (!claim) return Astro.redirect("/dashboard");
+
+// QR code URL for staff to scan voucher
+const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(claim.voucher_code)}&size=300x300&margin=0&color=0a0a0a&bgcolor=ffffff`;
+
+const initialData = JSON.stringify({
+  claim, def, qrUrl,
+  zaloUrl: getZaloLink(),
+  hotline: getHotlineDisplay(),
+  hotlineE164: getHotlineE164(),
+});
+---
+
+<Layout title={`Voucher ${claim.voucher_code} · VowVet`} description={def?.name || "Voucher reward"}>
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-md mx-auto" x-data={`voucherPage(${initialData})`}>
+
+      {/* v104: Brand-synced header */}
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="javascript:history.back()" class="text-sm italic text-[var(--c-ink-54)] hover:text-mmp-ink inline-flex items-center gap-1.5 transition">
+          <FeatureIcon name="arrow" class="w-3.5 h-3.5 rotate-180" />
+          <span>Quay lại</span>
+        </a>
+        <h1 class="font-display italic text-lg font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <FeatureIcon name="gift" class="w-4 h-4" style="color: #B48608;" />
+          <span>Voucher</span>
+        </h1>
+        <span class="w-12"></span>
+      </header>
+
+      {/* v104: LUXURY TICKET STUB — ink card with gold spotlight + QR + voucher code */}
+      <div class="relative voucher-card rounded-3xl overflow-hidden shadow-2xl mb-4" :class="claim.status === 'active' ? 'voucher-card--active' : ''">
+        {/* Card body — ink + gold luxury */}
+        <div class="relative bg-mmp-ink text-white p-6">
+          <div aria-hidden="true" class="absolute -top-20 -right-20 w-64 h-64 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+          <div aria-hidden="true" class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(180,134,8,0.25) 0%, transparent 70%);"></div>
+
+          {/* Gold corner brackets */}
+          <span class="absolute top-3 left-3 w-5 h-5 border-t-2 border-l-2 pointer-events-none" style="border-color: #ecb921;"></span>
+          <span class="absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 pointer-events-none" style="border-color: #ecb921;"></span>
+
+          <div class="relative text-center">
+            {/* Brand strip */}
+            <p class="text-[10px] uppercase italic tracking-[0.32em] font-bold" style="color: #ecb921;">VowVet · Mon Min Pet</p>
+            <div class="my-2 mx-auto h-px w-16" style="background: linear-gradient(90deg, transparent 0%, rgba(236,185,33,0.6) 50%, transparent 100%);"></div>
+            <p class="text-[9px] uppercase italic tracking-[0.3em] font-bold text-white/55">Voucher chính thức</p>
+
+            {/* Emoji + name */}
+            <div class="mt-4 text-4xl" x-text="def?.emoji || '🎁'"></div>
+            <h2 class="font-display italic text-xl sm:text-2xl font-bold mt-2 leading-tight" x-text="def?.name || claim.reward_code"></h2>
+            <p class="text-xs italic mt-1" style="color: #ecb921;" x-show="def?.partner_name">
+              Đối tác: <span class="font-semibold" x-text="def?.partner_name || 'VowVet'"></span>
+            </p>
+
+            {/* QR code — staff can scan */}
+            <div class="mt-4 mx-auto inline-block">
+              <div class="rounded-xl bg-white p-2 relative" style="border: 2px solid #ecb921;">
+                <img :src="qrUrl" alt="QR voucher" class="w-32 h-32 sm:w-36 sm:h-36 block" />
+                <span class="absolute top-1 left-1 w-3 h-3 border-t-2 border-l-2 pointer-events-none" style="border-color: #B48608;"></span>
+                <span class="absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 pointer-events-none" style="border-color: #B48608;"></span>
+                <span class="absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 pointer-events-none" style="border-color: #B48608;"></span>
+                <span class="absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 pointer-events-none" style="border-color: #B48608;"></span>
+              </div>
+              <p class="text-[9px] uppercase italic tracking-[0.2em] font-bold mt-2" style="color: #ecb921;">Quét để xác thực</p>
+            </div>
+
+            {/* Voucher code (tap to copy) */}
+            <button @click="copyCode()" class="voucher-code-btn mt-4 w-full rounded-2xl py-3 px-3 transition" style="background: rgba(236,185,33,0.12); border: 1px dashed rgba(236,185,33,0.5);">
+              <p class="text-[10px] uppercase italic tracking-[0.25em] font-bold" style="color: #ecb921;">Mã voucher</p>
+              <p class="text-2xl sm:text-3xl font-bold font-mono tabular-nums tracking-widest text-white select-all mt-1" x-text="claim.voucher_code"></p>
+              <p class="text-[11px] italic mt-1.5 inline-flex items-center gap-1" :style="copied ? 'color: #ecb921;' : 'color: rgba(255,255,255,0.65);'">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <template x-if="!copied"><g><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></g></template>
+                  <template x-if="copied"><polyline points="20 6 9 17 4 12" stroke-width="2.5"/></template>
+                </svg>
+                <span x-show="!copied">Chạm để copy</span>
+                <span x-show="copied">Đã copy!</span>
+              </p>
+            </button>
+
+            {/* Status + expiry */}
+            <div class="mt-4 flex items-center justify-center gap-2 flex-wrap">
+              <span :class="statusBadgeClasses" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] italic font-bold uppercase tracking-wider" x-text="statusLabel"></span>
+              <span class="text-[11px] italic text-white/75" x-text="expiryText"></span>
+            </div>
+          </div>
+        </div>
+
+        {/* Perforated edge separator */}
+        <div class="relative bg-mmp-ink" style="height: 12px;">
+          <div class="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full" style="background: var(--color-mmp-cream, #f5f1eb);"></div>
+          <div class="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full" style="background: var(--color-mmp-cream, #f5f1eb);"></div>
+          <div class="absolute left-4 right-4 top-1/2 -translate-y-1/2 h-px" style="background-image: linear-gradient(to right, rgba(236,185,33,0.5) 50%, transparent 50%); background-size: 8px 1px; background-repeat: repeat-x;"></div>
+        </div>
+
+        {/* Stub footer with serial */}
+        <div class="relative bg-mmp-ink text-white px-6 py-3 text-center">
+          <p class="text-[9px] uppercase italic tracking-[0.3em] font-bold" style="color: #ecb921;">
+            Phát hành · <span x-text="issuedDate"></span>
+          </p>
+        </div>
+      </div>
+
+      {/* Hero CTA — show to staff */}
+      <template x-if="claim.status === 'active'">
+        <div class="rounded-2xl p-4 mb-4 text-center" style="background: rgba(180,134,8,0.1); border: 1px solid rgba(180,134,8,0.35);">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-full mb-2" style="background: rgba(180,134,8,0.2); color: #B48608;">
+            <FeatureIcon name="lightbulb" class="w-5 h-5" />
+          </span>
+          <p class="font-display italic font-semibold text-sm text-mmp-ink">Show màn hình này cho nhân viên Mon Min</p>
+          <p class="text-xs italic mt-1" style="color: var(--c-ink-54);">Hoặc đọc mã voucher / quét QR để xác nhận</p>
+        </div>
+      </template>
+
+      {/* Instructions */}
+      <template x-if="def?.redemption_instructions">
+        <div class="bg-white rounded-2xl p-4 mb-3" style="border: 1px solid rgba(180,134,8,0.22);">
+          <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold mb-2 inline-flex items-center gap-1.5" style="color: #B48608;">
+            <FeatureIcon name="clipboard" class="w-3.5 h-3.5" />
+            <span>Hướng dẫn sử dụng</span>
+          </p>
+          <p class="text-sm text-mmp-ink leading-relaxed whitespace-pre-line italic" x-text="def.redemption_instructions"></p>
+        </div>
+      </template>
+
+      {/* Contact */}
+      <div class="bg-white rounded-2xl p-4 mb-3 space-y-2" style="border: 1px solid rgba(180,134,8,0.22);">
+        <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold inline-flex items-center gap-1.5" style="color: #B48608;">
+          <FeatureIcon name="message-circle" class="w-3.5 h-3.5" />
+          <span>Liên hệ Mon Min Pet</span>
+        </p>
+        <a :href="`tel:${hotlineE164}`" class="block rounded-xl p-3 transition hover:opacity-95" style="background: rgba(10,10,10,0.04); border: 1px solid rgba(180,134,8,0.25);">
+          <div class="flex items-center justify-center gap-2 text-mmp-ink font-bold italic">
+            <FeatureIcon name="bell" class="w-4 h-4" style="color: #B48608;" />
+            <span>Gọi <span x-text="hotline"></span></span>
+          </div>
+        </a>
+        <a :href="zaloUrl" target="_blank" rel="noopener" class="block rounded-xl p-3 transition hover:opacity-95" style="background: linear-gradient(90deg, #ecb921 0%, #B48608 100%);">
+          <div class="flex items-center justify-center gap-2 text-mmp-ink font-bold italic">
+            <FeatureIcon name="message-circle" class="w-4 h-4" />
+            <span>Chat Zalo VowVet</span>
+          </div>
+        </a>
+      </div>
+
+      {/* Terms */}
+      <template x-if="def?.terms">
+        <details class="bg-white rounded-2xl p-4 mb-3" style="border: 1px solid rgba(180,134,8,0.22);">
+          <summary class="text-[10px] uppercase italic tracking-[0.22em] font-bold cursor-pointer inline-flex items-center gap-1.5" style="color: #B48608;">
+            <FeatureIcon name="file-text" class="w-3.5 h-3.5" />
+            <span>Điều khoản</span>
+          </summary>
+          <p class="text-xs text-mmp-ink mt-3 leading-relaxed whitespace-pre-line italic" x-text="def.terms"></p>
+        </details>
+      </template>
+
+      {/* Pet Score callout */}
+      <a :href="claim.pet_id ? `/pets/${claim.pet_id}/pet-score` : '/dashboard'" class="mt-4 block rounded-xl text-center p-3 transition hover:opacity-95" style="background: rgba(180,134,8,0.08); border: 1px solid rgba(180,134,8,0.28);">
+        <p class="text-xs italic inline-flex items-center gap-2" style="color: var(--c-ink-72);">
+          <FeatureIcon name="trophy" class="w-3.5 h-3.5" style="color: #B48608;" />
+          <span>Mở thêm voucher? Tăng Pet Score qua routines & quests</span>
+          <FeatureIcon name="arrow" class="w-3 h-3" style="color: #B48608;" />
+        </p>
+      </a>
+
+      <p class="text-[10px] italic text-center mt-4" style="color: var(--c-ink-54);">
+        Voucher do <strong style="color: var(--c-ink);" x-text="def?.partner_name || 'VowVet'"></strong> phát hành.<br />
+        VowVet không giữ tiền — voucher dùng trực tiếp tại đối tác.
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function voucherPage(initial) {
+      return {
+        claim: initial.claim,
+        def: initial.def,
+        qrUrl: initial.qrUrl,
+        zaloUrl: initial.zaloUrl,
+        hotline: initial.hotline,
+        hotlineE164: initial.hotlineE164,
+        copied: false,
+
+        get statusBadgeClasses() {
+          if (this.claim.status === 'active') return 'voucher-badge--active';
+          if (this.claim.status === 'redeemed') return 'voucher-badge--redeemed';
+          if (this.claim.status === 'expired') return 'voucher-badge--expired';
+          if (this.claim.status === 'cancelled') return 'voucher-badge--cancelled';
+          return 'voucher-badge--pending';
+        },
+
+        get statusLabel() {
+          return ({
+            active: '✓ Hiệu lực',
+            redeemed: 'Đã sử dụng',
+            expired: 'Đã hết hạn',
+            cancelled: 'Đã huỷ',
+            pending: 'Chờ duyệt',
+          })[this.claim.status] || this.claim.status;
+        },
+
+        get issuedDate() {
+          try {
+            return new Date(this.claim.claimed_at || this.claim.created_at).toLocaleDateString('vi-VN');
+          } catch { return ''; }
+        },
+
+        get expiryText() {
+          if (!this.claim.expires_at) return '';
+          try {
+            const expiry = new Date(this.claim.expires_at);
+            const diff = expiry.getTime() - Date.now();
+            const days = Math.floor(diff / (24 * 3600 * 1000));
+            if (this.claim.status === 'redeemed') return `Đã dùng ${new Date(this.claim.redeemed_at).toLocaleDateString('vi-VN')}`;
+            if (days < 0) return `Hết hạn từ ${expiry.toLocaleDateString('vi-VN')}`;
+            if (days === 0) return `⚠ Hết hạn hôm nay`;
+            if (days <= 7) return `⚠ Còn ${days} ngày`;
+            return `Còn ${days} ngày · ${expiry.toLocaleDateString('vi-VN')}`;
+          } catch { return ''; }
+        },
+
+        async copyCode() {
+          try {
+            await navigator.clipboard.writeText(this.claim.voucher_code);
+            this.copied = true;
+            setTimeout(() => this.copied = false, 2000);
+          } catch (_) {}
+        },
+      };
+    }
+  </script>
+
+  <style is:inline>{`
+    /* v104: Voucher luxury card — gold border halo glow for active */
+    .voucher-card--active {
+      box-shadow:
+        0 0 0 2px rgba(236, 185, 33, 0.45),
+        0 10px 30px rgba(10, 10, 10, 0.3),
+        0 0 40px rgba(236, 185, 33, 0.15);
+      animation: voucher-glow 3s ease-in-out infinite;
+    }
+    @keyframes voucher-glow {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(236, 185, 33, 0.45), 0 10px 30px rgba(10, 10, 10, 0.3), 0 0 40px rgba(236, 185, 33, 0.15); }
+      50%      { box-shadow: 0 0 0 2px rgba(236, 185, 33, 0.7), 0 12px 40px rgba(236, 185, 33, 0.35), 0 0 60px rgba(236, 185, 33, 0.3); }
+    }
+
+    /* Voucher code btn — hover shimmer */
+    .voucher-code-btn { position: relative; overflow: hidden; }
+    .voucher-code-btn::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(110deg, transparent 35%, rgba(236, 185, 33, 0.18) 50%, transparent 65%);
+      background-size: 220% 100%;
+      background-position: 220% 0;
+      animation: voucher-shimmer 4s ease-in-out 2s infinite;
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    @keyframes voucher-shimmer {
+      0%, 50%  { background-position: 220% 0; }
+      80%      { background-position: -120% 0; }
+      100%     { background-position: -120% 0; }
+    }
+
+    /* Status badges — brand colors */
+    .voucher-badge--active   { background: #ecb921; color: #0a0a0a; box-shadow: 0 2px 8px rgba(236, 185, 33, 0.4); }
+    .voucher-badge--redeemed { background: rgba(255, 255, 255, 0.18); color: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.25); }
+    .voucher-badge--expired  { background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.55); border: 1px solid rgba(255, 255, 255, 0.18); }
+    .voucher-badge--cancelled{ background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.6); border: 1px solid rgba(255, 255, 255, 0.2); }
+    .voucher-badge--pending  { background: rgba(236, 185, 33, 0.18); color: #ecb921; border: 1px solid rgba(236, 185, 33, 0.4); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .voucher-card--active { animation: none; }
+      .voucher-code-btn::after { animation: none; }
+    }
+  `}</style>
+</Layout>

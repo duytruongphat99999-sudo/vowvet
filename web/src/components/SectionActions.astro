@@ -1,0 +1,29 @@
+---
+/**
+ * Hàng nút Save/Skip/Next ở cuối mỗi section của wizard profile.
+ * Caller pass sectionKey để Alpine biết save section nào.
+ */
+interface Props {
+  sectionKey: string;
+}
+const { sectionKey } = Astro.props;
+---
+
+<div class="pt-4 mt-2 border-t border-slate-100 flex flex-wrap gap-2 items-center">
+  <p x-show="sectionError" class="text-sm text-red-600 flex-1 w-full" x-text="sectionError"></p>
+  <button type="button" @click={`skipSection()`}
+    class="px-4 py-2.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg">
+    Bỏ qua
+  </button>
+  <button type="button" @click={`saveSection('${sectionKey}')`}
+    :disabled="sectionLoading"
+    class="px-4 py-2.5 text-sm bg-white border border-sky-300 hover:bg-sky-50 text-sky-700 font-semibold rounded-lg disabled:opacity-50">
+    💾 Lưu
+  </button>
+  <button type="button" @click={`saveAndNext('${sectionKey}')`}
+    :disabled="sectionLoading"
+    class="ml-auto px-5 py-2.5 text-sm bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-semibold rounded-lg">
+    <span x-show="!sectionLoading">Lưu & Tiếp theo →</span>
+    <span x-show="sectionLoading">Đang lưu…</span>
+  </button>
+</div>

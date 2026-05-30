@@ -1,0 +1,334 @@
+---
+/**
+ * /pets/[id]/cognitive — CCDS senior cognitive assessment (M24).
+ *
+ * 16 questions × 0-4 Likert. Auto-categorize result (normal/mild/moderate/severe).
+ * Show banner if pet is not senior age.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+import {
+  CCDS_QUESTIONS, ANSWER_LABELS, CATEGORY_LABELS, DOMAIN_LABELS, DOMAIN_MAX,
+  isSeniorPet,
+} from "@shared/cognitive-ccds.ts";
+import { ageInYears } from "@shared/senior.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let history: any[] = [];
+let latest: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/cognitive`, { headers: { cookie: cookieHeader } });
+  if (res.ok) {
+    const j = await res.json();
+    history = j.assessments || [];
+    latest = history[0] || null;
+  }
+} catch (_) {}
+
+const speciesEn = pet.species === "Chó" ? "dog" : pet.species === "Mèo" ? "cat" : "other";
+const age = ageInYears(pet.dob || undefined);
+const senior = isSeniorPet(speciesEn, age);
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, species: speciesEn },
+  age,
+  senior,
+  history,
+  latest,
+  questions: CCDS_QUESTIONS,
+  answerLabels: ANSWER_LABELS,
+  categoryLabels: CATEGORY_LABELS,
+  domainLabels: DOMAIN_LABELS,
+  domainMax: DOMAIN_MAX,
+});
+---
+
+<Layout title={`Đánh giá nhận thức · ${pet.name}`} description="CCDS — phát hiện sa sút trí tuệ ở pet senior">
+  <main class="min-h-screen bg-gradient-to-b from-slate-50 to-indigo-50 px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`cognitivePage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg font-bold text-slate-900">🧠 Nhận thức (CCDS)</h1>
+        <span class="w-12"></span>
+      </header>
+
+      {!senior && (
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+          <p class="text-sm font-semibold text-amber-900">⚠️ Bé chưa đến tuổi senior</p>
+          <p class="text-xs text-amber-700 mt-1">
+            CCDS thiết kế cho chó ≥8 tuổi hoặc mèo ≥10 tuổi (bé hiện {age != null ? age : "?"} tuổi).
+            Bạn vẫn có thể làm để tham khảo nhưng kết quả không có ý nghĩa lâm sàng cao.
+          </p>
+        </div>
+      )}
+
+      <!-- Latest result card -->
+      <template x-if="latest && view === 'home'">
+        <div class="mb-4">
+          <div class="rounded-2xl p-5 shadow-md text-white"
+            :class="latestColorClass">
+            <div class="flex items-start gap-3">
+              <span class="text-4xl" x-text="categoryLabels[latest.category]?.emoji"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs uppercase opacity-90">Lần đánh giá gần nhất</p>
+                <p class="text-xl font-extrabold" x-text="`${latest.total_score}/80 · ${categoryLabels[latest.category]?.label}`"></p>
+                <p class="text-xs opacity-90 mt-1" x-text="categoryLabels[latest.category]?.description"></p>
+                <p class="text-[11px] opacity-75 mt-2" x-text="`Ngày: ${fmtDate(latest.assessed_at)}`"></p>
+              </div>
+            </div>
+            <template x-if="latest.needs_vet">
+              <div class="mt-3 bg-white/20 backdrop-blur rounded-xl p-2.5 text-xs font-semibold">
+                ⚠️ Khuyến cáo: đặt lịch khám vet để có hướng điều trị
+              </div>
+            </template>
+          </div>
+
+          <!-- Domain breakdown -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-4 mt-3">
+            <p class="text-sm font-semibold text-slate-900 mb-3">📊 Chi tiết theo 6 lĩnh vực</p>
+            <div class="space-y-2">
+              <template x-for="d in domainsList" :key="d.key">
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span>
+                      <span x-text="domainLabels[d.key]?.emoji"></span>
+                      <span class="font-medium" x-text="domainLabels[d.key]?.label"></span>
+                    </span>
+                    <span class="font-mono text-slate-700"
+                      :class="d.pct >= 60 ? 'text-red-700 font-bold' : d.pct >= 30 ? 'text-amber-700' : 'text-emerald-700'"
+                      x-text="`${d.score}/${d.max}`"></span>
+                  </div>
+                  <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all"
+                      :class="d.pct >= 60 ? 'bg-red-500' : d.pct >= 30 ? 'bg-amber-500' : 'bg-emerald-500'"
+                      :style="`width: ${d.pct}%`"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Action: start new assessment -->
+      <template x-if="view === 'home'">
+        <button @click="startQuiz()"
+          class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-white hover:opacity-95 text-white font-bold shadow-lg mb-4">
+          🧠 <span x-text="latest ? 'Đánh giá lại (khuyến nghị mỗi 90 ngày)' : 'Bắt đầu đánh giá'"></span>
+        </button>
+      </template>
+
+      <!-- Quiz view -->
+      <template x-if="view === 'quiz'">
+        <div>
+          <!-- Progress -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 sticky top-2 z-10 backdrop-blur">
+            <div class="flex items-center gap-3 mb-2">
+              <button @click="back()" :disabled="qIndex === 0"
+                class="text-xs text-slate-500 disabled:opacity-30">← Trước</button>
+              <span class="text-xs font-medium text-slate-700">Câu <span x-text="qIndex + 1"></span>/<span x-text="questions.length"></span></span>
+              <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-indigo-500 transition-all"
+                  :style="`width: ${((qIndex + 1) / questions.length) * 100}%`"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-7 shadow-md">
+            <p class="text-xs text-slate-500 mb-2">
+              <span x-text="domainLabels[currentQuestion?.domain]?.emoji"></span>
+              <span x-text="domainLabels[currentQuestion?.domain]?.label"></span>
+            </p>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900 mb-5" x-text="currentQuestion?.question_vi"></h2>
+
+            <div class="space-y-2">
+              <template x-for="(label, score) in answerLabels" :key="score">
+                <button @click="choose(score)"
+                  :class="answers[currentQuestion?.id] === score ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-indigo-300'"
+                  class="w-full text-left border-2 rounded-xl p-3 transition active:scale-[0.98]">
+                  <div class="flex items-center gap-3">
+                    <span class="w-7 h-7 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold" x-text="score"></span>
+                    <span class="text-sm" x-text="label"></span>
+                  </div>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <p class="text-center text-[11px] text-slate-400 mt-3 italic">
+            🩺 Thang đánh giá DISHAA — chuẩn lâm sàng quốc tế cho CCDS/FCDS
+          </p>
+        </div>
+      </template>
+
+      <!-- Loading -->
+      <template x-if="view === 'loading'">
+        <div class="bg-white rounded-3xl p-12 text-center shadow-md">
+          <p class="text-6xl mb-3 animate-pulse">🧠</p>
+          <p class="text-lg font-bold text-slate-800">Đang tính kết quả CCDS...</p>
+        </div>
+      </template>
+
+      <!-- Result after submit -->
+      <template x-if="view === 'result' && submittedResult">
+        <div>
+          <div class="rounded-3xl p-6 text-white shadow-2xl mb-4"
+            :class="submittedColorClass">
+            <p class="text-7xl text-center mb-3" x-text="categoryLabels[submittedResult.category]?.emoji"></p>
+            <p class="text-center text-sm opacity-90 uppercase tracking-wider">Kết quả CCDS</p>
+            <p class="text-center text-5xl font-extrabold mt-1" x-text="`${submittedResult.total_score}/80`"></p>
+            <p class="text-center text-xl font-bold mt-2" x-text="categoryLabels[submittedResult.category]?.label"></p>
+            <p class="text-center text-sm opacity-95 mt-3 px-2" x-text="categoryLabels[submittedResult.category]?.description"></p>
+          </div>
+          <button @click="view = 'home'; reload()"
+            class="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">
+            ← Xem chi tiết
+          </button>
+        </div>
+      </template>
+
+      <!-- History -->
+      <template x-if="view === 'home' && history.length > 1">
+        <details class="bg-white rounded-2xl border border-slate-100 p-4 mt-4">
+          <summary class="text-sm font-semibold text-slate-900 cursor-pointer">📜 Lịch sử (<span x-text="history.length"></span>)</summary>
+          <div class="mt-3 space-y-2">
+            <template x-for="h in history" :key="h.id">
+              <div class="flex items-center gap-3 bg-slate-50 rounded-lg p-2.5">
+                <span class="text-lg shrink-0" x-text="categoryLabels[h.category]?.emoji"></span>
+                <div class="flex-1 text-sm min-w-0">
+                  <p class="font-semibold text-slate-800" x-text="`${h.total_score}/80 · ${categoryLabels[h.category]?.label}`"></p>
+                  <p class="text-[11px] text-slate-500" x-text="fmtDate(h.assessed_at)"></p>
+                </div>
+              </div>
+            </template>
+          </div>
+        </details>
+      </template>
+
+      <template x-if="error">
+        <p class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 mt-3" x-text="error"></p>
+      </template>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function cognitivePage(initial) {
+      return {
+        pet: initial.pet,
+        age: initial.age,
+        senior: initial.senior,
+        history: initial.history,
+        latest: initial.latest,
+        questions: initial.questions,
+        answerLabels: initial.answerLabels,
+        categoryLabels: initial.categoryLabels,
+        domainLabels: initial.domainLabels,
+        domainMax: initial.domainMax,
+
+        view: "home", // home | quiz | loading | result
+        qIndex: 0,
+        answers: {},
+        submittedResult: null,
+        error: "",
+
+        get currentQuestion() { return this.questions[this.qIndex]; },
+
+        get latestColorClass() {
+          const c = this.latest?.category;
+          if (c === "normal") return "bg-gradient-to-br from-emerald-500 to-slate-800";
+          if (c === "mild") return "bg-gradient-to-br from-amber-500 to-yellow-600";
+          if (c === "moderate") return "bg-gradient-to-br from-orange-500 to-red-500";
+          if (c === "severe") return "bg-gradient-to-br from-red-600 to-rose-700";
+          return "bg-gradient-to-br from-slate-500 to-slate-700";
+        },
+
+        get submittedColorClass() {
+          const c = this.submittedResult?.category;
+          if (c === "normal") return "bg-gradient-to-br from-emerald-500 to-slate-800";
+          if (c === "mild") return "bg-gradient-to-br from-amber-500 to-yellow-600";
+          if (c === "moderate") return "bg-gradient-to-br from-orange-500 to-red-500";
+          if (c === "severe") return "bg-gradient-to-br from-red-600 to-rose-700";
+          return "bg-gradient-to-br from-slate-500 to-slate-700";
+        },
+
+        get domainsList() {
+          if (!this.latest) return [];
+          return Object.keys(this.domainMax).map((k) => ({
+            key: k,
+            score: this.latest.domain_scores[k] || 0,
+            max: this.domainMax[k],
+            pct: Math.round(((this.latest.domain_scores[k] || 0) / this.domainMax[k]) * 100),
+          }));
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "—";
+          try { return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+          catch { return iso; }
+        },
+
+        startQuiz() {
+          this.qIndex = 0;
+          this.answers = {};
+          this.view = "quiz";
+          this.error = "";
+        },
+
+        choose(score) {
+          if (!this.currentQuestion) return;
+          this.answers[this.currentQuestion.id] = Number(score);
+          if (this.qIndex < this.questions.length - 1) this.qIndex++;
+          else this.submit();
+        },
+
+        back() { if (this.qIndex > 0) this.qIndex--; },
+
+        async submit() {
+          this.view = "loading";
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/cognitive`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ answers: this.answers }),
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              this.error = j?.error?.message || "Lỗi lưu";
+              this.view = "quiz";
+              return;
+            }
+            this.submittedResult = await res.json();
+            this.view = "result";
+          } catch (_) {
+            this.error = "Lỗi kết nối.";
+            this.view = "quiz";
+          }
+        },
+
+        async reload() {
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/cognitive`, { credentials: "include" });
+            if (res.ok) {
+              const j = await res.json();
+              this.history = j.assessments || [];
+              this.latest = this.history[0] || null;
+            }
+          } catch (_) {}
+        },
+      };
+    }
+  </script>
+</Layout>

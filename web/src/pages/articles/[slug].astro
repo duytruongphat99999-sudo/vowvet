@@ -1,0 +1,208 @@
+---
+/**
+ * /articles/[slug] — Premium long-form article for each VowVet feature.
+ * Renders content from web/src/lib/articles.ts.
+ *
+ * Design: dark ink hero → cream-pull-quote alternating with white body sections
+ * → "related reads" cards → CTA back to dashboard. Fraunces italic display,
+ * gold accents, eyebrow labels — matches bio.monminpet.com aesthetic.
+ */
+import Layout from "../../layouts/Layout.astro";
+import Logo from "../../components/Logo.astro";
+import FeatureIcon from "../../components/FeatureIcon.astro";
+import { getArticle, ARTICLES } from "../../lib/articles.ts";
+
+const slug = Astro.params.slug as string;
+const article = getArticle(slug);
+if (!article) return Astro.redirect("/");
+
+const session = Astro.locals.user;
+const isLoggedIn = !!session;
+const dashboardHref = isLoggedIn ? (session.is_onboarded ? "/dashboard" : "/onboarding") : "/login";
+
+const pageUrl = `https://vowvet.monminpet.com/articles/${slug}`;
+const relatedArticles = article.related.map((s) => ARTICLES[s]).filter(Boolean);
+---
+
+<Layout
+  title={`${article.title} · VowVet by Mon Min Pet`}
+  description={article.tagline}
+>
+  <Fragment slot="head">
+    <link rel="canonical" href={pageUrl} />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:title" content={`${article.title} · VowVet`} />
+    <meta property="og:description" content={article.tagline} />
+  </Fragment>
+
+  <main class="min-h-screen bg-white">
+    <!-- ─── Top nav (smaller, light) ─────────────────────────── -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-white/95">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <Logo variant="default" href="/" />
+        <div class="flex items-center gap-2 sm:gap-4 text-sm">
+          <a href="/" class="text-slate-600 hover:text-mmp-ink transition hidden sm:inline">← Trang chủ</a>
+          <a href={dashboardHref} class="bg-mmp-ink hover:bg-slate-800 text-white font-semibold px-5 py-2 rounded-lg transition">
+            {isLoggedIn ? "Dashboard" : "Đăng nhập"}
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ─── HERO (dark ink, gold eyebrow, Fraunces italic title) ─── -->
+    <header class="bg-mmp-ink text-white relative overflow-hidden">
+      <div class="absolute inset-0 opacity-15" aria-hidden="true">
+        <div class="absolute top-1/3 right-0 w-[600px] h-[600px] rounded-full"
+             style="background: radial-gradient(circle, rgba(236,185,33,0.5) 0%, transparent 70%);"></div>
+      </div>
+
+      <div class="relative max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+        <div class="flex items-center gap-4 mb-6">
+          <span class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-mmp-gold/15 ring-1 ring-mmp-gold/30">
+            <FeatureIcon name={article.icon} class="w-7 h-7" />
+          </span>
+          <p class="eyebrow" style="color: var(--c-gold);">{article.eyebrow}</p>
+        </div>
+        <h1 class="font-display italic text-4xl sm:text-5xl md:text-6xl font-semibold leading-[1.05] tracking-tight mb-5">
+          {article.title}
+        </h1>
+        <p class="text-lg sm:text-xl text-white/72 max-w-2xl leading-relaxed mb-8">
+          {article.tagline}
+        </p>
+        <div class="flex flex-wrap items-center gap-4 text-sm">
+          <span class="inline-flex items-center gap-2 text-white/60">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+            {article.readMinutes} phút đọc
+          </span>
+          <span class="text-white/30">·</span>
+          <span class="text-white/60">Đội ngũ BSTY Mon Min Pet</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ─── Article body ─── -->
+    <article class="max-w-3xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+      {article.sections.map((section, idx) => {
+        const isAltSurface = idx % 2 === 1;
+        return (
+          <section class="mb-12 sm:mb-16 last:mb-0">
+            {section.eyebrow && (
+              <p class="eyebrow mb-3" style="color: var(--c-gold);">
+                <span class="gold-dot"></span>{section.eyebrow}
+              </p>
+            )}
+            <h2 class="font-display italic text-2xl sm:text-3xl md:text-4xl font-semibold text-mmp-ink leading-tight tracking-tight mb-6">
+              {section.heading}
+            </h2>
+
+            {section.paragraphs && section.paragraphs.map((p) => (
+              <p class="text-base sm:text-lg text-slate-700 leading-relaxed mb-4 last:mb-0" set:html={p.replace(/\*\*(.*?)\*\*/g, "<strong class='text-mmp-ink font-semibold'>$1</strong>")}></p>
+            ))}
+
+            {section.bullets && (
+              <ul class="space-y-4 my-6">
+                {section.bullets.map((b) => (
+                  <li class="flex gap-4 p-5 bg-mmp-cream rounded-2xl border border-slate-200/60">
+                    <span class="flex-shrink-0 w-2 h-2 mt-2.5 rounded-full" style="background: var(--c-gold);"></span>
+                    <div class="flex-1">
+                      <h3 class="font-bold text-mmp-ink mb-1">{b.title}</h3>
+                      <p class="text-sm sm:text-base text-slate-700 leading-relaxed" set:html={b.body.replace(/\*\*(.*?)\*\*/g, "<strong class='text-mmp-ink font-semibold'>$1</strong>")}></p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {section.pullquote && (
+              <blockquote class="my-8 sm:my-10 px-6 sm:px-8 py-7 sm:py-8 bg-mmp-ink text-white rounded-3xl relative">
+                <span class="absolute top-4 left-5 text-6xl leading-none" style="color: var(--c-gold);">"</span>
+                <p class="font-display italic text-xl sm:text-2xl leading-snug mb-4 pl-8">
+                  {section.pullquote.text}
+                </p>
+                <footer class="text-sm pl-8" style="color: var(--c-gold);">— {section.pullquote.author}</footer>
+              </blockquote>
+            )}
+          </section>
+        );
+      })}
+    </article>
+
+    <!-- ─── Mid-article CTA (ink dark) ─── -->
+    <section class="bg-mmp-cream py-14 sm:py-16 border-y border-slate-200">
+      <div class="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+        <p class="eyebrow mb-3" style="color: var(--c-gold);">
+          <span class="gold-dot"></span>Sẵn sàng dùng cho bé?
+        </p>
+        <h3 class="font-display italic text-2xl sm:text-3xl md:text-4xl font-semibold text-mmp-ink mb-5 tracking-tight leading-tight">
+          {article.ctaLabel}
+        </h3>
+        <p class="text-slate-600 mb-7 leading-relaxed">
+          Setup 30 giây · Miễn phí trọn đời gói cơ bản · Hỗ trợ tiếng Việt 24/7.
+        </p>
+        <a href={article.ctaHref}
+           class="inline-flex items-center gap-2 px-7 py-3.5 bg-mmp-ink hover:bg-slate-800 text-white font-bold rounded-xl transition">
+          {article.ctaLabel}
+          <FeatureIcon name="arrow" class="w-4 h-4" />
+        </a>
+      </div>
+    </section>
+
+    <!-- ─── Related articles ─── -->
+    {relatedArticles.length > 0 && (
+      <section class="py-14 sm:py-20 bg-white">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+          <p class="eyebrow mb-3" style="color: var(--c-gold);">
+            <span class="gold-dot"></span>Đọc tiếp
+          </p>
+          <h3 class="font-display italic text-3xl sm:text-4xl font-semibold text-mmp-ink mb-10 tracking-tight">
+            Các tính năng liên quan
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+            {relatedArticles.map((rel) => (
+              <a href={`/articles/${rel.slug}`}
+                 class="group block p-6 sm:p-7 bg-white border border-slate-200 rounded-2xl hover:border-mmp-ink hover:shadow-lg transition-all">
+                <div class="w-12 h-12 rounded-xl bg-mmp-ink/5 flex items-center justify-center mb-5 group-hover:bg-mmp-gold/15 transition">
+                  <FeatureIcon name={rel.icon} class="w-6 h-6 text-mmp-ink" />
+                </div>
+                <h4 class="font-bold text-lg text-mmp-ink mb-2 leading-snug">{rel.title}</h4>
+                <p class="text-sm text-slate-600 leading-relaxed">{rel.tagline}</p>
+                <span class="inline-flex items-center gap-1.5 mt-4 text-sm font-semibold" style="color: var(--c-gold);">
+                  Tìm hiểu thêm
+                  <FeatureIcon name="arrow" class="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- ─── Footer (dark ink, ecosystem) ─── -->
+    <footer class="bg-mmp-ink text-white py-12 px-4 sm:px-6">
+      <div class="max-w-6xl mx-auto">
+        <div class="grid sm:grid-cols-2 gap-8 mb-8">
+          <div>
+            <Logo variant="full" href="/" invertOnDark />
+            <p class="text-sm text-white/60 mt-4 leading-relaxed max-w-xs">
+              Người bạn đồng hành sức khoẻ cho thú cưng. Vì pet là gia đình.
+            </p>
+          </div>
+          <div class="flex flex-col sm:items-end gap-2 text-sm">
+            <a href="/" class="text-white/60 hover:text-mmp-gold transition">← Trang chủ</a>
+            <a href="/why-vowvet" class="text-white/60 hover:text-mmp-gold transition">Vì sao VowVet?</a>
+            <a href="https://monminpet.com" target="_blank" rel="noopener" class="text-white/60 hover:text-mmp-gold transition">Mon Min Pet ↗</a>
+            <a href="https://bio.monminpet.com" target="_blank" rel="noopener" class="text-white/60 hover:text-mmp-gold transition">Tư vấn BS Thú y ↗</a>
+          </div>
+        </div>
+        <div class="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/50">
+          <p>© 2026 CTY TNHH Duy Trường Phát · VowVet by Mon Min Pet</p>
+          <span style="color: var(--c-gold);" class="font-semibold tracking-widest">WSAVA · AAFCO</span>
+        </div>
+      </div>
+    </footer>
+  </main>
+</Layout>

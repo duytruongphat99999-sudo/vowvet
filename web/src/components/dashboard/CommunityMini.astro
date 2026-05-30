@@ -1,0 +1,167 @@
+---
+/**
+ * ZONE 7 — Community mini feed with WOW upgrades:
+ *   - Event-type colored LEFT ACCENT STRIPE (4px gradient)
+ *   - Bigger avatar (w-12) with COLORED RING matching event type
+ *   - "MỚI" pulsing pill for events < 1 hour
+ *   - Subtle tinted background per event type
+ *   - Hover: lift + shadow + accent strip widens
+ *   - Section header with "đang sống" live indicator + count
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+
+interface CommunityEvent {
+  id: number;
+  event_type: "tier_up" | "achievement_unlock" | "hero_action" | "new_match" | "birthday";
+  pet_id: number;
+  pet_name: string;
+  pet_avatar_url: string | null;
+  event_data: any;
+  created_at: string;
+}
+interface Props {
+  events: CommunityEvent[];
+}
+const { events = [] } = Astro.props;
+const top = events.slice(0, 3);
+
+// Event-type meta with full color theming
+const TYPE_META: Record<string, {
+  icon: string;
+  ringColor: string;      // tailwind ring color
+  textColor: string;
+  bgTint: string;         // very light bg
+  accent: string;         // 4px left stripe hex
+  render: (e: CommunityEvent) => string;
+}> = {
+  tier_up: {
+    icon: "trophy", ringColor: "ring-amber-300", textColor: "text-amber-700", bgTint: "bg-amber-50/50", accent: "#f59e0b",
+    render: (e) => `Bé <strong>${e.pet_name}</strong> lên tier <strong style="color:#f59e0b">${e.event_data?.new_tier || "mới"}</strong>`,
+  },
+  achievement_unlock: {
+    icon: "medal", ringColor: "ring-yellow-300", textColor: "text-yellow-700", bgTint: "bg-yellow-50/50", accent: "#ecb921",
+    render: (e) => `Bé <strong>${e.pet_name}</strong> mở khoá <strong style="color:#ecb921">huy hiệu mới</strong>`,
+  },
+  hero_action: {
+    icon: "hero", ringColor: "ring-emerald-300", textColor: "text-emerald-700", bgTint: "bg-emerald-50/50", accent: "#10b981",
+    render: (e) => `<strong>${e.pet_name}</strong> vừa <strong style="color:#10b981">giúp tìm pet hàng xóm</strong>`,
+  },
+  new_match: {
+    icon: "hearts", ringColor: "ring-rose-300", textColor: "text-rose-600", bgTint: "bg-rose-50/50", accent: "#f43f5e",
+    render: (e) => `Bé <strong>${e.pet_name}</strong> vừa <strong style="color:#f43f5e">match Playdate</strong>`,
+  },
+  birthday: {
+    icon: "cake", ringColor: "ring-pink-300", textColor: "text-pink-600", bgTint: "bg-pink-50/50", accent: "#ec4899",
+    render: (e) => `Hôm nay <strong style="color:#ec4899">sinh nhật</strong> bé <strong>${e.pet_name}</strong>`,
+  },
+};
+
+function relativeTime(iso: string): { text: string; isFresh: boolean } {
+  try {
+    const t = new Date(iso).getTime();
+    const diff = Date.now() - t;
+    const m = Math.floor(diff / 60_000);
+    if (m < 1) return { text: "vừa xong", isFresh: true };
+    if (m < 60) return { text: `${m} phút`, isFresh: true };
+    const h = Math.floor(m / 60);
+    if (h < 24) return { text: `${h} giờ`, isFresh: h < 1 };
+    const d = Math.floor(h / 24);
+    return { text: `${d} ngày`, isFresh: false };
+  } catch { return { text: "", isFresh: false }; }
+}
+---
+
+{top.length > 0 && (
+  <section class="space-y-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="relative inline-flex items-center justify-center w-5 h-5">
+          <FeatureIcon name="sparkles" class="w-5 h-5" strokeWidth={1.8} style="color: var(--c-gold);" />
+        </span>
+        <h2 class="font-bold text-mmp-ink">Cộng đồng</h2>
+        <!-- Live indicator -->
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-widest text-emerald-700">
+          <span class="relative flex h-1.5 w-1.5">
+            <span class="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping bg-emerald-500"></span>
+            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+          </span>
+          Live
+        </span>
+      </div>
+      <a href="/community" class="text-xs font-semibold inline-flex items-center gap-1" style="color: var(--c-gold);">
+        Xem hết
+        <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2} />
+      </a>
+    </div>
+
+    <div class="space-y-2.5">
+      {top.map((e, idx) => {
+        const meta = TYPE_META[e.event_type] || { icon: "star", ringColor: "ring-slate-300", textColor: "text-slate-500", bgTint: "bg-slate-50", accent: "#94a3b8", render: () => `Bé <strong>${e.pet_name}</strong>` };
+        const text = meta.render(e);
+        const rel = relativeTime(e.created_at);
+        return (
+          <a
+            href="/community"
+            class={`group relative flex items-center gap-3 p-3 sm:p-3.5 ${meta.bgTint} bg-white rounded-2xl border border-slate-100 hover:border-mmp-ink/20 hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden`}
+            style={`background-image: linear-gradient(90deg, ${meta.accent}10 0%, transparent 12%, transparent 100%);`}
+          >
+            {/* LEFT accent stripe (gradient — widens on hover) */}
+            <span
+              class="absolute left-0 top-0 bottom-0 w-1 group-hover:w-1.5 transition-all"
+              style={`background: linear-gradient(180deg, ${meta.accent} 0%, ${meta.accent}80 100%);`}
+              aria-hidden="true"
+            ></span>
+
+            {/* Avatar w/ colored ring + event icon badge */}
+            <div class={`relative w-12 h-12 rounded-full ring-2 ${meta.ringColor} ring-offset-2 ring-offset-white flex-shrink-0 overflow-hidden`}>
+              {e.pet_avatar_url ? (
+                <img src={e.pet_avatar_url} alt={e.pet_name} class="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <div class={`w-full h-full flex items-center justify-center ${meta.bgTint} ${meta.textColor}`}>
+                  <FeatureIcon name={meta.icon} class="w-5 h-5" strokeWidth={1.8} />
+                </div>
+              )}
+              {/* Event-type badge overlay (when avatar exists) */}
+              {e.pet_avatar_url && (
+                <span class={`absolute -bottom-1 -right-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-white ring-2 ring-white shadow ${meta.textColor}`}>
+                  <FeatureIcon name={meta.icon} class="w-3.5 h-3.5" strokeWidth={2} />
+                </span>
+              )}
+            </div>
+
+            {/* Content */}
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-slate-700 leading-snug" set:html={text}></p>
+              <div class="flex items-center gap-1.5 mt-1">
+                <span class="text-[10px] text-slate-400 tabular-nums">{rel.text}</span>
+                {rel.isFresh && (
+                  <span class="inline-flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    <span class="relative flex h-1 w-1">
+                      <span class="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping bg-emerald-500"></span>
+                      <span class="relative inline-flex rounded-full h-1 w-1 bg-emerald-500"></span>
+                    </span>
+                    Mới
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Right chevron — subtle, slides on hover */}
+            <span class="text-slate-300 group-hover:text-mmp-ink group-hover:translate-x-0.5 transition flex-shrink-0">
+              <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2.2} />
+            </span>
+          </a>
+        );
+      })}
+    </div>
+
+    {/* "X người chăm pet đang online" footer ticker */}
+    <p class="text-center text-[10px] text-slate-500 mt-2 inline-flex items-center justify-center gap-1 w-full">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping bg-emerald-400"></span>
+        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+      </span>
+      <span>Cộng đồng <strong class="text-mmp-ink">Mon Min Pet</strong> đang sôi động</span>
+    </p>
+  </section>
+)}

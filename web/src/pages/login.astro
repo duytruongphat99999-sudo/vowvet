@@ -1,0 +1,488 @@
+---
+/**
+ * /login — Multi-method auth (M20-auth).
+ *
+ * 3 tabs: 📱 SĐT OTP / 🔑 Email mật khẩu / 🌐 Google
+ * Error param from Google OAuth callback shown as banner.
+ */
+import Layout from "../layouts/Layout.astro";
+import Logo from "../components/Logo.astro";
+
+const url = new URL(Astro.request.url);
+const errorParam = url.searchParams.get("error");
+const goodbye = url.searchParams.get("goodbye") === "1";
+const ERROR_LABELS: Record<string, string> = {
+  oauth_state_mismatch: "Phiên Google đã hết hạn — thử lại",
+  oauth_exchange_failed: "Không kết nối Google được — thử lại",
+  oauth_missing_user: "Google không trả thông tin tài khoản",
+  oauth_email_unverified: "Email Google chưa xác thực — verify trước",
+  email_exists: "Email đã có trên VowVet. Đăng nhập bằng SĐT trước, rồi liên kết Google trong Cài đặt.",
+  account_deleted: "Tài khoản đã bị xóa",
+  oauth_create_failed: "Không tạo được tài khoản",
+};
+const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorParam}`) : null;
+---
+
+<Layout title="Đăng nhập · VowVet" description="Đăng nhập VowVet để chăm sóc thú cưng">
+  <main class="min-h-screen flex items-center justify-center px-4 py-8 bg-mmp-cream">
+    <div class="w-full max-w-md">
+
+      <!-- Brand lockup -->
+      <div class="text-center mb-6">
+        <div class="inline-block">
+          <Logo variant="full" href={null} size="lg" />
+        </div>
+        <p class="mt-3 text-sm text-slate-600">Người bạn đồng hành sức khỏe cho thú cưng</p>
+      </div>
+
+      <!-- Goodbye banner after logout -->
+      {goodbye && (
+        <div class="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-sm text-emerald-700 text-center">
+          👋 Đã đăng xuất. Hẹn gặp lại!
+        </div>
+      )}
+
+      <!-- Error banner from query string -->
+      {errorMessage && (
+        <div class="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+          ⚠️ {errorMessage}
+        </div>
+      )}
+
+      <div class="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 sm:p-8" x-data="loginPage()">
+
+        <!-- Tab bar (M21+ reorder: Email default, then Google, then Phone) -->
+        <div class="flex gap-1 mb-6 p-1 bg-slate-100 rounded-xl">
+          <button @click="setMethod('email')"
+            :class="method === 'email' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500'"
+            class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">🔑 Email</button>
+          <button @click="setMethod('google')"
+            :class="method === 'google' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500'"
+            class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">🌐 Google</button>
+          <button @click="setMethod('phone')"
+            :class="method === 'phone' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500'"
+            class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">📱 SĐT</button>
+        </div>
+
+        <!-- Hint cho user lần đầu trên tab Email -->
+        <template x-if="method === 'email' && !lastMethod">
+          <p class="text-[11px] text-slate-400 text-center mb-3 italic">
+            💡 Lần đầu? Đăng nhập SĐT trước, rồi setup email+mật khẩu cho lần sau
+          </p>
+        </template>
+
+        <!-- ═══════════ PHONE ═══════════ -->
+        <div x-show="method === 'phone'" x-transition>
+
+          <!-- Step phone -->
+          <div x-show="phoneStep === 'input'">
+            <h2 class="text-xl font-bold text-slate-900 mb-1">Đăng nhập bằng SĐT</h2>
+            <p class="text-sm text-slate-500 mb-4">Nhận mã OTP qua Zalo</p>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-2">Số điện thoại</label>
+            <input type="tel" x-model="phone" inputmode="numeric"
+              placeholder="0901234567"
+              @input="error = ''"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
+
+            <button @click="sendOtp()" :disabled="loading || !validPhone"
+              class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold transition">
+              <span x-show="!loading">Gửi mã OTP</span>
+              <span x-show="loading">Đang gửi…</span>
+            </button>
+          </div>
+
+          <!-- Step OTP -->
+          <div x-show="phoneStep === 'otp'">
+            <button @click="phoneStep = 'input'; otp = ''; error = ''" class="mb-3 text-xs text-slate-500 hover:text-slate-800">← Đổi số khác</button>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">Nhập mã OTP</h2>
+            <p class="text-sm text-slate-500 mb-4">Đã gửi tới <strong x-text="phone"></strong></p>
+
+            <!-- DEV: hiển thị OTP từ server (chỉ khi NODE_ENV != production) -->
+            <template x-if="devOtp">
+              <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3 text-xs text-amber-900">
+                🧪 Dev OTP: <strong class="font-mono" x-text="devOtp"></strong>
+              </div>
+            </template>
+
+            <input type="text" inputmode="numeric" maxlength="6"
+              x-model="otp"
+              @input="error = ''; otp = otp.replace(/[^0-9]/g, '').slice(0, 6)"
+              placeholder="123456"
+              autocomplete="one-time-code"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none text-2xl text-center tracking-widest font-mono" />
+
+            <button @click="verifyOtp()" :disabled="loading || otp.length !== 6"
+              class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold">
+              <span x-show="!loading">Xác nhận</span>
+              <span x-show="loading">Đang kiểm tra…</span>
+            </button>
+
+            <button @click="resendOtp()" :disabled="resendCooldown > 0 || loading"
+              class="w-full mt-2 text-xs text-mmp-ink hover:text-mmp-ink disabled:text-slate-400 disabled:cursor-not-allowed">
+              <span x-show="resendCooldown === 0">Gửi lại mã</span>
+              <span x-show="resendCooldown > 0">Gửi lại sau <span x-text="resendCooldown"></span>s</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════ EMAIL ═══════════ -->
+        <div x-show="method === 'email'" x-transition>
+
+          <!-- Login mode -->
+          <div x-show="emailMode === 'login'">
+            <h2 class="text-xl font-bold text-slate-900 mb-1">Đăng nhập Email</h2>
+            <p class="text-sm text-slate-500 mb-4">Dùng email + mật khẩu</p>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email</label>
+            <input type="email" x-model="email" placeholder="ban@gmail.com"
+              @input="error = ''"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Mật khẩu</label>
+            <input type="password" x-model="password" placeholder="••••••••"
+              @input="error = ''" @keydown.enter="emailLogin()"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
+
+            <button @click="emailLogin()" :disabled="loading || !email || !password"
+              class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold">
+              <span x-show="!loading">Đăng nhập</span>
+              <span x-show="loading">Đang đăng nhập…</span>
+            </button>
+
+            <div class="flex justify-between mt-3 text-xs">
+              <button @click="emailMode = 'register'; error = ''" class="text-mmp-ink hover:underline">Đăng ký mới</button>
+              <button @click="emailMode = 'forgot'; error = ''" class="text-slate-500 hover:text-slate-800">Quên mật khẩu?</button>
+            </div>
+          </div>
+
+          <!-- Register mode -->
+          <div x-show="emailMode === 'register'">
+            <button @click="emailMode = 'login'; error = ''" class="mb-3 text-xs text-slate-500 hover:text-slate-800">← Quay lại đăng nhập</button>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">Đăng ký tài khoản</h2>
+            <p class="text-sm text-slate-500 mb-4">Email + mật khẩu mới</p>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tên (tuỳ chọn)</label>
+            <input type="text" x-model="regName" placeholder="Tên hiển thị" maxlength="60"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email *</label>
+            <input type="email" x-model="email" placeholder="ban@gmail.com"
+              @input="error = ''"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Mật khẩu * <span class="text-slate-400 font-normal">(≥8 ký tự, có chữ + số)</span></label>
+            <input type="password" x-model="password" placeholder="••••••••" autocomplete="new-password"
+              @input="error = ''"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Nhập lại mật khẩu</label>
+            <input type="password" x-model="password2" placeholder="••••••••" autocomplete="new-password"
+              @input="error = ''"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
+
+            <button @click="emailRegister()" :disabled="loading || !canRegister"
+              class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold">
+              <span x-show="!loading">Tạo tài khoản</span>
+              <span x-show="loading">Đang tạo…</span>
+            </button>
+          </div>
+
+          <!-- Forgot mode -->
+          <div x-show="emailMode === 'forgot'">
+            <button @click="emailMode = 'login'; error = ''" class="mb-3 text-xs text-slate-500 hover:text-slate-800">← Quay lại</button>
+            <template x-if="!forgotSent">
+              <div>
+                <h2 class="text-xl font-bold text-slate-900 mb-1">Quên mật khẩu</h2>
+                <p class="text-sm text-slate-500 mb-4">Nhập email — chúng tôi sẽ gửi link đặt lại</p>
+
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email</label>
+                <input type="email" x-model="email" placeholder="ban@gmail.com"
+                  class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink outline-none" />
+
+                <button @click="emailForgot()" :disabled="loading || !email"
+                  class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:bg-slate-800 disabled:opacity-50 text-white font-bold">
+                  <span x-show="!loading">Gửi link</span>
+                  <span x-show="loading">Đang gửi…</span>
+                </button>
+              </div>
+            </template>
+            <template x-if="forgotSent">
+              <div class="text-center py-6">
+                <p class="text-4xl mb-3">📧</p>
+                <p class="font-bold text-slate-900 mb-1">Đã gửi link!</p>
+                <p class="text-sm text-slate-500">Kiểm tra email và làm theo hướng dẫn (link sống 1 giờ)</p>
+                <p class="text-xs text-slate-400 mt-3 italic">Phase 0: link được log trong console docker (mock email).</p>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ═══════════ GOOGLE ═══════════ -->
+        <div x-show="method === 'google'" x-transition class="py-2">
+          <h2 class="text-xl font-bold text-slate-900 mb-1 text-center">Đăng nhập Google</h2>
+          <p class="text-sm text-slate-500 mb-5 text-center">Một click để bắt đầu</p>
+          <a href="/api/v1/auth/google"
+            class="w-full flex items-center justify-center gap-3 py-3 rounded-xl border-2 border-slate-300 hover:bg-slate-50 active:scale-[0.98] font-semibold text-slate-700 transition">
+            <svg class="w-5 h-5" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.5 5.4 29.6 3.5 24 3.5 12.7 3.5 3.5 12.7 3.5 24S12.7 44.5 24 44.5c11.3 0 20-9.2 20-20.5 0-1.4-.1-2.4-.4-3.5z"/>
+              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 18.9 13 24 13c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.5 5.4 29.6 3.5 24 3.5 16.3 3.5 9.7 7.9 6.3 14.7z"/>
+              <path fill="#4CAF50" d="M24 44.5c5.4 0 10.4-2 14.1-5.4l-6.5-5.5c-2.1 1.5-4.7 2.4-7.6 2.4-5.3 0-9.7-3.3-11.3-7.9l-6.6 5C9.7 40.1 16.3 44.5 24 44.5z"/>
+              <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4 5.6l6.5 5.5C40.7 35.9 44.5 30.5 44.5 24c0-1.4-.1-2.4-.4-3.5z"/>
+            </svg>
+            Tiếp tục với Google
+          </a>
+          <p class="text-xs text-slate-400 mt-4 text-center px-2">
+            ⚠️ Nếu chưa cấu hình GOOGLE_OAUTH_CLIENT_ID/SECRET trên server, route sẽ trả 503.
+          </p>
+        </div>
+
+        <!-- Shared error display -->
+        <div x-show="error" x-transition class="mt-4 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700" x-text="error"></div>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 mt-6">
+        Bằng việc đăng nhập, bạn đồng ý với Điều khoản sử dụng của VowVet
+      </p>
+
+      <p class="text-center text-sm text-slate-500 mt-5">
+        Lần đầu nghe đến VowVet?
+        <a href="/why-vowvet" class="text-mmp-ink hover:text-mmp-ink underline font-semibold">Tìm hiểu</a>
+      </p>
+    </div>
+  </main>
+
+  <script is:inline>
+    const SKIP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+    function readLastMethod() {
+      try {
+        const m = localStorage.getItem("vv_last_login_method");
+        return ["email", "google", "phone"].includes(m) ? m : null;
+      } catch { return null; }
+    }
+    function setLastMethod(m) {
+      try { localStorage.setItem("vv_last_login_method", m); } catch (_) {}
+    }
+    function setupPasswordSkippedRecently() {
+      try {
+        const ts = Number(localStorage.getItem("vv_setup_password_skipped_at") || 0);
+        return ts > 0 && (Date.now() - ts) < SKIP_TTL_MS;
+      } catch { return false; }
+    }
+    /** Return same-origin path from ?return_to=… (drops bad inputs to prevent open redirect). */
+    function safeReturnTo() {
+      try {
+        const r = new URLSearchParams(window.location.search).get("return_to");
+        if (!r) return null;
+        if (!r.startsWith("/") || r.startsWith("//")) return null;
+        if (r === "/login" || r === "/logout") return null;
+        return r;
+      } catch { return null; }
+    }
+    function resolveRedirect(json) {
+      // Honor backend redirect_to, but if it's /account/setup-password and user
+      // chose to snooze recently → bypass to /dashboard.
+      let target = json.redirect_to || (json.user?.onboarded ? "/dashboard" : "/onboarding");
+      if (target === "/account/setup-password" && setupPasswordSkippedRecently()) {
+        target = "/dashboard";
+      }
+      // If user was redirected here from a protected page (?return_to=…), honor it
+      // — but only when they're going to /dashboard (already onboarded). If they're
+      // not onboarded, the onboarding flow itself will carry return_to forward.
+      const rt = safeReturnTo();
+      if (rt) {
+        if (target === "/dashboard") return rt;
+        if (target === "/onboarding") {
+          return `/onboarding?return_to=${encodeURIComponent(rt)}`;
+        }
+      }
+      return target;
+    }
+
+    function loginPage() {
+      const last = readLastMethod();
+      return {
+        // Default tab: prefer last method, fallback to "email" (user cũ majority)
+        method: last || "email",
+        lastMethod: last, // expose to template (hint visibility)
+        phoneStep: "input",
+        emailMode: "login",
+        phone: "",
+        otp: "",
+        devOtp: null,
+        email: "",
+        password: "",
+        password2: "",
+        regName: "",
+        loading: false,
+        error: "",
+        forgotSent: false,
+        resendCooldown: 0,
+        _cooldownTimer: null,
+
+        get validPhone() {
+          return /^(0|\+84)(3|5|7|8|9)\d{8}$/.test(this.phone.replace(/[\s\-\(\)\.]/g, ""));
+        },
+
+        setMethod(m) {
+          this.method = m;
+          this.error = "";
+        },
+
+        get canRegister() {
+          if (!this.email || !this.password || !this.password2) return false;
+          if (this.password !== this.password2) return false;
+          if (this.password.length < 8) return false;
+          if (!/[A-Za-z]/.test(this.password) || !/\d/.test(this.password)) return false;
+          return true;
+        },
+
+        _startCooldown() {
+          this.resendCooldown = 60;
+          clearInterval(this._cooldownTimer);
+          this._cooldownTimer = setInterval(() => {
+            this.resendCooldown -= 1;
+            if (this.resendCooldown <= 0) {
+              clearInterval(this._cooldownTimer);
+              this._cooldownTimer = null;
+            }
+          }, 1000);
+        },
+
+        // ─── Phone OTP ───
+        async sendOtp() {
+          this.error = "";
+          this.loading = true;
+          this.devOtp = null;
+          try {
+            const res = await fetch("/api/v1/auth/request-otp", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phone: this.phone }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              this.error = json.error?.message || "Có lỗi xảy ra";
+              return;
+            }
+            if (json.dev_otp) this.devOtp = json.dev_otp;
+            this.phoneStep = "otp";
+            this.otp = "";
+            this._startCooldown();
+          } catch (err) {
+            this.error = "Lỗi kết nối. Thử lại sau.";
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async resendOtp() {
+          if (this.resendCooldown > 0) return;
+          await this.sendOtp();
+        },
+
+        async verifyOtp() {
+          this.error = "";
+          this.loading = true;
+          try {
+            const res = await fetch("/api/v1/auth/verify-otp", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phone: this.phone, code: this.otp }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              this.error = json.error?.message || "Có lỗi xảy ra";
+              if (json.error?.code === "OTP_LOCKED") {
+                setTimeout(() => { this.phoneStep = "input"; this.otp = ""; }, 2000);
+              }
+              return;
+            }
+            // M21: backend tự quyết định redirect, frontend honor + snooze
+            setLastMethod("phone");
+            window.location.href = resolveRedirect(json);
+          } catch (err) {
+            this.error = "Lỗi kết nối. Thử lại sau.";
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // ─── Email login ───
+        async emailLogin() {
+          if (!this.email || !this.password) return;
+          this.error = "";
+          this.loading = true;
+          try {
+            const res = await fetch("/api/v1/auth/email/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: this.email, password: this.password }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              this.error = json.error?.message || "Đăng nhập thất bại";
+              return;
+            }
+            // M21: dùng redirect_to từ backend (email user thường KHÔNG cần setup nữa)
+            setLastMethod("email");
+            window.location.href = resolveRedirect(json);
+          } catch (err) {
+            this.error = "Lỗi kết nối. Thử lại sau.";
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // ─── Email register ───
+        async emailRegister() {
+          if (!this.canRegister) {
+            this.error = "Kiểm tra lại form (mật khẩu ≥8 ký tự + có chữ + số, nhập lại trùng)";
+            return;
+          }
+          this.error = "";
+          this.loading = true;
+          try {
+            const res = await fetch("/api/v1/auth/email/register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: this.email, password: this.password, name: this.regName || null }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              this.error = json.error?.message || "Tạo tài khoản thất bại";
+              return;
+            }
+            setLastMethod("email");
+            window.location.href = json.redirect_to || "/onboarding";
+          } catch (err) {
+            this.error = "Lỗi kết nối. Thử lại sau.";
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // ─── Forgot password ───
+        async emailForgot() {
+          if (!this.email) return;
+          this.error = "";
+          this.loading = true;
+          try {
+            const res = await fetch("/api/v1/auth/email/forgot-password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: this.email }),
+            });
+            // Always success to avoid email enumeration
+            this.forgotSent = true;
+          } catch (err) {
+            this.error = "Lỗi kết nối. Thử lại sau.";
+          } finally {
+            this.loading = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

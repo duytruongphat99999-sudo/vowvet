@@ -1,0 +1,294 @@
+---
+/**
+ * /map — Pet-friendly places explorer (M26).
+ *
+ * PUBLIC page. Leaflet + OpenStreetMap tiles (no API key required).
+ * Filter by category, search by name, geolocation "near me".
+ * Click marker → bottom sheet with place detail + check-in link.
+ */
+import Layout from "../layouts/Layout.astro";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// SSR fetch initial places (broad query — frontend can re-filter)
+let places: any[] = [];
+let categories: any[] = [];
+try {
+  const [pRes, cRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/places`),
+    fetch(`${API_INTERNAL}/api/v1/places/categories`),
+  ]);
+  if (pRes.ok) places = (await pRes.json()).places || [];
+  if (cRes.ok) categories = (await cRes.json()).categories || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({ places, categories });
+---
+
+<Layout title="Bản đồ pet-friendly · VowVet" description="Khám phá địa điểm pet-friendly ở HCMC: công viên, cafe, vet, grooming">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style is:inline>
+    #leaflet-map { height: calc(100vh - 64px); width: 100%; }
+    .place-marker {
+      background: white; border: 2px solid #c4b5fd; border-radius: 50%;
+      width: 38px !important; height: 38px !important;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+      transition: transform 0.15s;
+    }
+    .place-marker:hover { transform: scale(1.15); }
+    .place-marker.verified { border-color: #10b981; }
+  </style>
+
+  <main class="relative" x-data={`mapPage(${initialData})`} x-init="onMount()">
+
+    <!-- Top filter bar -->
+    <div class="absolute top-3 left-3 right-3 z-[1000] pointer-events-none">
+      <div class="bg-white/95 backdrop-blur rounded-2xl shadow-lg p-3 pointer-events-auto">
+        <!-- Header row -->
+        <div class="flex items-center gap-3 mb-2">
+          <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700 shrink-0">← Dashboard</a>
+          <h1 class="text-sm font-bold text-slate-900 flex-1 truncate">🗺️ Pet-friendly Places</h1>
+          <span class="text-[10px] text-slate-400 shrink-0" x-text="`${filteredPlaces.length} địa điểm`"></span>
+        </div>
+
+        <!-- Search -->
+        <input type="search" x-model="search" @input.debounce.300ms="render()"
+          placeholder="Tìm theo tên..."
+          class="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-mmp-gold" />
+
+        <!-- Category chips -->
+        <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          <button @click="selectedCat = null; render()"
+            :class="selectedCat === null ? 'bg-mmp-ink text-white' : 'bg-slate-100 text-slate-700'"
+            class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
+            Tất cả
+          </button>
+          <template x-for="c in categories" :key="c.key">
+            <button @click="selectedCat = c.key; render()"
+              :class="selectedCat === c.key ? 'bg-mmp-ink text-white' : 'bg-slate-100 text-slate-700'"
+              class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
+              <span x-text="c.emoji"></span>
+              <span x-text="c.label_vi"></span>
+              <span class="opacity-60" x-text="`(${c.count})`"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div id="leaflet-map"></div>
+
+    <!-- "Gần tôi" FAB -->
+    <button @click="locateMe()"
+      class="absolute bottom-24 right-4 z-[999] w-12 h-12 rounded-full bg-white shadow-xl border-2 border-mmp-cream hover:bg-mmp-cream text-xl"
+      title="Vị trí của tôi">
+      📍
+    </button>
+
+    <!-- Submit new place FAB -->
+    <a href="/places/new"
+      class="absolute bottom-8 right-4 z-[999] w-14 h-14 rounded-full bg-mmp-ink hover:bg-slate-800 shadow-2xl text-white flex items-center justify-center text-3xl active:scale-95"
+      title="Thêm địa điểm">
+      +
+    </a>
+
+    <!-- Bottom sheet for selected place -->
+    <div x-show="selectedPlace"
+      x-transition:enter="transition transform duration-300"
+      x-transition:enter-start="translate-y-full"
+      x-transition:enter-end="translate-y-0"
+      class="absolute bottom-0 left-0 right-0 z-[1001] bg-white rounded-t-3xl shadow-2xl max-h-[60vh] overflow-y-auto">
+      <template x-if="selectedPlace">
+        <div class="p-5">
+          <button @click="closeSheet()" class="float-right text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+
+          <div class="flex items-start gap-3 mb-3">
+            <span class="text-4xl shrink-0" x-text="catEmoji(selectedPlace.category)"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h2 class="text-lg font-bold text-slate-900" x-text="selectedPlace.name"></h2>
+                <template x-if="selectedPlace.verified">
+                  <span class="text-emerald-600 text-xs font-bold">✓ Verified</span>
+                </template>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5" x-text="catLabel(selectedPlace.category)"></p>
+            </div>
+          </div>
+
+          <p class="text-sm text-slate-700 mb-2" x-text="selectedPlace.address"></p>
+
+          <div class="flex flex-wrap gap-2 mb-3 text-xs">
+            <span class="bg-amber-50 text-amber-800 px-2 py-1 rounded-full"
+              x-text="policyLabel(selectedPlace.pet_policy)"></span>
+            <template x-for="a in selectedPlace.amenities" :key="a">
+              <span class="bg-slate-100 text-slate-700 px-2 py-1 rounded-full" x-text="amenityLabel(a)"></span>
+            </template>
+          </div>
+
+          <template x-if="selectedPlace.distance_km != null">
+            <p class="text-xs text-mmp-ink font-semibold mb-3">
+              📍 Cách bạn <span x-text="fmtDistance(selectedPlace.distance_km)"></span>
+            </p>
+          </template>
+
+          <template x-if="selectedPlace.total_checkins > 0">
+            <p class="text-xs text-slate-500 mb-3">
+              ⭐ <span x-text="selectedPlace.avg_rating.toFixed(1)"></span>
+              · <span x-text="selectedPlace.total_checkins"></span> check-in
+            </p>
+          </template>
+
+          <div class="flex flex-wrap gap-2">
+            <a :href="`/places/${selectedPlace.id}`"
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm py-2.5 rounded-xl text-center">
+              📖 Chi tiết
+            </a>
+            <a :href="`/places/checkin?placeId=${selectedPlace.id}`"
+              class="flex-1 bg-mmp-ink hover:bg-slate-800 text-white font-semibold text-sm py-2.5 rounded-xl text-center">
+              📍 Check-in
+            </a>
+            <a :href="googleMapsUrl(selectedPlace)" target="_blank"
+              class="bg-mmp-ink hover:bg-mmp-ink text-white font-semibold text-sm px-3 py-2.5 rounded-xl">
+              🧭
+            </a>
+            <template x-if="selectedPlace.contact_phone">
+              <a :href="`tel:${selectedPlace.contact_phone}`"
+                class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm px-3 py-2.5 rounded-xl">
+                📞
+              </a>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script is:inline>
+    function mapPage(initial) {
+      return {
+        places: initial.places,
+        categories: initial.categories,
+        selectedCat: null,
+        search: "",
+        selectedPlace: null,
+        map: null,
+        markers: [],
+        userMarker: null,
+        catMap: Object.fromEntries(initial.categories.map((c) => [c.key, c])),
+
+        catEmoji(k) { return this.catMap[k]?.emoji || "📍"; },
+        catLabel(k) { return this.catMap[k]?.label_vi || k; },
+
+        policyLabel(p) {
+          return ({
+            allowed: "🐾 Pet welcome", leash_only: "🦮 Có dây xích",
+            small_pets_only: "🐱 Chỉ pet nhỏ", private_only: "🔒 Đặt trước",
+            by_request: "❓ Hỏi trước"
+          })[p] || p;
+        },
+
+        amenityLabel(a) {
+          return ({
+            water_bowl: "💧 Bowl nước", outdoor_seating: "🌤️ Ngoài trời",
+            indoor: "🏠 Trong nhà", off_leash_area: "🦮 Off-leash",
+            shade: "🌳 Có bóng mát", poop_bag: "🛍️ Bag rác"
+          })[a] || a;
+        },
+
+        get filteredPlaces() {
+          let f = this.places;
+          if (this.selectedCat) f = f.filter((p) => p.category === this.selectedCat);
+          if (this.search.trim()) {
+            const q = this.search.trim().toLowerCase();
+            f = f.filter((p) => p.name.toLowerCase().includes(q) || p.address.toLowerCase().includes(q));
+          }
+          return f;
+        },
+
+        fmtDistance(km) {
+          if (km < 1) return Math.round(km * 1000) + " m";
+          return km.toFixed(1) + " km";
+        },
+
+        googleMapsUrl(p) {
+          return `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+        },
+
+        onMount() {
+          this.initMap();
+          this.render();
+        },
+
+        initMap() {
+          // Center HCM
+          this.map = L.map("leaflet-map", { zoomControl: true }).setView([10.7769, 106.7009], 13);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "© OpenStreetMap contributors",
+            maxZoom: 19,
+          }).addTo(this.map);
+        },
+
+        clearMarkers() {
+          for (const m of this.markers) this.map.removeLayer(m);
+          this.markers = [];
+        },
+
+        render() {
+          if (!this.map) return;
+          this.clearMarkers();
+          for (const place of this.filteredPlaces) {
+            const emoji = this.catEmoji(place.category);
+            const icon = L.divIcon({
+              className: place.verified ? "place-marker verified" : "place-marker",
+              html: emoji,
+              iconSize: [38, 38],
+              iconAnchor: [19, 19],
+            });
+            const m = L.marker([place.lat, place.lng], { icon }).addTo(this.map);
+            m.on("click", () => { this.selectedPlace = place; });
+            this.markers.push(m);
+          }
+        },
+
+        async locateMe() {
+          if (!navigator.geolocation) {
+            alert("Trình duyệt không hỗ trợ vị trí");
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              const { latitude, longitude } = pos.coords;
+              this.map.setView([latitude, longitude], 15);
+              if (this.userMarker) this.map.removeLayer(this.userMarker);
+              const userIcon = L.divIcon({
+                className: "",
+                html: `<div style="background:#3b82f6;border:3px solid white;width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.3)"></div>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+              });
+              this.userMarker = L.marker([latitude, longitude], { icon: userIcon }).addTo(this.map);
+              // Re-fetch with geo filter to include distance_km
+              try {
+                const res = await fetch(`/api/v1/places?lat=${latitude}&lng=${longitude}&radius=20`);
+                if (res.ok) {
+                  this.places = (await res.json()).places || [];
+                  this.render();
+                }
+              } catch (_) {}
+            },
+            (err) => alert("Không lấy được vị trí: " + err.message),
+            { enableHighAccuracy: false, timeout: 10000 }
+          );
+        },
+
+        closeSheet() { this.selectedPlace = null; },
+      };
+    }
+  </script>
+</Layout>

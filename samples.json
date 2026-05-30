@@ -1,0 +1,809 @@
+[samples] PET_IDS_TO_SAMPLE empty — auto-picking first 10 pets...
+[samples] Generating care plans for 10 pets...
+[samples] pet 1 () ...
+[samples] pet 2 () ...
+[samples] pet 3 (Beo) ...
+[care-plan-v2] cache MISS pet=3 date=2026-05-21 force_refresh=true
+[care-plan-v2] SAFETY VIOLATION pet=3 species=dog violations=["Toxic food \"hành\" mentioned without warning prefix (dog)"]
+[care-plan-v2] generated pet=3 cost=$0.0025 tok=2143/757 elapsed=14276ms
+  ✓ done in 14278ms
+[samples] pet 5 (Mon) ...
+[care-plan-v2] cache MISS pet=5 date=2026-05-21 force_refresh=true
+[care-plan-v2] generated pet=5 cost=$0.0023 tok=2155/649 elapsed=13338ms
+  ✓ done in 13338ms
+[samples] pet 6 (Mon) ...
+[care-plan-v2] cache MISS pet=6 date=2026-05-21 force_refresh=true
+  ✗ error: {"error":{"code":503,"message":"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","status":"UNAVAILABLE"}}
+[samples] pet 7 (Pugy) ...
+[care-plan-v2] cache MISS pet=7 date=2026-05-21 force_refresh=true
+[care-plan-v2] generated pet=7 cost=$0.0028 tok=2186/865 elapsed=11879ms
+  ✓ done in 11879ms
+[samples] pet 9 (M7Test) ...
+[care-plan-v2] cache MISS pet=9 date=2026-05-21 force_refresh=true
+[care-plan-v2] generated pet=9 cost=$0.0026 tok=2131/775 elapsed=11738ms
+  ✓ done in 11739ms
+[samples] pet 11 (Bug Test Pet) ...
+[care-plan-v2] cache MISS pet=11 date=2026-05-21 force_refresh=true
+[care-plan-v2] generated pet=11 cost=$0.0026 tok=2115/767 elapsed=15757ms
+  ✓ done in 15757ms
+[samples] pet 12 (min) ...
+[care-plan-v2] cache MISS pet=12 date=2026-05-21 force_refresh=true
+[care-plan-v2] generated pet=12 cost=$0.0029 tok=2144/898 elapsed=14217ms
+  ✓ done in 14217ms
+[samples] pet 13 (Mega Pet) ...
+[care-plan-v2] cache MISS pet=13 date=2026-05-21 force_refresh=true
+[care-plan-v2] generated pet=13 cost=$0.0024 tok=1968/716 elapsed=10902ms
+  ✓ done in 10902ms
+
+[samples] Done. 10 plans generated. Total errors: 3
+[
+  {
+    "pet_id": 1,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 0,
+    "timestamp": "2026-05-21T13:43:16.174Z",
+    "error": "Pet has no user_id link"
+  },
+  {
+    "pet_id": 2,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 0,
+    "timestamp": "2026-05-21T13:43:16.174Z",
+    "error": "Pet has no user_id link"
+  },
+  {
+    "pet_id": 3,
+    "pet_name": "Beo",
+    "species": "dog",
+    "breed": "Phú Quốc",
+    "age_label": "2023-01-01",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-21",
+      "pet_name": "Beo",
+      "pet_breed": "Phú Quốc",
+      "pet_age_label": "3 tuổi 4 tháng",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 30,
+        "feels_like_celsius": 37,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 70,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Phú Quốc — Năng lượng cực cao — KHÔNG phù hợp apartment, cần sân/đất rộng",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "80g hạt khô Mon Min Dry + 50ml nước ấm",
+            "reason": "Bổ sung năng lượng và nước cho buổi sáng"
+          },
+          {
+            "time": "12:00",
+            "what": "1 miếng cà rốt luộc (15g)",
+            "reason": "Snack bổ sung vitamin, dễ tiêu"
+          },
+          {
+            "time": "18:00",
+            "what": "70g hạt khô Mon Min Dry"
+          }
+        ],
+        "water_note": "Bổ sung thêm 20-30% lượng nước thông thường do trời nóng. Đặt ít nhất 2 chén nước sạch ở các khu vực bé hay lui tới."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:00",
+            "activity": "Chạy tự do trong sân có rào chắn hoặc đi bộ nhanh bằng dây dắt",
+            "duration_min": 45,
+            "location_type": "sân nhà/công viên có rào"
+          },
+          {
+            "time": "19:30",
+            "activity": "Chơi trò tìm đồ vật (retrieve) hoặc kéo co trong nhà/sân mát",
+            "duration_min": 45,
+            "location_type": "trong nhà/sân mát"
+          }
+        ],
+        "warning": "Phú Quốc năng lượng cao nhưng hôm nay trời nóng (cảm giác 37°C) — KHÔNG ra ngoài trời từ 10:00-17:00 để tránh sốc nhiệt."
+      },
+      "training": {
+        "focus_this_week": "Dạy lệnh 'Gọi lại' (recall) và 'Đứng yên' (stay) để tăng cường kiểm soát, đặc biệt khi ở ngoài.",
+        "sessions": "2 lượt x 10 phút (sáng + tối)"
+      },
+      "monitoring": [
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Phú Quốc bình thường 15-30 nhịp/phút. Nếu >35 nhịp/phút kèm thở hổn hển, cần làm mát ngay và liên hệ bác sĩ thú y."
+        },
+        {
+          "metric": "Mức độ khát nước",
+          "current_value": "Quan sát",
+          "recommendation": "Đảm bảo Beo uống đủ nước. Nếu bé liếm môi liên tục hoặc tìm nước bất thường, cần theo dõi sát dấu hiệu mất nước."
+        },
+        {
+          "metric": "Hành vi cảnh giác",
+          "current_value": "Bình thường",
+          "recommendation": "Tiếp tục cho Beo tiếp xúc với môi trường mới an toàn và người lạ có kiểm soát để duy trì sự hòa đồng, tránh quá cảnh giác."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 15,
+          "event": "Vaccine 7 bệnh booster",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé Beo hôm nay năng lượng tốt nè. Trời Sài Gòn nóng lắm (cảm giác 37°C) nên mình ưu tiên vận động sáng sớm và tối muộn, nhớ cho Beo uống nhiều nước nha! ⚠️ AI output bị safety check flag (1 cảnh báo) — tham khảo BS trước khi áp dụng.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0025,
+        "input_tokens": 2143,
+        "output_tokens": 757,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T13:43:29.863Z"
+      }
+    },
+    "safety_validation": {
+      "safe": false,
+      "violations": [
+        "Toxic food \"hành\" mentioned without warning prefix (dog)"
+      ]
+    },
+    "duration_ms": 14278,
+    "timestamp": "2026-05-21T13:43:30.452Z"
+  },
+  {
+    "pet_id": 5,
+    "pet_name": "Mon",
+    "species": "cat",
+    "breed": "Anh lông ngắn (British Shorthair)",
+    "age_label": "2023-12-06",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-21",
+      "pet_name": "Mon",
+      "pet_breed": "Anh lông ngắn (British Shorthair)",
+      "pet_age_label": "2 tuổi 5 tháng",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 30,
+        "feels_like_celsius": 37,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 70,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Anh lông ngắn (British Shorthair) — HCM (Hypertrophic Cardiomyopathy) — siêu âm tim 1 năm/lần từ 3 tuổi",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "Ngay lập tức",
+            "what": "Chỉ cung cấp nước sạch",
+            "reason": "KHÔNG cho Mon ăn bất cứ thứ gì cho đến khi bác sĩ thú y thăm khám và có chỉ định cụ thể."
+          }
+        ],
+        "water_note": "Đảm bảo Mon luôn có nước sạch và mát. Theo dõi Mon có uống nước không. Nếu Mon nôn ra nước, cần báo bác sĩ ngay."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "Cả ngày",
+            "activity": "Nghỉ ngơi hoàn toàn",
+            "duration_min": 0,
+            "location_type": "trong nhà"
+          }
+        ],
+        "warning": "Mon cần được nghỉ ngơi hoàn toàn. KHÔNG vận động hay chơi đùa cho đến khi có chỉ định của bác sĩ thú y. Tránh nắng nóng gay gắt (cảm giác 37°C) hoàn toàn."
+      },
+      "training": null,
+      "monitoring": [
+        {
+          "metric": "Nôn mửa",
+          "current_value": "Nôn ra máu (đã xảy ra)",
+          "recommendation": "Theo dõi tần suất, lượng và màu sắc chất nôn. Báo bác sĩ ngay nếu Mon tiếp tục nôn."
+        },
+        {
+          "metric": "Mức độ hoạt động",
+          "current_value": "Năng lượng trung bình 2.5/5 (trước đó)",
+          "recommendation": "Theo dõi Mon có lờ đờ, yếu ớt hơn không. Bất kỳ sự thay đổi nào cũng cần báo bác sĩ."
+        },
+        {
+          "metric": "Màu sắc nướu (lợi)",
+          "current_value": "Cần kiểm tra",
+          "recommendation": "Kiểm tra màu nướu của Mon (bình thường hồng nhạt). Nếu nhợt nhạt hoặc trắng bệch, đây là dấu hiệu cấp cứu, cần báo bác sĩ ngay."
+        },
+        {
+          "metric": "Hô hấp",
+          "current_value": "Cần theo dõi",
+          "recommendation": "Theo dõi nhịp thở của Mon. Nếu thở nhanh, thở gấp hoặc khó thở, cần báo bác sĩ ngay."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 27,
+          "event": "Vaccine nhắc lại",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "emergency",
+      "summary": "Chào Mon cưng, hôm nay bé có dấu hiệu nôn ra máu, đây là tình trạng cấp cứu rất nghiêm trọng. Ba/mẹ cần đưa Mon đi khám bác sĩ thú y ngay lập tức nha.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0023,
+        "input_tokens": 2155,
+        "output_tokens": 649,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T13:43:43.575Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 13338,
+    "timestamp": "2026-05-21T13:43:43.790Z"
+  },
+  {
+    "pet_id": 6,
+    "pet_name": "?",
+    "species": "?",
+    "breed": null,
+    "age_label": "?",
+    "generated_plan": null,
+    "safety_validation": null,
+    "duration_ms": 5455,
+    "timestamp": "2026-05-21T13:43:49.245Z",
+    "error": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}"
+  },
+  {
+    "pet_id": 7,
+    "pet_name": "Pugy",
+    "species": "dog",
+    "breed": "Pug",
+    "age_label": "2023-05-16",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-21",
+      "pet_name": "Pugy",
+      "pet_breed": "Pug",
+      "pet_age_label": "3 tuổi",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 30,
+        "feels_like_celsius": 37,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 70,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Pug — 🚨 BRACHYCEPHALIC — sốc nhiệt risk cao gấp 3 lần. HCM nóng → KHÔNG ra nắng 11h-16h",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "80g pate Mon Min + 30ml nước ấm",
+            "reason": "Tăng nước do thời tiết nóng và giúp bé dễ tiêu hơn nếu bé kén ăn"
+          },
+          {
+            "time": "12:30",
+            "what": "10g bí đỏ luộc nghiền",
+            "reason": "Snack bổ sung chất xơ, dễ tiêu hóa"
+          },
+          {
+            "time": "18:00",
+            "what": "70g hạt khô Mon Min Dry (kibble nhỏ)",
+            "reason": "Dùng chén ăn thấp, rộng để Pugy ăn thoải mái, tránh nuốt khí"
+          }
+        ],
+        "water_note": "Bổ sung ít nhất 250ml nước sạch cho Pugy hôm nay (tăng 25% so với bình thường do trời nóng và bé là giống brachycephalic). Đặt 2-3 chén nước ở các vị trí khác nhau trong nhà để bé dễ dàng uống."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:00",
+            "activity": "dạo nhẹ trong công viên gần nhà",
+            "duration_min": 20,
+            "location_type": "công viên"
+          },
+          {
+            "time": "19:30",
+            "activity": "chơi kéo co nhẹ nhàng trong nhà",
+            "duration_min": 15,
+            "location_type": "trong nhà"
+          }
+        ],
+        "warning": "Pugy là giống chó mũi ngắn (brachycephalic) nên rất dễ sốc nhiệt. Tuyệt đối KHÔNG cho bé ra ngoài trời từ 10:00 - 17:00 hôm nay vì nhiệt độ cảm nhận lên đến 37°C. Hãy giữ bé ở nơi mát mẻ nha."
+      },
+      "training": {
+        "focus_this_week": "Dạy Pugy lệnh 'Ngồi yên' khi có khách đến nhà",
+        "sessions": "3 lượt × 5 phút (sáng + chiều + tối)"
+      },
+      "monitoring": [
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Pugy bình thường có nhịp thở 15-30 hơi/phút. Nếu bé thở >35 hơi/phút khi nghỉ ngơi hoặc thở hổn hển liên tục, cần đưa bé vào phòng mát ngay và theo dõi sát. Nếu không cải thiện, liên hệ bác sĩ."
+        },
+        {
+          "metric": "Ho và hắt hơi",
+          "current_value": "1 lần/ngày",
+          "recommendation": "Theo dõi tần suất ho và hắt hơi của Pugy. Nếu tăng lên, có đờm hoặc kèm theo các triệu chứng khác như bỏ ăn, lờ đờ, nên hỏi ý kiến bác sĩ thú y qua chat."
+        },
+        {
+          "metric": "Mức năng lượng",
+          "current_value": "2/5",
+          "recommendation": "Quan sát Pugy có lờ đờ, mệt mỏi hơn bình thường không, đặc biệt trong thời tiết nóng. Nếu bé có vẻ uể oải, hãy khuyến khích bé uống nước và giữ bé ở nơi yên tĩnh, mát mẻ."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 25,
+          "event": "Vaccine 7 bệnh booster",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé Pugy ơi, hôm nay trời Sài Gòn nóng nực lắm đó con! 🥵 Với mấy bữa nay bé có ho, hắt hơi nhẹ, mình cần theo dõi sát sao hơn nha. Nhớ uống nhiều nước và hạn chế vận động mạnh giữa trưa đó.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0028,
+        "input_tokens": 2186,
+        "output_tokens": 865,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T13:44:00.929Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 11879,
+    "timestamp": "2026-05-21T13:44:01.124Z"
+  },
+  {
+    "pet_id": 9,
+    "pet_name": "M7Test",
+    "species": "dog",
+    "breed": "Bulldog",
+    "age_label": "2023-01-15",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-21",
+      "pet_name": "M7Test",
+      "pet_breed": "Bulldog",
+      "pet_age_label": "3 tuổi 4 tháng",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 30,
+        "feels_like_celsius": 37,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 70,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "French Bulldog — 🚨 BRACHYCEPHALIC — tương tự Pug, sốc nhiệt risk cực cao",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "120g hạt khô Mon Min Dry",
+            "reason": "Duy trì năng lượng cho bé"
+          },
+          {
+            "time": "18:30",
+            "what": "120g hạt khô Mon Min Dry + 30g pate Mon Min",
+            "reason": "Bổ sung độ ẩm, dễ tiêu hoá"
+          }
+        ],
+        "water_note": "Bổ sung thêm 250ml nước lọc (tăng 25% so với bình thường) do trời nóng và bé M7Test là giống brachycephalic. Đặt ít nhất 2 chén nước sạch ở các vị trí mát mẻ trong nhà."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:00",
+            "activity": "dạo bộ nhẹ nhàng quanh sân nhà",
+            "duration_min": 15,
+            "location_type": "sân nhà có bóng mát"
+          },
+          {
+            "time": "19:30",
+            "activity": "chơi đồ chơi mềm trong nhà",
+            "duration_min": 15,
+            "location_type": "trong nhà"
+          }
+        ],
+        "warning": "M7Test là Bulldog, giống brachycephalic cực kỳ nhạy cảm với nhiệt độ cao. Tuyệt đối KHÔNG ra ngoài trời từ 10:00-17:00 hôm nay vì cảm giác nhiệt lên đến 37°C. Tránh các hoạt động nhảy cao hay lên xuống cầu thang để bảo vệ cột sống của bé."
+      },
+      "training": {
+        "focus_this_week": "Dạy lệnh 'Nằm xuống' nhẹ nhàng",
+        "sessions": "2 lượt × 5 phút (sáng + tối, trong nhà)"
+      },
+      "monitoring": [
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Bulldog bình thường 15-30 hơi/phút. Nếu bé thở nhanh, hổn hển (>35 hơi/phút) hoặc có dấu hiệu mệt mỏi, hãy đưa bé vào nơi mát mẻ ngay và liên hệ bác sĩ thú y."
+        },
+        {
+          "metric": "Dáng đi và vận động",
+          "current_value": "Quan sát",
+          "recommendation": "Theo dõi M7Test có đi lại bình thường không, có dấu hiệu đau lưng hay khó khăn khi di chuyển không (do nguy cơ IVDD). Nếu có, nên tham khảo ý kiến bác sĩ."
+        },
+        {
+          "metric": "Lượng nước uống",
+          "current_value": "Quan sát",
+          "recommendation": "Đảm bảo bé uống đủ nước. Nếu bé uống quá ít hoặc quá nhiều bất thường, cần theo dõi thêm."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 7,
+          "event": "Tẩy giun định kỳ",
+          "emoji": "💊"
+        },
+        {
+          "days_until": 30,
+          "event": "Khám sức khỏe tổng quát",
+          "emoji": "🩺"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé M7Test hôm nay cần được giữ mát nha con, trời Sài Gòn nóng hầm hập + bé là Bulldog nên dễ bị sốc nhiệt lắm đó. Nhớ theo dõi nhịp thở của bé thường xuyên nha.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0026,
+        "input_tokens": 2131,
+        "output_tokens": 775,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T13:44:12.661Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 11739,
+    "timestamp": "2026-05-21T13:44:12.863Z"
+  },
+  {
+    "pet_id": 11,
+    "pet_name": "Bug Test Pet",
+    "species": "dog",
+    "breed": "Poodle",
+    "age_label": "?",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-21",
+      "pet_name": "Bug Test Pet",
+      "pet_breed": "Poodle",
+      "pet_age_label": "không rõ tuổi",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 30,
+        "feels_like_celsius": 37,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 70,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Poodle (Toy/Mini/Standard) — Hạ đường huyết nhanh (toy/mini) — đặc biệt puppy <4 tháng + stress",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "80g hạt khô Mon Min Dry",
+            "reason": "Cung cấp năng lượng cho buổi sáng"
+          },
+          {
+            "time": "12:00",
+            "what": "30g pate Mon Min",
+            "reason": "Bổ sung độ ẩm và dinh dưỡng"
+          },
+          {
+            "time": "18:00",
+            "what": "80g hạt khô Mon Min Dry"
+          }
+        ],
+        "water_note": "Bổ sung thêm 200ml nước sạch cho bé Bug Test Pet hôm nay do trời nóng. Đặt thêm một chén nước ở khu vực bé hay nằm nghỉ nha."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:00",
+            "activity": "dạo bộ nhẹ nhàng",
+            "duration_min": 20,
+            "location_type": "vỉa hè khu nhà"
+          },
+          {
+            "time": "19:30",
+            "activity": "chơi trò tìm đồ vật trong nhà",
+            "duration_min": 20
+          }
+        ],
+        "warning": "Trời nóng bức (cảm giác 37°C), bé Bug Test Pet dễ bị sốc nhiệt nếu vận động ngoài trời. Tuyệt đối tránh ra ngoài từ 10h-17h hôm nay nha."
+      },
+      "training": {
+        "focus_this_week": "Dạy lệnh 'Tìm' hoặc 'Nhặt đồ vật' để kích thích trí thông minh của bé Bug Test Pet.",
+        "sessions": "2 lượt × 10 phút (sáng + tối)"
+      },
+      "monitoring": [
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Poodle bình thường 15-30 hơi/phút. Nếu bé thở >35 hơi/phút khi nghỉ ngơi, cần theo dõi dấu hiệu stress nhiệt và làm mát cho bé."
+        },
+        {
+          "metric": "Lông và da",
+          "current_value": "Cần kiểm tra",
+          "recommendation": "Kiểm tra lông bé Bug Test Pet có bị rối, bết dính không. Poodle cần được cạo lông định kỳ 6-8 tuần/lần để tránh viêm da và giữ vệ sinh."
+        },
+        {
+          "metric": "Dáng đi/chân sau",
+          "current_value": "Cần quan sát",
+          "recommendation": "Quan sát bé Bug Test Pet có đi khập khiễng hay nhảy lò cò bằng 3 chân không, đặc biệt khi chạy nhảy. Đây có thể là dấu hiệu của bệnh trật xương bánh chè (patella luxation) thường gặp ở Poodle."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 14,
+          "event": "Lịch cạo lông định kỳ",
+          "emoji": "✂️"
+        },
+        {
+          "days_until": 30,
+          "event": "Kiểm tra sức khỏe tổng quát",
+          "emoji": "🩺"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé Bug Test Pet hôm nay cần chú ý giữ mát do trời nóng bức (cảm giác 37°C) và độ ẩm cao nha. Lông bé Poodle không rụng nên cần được chăm sóc thường xuyên đó.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0026,
+        "input_tokens": 2115,
+        "output_tokens": 767,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T13:44:28.422Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 15757,
+    "timestamp": "2026-05-21T13:44:28.620Z"
+  },
+  {
+    "pet_id": 12,
+    "pet_name": "min",
+    "species": "cat",
+    "breed": "Anh lông ngắn (British Shorthair)",
+    "age_label": "2024-05-20",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-21",
+      "pet_name": "min",
+      "pet_breed": "Anh lông ngắn (British Shorthair)",
+      "pet_age_label": "2 tuổi",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 30,
+        "feels_like_celsius": 37,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 70,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": "Anh lông ngắn (British Shorthair) — HCM (Hypertrophic Cardiomyopathy) — siêu âm tim 1 năm/lần từ 3 tuổi",
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "07:00",
+            "what": "40g pate Mon Min (vị cá ngừ hoặc gà), trộn thêm 10ml nước ấm",
+            "reason": "Tăng nước do trời nóng, đảm bảo không có rau củ"
+          },
+          {
+            "time": "18:00",
+            "what": "40g pate Mon Min (vị cá ngừ hoặc gà), trộn thêm 10ml nước ấm",
+            "reason": "Đảm bảo đủ dinh dưỡng, tăng nước, tránh dị ứng rau củ"
+          }
+        ],
+        "water_note": "Luôn có nước sạch, mát. Đặt 2-3 chén nước ở các vị trí khác nhau trong nhà. Thay nước 2 lần/ngày. Tăng 20% lượng nước cung cấp do trời nóng."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:30",
+            "activity": "Chơi với cần câu mèo/đồ chơi lông vũ",
+            "duration_min": 10,
+            "location_type": "trong nhà"
+          },
+          {
+            "time": "19:00",
+            "activity": "Chơi tương tác với laser pointer hoặc ném bóng nhỏ",
+            "duration_min": 10,
+            "location_type": "trong nhà"
+          }
+        ],
+        "warning": "Bé Min là Anh lông ngắn dễ nóng, KHÔNG ra ngoài trời từ 10h-17h hôm nay (cảm giác 37°C) để tránh sốc nhiệt."
+      },
+      "training": {
+        "focus_this_week": "Tập chơi với đồ chơi tương tác mới để kích thích vận động và tránh nhàm chán",
+        "sessions": "2 lượt x 5 phút (sáng + tối)"
+      },
+      "monitoring": [
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Mèo bình thường 15-30 hơi/phút. Nếu >40 hơi/phút khi nghỉ ngơi, cần theo dõi sát dấu hiệu stress nhiệt và liên hệ bác sĩ."
+        },
+        {
+          "metric": "Cân nặng",
+          "current_value": "4.5kg",
+          "recommendation": "Bé Anh lông ngắn dễ béo phì, cần duy trì cân nặng lý tưởng. Nếu có dấu hiệu tăng cân, giảm 5% khẩu phần ăn trong 2 tuần."
+        },
+        {
+          "metric": "Nướu răng",
+          "current_value": "Cần kiểm tra",
+          "recommendation": "Kiểm tra nướu định kỳ (hàng tuần) xem có đỏ, sưng không. Cân nhắc dùng gel vệ sinh răng miệng chuyên dụng cho mèo."
+        },
+        {
+          "metric": "Mức độ năng lượng & thèm ăn",
+          "current_value": "Trung bình",
+          "recommendation": "Theo dõi sát trong 24h, nếu giảm sút hoặc có thêm triệu chứng \"khác\" thì nên consult bác sĩ qua chat/điện thoại."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 30,
+          "event": "Vaccine nhắc lại",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Bé Min hôm nay cần được theo dõi kỹ hơn do thời tiết nóng bức (cảm giác 37°C) và có ghi nhận 1 lần triệu chứng \"khác\" gần đây. Bé Anh lông ngắn dễ bị nóng và béo phì, nên mình cần chú ý nước uống và vận động trong nhà nha.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0029,
+        "input_tokens": 2144,
+        "output_tokens": 898,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T13:44:42.626Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 14217,
+    "timestamp": "2026-05-21T13:44:42.837Z"
+  },
+  {
+    "pet_id": 13,
+    "pet_name": "Mega Pet",
+    "species": "dog",
+    "breed": "Test",
+    "age_label": "?",
+    "generated_plan": {
+      "schema_version": "v2",
+      "date": "2026-05-21",
+      "pet_name": "Mega Pet",
+      "pet_breed": "Test",
+      "pet_age_label": "không rõ tuổi",
+      "weather": {
+        "city": "Hồ Chí Minh",
+        "temp_celsius": 30,
+        "feels_like_celsius": 37,
+        "condition_vi": "Khá",
+        "aqi": 2,
+        "petair_index": 70,
+        "safe_hours_today": "5h30-7h sáng, 19h-21h tối (TRÁNH 10h-17h)"
+      },
+      "breed_warning": null,
+      "festival_warning": null,
+      "eating": {
+        "items": [
+          {
+            "time": "06:30",
+            "what": "100g hạt khô Mon Min Dry + 50ml nước ấm",
+            "reason": "Bổ sung năng lượng cho ngày mới"
+          },
+          {
+            "time": "12:00",
+            "what": "30g pate Mon Min (vị gà)",
+            "reason": "Giúp bé dễ tiêu và tăng cường độ ẩm"
+          },
+          {
+            "time": "18:00",
+            "what": "90g hạt khô Mon Min Dry"
+          }
+        ],
+        "water_note": "Bổ sung ít nhất 500ml nước sạch cho Mega Pet hôm nay (tăng 20% so với bình thường) do trời nóng. Đặt bát nước ở nhiều vị trí mát mẻ trong nhà."
+      },
+      "exercise": {
+        "items": [
+          {
+            "time": "06:00",
+            "activity": "Đi dạo nhẹ nhàng quanh khu nhà",
+            "duration_min": 20,
+            "location_type": "vỉa hè khu nhà"
+          },
+          {
+            "time": "19:30",
+            "activity": "Chơi kéo co hoặc tìm đồ vật trong nhà",
+            "duration_min": 15,
+            "location_type": "trong nhà"
+          }
+        ],
+        "warning": "Tránh tuyệt đối cho Mega Pet ra ngoài trời từ 10:00 đến 17:00 hôm nay vì nhiệt độ quá cao (cảm giác 37°C) có thể gây sốc nhiệt."
+      },
+      "training": null,
+      "monitoring": [
+        {
+          "metric": "Mức độ khát nước",
+          "current_value": "Cần theo dõi",
+          "recommendation": "Quan sát Mega Pet có uống nhiều nước hơn bình thường không. Nếu bé uống quá nhiều hoặc không uống đủ, cần báo bác sĩ."
+        },
+        {
+          "metric": "Nhịp thở khi nghỉ",
+          "current_value": "Cần đếm",
+          "recommendation": "Chó bình thường thở 15-30 hơi/phút. Nếu Mega Pet thở hổn hển liên tục hoặc nhịp thở >35 hơi/phút khi nghỉ ngơi, cần làm mát và liên hệ bác sĩ."
+        },
+        {
+          "metric": "Độ đàn hồi da",
+          "current_value": "Cần kiểm tra",
+          "recommendation": "Nhẹ nhàng nhấc một mảng da ở vai Mega Pet lên rồi thả ra. Nếu da không trở lại vị trí cũ ngay lập tức, bé có thể bị mất nước."
+        }
+      ],
+      "upcoming": [
+        {
+          "days_until": 30,
+          "event": "Kiểm tra sức khỏe tổng quát định kỳ",
+          "emoji": "🩺"
+        },
+        {
+          "days_until": 60,
+          "event": "Thăm khám tư vấn triệt sản",
+          "emoji": "🩹"
+        }
+      ],
+      "urgency_level": "monitor",
+      "summary": "Chào Mega Pet! Hôm nay trời Sài Gòn khá nóng, cảm giác lên đến 37°C lận đó con. Ba mẹ nhớ giữ cho bé Mega Pet mát mẻ và bổ sung đủ nước nha.",
+      "meta": {
+        "model": "gemini-2.5-flash",
+        "cost_usd": 0.0024,
+        "input_tokens": 1968,
+        "output_tokens": 716,
+        "cache_hit": false,
+        "generated_at": "2026-05-21T13:44:53.544Z"
+      }
+    },
+    "safety_validation": {
+      "safe": true,
+      "violations": []
+    },
+    "duration_ms": 10902,
+    "timestamp": "2026-05-21T13:44:53.739Z"
+  }
+]

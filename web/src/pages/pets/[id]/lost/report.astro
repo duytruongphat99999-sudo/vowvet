@@ -1,0 +1,522 @@
+---
+/**
+ * /pets/[id]/lost/report — Report lost pet (M20).
+ *
+ * 4 steps: when → where → details → confirm → broadcast.
+ * Uses browser geolocation + OSM tile thumbnail (no heavy map lib).
+ */
+import Layout from "../../../../layouts/Layout.astro";
+import { fetchPet } from "../../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// Check if active report exists already
+let activeReport: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/lost-pets/my`, { headers: { cookie: cookieHeader } });
+  if (res.ok) {
+    const j = await res.json();
+    activeReport = (j.reports || []).find((r: any) => r.pet_id === petId && r.status === "active");
+  }
+} catch (_) {}
+
+// Fetch current user phone (best-effort)
+let userPhone = "";
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/auth/me`, { headers: { cookie: cookieHeader } });
+  if (res.ok) {
+    const j = await res.json();
+    userPhone = j.user?.phone || "";
+  }
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, photo_url: pet.photo_url, species: pet.species },
+  activeReport,
+  userPhone,
+});
+---
+
+<Layout title={`Báo mất bé ${pet.name} · VowVet`} description="Báo bé mất tích — broadcast trong 30 giây">
+  <main class="min-h-screen bg-gradient-to-b from-red-50 to-orange-50 px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`lostReportForm(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg font-bold text-red-700">🚨 Báo bé mất tích</h1>
+        <span class="text-xs text-slate-500" x-show="!activeReport">Bước <span x-text="step"></span>/4</span>
+      </header>
+
+      <!-- Already has active report -->
+      <template x-if="activeReport">
+        <div class="bg-white rounded-3xl border-2 border-red-300 p-6 text-center shadow-xl">
+          <p class="text-5xl mb-3 animate-pulse">🚨</p>
+          <h2 class="text-xl font-bold text-red-900 mb-2">Bé {pet.name} đang được tìm</h2>
+          <p class="text-sm text-slate-600 mb-3" x-text="`Mất tại: ${activeReport.last_seen_location}`"></p>
+          <p class="text-xs text-slate-500 mb-5">
+            Đã broadcast <strong x-text="activeReport.broadcast_count"></strong> người ·
+            <strong x-text="activeReport.sighting_count"></strong> báo cáo thấy bé
+          </p>
+          <div class="flex gap-2 justify-center">
+            <a :href="`/lost/${activeReport.public_url_slug}`" target="_blank"
+              class="bg-mmp-ink hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-sm">
+              📤 Xem trang public
+            </a>
+            <button @click="markFound()" :disabled="loading"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm">
+              ✅ Tìm thấy bé rồi
+            </button>
+            <button @click="cancelReport()" :disabled="loading"
+              class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-xl text-sm">
+              Huỷ
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Step-based form -->
+      <template x-if="!activeReport">
+        <div>
+          <!-- Progress -->
+          <div class="h-2 bg-slate-100 rounded-full overflow-hidden mb-6">
+            <div class="h-full bg-gradient-to-r from-red-500 to-orange-500 transition-all duration-500"
+              :style="`width: ${(step / 4) * 100}%`"></div>
+          </div>
+
+          <!-- Step 1: When -->
+          <div x-show="step === 1" x-transition class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <h2 class="text-xl font-bold text-slate-900 mb-2">Khi nào bé mất?</h2>
+            <p class="text-sm text-slate-500 mb-5">Thời điểm cuối bạn thấy bé</p>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+              <template x-for="q in quickTimes" :key="q.label">
+                <button @click="setQuickTime(q.minutes)"
+                  :class="form.last_seen_at === q.value ? 'bg-red-100 border-red-400 text-red-900' : 'bg-white border-slate-200 text-slate-700'"
+                  class="border-2 rounded-xl px-2 py-2 text-xs font-semibold"
+                  x-text="q.label"></button>
+              </template>
+            </div>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Hoặc chọn thời gian cụ thể</label>
+            <input type="datetime-local" x-model="form.last_seen_at_local"
+              @change="form.last_seen_at = new Date(form.last_seen_at_local).toISOString()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          </div>
+
+          <!-- Step 2: Where -->
+          <div x-show="step === 2" x-transition class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <h2 class="text-xl font-bold text-slate-900 mb-2">Bé mất ở đâu?</h2>
+            <p class="text-sm text-slate-500 mb-5">Địa điểm cuối bạn thấy bé</p>
+
+            <button @click="useCurrentLocation()" :disabled="loading"
+              class="w-full bg-mmp-cream hover:bg-mmp-cream border-2 border-mmp-ink rounded-xl px-4 py-3 text-sm font-semibold text-mmp-ink mb-3 flex items-center justify-center gap-2">
+              📍 <span x-show="!loadingGeo">Dùng vị trí hiện tại</span>
+              <span x-show="loadingGeo">Đang lấy vị trí…</span>
+            </button>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Địa chỉ (text)</label>
+            <input type="text" x-model="form.last_seen_location" maxlength="500"
+              placeholder="VD: Công viên Tao Đàn, Q1, HCM"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm mb-3" />
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] text-slate-500 uppercase mb-1">Latitude</label>
+                <input type="number" step="0.000001" x-model.number="form.last_seen_lat"
+                  class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 uppercase mb-1">Longitude</label>
+                <input type="number" step="0.000001" x-model.number="form.last_seen_lng"
+                  class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono" />
+              </div>
+            </div>
+
+            <!-- OSM preview tile -->
+            <template x-if="form.last_seen_lat && form.last_seen_lng">
+              <div class="mt-3 rounded-xl overflow-hidden border border-slate-200">
+                <iframe
+                  :src="`https://www.openstreetmap.org/export/embed.html?bbox=${form.last_seen_lng - 0.005},${form.last_seen_lat - 0.003},${form.last_seen_lng + 0.005},${form.last_seen_lat + 0.003}&marker=${form.last_seen_lat},${form.last_seen_lng}`"
+                  class="w-full h-48 border-0"></iframe>
+              </div>
+            </template>
+          </div>
+
+          <!-- Step 3: Details -->
+          <div x-show="step === 3" x-transition class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <h2 class="text-xl font-bold text-slate-900 mb-2">Mô tả tình huống</h2>
+            <p class="text-sm text-slate-500 mb-5">Càng chi tiết, càng dễ tìm</p>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tình huống *</label>
+            <textarea x-model="form.circumstances" rows="3" maxlength="1000"
+              placeholder="VD: Đang đi dạo thì bé chạy mất khi gặp con mèo"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm resize-none mb-3"></textarea>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Đặc điểm nhận dạng nổi bật</label>
+            <textarea x-model="form.distinguishing_features" rows="2" maxlength="500"
+              placeholder="VD: Vòng cổ đỏ, scar nhỏ ở tai trái"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm resize-none mb-3"></textarea>
+
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Số điện thoại liên hệ *</label>
+            <input type="tel" x-model="form.contact_phone" placeholder="0901234567"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm mb-3" />
+
+            <label class="flex items-start gap-2 bg-mmp-cream rounded-xl p-3 cursor-pointer mb-3">
+              <input type="checkbox" x-model="form.contact_phone_public" class="mt-0.5 w-4 h-4 accent-blue-600" />
+              <span class="text-xs text-mmp-ink">Hiển thị SĐT công khai trên trang share (cho phép người thấy bé gọi trực tiếp)</span>
+            </label>
+
+            <!-- Reference photos (AI Match) -->
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">📸 Ảnh tham khảo (3-5 ảnh) *</label>
+            <p class="text-[11px] text-slate-500 mb-2">Càng nhiều góc (mặt, side, đặc điểm), AI Match càng chính xác khi có người báo thấy bé</p>
+            <div class="grid grid-cols-3 gap-2 mb-2">
+              <template x-for="(url, idx) in form.reference_photo_urls" :key="idx">
+                <div class="relative">
+                  <img :src="url" alt="" class="w-full h-24 object-cover rounded-lg border border-emerald-300" />
+                  <button @click="removeRefPhoto(idx)" type="button"
+                    class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs">✕</button>
+                </div>
+              </template>
+              <template x-if="form.reference_photo_urls.length < 5">
+                <label class="w-full h-24 border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-lg flex items-center justify-center cursor-pointer text-2xl text-emerald-500 bg-emerald-50">
+                  <input type="file" accept="image/jpeg,image/png,image/webp" multiple @change="onRefPhotoChange($event)" class="hidden" />
+                  +
+                </label>
+              </template>
+            </div>
+            <p class="text-[11px] text-slate-500 mb-3" x-text="`${form.reference_photo_urls.length}/5 ảnh${form.reference_photo_urls.length < 3 ? ' — cần ít nhất 3' : ''}`"></p>
+
+            <!-- Reward picker (5 tiers + custom) -->
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">💰 Mức thưởng (tuỳ chọn)</label>
+            <div class="grid grid-cols-3 gap-2 mb-2">
+              <template x-for="t in rewardTiers" :key="t.key">
+                <button type="button" @click="selectRewardTier(t.key)"
+                  :class="form.reward_tier === t.key ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-300' : 'bg-white border-slate-200'"
+                  class="border-2 rounded-xl p-2 text-center transition">
+                  <p class="text-xl" x-text="t.emoji"></p>
+                  <p class="text-xs font-bold" x-text="t.label"></p>
+                </button>
+              </template>
+              <button type="button" @click="selectRewardTier('custom')"
+                :class="form.reward_tier === 'custom' ? 'bg-mmp-cream border-mmp-cream ring-2 ring-mmp-ink' : 'bg-white border-slate-200'"
+                class="border-2 rounded-xl p-2 text-center transition">
+                <p class="text-xl">💰</p>
+                <p class="text-xs font-bold">Tự chọn</p>
+              </button>
+            </div>
+            <template x-if="form.reward_tier === 'custom'">
+              <input type="number" min="0" step="100000" x-model.number="form.custom_reward_amount" placeholder="Số tiền VNĐ"
+                class="w-full border border-mmp-cream rounded-xl px-3 py-2 text-sm mb-2" />
+            </template>
+            <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3 leading-relaxed">
+              ⚠️ VowVet KHÔNG giữ tiền — bạn tự trao tay khi nhận bé. Đây là cam kết công khai để khuyến khích người tìm.
+            </p>
+          </div>
+
+          <!-- Step 4: Confirm -->
+          <div x-show="step === 4" x-transition class="space-y-3">
+            <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+              <h2 class="text-xl font-bold text-slate-900 mb-3">Xác nhận thông tin</h2>
+
+              <dl class="space-y-2 text-sm">
+                <div class="flex justify-between gap-3">
+                  <dt class="text-slate-500">Bé:</dt><dd class="font-semibold text-slate-900" x-text="pet.name"></dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-slate-500">Mất lúc:</dt>
+                  <dd class="font-semibold text-slate-900 text-right" x-text="formatDateTime(form.last_seen_at)"></dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-slate-500">Địa điểm:</dt>
+                  <dd class="font-semibold text-slate-900 text-right max-w-[60%]" x-text="form.last_seen_location"></dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-slate-500">SĐT liên hệ:</dt>
+                  <dd class="font-semibold text-slate-900 text-right">
+                    <span x-text="form.contact_phone"></span>
+                    <template x-if="form.contact_phone_public">
+                      <span class="text-[10px] text-mmp-ink ml-1">(public)</span>
+                    </template>
+                  </dd>
+                </div>
+                <template x-if="form.reward_amount > 0">
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Reward:</dt>
+                    <dd class="font-bold text-emerald-700" x-text="fmtVnd(form.reward_amount)"></dd>
+                  </div>
+                </template>
+              </dl>
+            </div>
+
+            <div class="bg-red-50 border-2 border-red-300 rounded-2xl p-4 text-center">
+              <p class="text-3xl mb-2">🚨</p>
+              <p class="text-sm font-bold text-red-900">Khi bấm "Báo mất", VowVet sẽ:</p>
+              <ul class="text-xs text-red-700 mt-2 space-y-1 text-left max-w-md mx-auto">
+                <li>📲 Broadcast push tới user xung quanh trong VowVet</li>
+                <li>🌐 Tạo trang public share (Zalo, FB)</li>
+                <li>🩺 Notify vet partner khi quét QR collar của bé</li>
+              </ul>
+            </div>
+
+            <template x-if="error">
+              <p class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700" x-text="error"></p>
+            </template>
+          </div>
+
+          <!-- Footer buttons -->
+          <div class="flex gap-2 mt-5">
+            <button @click="prevStep()" x-show="step > 1" :disabled="loading"
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl text-sm">
+              ← Quay lại
+            </button>
+            <button @click="nextStep()" x-show="step < 4" :disabled="!canNext"
+              class="flex-[2] bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-95 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-lg">
+              Tiếp theo →
+            </button>
+            <button @click="submit()" x-show="step === 4" :disabled="loading || !canSubmit"
+              class="flex-[2] bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-95 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-xl">
+              <span x-show="!loading">🚨 Báo mất ngay — broadcast</span>
+              <span x-show="loading">Đang broadcast…</span>
+            </button>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function lostReportForm(initial) {
+      const now = new Date();
+      const isoNow = now.toISOString();
+      const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      return {
+        pet: initial.pet,
+        activeReport: initial.activeReport,
+        step: 1,
+        loading: false,
+        loadingGeo: false,
+        error: "",
+
+        form: {
+          last_seen_at: isoNow,
+          last_seen_at_local: localNow,
+          last_seen_location: "",
+          last_seen_lat: 0,
+          last_seen_lng: 0,
+          circumstances: "",
+          distinguishing_features: "",
+          contact_phone: initial.userPhone || "",
+          contact_phone_public: true,
+          reward_amount: 0,
+          reward_tier: 'none',
+          custom_reward_amount: 0,
+          reference_photo_urls: [],
+          broadcast_radius_km: 5,
+        },
+
+        rewardTiers: [
+          { key: 'none',    emoji: '🤝', label: 'Cảm ơn',  amount: 0 },
+          { key: 'bronze',  emoji: '🥉', label: '100k',    amount: 100000 },
+          { key: 'silver',  emoji: '🥈', label: '500k',    amount: 500000 },
+          { key: 'gold',    emoji: '🥇', label: '1tr',     amount: 1000000 },
+          { key: 'diamond', emoji: '💎', label: '5tr',     amount: 5000000 },
+        ],
+
+        selectRewardTier(tier) {
+          this.form.reward_tier = tier;
+          if (tier === 'custom') {
+            this.form.reward_amount = this.form.custom_reward_amount || 0;
+          } else {
+            const t = this.rewardTiers.find((x) => x.key === tier);
+            this.form.reward_amount = t?.amount || 0;
+          }
+        },
+
+        async onRefPhotoChange(e) {
+          const files = Array.from(e.target.files || []);
+          for (const f of files) {
+            if (this.form.reference_photo_urls.length >= 5) break;
+            if (f.size > 8 * 1024 * 1024) { this.error = "Ảnh quá 8MB."; continue; }
+            try {
+              const fd = new FormData();
+              fd.append("photo", f);
+              const res = await fetch(`/api/v1/lost-pets/upload-photo`, {
+                method: 'POST', credentials: 'include', body: fd,
+              });
+              if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                this.error = j?.error?.message || "Upload thất bại";
+                continue;
+              }
+              const j = await res.json();
+              const url = j.url || j.photo_url || j.public_url;
+              if (url) this.form.reference_photo_urls.push(url);
+            } catch (err) {
+              this.error = "Lỗi upload ảnh.";
+            }
+          }
+          // Reset input so same file can be picked again
+          e.target.value = "";
+        },
+
+        removeRefPhoto(idx) {
+          this.form.reference_photo_urls.splice(idx, 1);
+        },
+
+        quickTimes: [
+          { label: "30 phút trước", minutes: 30, value: null },
+          { label: "1 giờ trước", minutes: 60, value: null },
+          { label: "2 giờ trước", minutes: 120, value: null },
+          { label: "Hôm qua", minutes: 24 * 60, value: null },
+        ].map((q) => {
+          const t = new Date(Date.now() - q.minutes * 60000);
+          q.value = t.toISOString();
+          return q;
+        }),
+
+        get canNext() {
+          if (this.step === 1) return !!this.form.last_seen_at;
+          if (this.step === 2) return !!this.form.last_seen_location && this.form.last_seen_lat !== 0 && this.form.last_seen_lng !== 0;
+          if (this.step === 3) return this.form.circumstances.trim().length >= 3 && this.form.contact_phone.length >= 8;
+          return true;
+        },
+
+        get canSubmit() {
+          return this.canNext && this.form.circumstances && this.form.contact_phone;
+        },
+
+        setQuickTime(minutes) {
+          const t = new Date(Date.now() - minutes * 60000);
+          this.form.last_seen_at = t.toISOString();
+          this.form.last_seen_at_local = new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        },
+
+        nextStep() { if (this.canNext && this.step < 4) this.step++; },
+        prevStep() { if (this.step > 1) this.step--; },
+
+        useCurrentLocation() {
+          if (!navigator.geolocation) {
+            this.error = "Trình duyệt không hỗ trợ vị trí";
+            return;
+          }
+          this.loadingGeo = true;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              this.form.last_seen_lat = Number(pos.coords.latitude.toFixed(6));
+              this.form.last_seen_lng = Number(pos.coords.longitude.toFixed(6));
+              this.loadingGeo = false;
+              // Reverse geocode mock: nếu chưa có address, prefill coordinates string
+              if (!this.form.last_seen_location) {
+                this.form.last_seen_location = `Vị trí ${this.form.last_seen_lat}, ${this.form.last_seen_lng}`;
+              }
+            },
+            (err) => {
+              this.error = "Không lấy được vị trí: " + err.message;
+              this.loadingGeo = false;
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        },
+
+        formatDateTime(iso) {
+          if (!iso) return "—";
+          try {
+            return new Date(iso).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+          } catch { return iso; }
+        },
+
+        fmtVnd(n) {
+          try {
+            return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
+          } catch { return n + "đ"; }
+        },
+
+        async submit() {
+          this.error = "";
+          this.loading = true;
+          // Re-sync reward_amount with custom field if needed
+          if (this.form.reward_tier === 'custom') {
+            this.form.reward_amount = Number(this.form.custom_reward_amount) || 0;
+          }
+          const payload = {
+            last_seen_at: this.form.last_seen_at,
+            last_seen_location: this.form.last_seen_location,
+            last_seen_lat: this.form.last_seen_lat,
+            last_seen_lng: this.form.last_seen_lng,
+            circumstances: this.form.circumstances,
+            distinguishing_features: this.form.distinguishing_features || "",
+            contact_phone: this.form.contact_phone,
+            contact_phone_public: this.form.contact_phone_public,
+            reward_amount: this.form.reward_amount,
+            reward_tier: this.form.reward_tier,
+            broadcast_radius_km: this.form.broadcast_radius_km,
+            reference_photo_urls: this.form.reference_photo_urls,
+          };
+          try {
+            const res = await fetch(`/api/v1/lost-pets/${this.pet.id}/report`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(payload),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              this.error = json.error?.message || "Lỗi báo mất";
+              return;
+            }
+            window.location.href = `/lost/${json.slug || json.report?.public_url_slug}`;
+          } catch (err) {
+            this.error = "Không kết nối được server.";
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async markFound() {
+          if (!confirm(`Bé ${this.pet.name} đã được tìm thấy?`)) return;
+          this.loading = true;
+          try {
+            const res = await fetch(`/api/v1/lost-pets/${this.activeReport.id}/resolve`, {
+              method: "POST",
+              credentials: "include",
+            });
+            if (res.ok) {
+              window.location.href = `/pets/${this.pet.id}`;
+            } else {
+              this.error = "Lỗi đánh dấu";
+            }
+          } catch (_) {
+            this.error = "Lỗi kết nối";
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async cancelReport() {
+          if (!confirm("Huỷ báo cáo này? (Sẽ dừng broadcast)")) return;
+          this.loading = true;
+          try {
+            const res = await fetch(`/api/v1/lost-pets/${this.activeReport.id}/cancel`, {
+              method: "POST",
+              credentials: "include",
+            });
+            if (res.ok) {
+              window.location.href = `/pets/${this.pet.id}`;
+            }
+          } catch (_) {}
+          this.loading = false;
+        },
+      };
+    }
+  </script>
+</Layout>

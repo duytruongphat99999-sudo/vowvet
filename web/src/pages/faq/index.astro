@@ -1,0 +1,192 @@
+---
+/**
+ * /faq — Baserow CMS Q&A landing (M31, rewritten from M9.4 article list).
+ *
+ * PUBLIC. Admin edits in Baserow → users see immediately. 30+ seeded Q&As.
+ * Original M9.4 long-form articles still accessible at /faq/[slug] (auth).
+ */
+import Layout from "../../layouts/Layout.astro";
+import { getZaloLink } from "../../../../shared/contact-info.ts";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let faqs: any[] = [];
+let categories: any[] = [];
+try {
+  const [fRes, cRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/faqs`),
+    fetch(`${API_INTERNAL}/api/v1/faqs/categories`),
+  ]);
+  if (fRes.ok) faqs = (await fRes.json()).faqs || [];
+  if (cRes.ok) categories = (await cRes.json()).categories || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  faqs,
+  categories,
+  zaloUrl: getZaloLink(),
+});
+---
+
+<Layout title="📚 Câu hỏi thường gặp · VowVet" description="30+ câu hỏi về chăm sóc thú cưng, đáp án bởi đội ngũ VowVet">
+  <main class="min-h-screen bg-gradient-to-b from-sky-50 to-white px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`faqPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-4 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700">← Dashboard</a>
+        <h1 class="text-lg font-bold text-slate-900">📚 Câu hỏi thường gặp</h1>
+        <a href="/triage" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">🚑 Triage</a>
+      </header>
+
+      <p class="text-sm text-slate-600 mb-4">
+        <span x-text="faqs.length"></span> câu hỏi về chăm sóc thú cưng — cập nhật bởi đội ngũ VowVet.
+      </p>
+
+      <!-- Search -->
+      <div class="bg-white rounded-2xl border border-slate-200 px-4 py-2 mb-3 flex items-center gap-2">
+        <span class="text-slate-400">🔍</span>
+        <input type="search" x-model="search" placeholder="Tìm theo từ khoá..."
+          class="flex-1 py-2 text-sm focus:outline-none placeholder:text-slate-400" />
+        <button x-show="search" @click="search = ''" class="text-slate-400 hover:text-slate-700 text-sm">✕</button>
+      </div>
+
+      <!-- Category chips -->
+      <div class="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
+        <button @click="category = ''"
+          :class="!category ? 'bg-mmp-ink text-white' : 'bg-white text-slate-700 border border-slate-200'"
+          class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 transition">
+          Tất cả (<span x-text="faqs.length"></span>)
+        </button>
+        <template x-for="c in categories" :key="c.key">
+          <button @click="category = (category === c.key ? '' : c.key)"
+            :class="category === c.key ? 'bg-mmp-ink text-white' : 'bg-white text-slate-700 border border-slate-200'"
+            class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 transition">
+            <span x-text="c.emoji"></span>
+            <span x-text="c.label_vi"></span>
+            (<span x-text="c.count"></span>)
+          </button>
+        </template>
+      </div>
+
+      <!-- FAQ list (accordion) -->
+      <div class="space-y-2.5">
+        <template x-for="faq in filtered" :key="faq.id">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <button @click="toggle(faq.id)"
+              class="w-full p-4 text-left flex justify-between items-center gap-3 hover:bg-slate-50 transition">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-[10px] bg-mmp-cream text-mmp-ink px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                    <span x-text="faq.category_emoji"></span> <span x-text="faq.category_label"></span>
+                  </span>
+                </div>
+                <p class="font-semibold text-slate-900 leading-snug" x-text="faq.question"></p>
+              </div>
+              <span class="text-2xl text-slate-400 shrink-0" x-text="expanded.has(faq.id) ? '−' : '+'"></span>
+            </button>
+            <div x-show="expanded.has(faq.id)" x-cloak class="px-4 pb-4">
+              <div class="border-t border-slate-100 pt-3">
+                <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-line" x-text="faq.answer"></p>
+                <div class="flex items-center gap-3 mt-3 text-xs text-slate-500">
+                  <button @click="markHelpful(faq)" :disabled="helpfulMarked.has(faq.id)"
+                    class="hover:text-mmp-ink disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!helpfulMarked.has(faq.id)">👍 Hữu ích</span>
+                    <span x-show="helpfulMarked.has(faq.id)">✓ Cảm ơn!</span>
+                    <span x-show="faq.helpful_count > 0" x-text="`(${faq.helpful_count})`"></span>
+                  </button>
+                  <span class="text-[10px]" x-text="`${faq.view_count} lượt xem`"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Empty state -->
+      <template x-if="filtered.length === 0">
+        <div class="text-center py-12">
+          <p class="text-5xl mb-3">🔍</p>
+          <p class="text-slate-600 mb-1">Không tìm thấy câu trả lời?</p>
+          <p class="text-xs text-slate-500 mb-4">Hãy hỏi trực tiếp VowVet — đội ngũ phản hồi trong 1-2 ngày làm việc.</p>
+        </div>
+      </template>
+
+      <!-- Bottom CTA -->
+      <div class="mt-8 p-5 rounded-2xl bg-mmp-cream border border-mmp-cream">
+        <p class="font-bold text-mmp-ink mb-1">Còn câu hỏi khác?</p>
+        <p class="text-xs text-slate-600 mb-3">Liên hệ VowVet để được tư vấn cá nhân</p>
+        <div class="grid grid-cols-2 gap-2">
+          <a :href="zaloUrl" target="_blank" rel="noopener"
+            class="bg-mmp-ink hover:bg-mmp-ink text-white text-center text-sm font-bold py-2.5 rounded-xl">
+            💬 Chat Zalo
+          </a>
+          <a href="tel:+84779029133"
+            class="bg-emerald-500 hover:bg-emerald-600 text-white text-center text-sm font-bold py-2.5 rounded-xl">
+            📞 0779 029 133
+          </a>
+        </div>
+      </div>
+
+      <p class="text-[11px] text-slate-400 text-center italic mt-4">
+        Các câu trả lời chỉ mang tính tham khảo. Khi cần khám bệnh thật, đến vet hoặc gọi hotline.
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function faqPage(initial) {
+      return {
+        faqs: initial.faqs,
+        categories: initial.categories,
+        zaloUrl: initial.zaloUrl,
+        search: "",
+        category: "",
+        expanded: new Set(),
+        helpfulMarked: new Set(JSON.parse(localStorage.getItem("vowvet_faq_helpful") || "[]")),
+
+        get filtered() {
+          const q = (this.search || "").trim().toLowerCase();
+          return this.faqs.filter((f) => {
+            if (this.category && f.category !== this.category) return false;
+            if (q) {
+              const text = (f.question + " " + f.answer).toLowerCase();
+              if (!text.includes(q)) return false;
+            }
+            return true;
+          });
+        },
+
+        toggle(id) {
+          if (this.expanded.has(id)) {
+            this.expanded.delete(id);
+          } else {
+            this.expanded.add(id);
+            // Fire-and-forget view increment via detail endpoint
+            fetch(`/api/v1/faqs/${id}`).catch(() => {});
+          }
+          this.expanded = new Set(this.expanded);
+        },
+
+        async markHelpful(faq) {
+          if (this.helpfulMarked.has(faq.id)) return;
+          this.helpfulMarked.add(faq.id);
+          this.helpfulMarked = new Set(this.helpfulMarked);
+          localStorage.setItem("vowvet_faq_helpful", JSON.stringify([...this.helpfulMarked]));
+          try {
+            const res = await fetch(`/api/v1/faqs/${faq.id}/helpful`, { method: "POST" });
+            if (res.ok) {
+              const j = await res.json();
+              const idx = this.faqs.findIndex((x) => x.id === faq.id);
+              if (idx >= 0) this.faqs[idx] = j.faq;
+            }
+          } catch (_) {}
+        },
+      };
+    }
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</Layout>

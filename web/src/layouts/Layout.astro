@@ -1,0 +1,250 @@
+---
+/**
+ * Layout chính cho mọi trang VowVet.
+ * Bao gồm: meta tags VN, Alpine.js, global CSS, PWA manifest tự inject.
+ *
+ * v83: Global quick-nav — floating top-right cluster (brand logo + pet avatar).
+ * Visible on all pages when logged in. Click brand → /dashboard, click pet → /pets/:id.
+ * Hidden when logged out + on print.
+ */
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "VowVet — Người bạn đồng hành sức khỏe cho thú cưng",
+  description = "Nền tảng chăm sóc sức khỏe thú cưng thông minh dành cho người Việt",
+} = Astro.props;
+
+const locale = Astro.locals.locale ?? "vi";
+
+// v83: SSR fetch user's first pet for quick-nav avatar (silent fail, best effort)
+const sessionUser = Astro.locals.user;
+let quickNavPet: { id: number; name: string; photo_url: string | null } | null = null;
+if (sessionUser) {
+  try {
+    const cookieHeader = Astro.request.headers.get("cookie") || "";
+    const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+    const res = await fetch(`${API_INTERNAL}/api/v1/pets`, {
+      headers: { cookie: cookieHeader },
+      signal: AbortSignal.timeout(800),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.pets) && data.pets.length > 0) {
+        const p = data.pets[0];
+        quickNavPet = {
+          id: Number(p.id),
+          name: String(p.name || "Pet"),
+          photo_url: p.photo_url || null,
+        };
+      }
+    }
+  } catch (_) {
+    // Silent — quick-nav hides pet avatar gracefully if API fails
+  }
+}
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="description" content={description} />
+
+    <!-- Brand icons: favicon (ink+gold V) + apple-touch-icon (full Mon Min Pet logo) -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/logo-mmp.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Browser tab + PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VowVet" />
+    <meta name="application-name" content="VowVet by Mon Min Pet" />
+
+    <!-- Default Open Graph (per-page can override via head slot) -->
+    <meta property="og:site_name" content="VowVet by Mon Min Pet" />
+    <meta property="og:image" content="/og-image.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="vi_VN" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="/og-image.svg" />
+
+    <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <slot name="head" />
+  </head>
+  <body data-route={Astro.url.pathname}>
+    {sessionUser && (
+      <div class="vowvet-quick-nav no-print" aria-label="VowVet quick nav">
+        <a href="/dashboard" class="vowvet-quick-nav__brand" aria-label="VowVet · Trang chính" title="VowVet · Trang chính">
+          <img src="/logo-mmp.png" alt="" width="32" height="32" />
+        </a>
+        {quickNavPet && (() => {
+          const petName = String(quickNavPet.name || "").trim() || "Pet";
+          const petPhoto = quickNavPet.photo_url || "";
+          const initial = petName.charAt(0).toUpperCase() || "?";
+          return (
+            <a href={`/pets/${quickNavPet.id}`} class="vowvet-quick-nav__pet" aria-label={`Đến hồ sơ ${petName}`} title={`Đến hồ sơ ${petName}`}>
+              {petPhoto ? (
+                <img src={petPhoto} alt={petName} loading="eager" decoding="async" />
+              ) : (
+                <span class="vowvet-quick-nav__pet-fallback">{initial}</span>
+              )}
+              <span class="vowvet-quick-nav__pet-ping" aria-hidden="true"></span>
+            </a>
+          );
+        })()}
+      </div>
+    )}
+    <slot />
+
+    <!-- v136: SW update toast — hiển thị khi service worker activate phiên bản mới.
+         Solve root cause "user kẹt SW cũ" (CONTEXT_SYNC #3.1). -->
+    <div
+      id="sw-update-toast"
+      class="sw-update-toast no-print"
+      role="status"
+      aria-live="polite"
+      hidden
+    >
+      <span class="sw-update-toast__icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+          <path d="M3 21v-5h5" />
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+          <path d="M21 3v5h-5" />
+        </svg>
+      </span>
+      <span class="sw-update-toast__text">Đã có bản cập nhật mới</span>
+      <button type="button" class="sw-update-toast__btn" id="sw-update-toast-btn" aria-label="Nhấn để cập nhật ngay">
+        Cập nhật
+      </button>
+      <button type="button" class="sw-update-toast__close" id="sw-update-toast-close" aria-label="Đóng">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Alpine.js (defer cho perf) -->
+    <!-- v58: Collapse plugin — load BEFORE Alpine core để auto-register x-collapse directive (Pet Detail accordions) -->
+    <script
+      is:inline
+      defer
+      src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.14.7/dist/cdn.min.js"></script>
+    <script
+      is:inline
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.7/dist/cdn.min.js"></script>
+
+    <!-- M11: PWA service worker register + install prompt capture (global window.__pwa) -->
+    <script is:inline>
+      (() => {
+        window.__pwa = { deferredPrompt: null, installed: false };
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", () => {
+            navigator.serviceWorker
+              .register("/sw.js", { scope: "/" })
+              .then((reg) => {
+                // v136: Detect waiting SW (new version installed but not yet activated)
+                if (reg.waiting) showSWToast();
+                reg.addEventListener("updatefound", () => {
+                  const newWorker = reg.installing;
+                  if (!newWorker) return;
+                  newWorker.addEventListener("statechange", () => {
+                    if (
+                      newWorker.state === "installed" &&
+                      navigator.serviceWorker.controller
+                    ) {
+                      showSWToast();
+                    }
+                  });
+                });
+              })
+              .catch((err) => console.warn("[sw] register failed:", err));
+          });
+
+          // v136: SW activate broadcast → show toast immediately
+          navigator.serviceWorker.addEventListener("message", (event) => {
+            if (event.data && event.data.type === "SW_UPDATED") {
+              showSWToast();
+            }
+          });
+
+          // v136: Auto reload after controllerchange (SW takes over)
+          let _reloading = false;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (_reloading) return;
+            _reloading = true;
+            window.location.reload();
+          });
+        }
+
+        // v136: Toast helpers — global so future Alpine components can dismiss/show
+        function showSWToast() {
+          const el = document.getElementById("sw-update-toast");
+          if (!el) return;
+          el.hidden = false;
+          // Force reflow then add class for transition
+          requestAnimationFrame(() => el.classList.add("is-visible"));
+        }
+        function hideSWToast() {
+          const el = document.getElementById("sw-update-toast");
+          if (!el) return;
+          el.classList.remove("is-visible");
+          setTimeout(() => {
+            el.hidden = true;
+          }, 240);
+        }
+        window.__swToast = { show: showSWToast, hide: hideSWToast };
+
+        // Wire buttons after DOM ready
+        document.addEventListener("DOMContentLoaded", () => {
+          const btn = document.getElementById("sw-update-toast-btn");
+          const close = document.getElementById("sw-update-toast-close");
+          btn?.addEventListener("click", () => {
+            // Tell waiting SW to activate immediately; controllerchange handler reloads
+            navigator.serviceWorker
+              ?.getRegistration()
+              .then((reg) => {
+                if (reg?.waiting) {
+                  reg.waiting.postMessage({ type: "SKIP_WAITING" });
+                } else {
+                  // No waiting worker — just reload to grab fresh assets
+                  window.location.reload();
+                }
+              })
+              .catch(() => window.location.reload());
+          });
+          close?.addEventListener("click", hideSWToast);
+        });
+
+        // Capture beforeinstallprompt — show button trong /settings sau đó user click
+        window.addEventListener("beforeinstallprompt", (e) => {
+          e.preventDefault();
+          window.__pwa.deferredPrompt = e;
+          // Dispatch custom event để Alpine components subscribe
+          window.dispatchEvent(new CustomEvent("pwa-installable"));
+        });
+        window.addEventListener("appinstalled", () => {
+          window.__pwa.deferredPrompt = null;
+          window.__pwa.installed = true;
+          window.dispatchEvent(new CustomEvent("pwa-installed"));
+        });
+      })();
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @import "../styles/global.css";
+</style>

@@ -1,0 +1,92 @@
+---
+/**
+ * Dashboard widget — Care Plan completions progress for today.
+ *
+ * Lightweight tile that links to /pets/[id]/care-plan. Surfaces:
+ *   - Count of items marked done today (server-counted, excludes _trifecta_granted sentinel)
+ *   - Gold progress bar (0–100%) — best-effort since "total" varies per AI plan
+ *   - "Trifecta +30đ đã unlock" pill when sentinel exists
+ *   - Tap-to-open link
+ *
+ * SSR fetches `/care-plan/completions/summary` (lean endpoint). Fail-soft: if
+ * endpoint errors, render an "open Care Plan →" hint instead of breaking the row.
+ *
+ * Brand: ink/cream/gold tokens only — matches dashboard pattern.
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+
+interface Props {
+  petId: number;
+  petName?: string;
+  /** Best-effort total items in today's plan (eating + exercise + monitoring count).
+   *  Passed from dashboard.astro if it already has the plan summary. */
+  totalItems?: number;
+  /** Already-fetched completedCount (if dashboard.astro pre-fetched). If absent we render with 0. */
+  completedCount?: number;
+  trifectaGranted?: boolean;
+}
+
+const {
+  petId,
+  petName = "bé",
+  totalItems = 0,
+  completedCount = 0,
+  trifectaGranted = false,
+} = Astro.props;
+
+const safeTotal = Math.max(totalItems || 0, completedCount, 1);
+const pct = Math.min(100, Math.round((completedCount / safeTotal) * 100));
+const fullyDone = totalItems > 0 && completedCount >= totalItems;
+---
+
+<a href={`/pets/${petId}/care-plan`}
+   class="group block bg-white rounded-3xl border border-slate-100 hover:border-mmp-ink hover:shadow-md p-5 transition-all">
+
+  <div class="flex items-start justify-between gap-3 mb-3">
+    <div class="inline-flex items-center gap-2 min-w-0">
+      <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream shrink-0">
+        <FeatureIcon name="calendar" class="w-5 h-5" strokeWidth={1.8} style="color: var(--c-gold);" />
+      </span>
+      <div class="min-w-0">
+        <h3 class="font-bold text-mmp-ink leading-tight">Care Plan hôm nay</h3>
+        <p class="text-[11px] text-slate-500 leading-tight mt-0.5">
+          {totalItems > 0
+            ? `${completedCount}/${totalItems} hoạt động · ${pct}%`
+            : `${completedCount} hoạt động đã làm hôm nay`}
+        </p>
+      </div>
+    </div>
+    <span class="inline-flex items-center text-slate-400 group-hover:text-mmp-ink group-hover:translate-x-0.5 transition" aria-hidden="true">
+      <FeatureIcon name="arrow" class="w-4 h-4" strokeWidth={2} />
+    </span>
+  </div>
+
+  {/* Progress bar — gold gradient, identical to QuestStrip style */}
+  <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+    <div class="h-full rounded-full transition-all duration-700"
+         style={`width: ${pct}%; background: linear-gradient(90deg, var(--c-gold) 0%, #fde68a 50%, var(--c-gold) 100%);`}>
+    </div>
+  </div>
+
+  <div class="mt-2 flex items-center justify-between gap-2 flex-wrap">
+    {trifectaGranted ? (
+      <span class="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+        <FeatureIcon name="sparkles" class="w-3 h-3" strokeWidth={2.4} />
+        Trifecta +30đ đã unlock
+      </span>
+    ) : fullyDone ? (
+      <span class="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full bg-mmp-cream text-mmp-ink border border-amber-200 font-bold">
+        <FeatureIcon name="check" class="w-3 h-3" strokeWidth={3} style="color: var(--c-gold);" />
+        Hoàn tất
+      </span>
+    ) : completedCount > 0 ? (
+      <span class="text-[11px] font-semibold text-mmp-ink">
+        Còn <span style="color: var(--c-gold);">{Math.max(0, (totalItems || 0) - completedCount)}</span> hoạt động →
+      </span>
+    ) : (
+      <span class="text-[11px] font-medium text-slate-500 italic">
+        Mở Care Plan để bắt đầu →
+      </span>
+    )}
+  </div>
+</a>

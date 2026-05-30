@@ -1,0 +1,105 @@
+---
+/**
+ * Banner — full-width hero strip (page-top announcement / promo).
+ *
+ * Variants:
+ *   - ink   : black bg + white text + gold accents (default — premium feel)
+ *   - gold  : gold bg + ink text (loud promo / upgrade)
+ *   - cream : subtle cream bg + ink text + gold dot (informational)
+ *
+ * Optional `eyebrow` + `title` + `subtitle` + named `cta` slot.
+ *
+ * Usage:
+ *   <Banner variant="ink" eyebrow="Mới" title="Bảo hiểm thú cưng Mon Min Pet">
+ *     Bảo vệ pet của bạn với gói từ 89,000đ/tháng.
+ *     <Fragment slot="cta">
+ *       <Button variant="gold" href="/insurance">Tham gia waitlist →</Button>
+ *     </Fragment>
+ *   </Banner>
+ */
+interface Props {
+  variant?: "ink" | "gold" | "cream";
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  align?: "left" | "center";
+  rounded?: "none" | "xl" | "2xl" | "3xl";
+  class?: string;
+}
+const {
+  variant = "ink",
+  eyebrow,
+  title,
+  subtitle,
+  align = "left",
+  rounded = "3xl",
+  class: extraClass = "",
+} = Astro.props;
+
+const VARIANTS: Record<string, { box: string; eyebrow: string; title: string; subtitle: string; dot: string }> = {
+  ink: {
+    box: "bg-mmp-ink text-white relative overflow-hidden",
+    eyebrow: "text-[#ecb921]",
+    title: "text-white",
+    subtitle: "text-white/75",
+    dot: "bg-[#ecb921]",
+  },
+  gold: {
+    box: "bg-[#ecb921] text-mmp-ink relative overflow-hidden",
+    eyebrow: "text-mmp-ink/70",
+    title: "text-mmp-ink",
+    subtitle: "text-mmp-ink/80",
+    dot: "bg-mmp-ink",
+  },
+  cream: {
+    box: "bg-mmp-cream text-mmp-ink border border-amber-100",
+    eyebrow: "text-amber-700",
+    title: "text-mmp-ink",
+    subtitle: "text-slate-600",
+    dot: "bg-[#ecb921]",
+  },
+};
+const v = VARIANTS[variant];
+const ROUND: Record<string, string> = {
+  none: "",
+  xl: "rounded-xl",
+  "2xl": "rounded-2xl",
+  "3xl": "rounded-3xl",
+};
+const alignCls = align === "center" ? "text-center items-center" : "items-start";
+---
+
+<section class={`relative ${v.box} ${ROUND[rounded]} px-5 py-6 sm:px-8 sm:py-8 ${extraClass}`}>
+  {variant === "ink" && (
+    <div
+      class="absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-30 pointer-events-none"
+      aria-hidden="true"
+      style="background: radial-gradient(circle, #ecb921 0%, transparent 70%);"
+    ></div>
+  )}
+
+  <div class={`relative flex flex-col gap-3 ${alignCls}`}>
+    {eyebrow && (
+      <span class={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest ${v.eyebrow}`}>
+        <span class={`inline-block w-1.5 h-1.5 rounded-full ${v.dot}`} aria-hidden="true"></span>
+        {eyebrow}
+      </span>
+    )}
+    {title && (
+      <h2 class={`font-display italic text-2xl sm:text-3xl font-semibold leading-tight ${v.title}`}>
+        {title}
+      </h2>
+    )}
+    {(subtitle || Astro.slots.has("default")) && (
+      <div class={`text-sm sm:text-base leading-relaxed max-w-2xl ${v.subtitle}`}>
+        {subtitle && <p>{subtitle}</p>}
+        <slot />
+      </div>
+    )}
+    {Astro.slots.has("cta") && (
+      <div class={`mt-2 flex flex-wrap gap-2 ${align === "center" ? "justify-center" : ""}`}>
+        <slot name="cta" />
+      </div>
+    )}
+  </div>
+</section>

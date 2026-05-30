@@ -1,0 +1,200 @@
+---
+/**
+ * /heroes/leaderboard — Pet Heroes Hall of Fame (PUBLIC).
+ *
+ * Podium top 3 + ranked list. Period tabs: week/month/all.
+ */
+import Layout from "../../layouts/Layout.astro";
+import { getZaloLink } from "../../../../shared/contact-info.ts";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const initialPeriod = (Astro.url.searchParams.get("period") || "all") as "week" | "month" | "all";
+const validPeriod = ["week", "month", "all"].includes(initialPeriod) ? initialPeriod : "all";
+
+let entries: any[] = [];
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/heroes/leaderboard?period=${validPeriod}`);
+  if (r.ok) entries = (await r.json()).entries || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  initialPeriod: validPeriod,
+  entries,
+  zaloUrl: getZaloLink(),
+});
+---
+
+<Layout title="🏆 Pet Heroes · VowVet" description="Bảng vinh danh những người đã giúp pet tìm về nhà">
+  <main class="min-h-screen bg-gradient-to-b from-amber-50 via-yellow-50 to-orange-50 px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`heroesPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700">← Dashboard</a>
+        <h1 class="text-lg font-bold text-slate-900">🏆 Pet Heroes</h1>
+        <a href="/lost/nearby" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">🐾 Pet mất</a>
+      </header>
+
+      <!-- Hero banner -->
+      <div class="text-center py-7 px-4 mb-5 rounded-3xl bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-100 border-2 border-amber-200 shadow-sm">
+        <p class="text-5xl mb-2">🏆</p>
+        <h2 class="text-2xl font-extrabold text-amber-900">Hall of Fame</h2>
+        <p class="text-sm text-amber-700 mt-1">Vinh danh những người giúp pet tìm về nhà</p>
+      </div>
+
+      <!-- Period tabs -->
+      <div class="flex bg-white rounded-2xl p-1 mb-5 shadow-sm border border-slate-100">
+        <template x-for="p in [{key:'week',label:'Tuần này'},{key:'month',label:'Tháng này'},{key:'all',label:'Tất cả'}]" :key="p.key">
+          <button @click="changePeriod(p.key)"
+            :class="period === p.key ? 'bg-amber-500 text-white shadow' : 'text-slate-600'"
+            class="flex-1 py-2 rounded-xl text-sm font-bold transition">
+            <span x-text="p.label"></span>
+          </button>
+        </template>
+      </div>
+
+      <template x-if="entries.length === 0">
+        <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
+          <p class="text-5xl mb-2">🤝</p>
+          <p class="text-base font-bold text-slate-900">Chưa có Hero nào</p>
+          <p class="text-sm text-slate-600 mt-1">Hãy là người đầu tiên — bật thông báo Pet Lost gần bạn.</p>
+          <a href="/lost/nearby" class="inline-block mt-4 bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-xl text-sm">
+            Xem pet đang mất →
+          </a>
+        </div>
+      </template>
+
+      <!-- Podium (top 3) -->
+      <template x-if="entries.length > 0">
+        <div class="grid grid-cols-3 gap-2 mb-6 items-end">
+          <!-- Rank 2 -->
+          <template x-if="entries[1]">
+            <a :href="profileUrl(entries[1])" class="text-center">
+              <div class="bg-white rounded-2xl p-3 border-2 border-slate-300 shadow-md min-h-[140px] flex flex-col justify-end">
+                <p class="text-3xl mb-1">🥈</p>
+                <p class="font-bold text-sm truncate" x-text="entries[1].name"></p>
+                <p class="text-xs text-slate-500" x-text="`${entries[1].heroes_count} bé`"></p>
+              </div>
+            </a>
+          </template>
+          <template x-if="!entries[1]"><div></div></template>
+
+          <!-- Rank 1 (center, tallest) -->
+          <template x-if="entries[0]">
+            <a :href="profileUrl(entries[0])" class="text-center">
+              <div class="bg-gradient-to-br from-amber-200 to-yellow-300 rounded-2xl p-4 border-2 border-amber-400 shadow-xl min-h-[180px] flex flex-col justify-end">
+                <p class="text-5xl mb-2">👑</p>
+                <p class="font-extrabold text-base text-amber-900 truncate" x-text="entries[0].name"></p>
+                <p class="text-sm text-amber-800 font-bold mt-1" x-text="`${entries[0].heroes_count} bé`"></p>
+              </div>
+            </a>
+          </template>
+
+          <!-- Rank 3 -->
+          <template x-if="entries[2]">
+            <a :href="profileUrl(entries[2])" class="text-center">
+              <div class="bg-white rounded-2xl p-3 border-2 border-amber-700 shadow-md min-h-[120px] flex flex-col justify-end">
+                <p class="text-3xl mb-1">🥉</p>
+                <p class="font-bold text-sm truncate" x-text="entries[2].name"></p>
+                <p class="text-xs text-slate-500" x-text="`${entries[2].heroes_count} bé`"></p>
+              </div>
+            </a>
+          </template>
+          <template x-if="!entries[2]"><div></div></template>
+        </div>
+      </template>
+
+      <!-- Rest of list (rank 4+) -->
+      <template x-if="entries.length > 3">
+        <div class="space-y-2">
+          <template x-for="hero in entries.slice(3)" :key="hero.user_id">
+            <a :href="profileUrl(hero)"
+              class="flex items-center gap-3 p-3 rounded-2xl bg-white border border-slate-100 hover:shadow-md transition">
+              <span class="font-bold text-slate-400 w-8 text-center text-sm" x-text="`#${hero.rank}`"></span>
+              <template x-if="hero.avatar_url">
+                <img :src="hero.avatar_url" alt="" class="w-10 h-10 rounded-full object-cover border-2 border-amber-200" />
+              </template>
+              <template x-if="!hero.avatar_url">
+                <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-base">🦸</div>
+              </template>
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-slate-900 truncate" x-text="hero.name"></p>
+                <span :class="HERO_TIERS[hero.badge_tier]?.color_class || ''"
+                  class="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold mt-0.5">
+                  <span x-text="HERO_TIERS[hero.badge_tier]?.emoji"></span>
+                  <span x-text="HERO_TIERS[hero.badge_tier]?.label_vi"></span>
+                </span>
+              </div>
+              <div class="text-right">
+                <p class="font-bold text-amber-600" x-text="`${hero.heroes_count} 🐾`"></p>
+                <template x-if="hero.total_rewards > 0">
+                  <p class="text-[10px] text-amber-700" x-text="`+${(hero.total_rewards/1000).toFixed(0)}k`"></p>
+                </template>
+              </div>
+            </a>
+          </template>
+        </div>
+      </template>
+
+      <!-- CTA -->
+      <div class="mt-8 p-5 rounded-2xl bg-mmp-cream border border-mmp-cream text-center">
+        <p class="font-bold text-mmp-ink mb-1">Bạn cũng muốn trở thành Pet Hero?</p>
+        <p class="text-xs text-slate-600 mb-3">Xem pet đang mất gần bạn — báo cáo thấy bé giúp chủ tìm về nhà</p>
+        <div class="grid grid-cols-2 gap-2">
+          <a href="/lost/nearby" class="bg-mmp-ink hover:bg-slate-800 text-white text-center text-sm font-bold py-2.5 rounded-xl">
+            🐾 Pet mất gần bạn
+          </a>
+          <a :href="zaloUrl" target="_blank" rel="noopener" class="bg-mmp-ink hover:bg-mmp-ink text-white text-center text-sm font-bold py-2.5 rounded-xl">
+            💬 Chat Zalo
+          </a>
+        </div>
+      </div>
+
+      <!-- Tier legend -->
+      <div class="mt-5 bg-white rounded-2xl border border-slate-100 p-4 text-xs">
+        <p class="font-bold text-slate-900 mb-2">🏅 Cấp bậc Hero</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-2"><span>🤝</span><span class="text-slate-700">Helper: 1+ bé</span></div>
+          <div class="flex items-center gap-2"><span>🦸</span><span class="text-slate-700">Hero: 3+ bé</span></div>
+          <div class="flex items-center gap-2"><span>🏆</span><span class="text-slate-700">Legend: 10+ bé</span></div>
+          <div class="flex items-center gap-2"><span>👑</span><span class="text-slate-700">Guardian: 50+ bé</span></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function heroesPage(initial) {
+      return {
+        period: initial.initialPeriod,
+        entries: initial.entries,
+        zaloUrl: initial.zaloUrl,
+        loading: false,
+        HERO_TIERS: {
+          none:     { emoji: '',   label_vi: '',             color_class: '' },
+          helper:   { emoji: '🤝', label_vi: 'Pet Helper',   color_class: 'bg-mmp-cream text-mmp-ink' },
+          hero:     { emoji: '🦸', label_vi: 'Pet Hero',     color_class: 'bg-mmp-cream text-mmp-ink' },
+          legend:   { emoji: '🏆', label_vi: 'Pet Legend',   color_class: 'bg-amber-100 text-amber-700' },
+          guardian: { emoji: '👑', label_vi: 'Pet Guardian', color_class: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white' },
+        },
+
+        profileUrl(h) {
+          return h.public_slug ? `/heroes/profile/${h.user_id}?slug=${h.public_slug}` : `/heroes/profile/${h.user_id}`;
+        },
+
+        async changePeriod(p) {
+          if (this.period === p) return;
+          this.period = p;
+          this.loading = true;
+          try {
+            const res = await fetch(`/api/v1/heroes/leaderboard?period=${p}`);
+            if (res.ok) {
+              this.entries = (await res.json()).entries || [];
+            }
+          } catch (_) {}
+          finally { this.loading = false; }
+        },
+      };
+    }
+  </script>
+</Layout>

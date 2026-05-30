@@ -1,0 +1,1796 @@
+---
+/**
+ * /food-brands — Public catalogue (M8).
+ *
+ * SEO-optimized landing page giới thiệu 14+ brand thức ăn cho chó/mèo.
+ * KHÔNG auth required. Cache 1h ở backend (loadFoodBrands).
+ * Client-side filter qua Alpine.js (14 brands → moot pagination).
+ */
+import Layout from "../layouts/Layout.astro";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+let brands: any[] = [];
+let totalCount = 0;
+try {
+  // Fetch tối đa 50 brands (Phase 0 chỉ có 14, tương lai mở rộng vẫn fit)
+  const res = await fetch(`${API_INTERNAL}/api/v1/public/food-brands?size=50`);
+  if (res.ok) {
+    const j = await res.json();
+    brands = j.brands || [];
+    totalCount = j.pagination?.total || brands.length;
+  }
+} catch (err) {
+  console.error("[food-brands page] fetch failed:", err);
+}
+
+// === v34: SSR fetch user pets + latest BCS (graceful fallback for guests) ===
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+let userPets: any[] = [];
+let initialBcsScore: number | null = null;
+
+try {
+  // v43-fix: endpoint thật là /api/v1/auth/me (mount tại app.route("/api/v1/auth", authRoute)).
+  // URL cũ /api/v1/users/me trả về 404 từ v34 → mọi logged-in user bị fallback guest.
+  const meRes = await fetch(`${API_INTERNAL}/api/v1/auth/me`, {
+    headers: { cookie: cookieHeader },
+  });
+  // v43: log non-401 errors (401 = guest expected; còn lại = lỗi thật cần debug)
+  if (!meRes.ok && meRes.status !== 401) {
+    console.error("[food-brands SSR] /auth/me unexpected status:", meRes.status);
+  }
+  if (meRes.ok) {
+    const meData = await meRes.json();
+    userPets = meData.pets || [];
+    if (userPets.length > 0) {
+      try {
+        // v43-fix: endpoint thật là /bcs/latest (BCS routes có 4 sub: /assess, /history, /latest, /:assessId — không có trần /bcs)
+        const bcsRes = await fetch(`${API_INTERNAL}/api/v1/pets/${userPets[0].id}/bcs/latest`, {
+          headers: { cookie: cookieHeader },
+        });
+        if (bcsRes.ok) {
+          const bcsData = await bcsRes.json();
+          // Response shape: { assessment: BcsApi | null } với BcsApi.bcs_score: number
+          const score = bcsData?.assessment?.bcs_score;
+          if (score != null) {
+            initialBcsScore = Number(score);
+          }
+        } else if (bcsRes.status !== 404) {
+          // 404 expected khi pet chưa có BCS assessment nào (new pet) → không phải lỗi
+          console.error("[food-brands SSR] /pets/:id/bcs/latest status:", bcsRes.status);
+        }
+      } catch (err) {
+        console.error("[food-brands SSR] /pets/:id/bcs/latest fetch failed:", err);
+      }
+    }
+  }
+} catch (err) {
+  console.error("[food-brands SSR] /users/me fetch failed:", err);
+}
+
+const brandsJson = JSON.stringify(brands);
+const userPetsJson = JSON.stringify(userPets);
+const initialBcsScoreJson = JSON.stringify(initialBcsScore);
+const pageUrl = "https://vowvet.monminpet.com/food-brands";
+const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — production sẽ có ảnh real
+---
+
+<Layout
+  title="Catalog dinh dưỡng pet | VowVet"
+  description="So sánh 14+ thương hiệu thức ăn cho chó mèo tại Việt Nam. Lọc theo loài, life stage, thành phần dị ứng. Khuyến nghị bởi bác sĩ Mon Min."
+>
+  <Fragment slot="head">
+    <link rel="canonical" href={pageUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:title" content="Catalog dinh dưỡng pet | VowVet" />
+    <meta property="og:description" content="So sánh 14+ thương hiệu thức ăn cho chó mèo tại Việt Nam. Khuyến nghị bởi bác sĩ Mon Min." />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="keywords" content="thức ăn chó, thức ăn mèo, dinh dưỡng pet, Royal Canin, Whiskas, Mon Min, dog food Vietnam, cat food Vietnam" />
+  </Fragment>
+
+  <main class="min-h-screen bg-mmp-cream">
+    <!-- v44: x-data hoisted to wrap nav so Alpine directives work in nav avatar -->
+    <div x-data={`brandsCatalog(${brandsJson}, ${userPetsJson}, ${initialBcsScoreJson})`}>
+    <!-- v44: Public top nav — auth-aware avatar (logged-in) vs login button (guest) -->
+    <nav class="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <!-- v44: Logo image — dùng /logo-mmp.png thay emoji 🐾 -->
+        <a href="/" class="flex items-center gap-2.5 group shrink-0">
+          <img src="/logo-mmp.png" alt="VowVet logo" class="h-12 w-12 object-contain" />
+          <div>
+            <p class="font-bold text-slate-900 leading-none">VowVet</p>
+            <p class="text-[10px] text-slate-500 leading-none">by Mon Min Pet</p>
+          </div>
+        </a>
+        <div class="flex items-center gap-3 text-sm">
+          <a href="/food-brands" class="text-mmp-ink font-semibold hover:underline">Dinh dưỡng</a>
+          <span class="text-slate-300 hidden sm:inline">·</span>
+
+          <!-- v44: Logged-in branch — avatar pill linking to dashboard -->
+          <a x-show="userPets.length > 0" style="display:none;"
+             href="/dashboard"
+             class="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full hover:bg-slate-50 transition group">
+            <span class="shrink-0 w-9 h-9 rounded-full overflow-hidden ring-1 ring-amber-200/60 bg-mmp-cream/60 flex items-center justify-center">
+              <template x-if="profile.petImage">
+                <img :src="profile.petImage" :alt="profile.petName"
+                     class="w-full h-full object-cover"
+                     @error="profile.petImage = ''" />
+              </template>
+              <template x-if="!profile.petImage">
+                <span class="text-lg" x-text="breedSticker || (profile.species === 'cat' ? '🐱' : '🐶')"></span>
+              </template>
+            </span>
+            <div class="hidden sm:block min-w-0 text-left">
+              <p class="font-bold text-slate-900 leading-tight truncate max-w-[100px]" x-text="profile.petName || 'bé'"></p>
+              <p class="text-[10px] text-slate-500 leading-tight truncate" x-text="getBreedName(profile.breed) || 'Pet của bạn'"></p>
+            </div>
+          </a>
+
+          <!-- v44: Guest branch — login button -->
+          <a x-show="userPets.length === 0" style="display:none;"
+             href="/login"
+             class="bg-mmp-ink hover:bg-slate-800 text-white font-semibold px-3 py-1.5 rounded-lg transition">
+            Đăng nhập
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="px-4 sm:px-6 pt-10 pb-6 max-w-6xl mx-auto">
+      <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-amber-700 mb-3">
+        <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--c-gold);"></span>
+        Catalog dinh dưỡng pet
+      </span>
+      <h1 class="font-display italic text-3xl sm:text-5xl font-semibold text-mmp-ink mb-3 leading-tight">
+        Chọn thức ăn đúng cho bé
+      </h1>
+      <p class="text-base sm:text-lg text-slate-600 max-w-2xl">
+        So sánh <span class="font-semibold text-mmp-ink">{totalCount}+ thương hiệu</span> thức ăn cho chó mèo tại Việt Nam.
+        Khuyến nghị bởi bác sĩ Mon Min Pet.
+      </p>
+    </section>
+
+    <!-- Filter + grid layout (v44: x-data đã hoist lên parent wrapper bao luôn nav) -->
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
+      <div class="lg:grid lg:grid-cols-[260px_1fr] lg:gap-6">
+
+        <!-- SIDEBAR — Profile Matcher + Filters (v34 architecture) -->
+        <aside class="lg:sticky lg:top-20 lg:self-start mb-4 lg:mb-0 space-y-3">
+
+          <!-- WIDGET 1: HỒ SƠ BÉ (Premium Quick-Profile Matcher) -->
+          <div class="bg-white border border-slate-100 rounded-2xl p-5">
+            <!-- v38: Breed sticker swaps into heading when breed selected -->
+            <div class="mb-4">
+              <!-- v40: Personalized header — pet portrait + dynamic title + quick stats -->
+              <div class="flex items-center gap-3">
+                <!-- Avatar: real photo nếu có, fallback breed sticker / ✨ -->
+                <div class="shrink-0 w-12 h-12 rounded-full overflow-hidden ring-1 ring-amber-200/60 bg-mmp-cream/60 flex items-center justify-center">
+                  <template x-if="profile.petImage">
+                    <img :src="profile.petImage" :alt="profile.petName || 'pet avatar'"
+                         class="w-full h-full object-cover"
+                         @error="profile.petImage = ''" />
+                  </template>
+                  <template x-if="!profile.petImage">
+                    <span class="text-2xl transition-all duration-300"
+                          :style="breedSticker ? '' : 'color: var(--c-gold);'"
+                          x-text="breedSticker || (profile.species === 'cat' ? '🐱' : '🐶')"></span>
+                  </template>
+                </div>
+                <!-- Title block -->
+                <div class="min-w-0 flex-1">
+                  <!-- v47: bỏ truncate → tên dài wrap thay vì cắt; thêm Verified badge inline -->
+                  <h2 class="font-display italic text-lg font-semibold text-mmp-ink leading-tight break-words">
+                    <span x-text="'Dinh dưỡng cho ' + (profile.petName || 'bé cưng của bạn')"></span>
+                    <template x-if="profile.is_verified">
+                      <span class="ml-1 align-middle inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 not-italic" title="Đã thẩm định bởi BS Mon Min">
+                        ✓
+                      </span>
+                    </template>
+                  </h2>
+                  <p class="text-[11px] text-slate-500 leading-tight mt-0.5 truncate"
+                     x-text="profile.weight.toFixed(1) + ' kg' + (getBreedName(profile.breed) ? ' · ' + getBreedName(profile.breed) : '')"></p>
+                  <div x-show="filters.breed && filters.breed !== 'khac'" style="display:none;" class="mt-1">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full"
+                          style="background: var(--c-gold); color: #1A1814;">
+                      <span x-text="breedSticker"></span>
+                      <span x-text="currentBreedOptions.find(b => b.code === filters.breed)?.name || ''"></span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pet dropdown (only if logged in + has pets) -->
+            <template x-if="userPets.length > 0">
+              <div class="mb-3">
+                <select :value="profile.selectedPetId || ''"
+                        @change="selectPet($event.target.value)"
+                        class="w-full text-sm bg-mmp-cream/40 border border-slate-200 rounded-xl px-3 py-2 font-semibold text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                  <option value="">— Nhập thủ công —</option>
+                  <template x-for="p in userPets" :key="p.id">
+                    <option :value="p.id" x-text="p.name"></option>
+                  </template>
+                </select>
+              </div>
+            </template>
+
+            <!-- v48: Manual name input + Scan giấy tờ ĐÃ MOVE sang trang Profile (single source of truth) -->
+            <!-- Sidebar nay chỉ chứa filters + read-only display synced từ /auth/me -->
+
+            <!-- v35: Locked indicator (read-only mode khi pet selected — Data Enforcement) -->
+            <template x-if="isProfileLocked">
+              <div class="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200/70 text-[10px] leading-relaxed text-amber-800 inline-flex items-start gap-1.5 w-full">
+                <span class="shrink-0 mt-0.5">🔒</span>
+                <span><strong class="font-bold">Đồng bộ từ hồ sơ bé.</strong> Chọn <em>"Nhập thủ công"</em> để giả lập dinh dưỡng tự do.</span>
+              </div>
+            </template>
+
+            <!-- v48: Sửa hồ sơ CTA — link sang Profile page để edit Poop Score / Allergens / Tên / Scan giấy tờ -->
+            <template x-if="isProfileLocked && profile.selectedPetId">
+              <a :href="'/pets/' + profile.selectedPetId + '/profile/complete'"
+                 class="group mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[11px] leading-relaxed text-slate-700 inline-flex items-center justify-between w-full transition">
+                <span class="inline-flex items-center gap-1.5">
+                  <span>✏️</span>
+                  <span>Sửa hồ sơ bé</span>
+                </span>
+                <span class="text-mmp-ink font-semibold transition-transform group-hover:translate-x-0.5">→</span>
+              </a>
+            </template>
+
+            <!-- v42: Guest onboarding CTA — chỉ fire cho TRUE guest (chưa có pet nào trong account) -->
+            <template x-if="userPets.length === 0">
+              <div class="mb-3 px-3 py-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/70 text-[11px] leading-relaxed text-emerald-800 flex items-start gap-2 w-full">
+                <span class="shrink-0 text-base leading-none mt-0.5">👋</span>
+                <span><strong class="font-semibold">Chào bạn!</strong> Hãy nhập nhanh thông tin bé để AI của VowVet tính khẩu phần chính xác nhất.</span>
+              </div>
+            </template>
+
+            <!-- Species toggle (v35: locked when pet selected) -->
+            <div class="mb-3">
+              <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Loài</p>
+              <div class="grid grid-cols-2 gap-1.5">
+                <!-- v39: Lock affordance — title tooltip + 🔒 hint khi locked -->
+                <button type="button" :disabled="isProfileLocked"
+                        @click="if(!isProfileLocked) profile.species = 'dog'"
+                        :class="btnClass(profile.species === 'dog', isProfileLocked)"
+                        :title="isProfileLocked ? `Read-only · chọn 'Nhập thủ công' để đổi loài` : ''"
+                        class="text-xs font-semibold py-2 rounded-xl transition inline-flex items-center justify-center gap-1">
+                  <span x-show="isProfileLocked && profile.species !== 'dog'" class="text-[10px] opacity-60" style="display:none;">🔒</span>
+                  <span>🐶 Chó</span>
+                </button>
+                <button type="button" :disabled="isProfileLocked"
+                        @click="if(!isProfileLocked) profile.species = 'cat'"
+                        :class="btnClass(profile.species === 'cat', isProfileLocked)"
+                        :title="isProfileLocked ? `Read-only · chọn 'Nhập thủ công' để đổi loài` : ''"
+                        class="text-xs font-semibold py-2 rounded-xl transition inline-flex items-center justify-center gap-1">
+                  <span x-show="isProfileLocked && profile.species !== 'cat'" class="text-[10px] opacity-60" style="display:none;">🔒</span>
+                  <span>🐱 Mèo</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- v36: BCS 9-level slider + Tap-to-Answer (replaces 3-pill toggle) -->
+            <div class="mb-3">
+              <div class="flex items-baseline justify-between mb-1.5">
+                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Thể trạng (BCS 1-9)</p>
+                <p class="text-[10px] font-bold tabular-nums"
+                   :class="{
+                     'text-slate-500': currentBcs.tier === 'under-critical' || currentBcs.tier === 'under',
+                     'text-emerald-700': currentBcs.tier === 'ideal',
+                     'text-orange-600': currentBcs.tier === 'over',
+                     'text-red-600': currentBcs.tier === 'obese' || currentBcs.tier === 'obese-critical'
+                   }"
+                   x-text="currentBcs.label"></p>
+              </div>
+              <input type="range" min="1" max="9" step="1" x-model.number="profile.bcs"
+                     :disabled="isProfileLocked"
+                     class="w-full disabled:cursor-not-allowed disabled:opacity-50"
+                     :class="{
+                       'accent-slate-400': currentBcs.tier === 'under-critical' || currentBcs.tier === 'under',
+                       'accent-emerald-500': currentBcs.tier === 'ideal',
+                       'accent-orange-500': currentBcs.tier === 'over',
+                       'accent-red-500': currentBcs.tier === 'obese' || currentBcs.tier === 'obese-critical'
+                     }" />
+              <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+                <span>1 · Gầy</span><span>5 · Chuẩn</span><span>9 · Béo phì</span>
+              </div>
+              <!-- v38: BCS Visual Avatar — fixed w-14 h-14 → zero layout shift -->
+              <div class="flex items-start gap-3 mt-2" style="min-height: 3.5rem;">
+                <div class="relative shrink-0 flex items-center justify-center w-14 h-14 rounded-full ring-2 transition-all duration-500"
+                     :class="bcsAvatar.bg + ' ' + bcsAvatar.ring">
+                  <div class="absolute" :style="bcsAvatarShapeStyle"></div>
+                  <span class="relative text-2xl select-none leading-none"
+                        :class="bcsAvatar.anim"
+                        x-text="bcsAvatar.emoji"></span>
+                </div>
+                <div class="flex-1 min-w-0 pt-0.5">
+                  <p class="text-[10px] text-slate-600 italic leading-relaxed" x-text="currentBcs.description"></p>
+                  <p class="text-[10px] font-bold mt-1 leading-tight"
+                     x-show="bcsAvatar.warn"
+                     :class="bcsAvatar.warnColor"
+                     style="display:none;"
+                     x-text="bcsAvatar.warn"></p>
+                </div>
+              </div>
+              <template x-if="!isProfileLocked">
+                <div class="mt-3">
+                  <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">⚡ Chạm nhanh để chọn</p>
+                  <div class="grid grid-cols-1 gap-1.5">
+                    <button type="button" @click="profile.bcs = 2"
+                            class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition">
+                      🦴 Chỉ thấy xương cứng
+                    </button>
+                    <button type="button" @click="profile.bcs = 5"
+                            class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition">
+                      ✨ Sườn ẩn dưới lớp mỡ mỏng
+                    </button>
+                    <button type="button" @click="profile.bcs = 8"
+                            class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 transition">
+                      🎈 Không thấy gì ngoài mỡ
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- v48: Poop Score input ĐÃ MOVE sang trang Profile -->
+            <!-- State `poopScore` vẫn giữ trong Alpine để filter fat cap + hint hoạt động khi API trả poop_score field -->
+            <template x-if="poopScore > 0">
+              <div class="mb-4">
+                <div class="flex items-baseline justify-between mb-1">
+                  <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Poop Score</p>
+                  <p class="text-[10px] font-bold tabular-nums" :class="poopScoreLabel.tone" x-text="poopScore + '/5 · ' + poopScoreLabel.text"></p>
+                </div>
+                <p x-show="poopScore >= 4" style="display:none;" class="text-[10px] leading-relaxed text-rose-700 font-medium">
+                  🚨 AI giảm trần %Fat về <span class="font-bold tabular-nums" x-text="poopFatCap"></span>%.
+                </p>
+              </div>
+            </template>
+
+            <!-- Weight slider (v35: locked + breed weight hint in manual mode) -->
+            <div class="mb-4">
+              <div class="flex items-baseline justify-between mb-1.5">
+                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Cân nặng</p>
+                <p class="font-bold text-mmp-ink tabular-nums" style="min-width: 5ch; text-align: right;">
+                  <span class="text-sm" x-text="profile.weight.toFixed(1)"></span><span class="text-xs font-normal text-slate-400 ml-0.5">kg</span>
+                </p>
+              </div>
+              <input type="range" min="0.5" max="50" step="0.1" x-model.number="profile.weight"
+                     :disabled="isProfileLocked"
+                     class="w-full accent-mmp-ink disabled:cursor-not-allowed disabled:opacity-60" />
+              <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+                <span>0.5</span><span>50kg</span>
+              </div>
+              <!-- v35: Breed standard weight hint (manual mode only, when breed selected) -->
+              <template x-if="!isProfileLocked && breedWeightHint">
+                <p class="text-[10px] text-amber-700 italic mt-1.5" x-text="breedWeightHint"></p>
+              </template>
+            </div>
+
+            <!-- v36: Free-text NLP input (manual mode only) -->
+            <template x-if="!isProfileLocked">
+              <div class="mb-3">
+                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Mô tả thêm (tùy chọn)</p>
+                <textarea x-model="freeText" @input.debounce.300ms="parseFreeText(freeText)"
+                          placeholder="VD: bé ăn hạt gà hay gãi, ở chung cư phòng kín..."
+                          rows="2"
+                          class="w-full text-xs px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-300 resize-none leading-snug"></textarea>
+                <template x-if="nlpSuggestions.length > 0">
+                  <div class="mt-2 space-y-1">
+                    <p class="text-[9px] text-slate-400 uppercase tracking-widest">Đề xuất từ AI (chạm để thêm)</p>
+                    <div class="flex flex-wrap gap-1.5">
+                      <template x-for="sug in nlpSuggestions" :key="sug.code">
+                        <button type="button" @click="applySuggestion(sug)"
+                                class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition animate-pulse">
+                          <span>+</span>
+                          <span x-text="sug.label"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- v36: Allergen Matrix display (3 tiers) -->
+            <template x-if="hasAnyAllergen">
+              <div class="mb-3 pt-3 border-t border-slate-100">
+                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Hồ sơ rủi ro</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="tag in activeAllergenTags" :key="tag.code">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border"
+                          :class="{
+                            'bg-red-50 text-red-700 border-red-200': tag.tier === 'red',
+                            'bg-orange-50 text-orange-700 border-orange-200': tag.tier === 'orange',
+                            'bg-amber-50 text-amber-700 border-amber-200': tag.tier === 'yellow',
+                            'bg-yellow-100 text-yellow-900 border-yellow-300': tag.tier === 'darkYellow'
+                          }">
+                      <span x-text="tag.emoji"></span>
+                      <span x-text="tag.label"></span>
+                    </span>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- v36: Odor filter indicator (NLP-triggered) -->
+            <template x-if="odorFilterActive">
+              <div class="mb-3 px-3 py-2 rounded-xl bg-teal-50 border border-teal-200 text-[10px] text-teal-800 inline-flex items-start gap-1.5 w-full">
+                <span class="shrink-0 mt-0.5">🏢</span>
+                <span><strong class="font-bold">Bộ lọc khử mùi đang bật.</strong> Ưu tiên hạt chứa Yucca Schidigera + Bacillus subtilis (giảm mùi phân ~60%).</span>
+              </div>
+            </template>
+
+            <!-- DER computed hairline card -->
+            <div class="rounded-xl border border-slate-100 bg-mmp-cream/40 p-3.5">
+              <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Năng lượng cần</p>
+              <p class="leading-tight">
+                <span class="text-2xl font-bold text-mmp-ink tabular-nums" style="min-width: 5ch; display: inline-block;" x-text="der"></span>
+                <span class="text-xs text-slate-500 ml-1">kcal/ngày</span>
+              </p>
+              <p class="text-[10px] text-slate-500 mt-1 tabular-nums" x-text="derMultiplierLabel"></p>
+            </div>
+          </div>
+
+          <!-- WIDGET 2: FILTERS (existing — wrapped) -->
+          <div class="bg-white border border-slate-100 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-3 lg:mb-4">
+              <h2 class="font-semibold text-slate-900">Bộ lọc</h2>
+              <button @click="resetFilters()" class="text-xs text-mmp-ink hover:text-mmp-ink font-medium">↺ Reset</button>
+            </div>
+
+            <!-- v35: Breed dropdown (replaces deprecated species filter) -->
+            <div class="mb-4">
+              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Chủng tộc</p>
+              <select x-model="filters.breed"
+                      :disabled="isProfileLocked"
+                      class="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-60 disabled:cursor-not-allowed">
+                <option value="">— Mọi giống —</option>
+                <template x-for="opt in currentBreedOptions" :key="opt.code">
+                  <option :value="opt.code" x-text="opt.name"></option>
+                </template>
+              </select>
+            </div>
+
+            <!-- Life stage (v35: full Vietnamese) -->
+            <div class="mb-4">
+              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Giai đoạn phát triển</p>
+              <div class="space-y-1">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="life_stage" value="" x-model="filters.lifeStage" class="text-mmp-ink" />
+                  <span class="text-sm text-slate-700">Tất cả</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="life_stage" value="puppy" x-model="filters.lifeStage" class="text-mmp-ink" />
+                  <span class="text-sm text-slate-700">Thú non (Dưới 1 tuổi)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="life_stage" value="adult" x-model="filters.lifeStage" class="text-mmp-ink" />
+                  <span class="text-sm text-slate-700">Trưởng thành</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="life_stage" value="senior" x-model="filters.lifeStage" class="text-mmp-ink" />
+                  <span class="text-sm text-slate-700">Lớn tuổi (Trên 7 tuổi)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- v47: Unified 4-tier Allergen Matrix selector (replace checkbox list + dark-yellow chip) -->
+            <div class="mb-4">
+              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Hồ sơ dị ứng · 4 cấp</p>
+
+              <!-- v48: TIER 1 RED — disabled khi pet selected (profile-driven). Guests vẫn dùng được. -->
+              <div class="mb-2">
+                <p class="text-[10px] uppercase tracking-widest font-bold text-red-700 mb-1">🚨 Dị ứng xác định <span x-show="isProfileLocked" style="display:none;" class="font-normal opacity-60">(read-only · sửa ở Profile)</span></p>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="a in ALLERGEN_MATRIX.red" :key="a.code">
+                    <button type="button"
+                            :disabled="isProfileLocked"
+                            @click="
+                              if (isProfileLocked) return;
+                              if (profile.allergens.includes(a.brandKey)) {
+                                profile.allergens = profile.allergens.filter(x => x !== a.brandKey);
+                                filters.excludeAllergens = filters.excludeAllergens.filter(x => x !== a.brandKey);
+                              } else {
+                                profile.allergens.push(a.brandKey);
+                                if (!filters.excludeAllergens.includes(a.brandKey)) filters.excludeAllergens.push(a.brandKey);
+                              }
+                            "
+                            :class="[
+                              profile.allergens.includes(a.brandKey) ? 'bg-red-100 text-red-800 border-red-300 font-bold' : 'bg-slate-50 text-slate-500 border-slate-200',
+                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-slate-100'
+                            ]"
+                            class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
+                      <span x-text="a.emoji"></span>
+                      <span x-text="a.label"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <!-- v48: TIER 2 ORANGE — disabled khi pet selected -->
+              <div class="mb-2">
+                <p class="text-[10px] uppercase tracking-widest font-bold text-orange-700 mb-1">⚠️ Nhạy cảm <span x-show="isProfileLocked" style="display:none;" class="font-normal opacity-60">(read-only)</span></p>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="s in ALLERGEN_MATRIX.orange" :key="s.code">
+                    <button type="button"
+                            :disabled="isProfileLocked"
+                            @click="if (!isProfileLocked) { profile.sensitivities.includes(s.code) ? (profile.sensitivities = profile.sensitivities.filter(x => x !== s.code)) : profile.sensitivities.push(s.code); }"
+                            :class="[
+                              profile.sensitivities.includes(s.code) ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-500 border-slate-200',
+                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-slate-100'
+                            ]"
+                            class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
+                      <span x-text="s.emoji"></span>
+                      <span x-text="s.label"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <!-- TIER 3: YELLOW — Rủi ro giống loài (auto-derived from breed, read-only) -->
+              <template x-if="filters.breed && filters.breed !== 'khac' && (currentBreedOptions.find(b => b.code === filters.breed)?.risks || []).length > 0">
+                <div class="mb-2">
+                  <p class="text-[10px] uppercase tracking-widest font-bold text-amber-700 mb-1">🧬 Rủi ro giống loài <span class="font-normal opacity-60">(tự động)</span></p>
+                  <div class="flex flex-wrap gap-1">
+                    <template x-for="r in (currentBreedOptions.find(b => b.code === filters.breed)?.risks || [])" :key="r">
+                      <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                        <span>🧬</span>
+                        <span x-text="r"></span>
+                      </span>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+              <!-- v48: TIER 4 DARK YELLOW — disabled khi pet selected -->
+              <div>
+                <p class="text-[10px] uppercase tracking-widest font-bold text-yellow-900 mb-1">🏢 Môi trường sống <span x-show="isProfileLocked" style="display:none;" class="font-normal opacity-60">(read-only)</span></p>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="env in ALLERGEN_MATRIX.darkYellow" :key="env.code">
+                    <button type="button"
+                            :disabled="isProfileLocked"
+                            @click="if (!isProfileLocked) { profile.environmentals.includes(env.code) ? (profile.environmentals = profile.environmentals.filter(e => e !== env.code)) : profile.environmentals.push(env.code); }"
+                            :class="[
+                              profile.environmentals.includes(env.code) ? 'bg-yellow-100 text-yellow-900 border-yellow-300' : 'bg-slate-50 text-slate-500 border-slate-200',
+                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-slate-100'
+                            ]"
+                            class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
+                      <span x-text="env.emoji"></span>
+                      <span x-text="env.label"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mon Min toggle (refined gold) -->
+            <div class="mb-4">
+              <label class="flex items-center gap-2 cursor-pointer bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg">
+                <input type="checkbox" x-model="filters.monMin" class="rounded" style="accent-color: var(--c-gold);" />
+                <span class="text-sm font-medium text-mmp-ink">✨ Chỉ Mon Min khuyến nghị</span>
+              </label>
+            </div>
+
+            <!-- Price range -->
+            <div class="mb-2">
+              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                Giá tối đa: <span class="text-mmp-ink" x-text="formatVnd(filters.maxPrice) + '/kg'"></span>
+              </p>
+              <input type="range" min="50000" max="1000000" step="10000" x-model.number="filters.maxPrice" class="w-full accent-mmp-ink" />
+              <div class="flex justify-between text-[10px] text-slate-400">
+                <span>50k</span>
+                <span>1tr</span>
+              </div>
+              <!-- v37: Smart budget subtext — x-show = zero reflow khi kéo slider -->
+              <p class="text-[11px] mt-1.5 leading-relaxed font-medium"
+                 x-show="filters.maxPrice >= 250000"
+                 style="color: #9a7d2e; display: none;">
+                ✨ Đang mở rộng toàn bộ danh mục Đạm Thủy Phân và dinh dưỡng cao cấp của MonMin ở bên dưới.
+              </p>
+              <p class="text-[11px] mt-1.5 leading-relaxed font-medium text-amber-600"
+                 x-show="filters.maxPrice < 250000"
+                 style="display: none;">
+                ⚠️ Mức giá này đang lọc bỏ các dòng công thức y khoa chuyên sâu của MonMin. Cân nhắc điều chỉnh tăng để xem đầy đủ giải pháp tối ưu cho bé.
+              </p>
+
+              <!-- v39: Editorial Clinical CTA → Digital Prescription -->
+              <a href="#dinh-duong-pet"
+                 class="group mt-3 inline-flex items-baseline gap-1 text-[12px] italic text-mmp-ink/80 hover:text-mmp-ink underline decoration-slate-300 decoration-[0.5px] underline-offset-[3px] hover:decoration-mmp-ink/60 transition-colors">
+                Dinh dưỡng phù hợp cho Pet của bạn? Xem chi tiết tại đây
+                <span aria-hidden="true" class="not-italic transition-transform group-hover:translate-y-0.5">↓</span>
+              </a>
+            </div>
+          </div>
+        </aside>
+
+        <!-- BRAND GRID -->
+        <section>
+          <!-- v36: Dynamic Digital Prescription Card (3 modules) — sits above brand grid -->
+          <!-- v39: id="dinh-duong-pet" + scroll-mt for sidebar CTA anchor -->
+          <div id="dinh-duong-pet" class="mb-6 space-y-4 scroll-mt-24">
+
+            <!-- MÔ-ĐUN 1: THE DIET BREAKDOWN -->
+            <section class="rounded-3xl p-6 border border-[#1A1814]/15" style="background: #F3EFE7; color: #1A1814;">
+              <div class="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">Đơn thuốc số · Mô-đun 1</p>
+                  <h2 class="font-display italic text-2xl font-semibold mt-1 leading-tight">Định lượng khẩu phần</h2>
+                  <!-- v47: 30-day re-eval alert — fire khi dayProgress >= 30 -->
+                  <template x-if="dietStartDate && dayProgress >= 30">
+                    <div class="mt-3 px-3 py-2 rounded-xl bg-amber-100 border border-amber-300 text-[11px] text-amber-900 inline-flex items-start gap-1.5">
+                      <span class="shrink-0">🔔</span>
+                      <span><strong>Tái đánh giá y khoa</strong> — 30 ngày đã qua. Cập nhật Poop Score ở sidebar để AI tinh chỉnh lượng béo cho chu kỳ mới.</span>
+                    </div>
+                  </template>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-[10px] uppercase tracking-widest opacity-60">Tổng năng lượng</p>
+                  <p class="font-mono tabular-nums text-3xl font-bold leading-none mt-0.5">
+                    <span x-text="der"></span><span class="text-sm font-normal ml-1">kcal/ngày</span>
+                  </p>
+                </div>
+              </div>
+              <!-- v37: Mix-ratio alert — tránh hiểu nhầm "chọn một trong hai" -->
+              <div class="mb-4 px-4 py-3 rounded-2xl border border-[#1A1814]/12"
+                   style="background: rgba(255,255,255,0.55);">
+                <p class="text-[11px] leading-relaxed" style="color: #1A1814; opacity: 0.85;">
+                  💡 <strong class="font-bold">Thực đơn phối trộn:</strong>
+                  Đơn thuốc số này được thiết kế kết hợp hoàn hảo (70% Hạt + 30% Pate).
+                  Vui lòng cho bé ăn <strong class="font-bold">KẾT HỢP</strong> cả hai loại hằng ngày
+                  theo lịch trình Sáng-Trưa-Tối nêu trên để đạt hiệu quả chuyển hóa tốt nhất,
+                  tránh hiểu nhầm là chọn một trong hai.
+                </p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
+                  <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">☀️ Bữa Sáng & Bữa Trưa (Hạt khô)</p>
+                  <p class="font-mono tabular-nums text-2xl font-bold mt-1">
+                    <span x-text="dryFoodGrams"></span><span class="text-sm font-normal ml-1">g/ngày</span>
+                  </p>
+                  <p class="text-[10px] opacity-70 mt-1 italic leading-snug">Khoảng 1/2 chén ăn tiêu chuẩn hoặc 3 muỗng gạt.</p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
+                  <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">🌙 Bữa Tối Bù Nước (Pate tươi)</p>
+                  <p class="font-mono tabular-nums text-2xl font-bold mt-1">
+                    <span x-text="wetFoodGrams"></span><span class="text-sm font-normal ml-1">g/ngày</span>
+                  </p>
+                  <p class="text-[10px] opacity-70 mt-1 italic leading-snug">Ăn vào bữa tối để bù nước.</p>
+                </div>
+              </div>
+              <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">📅 Hành trình 30 ngày</p>
+                  <p class="font-mono tabular-nums text-sm font-bold">
+                    Ngày <span x-text="dayProgress"></span> / 30
+                  </p>
+                </div>
+                <div class="h-2 bg-[#1A1814]/10 rounded-full overflow-hidden mb-3">
+                  <div class="h-full rounded-full transition-all duration-700" style="background: #1A1814;" :style="`width: ${Math.min(100, (dayProgress/30)*100)}%; background: #1A1814;`"></div>
+                </div>
+                <button type="button" @click="markFedToday()"
+                        :disabled="fedToday"
+                        :class="fedToday ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed' : 'text-white border border-transparent hover:opacity-90'"
+                        :style="fedToday ? '' : 'background: #1A1814;'"
+                        class="w-full px-4 py-3 rounded-xl font-bold text-sm transition">
+                  <span x-show="!fedToday">✓ Đã cho ăn hôm nay</span>
+                  <span x-show="fedToday">✓ Đã đánh dấu hôm nay</span>
+                </button>
+              </div>
+            </section>
+
+            <!-- MÔ-ĐUN 2: THE CONDITION RULES -->
+            <section class="bg-white rounded-3xl p-6 border border-slate-100">
+              <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500">Đơn thuốc số · Mô-đun 2</p>
+              <h2 class="font-display italic text-2xl font-semibold mt-1 mb-4 text-mmp-ink leading-tight">Quy luật điều kiện</h2>
+              <div class="space-y-3">
+                <!-- v47: Mục tiêu ĐẠT — dynamic theo currentBcs.tier -->
+                <div class="rounded-2xl p-4 border-l-4 transition-colors"
+                     :class="currentBcs.tier === 'ideal' ? 'border-emerald-500 bg-emerald-50/60' : 'border-slate-300 bg-slate-50/40'">
+                  <p class="text-xs font-bold uppercase tracking-widest mb-1"
+                     :class="currentBcs.tier === 'ideal' ? 'text-emerald-800' : 'text-slate-600'">🎯 Mục tiêu ĐẠT</p>
+                  <template x-if="currentBcs.tier === 'ideal'">
+                    <p class="text-sm text-emerald-900 leading-relaxed">
+                      BCS lý tưởng ✓ — <strong>khoá đơn giảm cân</strong>, tự động mở Đơn <strong>giữ dáng cân bằng</strong> để duy trì lâu dài.
+                    </p>
+                  </template>
+                  <template x-if="currentBcs.tier !== 'ideal'">
+                    <p class="text-sm text-slate-700 leading-relaxed">
+                      Đang chưa đạt BCS 4-5 lý tưởng. AI tiếp tục đề xuất công thức điều chỉnh để chạm mốc chuẩn.
+                    </p>
+                  </template>
+                </div>
+                <!-- v47: Mục tiêu ĐỔI — show current Poop Score progress -->
+                <div class="rounded-2xl p-4 border-l-4 border-amber-500 bg-amber-50/40">
+                  <p class="text-xs font-bold text-amber-800 uppercase tracking-widest mb-1">📅 Mục tiêu ĐỔI</p>
+                  <p class="text-sm text-amber-900 leading-relaxed">
+                    Nhắc <strong>Poop Score</strong> hằng tuần để AI tinh chỉnh % Fat.
+                    <span x-show="poopScore > 0" class="font-bold ml-1" x-text="'Tuần này: ' + poopScore + '/5 (' + poopScoreLabel.text + ')'"></span>
+                    <span x-show="poopScore === 0" class="text-amber-700 italic ml-1">Chưa có điểm tuần này — cập nhật ở sidebar.</span>
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <!-- MÔ-ĐUN 3: THREE-TIERED RECOMMENDATION -->
+            <div class="space-y-3">
+              <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500 px-1">Đơn thuốc số · Mô-đun 3 · 3 tầng đề xuất</p>
+
+              <!-- Tier 1: MonMin recommended cart -->
+              <section class="rounded-3xl p-6 border-2" style="border-color: #1A1814; background: #F3EFE7;">
+                <p class="text-[10px] uppercase tracking-widest font-bold mb-1">✨ Tầng 1 · Gợi ý phối trộn</p>
+                <h3 class="font-display italic text-lg font-semibold mb-3 leading-tight" style="color: #1A1814;">Combo 30 ngày — đơn thuốc số</h3>
+                <ul class="space-y-2 mb-4 font-mono text-sm" style="color: #1A1814;">
+                  <li class="flex justify-between"><span>1× Hạt MonMin Light 1.5kg</span><span class="font-bold tabular-nums">~ 450,000đ</span></li>
+                  <li class="flex justify-between"><span>15× Pate MonMin (lon 85g)</span><span class="font-bold tabular-nums">~ 450,000đ</span></li>
+                  <li class="flex justify-between pt-2 border-t" style="border-color: rgba(26,24,20,0.2);"><strong>Tổng cộng</strong><strong class="tabular-nums">~ 900,000đ</strong></li>
+                </ul>
+                <a href="https://zalo.me/1136810892220003266" target="_blank" rel="noopener"
+                   class="w-full block text-center text-white font-bold px-4 py-3 rounded-xl transition hover:opacity-85"
+                   style="background: #1A1814;">
+                  💬 Tư vấn đặt hàng qua Zalo
+                </a>
+              </section>
+
+              <!-- Tier 2: Market search -->
+              <section class="rounded-3xl p-5 border border-slate-200 bg-white">
+                <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">🔍 Tầng 2 · Tìm trên thị trường</p>
+                <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Từ khoá AI gợi ý</h3>
+                <p class="text-sm text-slate-700 mb-3 leading-relaxed">Sao chép từ khoá dưới đây, dán vào Shopee / Lazada / TikTok Shop để tìm hạt ngoại đặc trị nếu MonMin chưa phân phối dòng bệnh lý này:</p>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3 font-mono text-xs text-slate-700 break-words leading-relaxed" x-text="marketSearchKeywords"></div>
+                <button type="button" @click="copyToClipboard(marketSearchKeywords)"
+                        class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm px-4 py-2.5 rounded-xl transition">
+                  📋 Sao chép từ khoá
+                </button>
+              </section>
+
+              <!-- Tier 3: Smart Label Scanner -->
+              <section class="rounded-3xl p-5 border border-slate-200 bg-white">
+                <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">🏠 Tầng 3 · Cấu hình hạt tại nhà</p>
+                <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Smart Label Scanner</h3>
+                <p class="text-sm text-slate-700 mb-3 leading-relaxed">Đã có hạt sẵn ở nhà? Nhập kcal/100g đọc trên bao bì để AI tính lại khẩu phần riêng cho bé mà không ép đổi hạt.</p>
+                <template x-if="!homeScanMode">
+                  <button type="button" @click="homeScanMode = true"
+                          class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm px-4 py-2.5 rounded-xl transition">
+                    🔬 Bật Smart Label Scanner
+                  </button>
+                </template>
+                <template x-if="homeScanMode">
+                  <div class="space-y-3">
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Kcal / 100g (đọc trên bao bì)</span>
+                      <input type="number" x-model.number="homeKcal" min="200" max="600" placeholder="vd: 380"
+                             class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-300 font-mono tabular-nums" />
+                    </label>
+                    <!-- v46: Ingredient text input + real-time allergen scan -->
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Bảng thành phần (Ingredients)</span>
+                      <textarea x-model="homeIngredients" rows="3" placeholder="Paste hoặc gõ tay: VD: Gà, gạo lứt, dầu cá hồi, men bia..."
+                                class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-300 text-sm leading-relaxed"></textarea>
+                    </label>
+                    <template x-if="homeIngredientAlerts.length > 0">
+                      <div class="rounded-xl border border-red-200 bg-red-50 p-3">
+                        <p class="text-[11px] font-bold text-red-800 uppercase tracking-wider mb-1.5">🚨 Cảnh báo allergen</p>
+                        <ul class="text-xs text-red-700 space-y-0.5">
+                          <template x-for="alert in homeIngredientAlerts" :key="alert">
+                            <li>• <span x-text="alert"></span></li>
+                          </template>
+                        </ul>
+                      </div>
+                    </template>
+                    <template x-if="homeIngredients.length > 10 && homeIngredientAlerts.length === 0">
+                      <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                        <p class="text-[11px] font-medium text-emerald-800">✅ Không phát hiện allergen trong profile của bé.</p>
+                      </div>
+                    </template>
+                    <template x-if="homeKcal > 0">
+                      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                        <p class="text-xs font-bold text-emerald-800 uppercase tracking-widest">Khẩu phần tính lại</p>
+                        <p class="font-mono tabular-nums text-xl font-bold text-emerald-900 mt-1">
+                          <span x-text="Math.round((der/homeKcal)*100)"></span>g/ngày
+                        </p>
+                      </div>
+                    </template>
+                    <button type="button" @click="homeScanMode = false; homeKcal = 0; homeIngredients = ''"
+                            class="w-full text-xs text-slate-500 hover:text-slate-700 underline transition">
+                      Tắt scanner
+                    </button>
+                  </div>
+                </template>
+              </section>
+            </div>
+          </div>
+
+          <!-- Grid header (v36: dual experience — duyệt thêm brands khác) -->
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm text-slate-600">
+              Hoặc duyệt <span class="font-bold text-mmp-ink tabular-nums" x-text="filtered.length"></span> công thức dinh dưỡng phù hợp khác
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <template x-for="(b, idx) in filtered" :key="b.brand_id">
+              <div class="relative">
+
+                <!-- Gold ambient ring (only for Mon Min recommended) -->
+                <template x-if="b.mon_min_recommended">
+                  <div class="absolute -inset-1.5 rounded-3xl pointer-events-none opacity-30 blur-xl"
+                       style="background: radial-gradient(circle, var(--c-gold) 0%, transparent 70%); z-index: 0;"></div>
+                </template>
+
+                <!-- Main card -->
+                <article class="relative bg-white rounded-2xl border overflow-hidden flex flex-col h-full transition"
+                         :class="isMismatch(b)
+                           ? 'border-rose-200 bg-rose-50/10'
+                           : (b.mon_min_recommended ? 'border-amber-200/60 shadow-sm' : 'border-slate-100 hover:shadow-md')">
+
+                  <!-- Image header -->
+                  <div class="aspect-[3/2] bg-mmp-cream flex items-center justify-center relative">
+                    <span class="text-5xl" x-text="b.species === 'cat' ? '🐱' : '🐶'"></span>
+                    <template x-if="b.mon_min_recommended">
+                      <span class="absolute top-2 left-2 bg-mmp-gold/15 backdrop-blur-sm text-mmp-ink text-[10px] font-bold px-2.5 py-1 rounded-full ring-1 ring-mmp-gold/40 inline-flex items-center gap-1">
+                        <span>✨</span><span>MON MIN</span>
+                      </span>
+                    </template>
+                  </div>
+
+                  <!-- Body -->
+                  <div class="p-5 sm:p-6 flex-1 flex flex-col gap-3">
+
+                    <!-- Brand identity -->
+                    <div>
+                      <h3 class="font-display italic text-lg font-semibold text-mmp-ink leading-tight" x-text="b.brand_name"></h3>
+                      <p class="text-xs text-slate-500 mt-0.5" x-text="b.product_line"></p>
+                      <div class="flex gap-1 mt-2 flex-wrap">
+                        <span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full" x-text="speciesLabel(b.species)"></span>
+                        <span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full" x-text="lifeStageLabel(b.life_stage)"></span>
+                        <!-- v45: Trust badges — graceful render khi API trả field -->
+                        <template x-if="b.is_verified">
+                          <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200" title="Đã thẩm định bởi BS Mon Min">
+                            ✓ Verified
+                          </span>
+                        </template>
+                        <template x-if="b.origin_certificate">
+                          <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200"
+                                :title="'Chứng chỉ xuất xứ: ' + b.origin_certificate"
+                                x-text="'📜 ' + b.origin_certificate"></span>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Mismatch banner (Serif italic, soft Crimson) -->
+                    <template x-if="isMismatch(b)">
+                      <p class="font-display italic text-[13px] text-rose-700 leading-snug inline-flex items-start gap-1.5" style="min-height: 2.4rem;">
+                        <span class="shrink-0 mt-0.5">🚨</span>
+                        <span><strong class="font-bold not-italic">Mismatch:</strong> <span x-text="mismatchReason(b)"></span></span>
+                      </p>
+                    </template>
+
+                    <!-- v36: Ingredient Guard — strike-through cho thành phần allergic của bé -->
+                    <template x-if="(b.contains_allergens || []).length > 0 && b.contains_allergens.some(a => profile.allergens.includes(a))">
+                      <div class="text-[10px] flex flex-wrap gap-1">
+                        <template x-for="a in b.contains_allergens" :key="a">
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border"
+                                :class="profile.allergens.includes(a) ? 'bg-red-50 text-red-700 border-red-300 font-bold line-through decoration-2 decoration-red-600' : 'bg-slate-50 text-slate-500 border-slate-200'"
+                                x-text="(profile.allergens.includes(a) ? '⚠️ ' : '') + allergenLabel(a)"></span>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Gold subdivider -->
+                    <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest" style="color: var(--c-gold);">
+                      <span class="h-px flex-1" style="background: linear-gradient(90deg, transparent, rgba(236,185,33,0.4), transparent);"></span>
+                      <span x-text="profile.petName ? 'Cho bé ' + profile.petName : 'Cho bé của bạn'"></span>
+                      <span class="h-px flex-1" style="background: linear-gradient(90deg, transparent, rgba(236,185,33,0.4), transparent);"></span>
+                    </div>
+
+                    <!-- Outcome row: Khẩu phần + Chi phí (combined) -->
+                    <div style="min-height: 3rem;">
+                      <p class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Khẩu phần ngày</p>
+                      <p class="text-mmp-ink leading-tight">
+                        <span class="font-bold text-xl tabular-nums" x-text="gramsPerDay(b) != null ? gramsPerDay(b) + 'g' : '—'"></span>
+                        <template x-if="costPerDay(b) != null">
+                          <span class="text-sm text-slate-500 ml-1">· <span class="tabular-nums font-semibold text-slate-700" x-text="formatVnd(costPerDay(b))"></span> đ/ngày</span>
+                        </template>
+                      </p>
+                    </div>
+
+                    <!-- Compatibility bar + tagline -->
+                    <div style="min-height: 3.5rem;">
+                      <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                        <span>Độ tương thích</span>
+                        <span class="tabular-nums"
+                              :class="compatTone(b) === 'emerald' ? 'text-emerald-700' : compatTone(b) === 'amber' ? 'text-amber-700' : 'text-rose-700'">
+                          <span x-text="compatScore(b)"></span>%
+                        </span>
+                      </div>
+                      <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-700"
+                             :class="compatTone(b) === 'emerald' ? 'bg-emerald-500' : compatTone(b) === 'amber' ? 'bg-amber-400' : 'bg-rose-300'"
+                             :style="`width: ${compatScore(b)}%;`"></div>
+                      </div>
+                      <p class="text-xs text-slate-600 italic mt-1.5" x-text="compatTagline(b)"></p>
+                    </div>
+
+                    <!-- Footer: price + disclosure -->
+                    <div class="mt-auto pt-3 border-t border-slate-100">
+                      <div class="flex items-center justify-between text-sm">
+                        <span class="text-slate-500">Giá</span>
+                        <span class="font-semibold text-slate-700 tabular-nums" x-text="b.price_vnd_per_kg ? formatVnd(b.price_vnd_per_kg) + ' /kg' : 'Liên hệ'"></span>
+                      </div>
+
+                      <!-- Disclosure chevron — raw specs -->
+                      <button type="button"
+                              @click="toggleRawSpecs(idx)"
+                              class="w-full inline-flex items-center justify-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 font-medium transition py-1.5 mt-1">
+                        <svg class="w-3 h-3 transition-transform duration-200"
+                             :class="expandedRawIdx === idx ? 'rotate-180' : ''"
+                             viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Xem thông số kỹ thuật thô</span>
+                      </button>
+
+                      <div x-show="expandedRawIdx === idx"
+                           x-cloak
+                           x-transition:enter="transition ease-out duration-200"
+                           x-transition:enter-start="opacity-0 -translate-y-1"
+                           x-transition:enter-end="opacity-100 translate-y-0"
+                           class="grid grid-cols-3 gap-1.5 text-[10px] pt-2"
+                           style="display: none;">
+                        <div class="bg-mmp-cream text-mmp-ink px-2 py-1.5 rounded-lg text-center">
+                          <span class="block font-bold tabular-nums" x-text="b.protein_pct + '%'"></span>
+                          <span class="block text-slate-500 mt-0.5">Đạm</span>
+                        </div>
+                        <div class="bg-amber-50 text-amber-800 px-2 py-1.5 rounded-lg text-center">
+                          <span class="block font-bold tabular-nums" x-text="b.fat_pct + '%'"></span>
+                          <span class="block text-amber-600 mt-0.5">Béo</span>
+                        </div>
+                        <div class="bg-emerald-50 text-emerald-800 px-2 py-1.5 rounded-lg text-center">
+                          <span class="block font-bold tabular-nums" x-text="b.calories_per_100g"></span>
+                          <span class="block text-emerald-600 mt-0.5">kcal/100g</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <!-- Conversion CTA — sibling (only when mismatch + non-MonMin) -->
+                <template x-if="shouldShowSwapCta(b)">
+                  <a :href="monMinSwapUrl(b)"
+                     target="_blank"
+                     rel="noopener"
+                     class="mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-mmp-ink/5 hover:bg-mmp-ink text-mmp-ink hover:text-mmp-gold text-xs font-semibold transition group">
+                    <span>Đổi sang giải pháp MonMin tương thích</span>
+                    <span class="transition-transform group-hover:translate-x-0.5">➔</span>
+                  </a>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <!-- Empty state (v46: + Tìm bằng AI external search) -->
+          <template x-if="filtered.length === 0">
+            <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center mt-4">
+              <p class="text-5xl mb-3">🔍</p>
+              <p class="text-slate-700 font-medium mb-1">Không có brand nào khớp filter</p>
+              <p class="text-sm text-slate-500 mb-4">Thử bỏ bớt điều kiện, reset filter, hoặc để AI tìm online giúp bạn.</p>
+              <div class="flex flex-col sm:flex-row gap-2 justify-center">
+                <button @click="resetFilters()" class="text-sm bg-mmp-ink hover:bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg transition">
+                  Reset filter
+                </button>
+                <!-- v46: AI search → open Google search với marketSearchKeywords prefilled + site: ưu tiên monminpet.com -->
+                <a :href="'https://www.google.com/search?q=' + encodeURIComponent('site:monminpet.com OR site:shopee.vn OR site:lazada.vn ' + marketSearchKeywords)"
+                   target="_blank" rel="noopener"
+                   class="text-sm bg-mmp-cream hover:bg-amber-50 border border-amber-200 text-mmp-ink font-semibold px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-1.5">
+                  🤖 Tìm bằng AI (ưu tiên MonMin)
+                </a>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-3">AI dùng từ khoá y khoa từ profile của bé · Mở Google trong tab mới</p>
+            </div>
+          </template>
+        </section>
+      </div>
+    </div>
+
+    <!-- Footer CTA — ink banner with gold spotlight + gold button -->
+    <section class="relative bg-mmp-ink py-12 px-4 sm:px-6 overflow-hidden">
+      <span aria-hidden="true"
+            class="absolute -top-24 -right-24 w-72 h-72 rounded-full opacity-20 pointer-events-none"
+            style="background: radial-gradient(circle, #ecb921 0%, transparent 70%);"></span>
+      <div class="relative max-w-3xl mx-auto text-center text-white">
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest mb-3" style="color: var(--c-gold);">
+          <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--c-gold);"></span>
+          Cá nhân hoá miễn phí
+        </span>
+        <h2 class="font-display italic text-2xl sm:text-3xl font-semibold mb-3">Bạn cần meal plan riêng cho bé?</h2>
+        {userPets.length > 0 ? (
+          <>
+            <p class="text-white/75 mb-6">Đã có hồ sơ bé. Vào Care Plan để AI tự động tính khẩu phần riêng cho bé yêu.</p>
+            <a href={`/pets/${userPets[0].id}/care-plan`}
+               class="inline-block bg-[#ecb921] hover:bg-[#d4a417] text-mmp-ink font-semibold px-6 py-3 rounded-xl shadow-lg transition">
+              Thiết lập Meal Plan ngay ➔
+            </a>
+          </>
+        ) : (
+          <>
+            <p class="text-white/75 mb-6">Tạo tài khoản VowVet — AI tính calo, gợi ý brand phù hợp với pet, cảnh báo dị ứng.</p>
+            <a href="/login"
+               class="inline-block bg-[#ecb921] hover:bg-[#d4a417] text-mmp-ink font-semibold px-6 py-3 rounded-xl shadow-lg transition">
+              Bắt đầu miễn phí →
+            </a>
+          </>
+        )}
+      </div>
+    </section>
+
+    <footer class="bg-white border-t border-slate-100 py-6 px-4 sm:px-6 text-center text-xs text-slate-500">
+      <p>VowVet © 2026 — <a href="/" class="hover:text-mmp-ink">Trang chủ</a> · <a href="/health" class="hover:text-mmp-ink">Trạng thái</a> · <span class="text-slate-400">Powered by Mon Min Pet</span></p>
+    </footer>
+    </div><!-- /v44 x-data wrapper -->
+  </main>
+
+  <script is:inline>
+    function brandsCatalog(initialBrands, initialUserPets, initialBcsScore) {
+      return {
+        brands: initialBrands,
+        userPets: initialUserPets || [],
+
+        // === User profile (v36: bcs · v40: petImage · v45: environmentals dark-yellow tier) ===
+        profile: {
+          selectedPetId: null,
+          petName: "",
+          petImage: "",
+          species: "dog",
+          bcs: 5,
+          weight: 5,
+          breed: "",
+          allergens: [],
+          sensitivities: [],
+          environmentals: [],   // v45: dark yellow tier — yếu tố môi trường sống
+          origin_certificate_url: "",   // v47: ảnh giấy tờ uploaded (URL R2)
+          is_verified: false,           // v47: BS thẩm định hồ sơ pet
+        },
+
+        expandedRawIdx: null,
+
+        filters: {
+          lifeStage: "",
+          excludeAllergens: [],
+          monMin: false,
+          maxPrice: 1000000,
+          breed: "",
+        },
+
+        allergenList: [
+          { code: "chicken", label: "Gà" },
+          { code: "beef", label: "Bò" },
+          { code: "fish", label: "Cá" },
+          { code: "dairy", label: "Sữa" },
+          { code: "egg", label: "Trứng" },
+          { code: "grain", label: "Ngũ cốc" },
+          { code: "soy", label: "Đậu nành" },
+          { code: "shellfish", label: "Hải sản" },
+          { code: "peanut", label: "Đậu phộng" },
+        ],
+
+        // v36: 29-breed knowledge base with risks (FEDIAF + VN endemic breeds)
+        BREED_OPTIONS: {
+          cat: [
+            { code: "ALN",       name: "Mèo Anh lông ngắn",                 min: 3.5, max: 5.5, risks: ["Béo phì", "Sỏi thận Struvite"] },
+            { code: "ALD",       name: "Mèo Anh lông dài",                  min: 4.0, max: 6.0, risks: ["Búi lông Hairball"] },
+            { code: "TaiCup",    name: "Mèo Tai cụp (Scottish Fold)",       min: 3.0, max: 5.0, risks: ["Đột biến sụn Osteochondrodysplasia"] },
+            { code: "Munchkin",  name: "Mèo Chân ngắn (Munchkin)",          min: 2.5, max: 4.0, risks: ["Bệnh cột sống, Lordosis"] },
+            { code: "Ragdoll",   name: "Mèo Ragdoll",                       min: 4.5, max: 9.0, risks: ["Cơ tim phì đại HCM"] },
+            { code: "Persian",   name: "Mèo Ba Tư",                         min: 3.5, max: 6.5, risks: ["Thận đa nang PKD"] },
+            { code: "Sphynx",    name: "Mèo Sphynx (Không lông)",           min: 3.0, max: 5.0, risks: ["Viêm dầu da, mất nhiệt"] },
+            { code: "MaineCoon", name: "Mèo Maine Coon",                    min: 6.0, max: 11.0, risks: ["Build cơ kéo dài đến 3 năm"] },
+            { code: "Bengal",    name: "Mèo Bengal",                        min: 4.0, max: 7.0, risks: ["Dị ứng tinh bột nặng"] },
+            { code: "MeoTa",     name: "Mèo Ta (Domestic Shorthair)",       min: 3.0, max: 5.0, risks: ["Lười uống nước"] },
+            { code: "khac",      name: "Khác / Chưa rõ",                    min: null, max: null, risks: [] },
+          ],
+          dog: [
+            { code: "PhuQuoc",       name: "Chó Phú Quốc",                       min: 12.0, max: 20.0, risks: ["Bệnh về da, xoáy lưng"] },
+            { code: "HMong",         name: "Chó H'Mông Cộc Đuôi",                min: 15.0, max: 25.0, risks: ["Cơ địa tích lũy năng lượng"] },
+            { code: "BacHa",         name: "Chó Bắc Hà",                         min: 16.0, max: 26.0, risks: ["Bộ lông dày, stress nhiệt"] },
+            { code: "Lai",           name: "Chó Lài (Dingo Đông Dương)",         min: 14.0, max: 23.0, risks: ["Hệ tiêu hóa nguyên bản"] },
+            { code: "Poodle",        name: "Chó Poodle (Toy/Tiny)",              min: 3.0,  max: 6.0,  risks: ["Kén ăn hành vi, xương khớp yếu"] },
+            { code: "Pomeranian",    name: "Chó Phốc Sóc (Pomeranian)",          min: 1.5,  max: 3.0,  risks: ["Hạ bàn, rụng lông X-Alopecia"] },
+            { code: "Chihuahua",     name: "Chó Chihuahua",                      min: 1.0,  max: 3.0,  risks: ["Hạ đường huyết, kén ăn"] },
+            { code: "Pug",           name: "Chó Pug",                            min: 6.0,  max: 8.0,  risks: ["Hội chứng mặt ngắn Brachycephalic, béo phì"] },
+            { code: "FrenchBulldog", name: "Chó French Bulldog",                 min: 8.0,  max: 13.0, risks: ["Dị ứng đạm, sỏi bàng quang"] },
+            { code: "Corgi",         name: "Chó Corgi",                          min: 10.0, max: 14.0, risks: ["Thoái hóa đĩa đệm IVDD, béo phì"] },
+            { code: "Golden",        name: "Chó Golden Retriever",               min: 25.0, max: 34.0, risks: ["Ung thư di truyền, hạ bàn"] },
+            { code: "Labrador",      name: "Chó Labrador Retriever",             min: 25.0, max: 32.0, risks: ["Cuồng ăn, đứt dây chằng chéo"] },
+            { code: "Samoyed",       name: "Chó Samoyed",                        min: 16.0, max: 30.0, risks: ["Viêm da tuyến bã nhờn, rụng lông"] },
+            { code: "Husky",         name: "Chó Husky",                          min: 16.0, max: 27.0, risks: ["Stress nhiệt đô thị"] },
+            { code: "Alaskan",       name: "Chó Alaskan Malamute",               min: 32.0, max: 43.0, risks: ["Loạn sản xương hông Hip Dysplasia"] },
+            { code: "Shiba",         name: "Chó Shiba Inu",                      min: 8.0,  max: 11.0, risks: ["Bệnh tăng nhãn áp, tăng động"] },
+            { code: "BecGie",        name: "Chó Béc-giê Đức (German Shepherd)",  min: 22.0, max: 40.0, risks: ["Hạ bàn, tiêu hóa nhạy cảm"] },
+            { code: "Rottweiler",    name: "Chó Rottweiler",                     min: 35.0, max: 50.0, risks: ["Hội chứng xoắn dạ dày chướng hơi GDV"] },
+            { code: "Bully",         name: "Chó American Bully",                 min: 30.0, max: 50.0, risks: ["Viêm da nếp gấp, hạ bàn khớp"] },
+            { code: "khac",          name: "Khác / Chưa rõ",                     min: null, max: null, risks: [] },
+          ],
+        },
+
+        // v36: BCS 9-level matrix
+        BCS_MATRIX: [
+          { score: 1, tier: "under-critical", label: "BCS 1 · Rất gầy",            description: "Lộ rõ xương sườn, sống lưng, xương chậu từ xa. Cơ teo nghiêm trọng, da bọc xương." },
+          { score: 2, tier: "under",          label: "BCS 2 · Gầy",                 description: "Xương sườn thấy rõ, eo thắt sâu hình chữ V nhọn, mỡ đệm mỏng dính." },
+          { score: 3, tier: "under",          label: "BCS 3 · Hơi gầy",             description: "Sườn hơi lộ bóng khi thở, bụng hóp cao, vuốt nhẹ thấy rõ cọng sườn." },
+          { score: 4, tier: "ideal",          label: "BCS 4 · Cân đối nhẹ",         description: "Eo thắt gọn gàng từ trên xuống, lớp mỡ mỏng lý tưởng bao phủ." },
+          { score: 5, tier: "ideal",          label: "BCS 5 · Lý tưởng tuyệt đối",  description: "Phom dáng đồng hồ cát, bụng hóp nghiêng mượt mà về háng. (Mèo có túi mỡ bụng Primordial Pouch lỏng thòng nhẹ nhưng không căng mỡ)." },
+          { score: 6, tier: "over",           label: "BCS 6 · Thừa cân nhẹ",        description: "Eo bị bốc hơi thẳng đuột, bụng ít hóp, ấn nhẹ mới thấy sườn." },
+          { score: 7, tier: "over",           label: "BCS 7 · Thừa cân nặng",       description: "Hông nở nhẹ, bụng xệ song song mặt đất. Mèo có túi mỡ bụng căng phồng lắc lư khi đi." },
+          { score: 8, tier: "obese",          label: "BCS 8 · Béo phì",             description: "Thân hình phình to, mỡ tích tụ dày ở gốc đuôi, sống lưng và nọng cổ. Ấn sâu không thấy sườn." },
+          { score: 9, tier: "obese-critical", label: "BCS 9 · Béo phì nguy kịch",   description: "Thân hình trụ tròn như quả bóng di động, bụng xệ sát đất, đi lại nặng nề, khó thở." },
+        ],
+
+        // v36: Allergen risk matrix (3 tiers: red/orange/yellow)
+        ALLERGEN_MATRIX: {
+          red: [
+            { code: "ALLERGEN_CHICKEN", emoji: "🚨", label: "Dị ứng Thịt gà",          brandKey: "chicken" },
+            { code: "ALLERGEN_BEEF",    emoji: "🚨", label: "Dị ứng Thịt bò",          brandKey: "beef" },
+            { code: "ALLERGEN_DAIRY",   emoji: "🚨", label: "Bất dung nạp Sữa/Lactose", brandKey: "dairy" },
+            { code: "ALLERGEN_FISH",    emoji: "🚨", label: "Dị ứng Đạm cá",           brandKey: "fish" },
+          ],
+          orange: [
+            { code: "SENSITIVITY_FAT",   emoji: "⚠️", label: "Nhạy cảm béo cao",        trigger: "high_fat" },
+            { code: "SENSITIVITY_GRAIN", emoji: "⚠️", label: "Kém hấp thu ngũ cốc",     trigger: "grain" },
+          ],
+          // v45: Dark Yellow tier — yếu tố môi trường sống (user toggle thủ công)
+          darkYellow: [
+            { code: "ENV_URBAN_POLLUTION", emoji: "🌫️", label: "Ô nhiễm đô thị (PM2.5)" },
+            { code: "ENV_HUMIDITY",        emoji: "💧", label: "Khí hậu ẩm nóng VN" },
+            { code: "ENV_APARTMENT",       emoji: "🏢", label: "Sống chung cư kín" },
+            { code: "ENV_DUST_MITES",      emoji: "🦠", label: "Mạt bụi / Dander" },
+          ],
+        },
+
+        // v36: NLP + UI state
+        freeText: "",
+        nlpSuggestions: [],
+        odorFilterActive: false,
+
+        // v36: Prescription Card state
+        fedToday: false,
+        dietStartDate: null,
+        homeScanMode: false,
+        homeKcal: 0,
+        homeIngredients: "",    // v46: free-text ingredients for OCR allergen check
+        poopScore: 0,           // v46: weekly stool quality 1-5 (0 = chưa đánh giá)
+        DRY_FOOD_AVG_KCAL: 360,
+        WET_FOOD_AVG_KCAL: 85,
+
+        init() {
+          if (this.userPets.length > 0) {
+            this.selectPet(this.userPets[0].id);
+            // v39: initialBcsScore (từ BCS history API) chỉ áp dụng khi pet record không có bcs_score riêng
+            const pet0 = this.userPets[0];
+            const hasOwnBcs = Number(pet0?.bcs_score) > 0;
+            if (!hasOwnBcs && initialBcsScore != null) {
+              this.profile.bcs = Math.max(1, Math.min(9, Number(initialBcsScore)));
+            }
+          }
+          this.$watch("profile.species", () => {
+            if (!this.isProfileLocked) this.filters.breed = "";
+          });
+          this.$watch("profile.selectedPetId", () => {
+            this.loadDietTimeline();
+          });
+          this.$watch("profile.bcs", (val) => {
+            const bcs = Number(val);
+            if (bcs >= 8) {
+              if (!this.profile.sensitivities.includes("SENSITIVITY_FAT")) {
+                this.profile.sensitivities.push("SENSITIVITY_FAT");
+              }
+            } else {
+              this.profile.sensitivities = this.profile.sensitivities.filter(s => s !== "SENSITIVITY_FAT");
+            }
+          });
+          this.loadDietTimeline();
+        },
+
+        selectPet(petId) {
+          const id = Number(petId);
+          if (!id) {
+            this.profile.selectedPetId = null;
+            this.profile.petName = "";
+            this.profile.petImage = "";    // v40: reset avatar khi vào manual mode
+            this.profile.breed = "";
+            this.filters.breed = "";
+            return;
+          }
+          const p = this.userPets.find((x) => Number(x.id) === id);
+          if (!p) return;
+          // v39: STRICT pet sync — single source of truth từ pet record thật
+          const breedCode = this.mapBreedFromPet(p.breed || p.breed_raw);
+
+          // v41: Pet Name resolver — check-list ưu tiên qua nhiều schema khả thi (trim + type-check để không nhả "bé" khi field tồn tại nhưng là " " hoặc null)
+          const pickName = (...candidates) => {
+            for (const c of candidates) {
+              if (typeof c === "string" && c.trim()) return c.trim();
+            }
+            return "bé";
+          };
+          // v41: Pet Avatar resolver — tương tự, ưu tiên photo_url theo /users/me schema thực
+          const pickImage = (...candidates) => {
+            for (const c of candidates) {
+              if (typeof c === "string" && c.trim()) return c.trim();
+            }
+            return "";
+          };
+
+          this.profile.selectedPetId = p.id;
+          this.profile.petName  = pickName(p.name, p.pet_name, p.nickname, p.display_name);
+          this.profile.petImage = pickImage(p.photo_url, p.avatar_url, p.image);
+          // v47: Origin certificate + verification status
+          this.profile.origin_certificate_url = (typeof p.origin_certificate_url === "string" ? p.origin_certificate_url : "") || "";
+          this.profile.is_verified = Boolean(p.is_verified);
+          this.profile.species = (typeof p.species === "object" ? p.species?.value : p.species) || "dog";
+          this.profile.weight  = Number(p.weight_kg ?? p.weight) || 5;
+          this.profile.breed   = breedCode;                   // v39: mapped code (đồng bộ với filters.breed + breedSticker)
+          this.filters.breed   = breedCode;
+          this.profile.bcs     = Number(p.bcs_score) || this.profile.bcs || 5;   // v39: pet.bcs_score là primary
+          // v49: full profile sync — các field mới từ /auth/me (backend v49 extended)
+          this.poopScore = Number(p.poop_score) || 0;
+          this.profile.allergens = Array.isArray(p.allergens) ? p.allergens
+                                  : Array.isArray(p.allergies_diet) ? p.allergies_diet
+                                  : [];
+          this.profile.sensitivities = Array.isArray(p.sensitivities) ? p.sensitivities : [];
+          this.profile.environmentals = Array.isArray(p.environmentals) ? p.environmentals : [];
+          // v49: Sync excludeAllergens filter với profile.allergens (Tier 1 Red ↔ brand filter)
+          for (const a of this.profile.allergens) {
+            if (!this.filters.excludeAllergens.includes(a)) this.filters.excludeAllergens.push(a);
+          }
+        },
+
+        get isProfileLocked() {
+          return this.profile.selectedPetId !== null;
+        },
+
+        // v49: Push current profile state về backend qua PATCH /api/v1/pets/:id
+        // Dùng từ Profile page (shared utility); food-brands hiện tại read-only nên ít gọi
+        async saveProfile() {
+          if (!this.profile.selectedPetId) {
+            console.warn('[saveProfile] no pet selected — skip');
+            return { ok: false, error: 'NO_PET' };
+          }
+          try {
+            const res = await fetch(`/api/v1/pets/${this.profile.selectedPetId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({
+                name: this.profile.petName,
+                breed: this.profile.breed,
+                weight_kg: this.profile.weight,
+                bcs_score: this.profile.bcs,
+                poop_score: this.poopScore,
+                allergens: this.profile.allergens,
+                sensitivities: this.profile.sensitivities,
+                environmentals: this.profile.environmentals,
+              }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              console.error('[saveProfile] failed:', res.status, err);
+              return { ok: false, status: res.status, error: err };
+            }
+            return { ok: true };
+          } catch (err) {
+            console.error('[saveProfile] network error:', err);
+            return { ok: false, error: 'NETWORK' };
+          }
+        },
+
+        get currentBreedOptions() {
+          return this.BREED_OPTIONS[this.profile.species] || [];
+        },
+
+        // v36: Current BCS entry from matrix
+        get currentBcs() {
+          const bcs = Number(this.profile.bcs) || 5;
+          return this.BCS_MATRIX.find((b) => b.score === bcs) || this.BCS_MATRIX[4];
+        },
+
+        // v36: Map raw DB breed string → 29-breed knowledge-base code
+        mapBreedFromPet(breedRaw) {
+          const s = String(breedRaw || "").toLowerCase();
+          if (!s) return "";
+          if (s.includes("anh lông ngắn") || s.includes("british shorthair")) return "ALN";
+          if (s.includes("anh lông dài") || s.includes("british longhair"))  return "ALD";
+          if (s.includes("tai cụp") || s.includes("scottish fold"))           return "TaiCup";
+          if (s.includes("munchkin") || s.includes("chân ngắn"))              return "Munchkin";
+          if (s.includes("ragdoll"))                                          return "Ragdoll";
+          if (s.includes("ba tư") || s.includes("persian"))                   return "Persian";
+          if (s.includes("sphynx"))                                           return "Sphynx";
+          if (s.includes("maine coon") || s.includes("mainecoon"))            return "MaineCoon";
+          if (s.includes("bengal"))                                           return "Bengal";
+          if (s.includes("mèo ta") || s.includes("domestic shorthair"))       return "MeoTa";
+          if (s.includes("phú quốc") || s.includes("phu quoc"))               return "PhuQuoc";
+          if (s.includes("h'mông") || s.includes("hmong"))                    return "HMong";
+          if (s.includes("bắc hà") || s.includes("bac ha"))                   return "BacHa";
+          if (s.includes("lài") || s.includes("dingo"))                       return "Lai";
+          if (s.includes("poodle"))                                           return "Poodle";
+          if (s.includes("pomeranian") || s.includes("phốc sóc"))             return "Pomeranian";
+          if (s.includes("chihuahua"))                                        return "Chihuahua";
+          if (s.includes("french bulldog") || s.includes("frenchie"))         return "FrenchBulldog";
+          if (s.includes("pug"))                                              return "Pug";
+          if (s.includes("corgi"))                                            return "Corgi";
+          if (s.includes("golden"))                                           return "Golden";
+          if (s.includes("labrador"))                                         return "Labrador";
+          if (s.includes("samoyed"))                                          return "Samoyed";
+          if (s.includes("husky"))                                            return "Husky";
+          if (s.includes("alaskan") || s.includes("malamute"))                return "Alaskan";
+          if (s.includes("shiba"))                                            return "Shiba";
+          if (s.includes("german shepherd") || s.includes("béc-giê") || s.includes("becgie")) return "BecGie";
+          if (s.includes("rottweiler"))                                       return "Rottweiler";
+          if (s.includes("bully") || s.includes("american bully"))            return "Bully";
+          return "khac";
+        },
+
+        get breedWeightHint() {
+          if (!this.filters.breed || this.filters.breed === "khac") return "";
+          const opt = this.currentBreedOptions.find((b) => b.code === this.filters.breed);
+          if (!opt || opt.min == null) return "";
+          return `💡 Chuẩn giống ${opt.name}: ${opt.min}kg – ${opt.max}kg`;
+        },
+
+        btnClass(active, locked) {
+          if (locked) {
+            return active ? 'bg-mmp-ink/60 text-white cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed';
+          }
+          return active ? 'bg-mmp-ink text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100';
+        },
+
+        // === RER / DER (v36: 9-level BCS switch) ===
+        get rer() {
+          return Math.round(70 * Math.pow(Math.max(0.5, this.profile.weight), 0.75));
+        },
+        get der() {
+          const bcs = Number(this.profile.bcs) || 5;
+          let mult;
+          switch (bcs) {
+            case 1: mult = 1.8; break;
+            case 2: mult = 1.7; break;
+            case 3: mult = 1.5; break;
+            case 4: mult = 1.4; break;
+            case 5: mult = 1.4; break;
+            case 6: mult = 1.2; break;
+            case 7: mult = 1.0; break;
+            case 8: mult = 0.9; break;
+            case 9: mult = 0.8; break;
+            default: mult = 1.4; break;
+          }
+          return Math.round(this.rer * mult);
+        },
+        get derMultiplierLabel() {
+          const bcs = Number(this.profile.bcs) || 5;
+          const entry = this.BCS_MATRIX.find((b) => b.score === bcs);
+          const tierLabel = entry ? (entry.label.split(" · ")[1] || "Lý tưởng") : "Lý tưởng";
+          const m = (this.der / this.rer).toFixed(1);
+          return `RER ${this.rer} × ${m} (${tierLabel})`;
+        },
+
+        // === v38: BCS Visual Avatar ===
+        get bcsAvatar() {
+          const bcs = Number(this.profile.bcs) || 5;
+          const isCat = this.profile.species === "cat";
+          if (bcs <= 2) return {
+            emoji: isCat ? "😿" : "🦴",
+            bg: "bg-slate-100", ring: "ring-slate-300", anim: "",
+            warn: "🦴 Suy dinh dưỡng nghiêm trọng", warnColor: "text-slate-500",
+            shapeW: "26px", shapeH: "44px", shapeColor: "#94a3b8",
+          };
+          if (bcs <= 4) return {
+            emoji: isCat ? "🐱" : "🐶",
+            bg: "bg-slate-50", ring: "ring-slate-200", anim: "",
+            warn: "", warnColor: "",
+            shapeW: "30px", shapeH: "40px", shapeColor: "#94a3b8",
+          };
+          if (bcs === 5) return {
+            emoji: isCat ? "😸" : "🐶",
+            bg: "bg-emerald-50", ring: "ring-emerald-300", anim: "animate-pulse",
+            warn: "✨ Phom dáng lý tưởng — tiếp tục duy trì!", warnColor: "text-emerald-700",
+            shapeW: "36px", shapeH: "36px", shapeColor: "#22c55e",
+          };
+          if (bcs <= 7) return {
+            emoji: isCat ? "😾" : "🐕",
+            bg: "bg-orange-50", ring: "ring-orange-300", anim: "",
+            warn: "⚠️ Đang thừa cân — giảm khẩu phần béo", warnColor: "text-orange-700",
+            shapeW: "42px", shapeH: "36px", shapeColor: "#f97316",
+          };
+          return {
+            emoji: "🎈",
+            bg: "bg-red-50", ring: "ring-red-400", anim: "animate-bounce",
+            warn: "🚨 Béo phì nguy hiểm — đang áp chế độ low-fat", warnColor: "text-red-700",
+            shapeW: "48px", shapeH: "40px", shapeColor: "#ef4444",
+          };
+        },
+        get bcsAvatarShapeStyle() {
+          const av = this.bcsAvatar;
+          return `width:${av.shapeW};height:${av.shapeH};background:${av.shapeColor};border-radius:50%;opacity:0.18;transition:all 0.5s ease;`;
+        },
+
+        // === v40: Lookup tên giống từ BREED_OPTIONS (cat + dog code unique → gộp OK) ===
+        getBreedName(code) {
+          if (!code || code === "khac") return "";
+          const all = [...this.BREED_OPTIONS.cat, ...this.BREED_OPTIONS.dog];
+          const opt = all.find((b) => b.code === code);
+          return opt?.name || "";
+        },
+
+        // === v38: Breed sticker emoji map (29 breeds) ===
+        get breedSticker() {
+          const code = this.filters.breed;
+          if (!code || code === "khac") return "";
+          const map = {
+            ALN:"🐱", ALD:"🐈", TaiCup:"🐱", Munchkin:"🐈",
+            Ragdoll:"🐈‍⬛", Persian:"😸", Sphynx:"🫥", MaineCoon:"🦁",
+            Bengal:"🐆", MeoTa:"🐱",
+            PhuQuoc:"🐕", HMong:"🐕", BacHa:"🐺", Lai:"🐕",
+            Poodle:"🐩", Pomeranian:"🦊", Chihuahua:"🐕", Pug:"😤",
+            FrenchBulldog:"🐶", Corgi:"🐕", Golden:"🦮", Labrador:"🦮",
+            Samoyed:"🐻‍❄️", Husky:"🐺", Alaskan:"🐺", Shiba:"🦊",
+            BecGie:"🦺", Rottweiler:"🐕‍🦺", Bully:"💪",
+          };
+          return map[code] || "";
+        },
+
+        // === v36: Prescription Card computed ===
+        get dryFoodGrams() {
+          return Math.round(((this.der * 0.7) / this.DRY_FOOD_AVG_KCAL) * 100);
+        },
+        get wetFoodGrams() {
+          return Math.round(((this.der * 0.3) / this.WET_FOOD_AVG_KCAL) * 100);
+        },
+        get dayProgress() {
+          if (!this.dietStartDate) return 1;
+          const start = new Date(this.dietStartDate);
+          const now = new Date();
+          const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24)) + 1;
+          return Math.max(1, Math.min(30, diff));
+        },
+        get marketSearchKeywords() {
+          // v48: SEPARATION OF CONCERNS — Keywords KHÔNG bao gồm dị ứng (đó là filter/cảnh báo).
+          // Chỉ dùng chủng loại + giai đoạn + đặc tính sản phẩm để tìm hạt phù hợp.
+          const parts = [];
+          const bcs = Number(this.profile.bcs) || 5;
+          const speciesLabel = this.profile.species === "cat" ? "mèo" : "chó";
+          parts.push("Hạt");
+          // BCS hint (thuộc tính sản phẩm, không phải bệnh lý)
+          if (bcs >= 6) parts.push("low-fat low-calorie");
+          if (bcs <= 3) parts.push("high-energy weight-gain");
+          // Life stage (giai đoạn phát triển)
+          if (this.filters.lifeStage) {
+            const lsMap = { puppy: "puppy", adult: "trưởng thành", senior: "senior", kitten: "kitten" };
+            const ls = lsMap[this.filters.lifeStage];
+            if (ls) parts.push(ls);
+          }
+          parts.push("cho " + speciesLabel);
+          // Breed (chủng loại)
+          if (this.filters.breed && this.filters.breed !== "khac") {
+            const opt = this.currentBreedOptions.find((b) => b.code === this.filters.breed);
+            if (opt) parts.push(opt.name);
+          }
+          // Fallback: bare result → medical-grade template (vẫn không nhắc allergen)
+          if (parts.length <= 2) {
+            return `Hạt cao cấp giàu dinh dưỡng, hỗ trợ tiêu hóa và đẹp lông cho ${speciesLabel}`;
+          }
+          return parts.join(" ");
+        },
+
+        // === v36: Allergen Matrix computed (3 tiers) ===
+        get activeAllergenTags() {
+          const tags = [];
+          for (const a of this.profile.allergens) {
+            const entry = this.ALLERGEN_MATRIX.red.find((r) => r.brandKey === a);
+            if (entry) tags.push({ tier: "red", code: entry.code, emoji: entry.emoji, label: entry.label });
+          }
+          for (const s of (this.profile.sensitivities || [])) {
+            const entry = this.ALLERGEN_MATRIX.orange.find((o) => o.code === s);
+            if (entry) tags.push({ tier: "orange", code: entry.code, emoji: entry.emoji, label: entry.label });
+          }
+          const opt = this.currentBreedOptions.find((b) => b.code === this.filters.breed);
+          if (opt && Array.isArray(opt.risks)) {
+            for (const r of opt.risks) {
+              tags.push({ tier: "yellow", code: `RISK_${r}`, emoji: "🧬", label: r });
+            }
+          }
+          // v45: Dark Yellow tier — environmental factors user đã chọn
+          for (const e of (this.profile.environmentals || [])) {
+            const entry = this.ALLERGEN_MATRIX.darkYellow.find((d) => d.code === e);
+            if (entry) tags.push({ tier: "darkYellow", code: entry.code, emoji: entry.emoji, label: entry.label });
+          }
+          return tags;
+        },
+        get hasAnyAllergen() {
+          return this.activeAllergenTags.length > 0;
+        },
+
+        // === v36: Free-text NLP parser (regex-based) ===
+        parseFreeText(text) {
+          this.nlpSuggestions = [];
+          if (!text || text.length < 4) return;
+          const t = text.toLowerCase();
+          if (/(ăn|cho).{0,15}(hạt|đồ ăn).{0,15}gà/.test(t) || /gãi|ngứa|mẩn đỏ/.test(t)) {
+            if (!this.profile.allergens.includes("chicken")) {
+              this.nlpSuggestions.push({ code: "ALLERGEN_CHICKEN", brandKey: "chicken", label: "❌ Dị ứng Thịt gà", type: "allergen" });
+            }
+          }
+          if (/(ăn|cho).{0,15}(thịt|hạt).{0,15}bò/.test(t) && /(nôn|tiêu chảy|đi ngoài)/.test(t)) {
+            if (!this.profile.allergens.includes("beef")) {
+              this.nlpSuggestions.push({ code: "ALLERGEN_BEEF", brandKey: "beef", label: "❌ Dị ứng Thịt bò", type: "allergen" });
+            }
+          }
+          if (/(sữa|sữa bò|sữa tươi|lactose)/.test(t) && /(tiêu chảy|nôn|đầy hơi)/.test(t)) {
+            if (!this.profile.allergens.includes("dairy")) {
+              this.nlpSuggestions.push({ code: "ALLERGEN_DAIRY", brandKey: "dairy", label: "❌ Bất dung nạp Lactose", type: "allergen" });
+            }
+          }
+          if (/cá ngừ|cá hồi|cá biển/.test(t) && /(gãi|ngứa|mẩn|đỏ da)/.test(t)) {
+            if (!this.profile.allergens.includes("fish")) {
+              this.nlpSuggestions.push({ code: "ALLERGEN_FISH", brandKey: "fish", label: "❌ Dị ứng Đạm cá", type: "allergen" });
+            }
+          }
+          if (/(chung cư|phòng kín|mùi thối|mùi chất thải|mùi phân|hôi)/.test(t)) {
+            this.nlpSuggestions.push({ code: "FILTER_YUCCA_BACILLUS", label: "🏢 Bật bộ lọc khử mùi Yucca + Bacillus subtilis", type: "filter" });
+          }
+          if (/(béo phì|béo nặng|thừa cân|đang giảm cân|ăn nhiều mỡ)/.test(t)) {
+            if (!this.profile.sensitivities.includes("SENSITIVITY_FAT")) {
+              this.nlpSuggestions.push({ code: "SENSITIVITY_FAT", label: "⚠️ Nhạy cảm béo cao", type: "sensitivity" });
+            }
+          }
+          if (/(tiêu chảy|lỏng phân|đi ngoài).{0,25}(ngũ cốc|tinh bột|bắp|lúa mì|gluten)/.test(t) ||
+              /(không dung nạp|kém hấp thu).{0,15}(tinh bột|ngũ cốc)/.test(t)) {
+            if (!this.profile.sensitivities.includes("SENSITIVITY_GRAIN")) {
+              this.nlpSuggestions.push({ code: "SENSITIVITY_GRAIN", label: "⚠️ Kém hấp thu ngũ cốc", type: "sensitivity" });
+            }
+          }
+        },
+        applySuggestion(sug) {
+          if (sug.type === "allergen" && sug.brandKey) {
+            if (!this.profile.allergens.includes(sug.brandKey)) {
+              this.profile.allergens.push(sug.brandKey);
+            }
+          }
+          if (sug.type === "filter" && sug.code === "FILTER_YUCCA_BACILLUS") {
+            this.odorFilterActive = true;
+          }
+          if (sug.type === "sensitivity" && sug.code) {
+            if (!this.profile.sensitivities.includes(sug.code)) {
+              this.profile.sensitivities.push(sug.code);
+            }
+          }
+          this.nlpSuggestions = this.nlpSuggestions.filter((s) => s.code !== sug.code);
+        },
+
+        // === v36: Diet timeline (localStorage per pet ID) ===
+        loadDietTimeline() {
+          if (!this.profile.selectedPetId) {
+            this.dietStartDate = null;
+            this.fedToday = false;
+            return;
+          }
+          try {
+            const startKey = `vv_pet_${this.profile.selectedPetId}_diet_start`;
+            const fedKey   = `vv_pet_${this.profile.selectedPetId}_fed_dates`;
+            const stored = localStorage.getItem(startKey);
+            if (stored) {
+              this.dietStartDate = stored;
+            } else {
+              const today = new Date().toISOString().slice(0, 10);
+              localStorage.setItem(startKey, today);
+              this.dietStartDate = today;
+            }
+            const fedDates = JSON.parse(localStorage.getItem(fedKey) || "[]");
+            const todayIso = new Date().toISOString().slice(0, 10);
+            this.fedToday = fedDates.includes(todayIso);
+          } catch (e) { /* localStorage disabled — silent fallback */ }
+        },
+        markFedToday() {
+          if (!this.profile.selectedPetId) return;
+          if (this.fedToday) return;
+          try {
+            const fedKey = `vv_pet_${this.profile.selectedPetId}_fed_dates`;
+            const fedDates = JSON.parse(localStorage.getItem(fedKey) || "[]");
+            const todayIso = new Date().toISOString().slice(0, 10);
+            if (!fedDates.includes(todayIso)) {
+              fedDates.push(todayIso);
+              localStorage.setItem(fedKey, JSON.stringify(fedDates));
+            }
+            this.fedToday = true;
+          } catch (e) { /* silent */ }
+        },
+        async copyToClipboard(text) {
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch (e) { /* silent */ }
+        },
+
+        // === Outcome metrics per brand ===
+        gramsPerDay(b) {
+          if (!b.calories_per_100g) return null;
+          return Math.round((this.der / b.calories_per_100g) * 100);
+        },
+        costPerDay(b) {
+          const g = this.gramsPerDay(b);
+          if (g == null || !b.price_vnd_per_kg) return null;
+          return Math.round((g / 1000) * b.price_vnd_per_kg);
+        },
+        estimatedCarb(b) {
+          return Math.max(0, 100 - (b.protein_pct || 0) - (b.fat_pct || 0) - 12);
+        },
+
+        // === v36: Compat score (numeric BCS) ===
+        compatScore(b) {
+          let s = 100;
+          const allergens = b.contains_allergens || [];
+          const hits = allergens.filter((a) => this.profile.allergens.includes(a));
+          s -= hits.length * 40;
+          if (this.profile.species === "cat" && this.estimatedCarb(b) > 20) s -= 25;
+          if (b.species !== "both" && b.species !== this.profile.species) s -= 50;
+          const bcs = Number(this.profile.bcs) || 5;
+          if (bcs >= 6 && b.fat_pct > 14) s -= 25;
+          if (bcs >= 8 && b.fat_pct > 12) s -= 15;
+          if (bcs <= 3 && (b.calories_per_100g || 0) < 350) s -= 15;
+          if (bcs >= 4 && bcs <= 5 && (b.fat_pct < 10 || b.fat_pct > 18)) s -= 10;
+          return Math.max(0, s);
+        },
+        compatTone(b) {
+          const s = this.compatScore(b);
+          if (s >= 80) return "emerald";
+          if (s >= 60) return "amber";
+          return "rose";
+        },
+
+        isMismatch(b) {
+          const allergens = b.contains_allergens || [];
+          if (allergens.some((a) => this.profile.allergens.includes(a))) return true;
+          if (this.profile.species === "cat" && this.estimatedCarb(b) > 20) return true;
+          return false;
+        },
+        mismatchReason(b) {
+          const allergens = b.contains_allergens || [];
+          const hits = allergens.filter((a) => this.profile.allergens.includes(a));
+          if (hits.length > 0) {
+            const names = hits.map((a) => this.allergenLabel(a)).join(", ");
+            return `Chứa thành phần dị ứng (${names}) với bé ${this.profile.petName || "bạn"}`;
+          }
+          if (this.profile.species === "cat" && this.estimatedCarb(b) > 20) {
+            return `Hàm lượng tinh bột ~${Math.round(this.estimatedCarb(b))}% vượt ngưỡng sinh học của mèo`;
+          }
+          return "";
+        },
+
+        // === v36: Dynamic tagline (numeric BCS) ===
+        compatTagline(b) {
+          const p = b.protein_pct || 0;
+          const f = b.fat_pct || 0;
+          const cal = b.calories_per_100g || 0;
+          const bcs = Number(this.profile.bcs) || 5;
+          if (bcs >= 6 && f < 12) return "Hỗ trợ kiểm soát cân";
+          if (bcs <= 3 && cal > 400) return "Tăng cân lành mạnh";
+          if (p > 30) return "Phát triển cơ bắp";
+          if (bcs >= 4 && bcs <= 5) return "Duy trì cân bằng";
+          return "Phù hợp dinh dưỡng";
+        },
+
+        monMinSwapUrl(b) {
+          return "https://monminpet.com/sanpham";
+        },
+        shouldShowSwapCta(b) {
+          return !b.mon_min_recommended && this.compatScore(b) < 60;
+        },
+
+        toggleRawSpecs(idx) {
+          this.expandedRawIdx = this.expandedRawIdx === idx ? null : idx;
+        },
+
+        // === Filter logic (v36: profile.species + breed + numeric BCS-aware) ===
+        // v46: Smart Label Scanner — real-time allergen match against profile.allergens
+        get homeIngredientAlerts() {
+          const text = (this.homeIngredients || "").toLowerCase();
+          if (text.length < 5) return [];
+          // Keyword map từ ALLERGEN_MATRIX.red (brandKey → VN keywords)
+          const matchers = [
+            { key: "chicken", words: ["gà", "thịt gà", "chicken"], label: "Thịt gà" },
+            { key: "beef",    words: ["bò", "thịt bò", "beef"],   label: "Thịt bò" },
+            { key: "dairy",   words: ["sữa", "lactose", "milk", "whey", "casein"], label: "Sữa / Lactose" },
+            { key: "fish",    words: ["cá", "fish", "salmon", "tuna", "cá hồi", "cá ngừ"], label: "Đạm cá" },
+            { key: "egg",     words: ["trứng", "egg", "albumin"], label: "Trứng" },
+            { key: "grain",   words: ["ngũ cốc", "lúa mì", "wheat", "corn", "bắp"], label: "Ngũ cốc" },
+            { key: "soy",     words: ["đậu nành", "soy"],         label: "Đậu nành" },
+          ];
+          const alerts = [];
+          for (const m of matchers) {
+            if (!this.profile.allergens.includes(m.key)) continue;
+            const hit = m.words.find((w) => text.includes(w));
+            if (hit) alerts.push(`${m.label} (phát hiện "${hit}") — bé bị dị ứng đã ghi nhận`);
+          }
+          return alerts;
+        },
+
+        // v46: Poop Score AI helpers
+        get poopScoreLabel() {
+          const map = {
+            0: { text: "Chưa đánh giá", tone: "text-slate-400" },
+            1: { text: "Cứng (táo bón)", tone: "text-amber-700" },
+            2: { text: "Chắc, có hình", tone: "text-emerald-600" },
+            3: { text: "Lý tưởng", tone: "text-emerald-700" },
+            4: { text: "Mềm, hơi nhão", tone: "text-orange-600" },
+            5: { text: "Lỏng (GI distress)", tone: "text-red-600" },
+          };
+          return map[Number(this.poopScore) || 0];
+        },
+        poopScoreTooltip(n) {
+          const tips = {
+            1: "Cứng, khô — khả năng táo bón",
+            2: "Chắc, có hình — bình thường",
+            3: "Lý tưởng — dạng xúc xích mềm",
+            4: "Mềm, hơi nhão — chú ý béo cao",
+            5: "Lỏng, nước — cảnh báo GI cấp",
+          };
+          return tips[n] || "";
+        },
+        get poopFatCap() {
+          if (Number(this.poopScore) === 5) return 10;  // watery → very low fat
+          if (Number(this.poopScore) === 4) return 13;  // soft → low fat
+          return 22;  // default no constraint
+        },
+
+        get filtered() {
+          const _list = this.brands.filter((b) => {
+            if (this.profile.species && b.species !== this.profile.species && b.species !== "both") return false;
+            if (this.filters.lifeStage && b.life_stage !== this.filters.lifeStage && b.life_stage !== "all") return false;
+            if (this.filters.monMin && !b.mon_min_recommended) return false;
+            if (this.filters.maxPrice && b.price_vnd_per_kg > this.filters.maxPrice) return false;
+            // v46: Poop Score AI — auto cap fat% khi phân lỏng
+            if (Number(this.poopScore) >= 4 && b.fat_pct != null && Number(b.fat_pct) > this.poopFatCap) return false;
+            if (this.filters.excludeAllergens.length > 0) {
+              for (const a of this.filters.excludeAllergens) {
+                if ((b.contains_allergens || []).includes(a)) return false;
+              }
+            }
+            if (this.filters.breed && this.filters.breed !== "khac") {
+              const allBreedNames = [...(this.BREED_OPTIONS.cat || []), ...(this.BREED_OPTIONS.dog || [])]
+                .filter((o) => o.code !== "khac")
+                .map((o) => o.name.toLowerCase());
+              const myBreedOpt = this.currentBreedOptions.find((o) => o.code === this.filters.breed);
+              const myBreedName = (myBreedOpt && myBreedOpt.name) ? myBreedOpt.name.toLowerCase() : "";
+              const text = ((b.brand_name || "") + " " + (b.product_line || "")).toLowerCase();
+              const mentioned = allBreedNames.find((bn) => text.includes(bn));
+              if (mentioned && mentioned !== myBreedName) return false;
+            }
+            return true;
+          });
+          // v47: Sort MonMin recommended lên trên cùng (stable secondary sort)
+          return _list.sort((a, b) => (b.mon_min_recommended ? 1 : 0) - (a.mon_min_recommended ? 1 : 0));
+        },
+        resetFilters() {
+          this.filters = { lifeStage: "", excludeAllergens: [], monMin: false, maxPrice: 1000000, breed: "" };
+        },
+        formatVnd(v) {
+          if (!v) return "—";
+          if (v >= 1000000) return (v / 1000000).toFixed(1) + "tr";
+          if (v >= 1000) return (v / 1000).toFixed(0) + "k";
+          return String(v);
+        },
+        speciesLabel(s) {
+          return s === "dog" ? "Chó" : s === "cat" ? "Mèo" : "Chó & Mèo";
+        },
+        lifeStageLabel(s) {
+          const map = { puppy: "Thú non", adult: "Trưởng thành", senior: "Lớn tuổi", all: "Mọi lứa tuổi" };
+          return map[s] || s;
+        },
+        allergenLabel(code) {
+          const found = this.allergenList.find((a) => a.code === code);
+          return found?.label || code;
+        },
+      };
+    }
+  </script>
+</Layout>

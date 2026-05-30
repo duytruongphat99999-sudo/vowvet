@@ -1,0 +1,10 @@
+---
+/**
+ * /messages — alias redirect to /chat.
+ *
+ * Mega-prompt referenced "/messages" but the actual messaging hub is at /chat.
+ * This alias makes the user's mental model work without breaking the existing
+ * /chat route (which both vets and playdate matches depend on).
+ */
+return Astro.redirect("/chat", 308);
+---

@@ -1,0 +1,1052 @@
+---
+/**
+ * /vaccines — Pet Health Passport (ULTRA SLIM redesign).
+ *
+ * **Mindset shift** (user feedback): VowVet ≠ booking clinic. VowVet = SỔ SỨC
+ * KHOẺ DIGITAL portable — owner luân phiên clinic, lười, cần sổ ghi nhớ.
+ *
+ * Changes from prior clinic-centric design:
+ *   - Hero: "Pet Health Passport" identity (not "Đặt lịch …")
+ *   - Per-pet PRIMARY CTA: gold "Ghi nhận mũi đã tiêm" → existing /vaccines/custom
+ *   - Mon Min: subordinate footer note (NOT primary CTA), brand-safe via clinic-info
+ *   - Reminders: cross-pet upcoming/overdue from existing next_due_date data
+ *   - Group cards: still show VN combo grouping (Mũi 4-bệnh / Mũi dại) but the
+ *     "Đặt lịch" link is demoted to small text — primary action stays passport.
+ *
+ * ZERO new DB fields, ZERO new endpoints, ZERO new libs.
+ * Existing /api/v1/pets/:id/vaccines/custom handles the log submission.
+ *
+ * Brand-safe: var(--c-gold) inline (no vv-gold), FeatureIcon SVG (no emoji chrome),
+ * clinic.vet.name / clinic.zalo_url (no hardcoded brand identity),
+ * Astro.locals.user (no getSession).
+ */
+import Layout from "../layouts/Layout.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
+import { getClinicInfo } from "@shared/clinic-info.ts";
+import {
+  getVaccineGroupsForSpecies,
+  getGroupStatus,
+  type GroupStatusInfo,
+  type VaccineGroup,
+} from "@shared/vaccine-groups-vn.ts";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login?return_to=/vaccines");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const clinic = getClinicInfo();
+
+// ─── Fetch pets + per-pet calendar ──────────────────────────────────────────
+let pets: any[] = [];
+try {
+  const meRes = await fetch(`${API_INTERNAL}/api/v1/auth/me`, { headers: { cookie: cookieHeader } });
+  if (meRes.ok) {
+    const me = await meRes.json();
+    pets = me.pets || [];
+  }
+} catch (_) {}
+
+interface PetWithData {
+  pet: any;
+  calendar: any[];
+  groups: Array<{ group: VaccineGroup; status: GroupStatusInfo }>;
+  completed_records: any[];
+}
+
+const petsWithData: PetWithData[] = [];
+await Promise.all(
+  pets.map(async (pet: any) => {
+    let calendar: any[] = [];
+    try {
+      const r = await fetch(`${API_INTERNAL}/api/v1/pets/${pet.id}/vaccine-calendar`, {
+        headers: { cookie: cookieHeader },
+      });
+      if (r.ok) {
+        const j = await r.json();
+        calendar = j.calendar || [];
+      }
+    } catch (_) {}
+    const groups = getVaccineGroupsForSpecies(pet.species);
+    const withStatus = groups.map((group) => ({
+      group,
+      status: getGroupStatus(group, calendar, pet.species),
+    }));
+    const completed = calendar
+      .filter((c) => c.status === "completed" && c.administered_date)
+      .sort((a, b) => (b.administered_date || "").localeCompare(a.administered_date || ""));
+    petsWithData.push({ pet, calendar, groups: withStatus, completed_records: completed });
+  })
+);
+petsWithData.sort((a, b) => pets.findIndex((p) => p.id === a.pet.id) - pets.findIndex((p) => p.id === b.pet.id));
+
+// ─── Aggregate stats for passport hero ──────────────────────────────────────
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+function daysBetween(iso: string): number {
+  if (!iso) return Infinity;
+  const d = new Date(iso.length === 10 ? iso + "T00:00:00" : iso);
+  return Math.ceil((d.getTime() - today.getTime()) / (24 * 3600 * 1000));
+}
+
+// Cross-pet reminders within ±30 days (items the user actually needs to act on)
+interface Reminder {
+  petId: number;
+  petName: string;
+  vaccineLabel: string;
+  due_date: string;
+  days_until: number; // signed: negative = overdue
+  status: string;
+}
+const reminders: Reminder[] = [];
+for (const pwd of petsWithData) {
+  for (const c of pwd.calendar) {
+    if (c.status !== "scheduled" && c.status !== "overdue") continue;
+    const dueIso = c.due_date || c.next_due_date;
+    if (!dueIso) continue;
+    const days = daysBetween(dueIso);
+    if (days < -30 || days > 30) continue;
+    reminders.push({
+      petId: pwd.pet.id,
+      petName: pwd.pet.name,
+      vaccineLabel: c.vaccine_name_vn || c.vaccine_name || c.vaccine_code || "Vaccine",
+      due_date: dueIso,
+      days_until: days,
+      status: c.status,
+    });
+  }
+}
+reminders.sort((a, b) => a.days_until - b.days_until);
+
+const totalRecords = petsWithData.reduce((sum, p) => sum + p.completed_records.length, 0);
+const upcomingCount = reminders.filter((r) => r.days_until >= 0).length;
+const overdueCount = reminders.filter((r) => r.days_until < 0).length;
+
+const URGENCY = {
+  red:     { strip: "bg-red-500",     soft: "bg-red-50",     text: "text-red-700",     border: "border-red-200",     icon: "alert-triangle" },
+  amber:   { strip: "bg-amber-400",   soft: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200",   icon: "clock" },
+  emerald: { strip: "bg-emerald-500", soft: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: "check" },
+  gray:    { strip: "bg-slate-400",   soft: "bg-slate-50",   text: "text-slate-700",   border: "border-slate-200",   icon: "info" },
+};
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso.length === 10 ? iso + "T00:00:00" : iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+// Named helper to avoid `<=` inside JSX expressions (Astro parser confuses
+// `<= 7` for a tag opener and throws "Unable to assign attributes when using
+// <> Fragment shorthand").
+function reminderColorFor(daysUntil: number): typeof URGENCY[keyof typeof URGENCY] {
+  if (daysUntil < 0) return URGENCY.red;
+  const sevenOrLess = daysUntil < 8; // avoid <= operator
+  return sevenOrLess ? URGENCY.amber : URGENCY.emerald;
+}
+---
+
+<Layout title="Sổ vaccine · VowVet" description="Pet Health Passport — sổ sức khoẻ digital portable">
+  <main class="min-h-screen bg-mmp-cream pb-12">
+
+    <!-- Sticky header -->
+    <header class="sticky top-0 z-30 bg-white border-b border-slate-200">
+      <div class="max-w-2xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-mmp-ink inline-flex items-center gap-1 transition">
+          <FeatureIcon name="arrow" class="w-4 h-4 rotate-180" strokeWidth={2} />
+          Dashboard
+        </a>
+        <h1 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-mmp-cream">
+            <FeatureIcon name="book-open" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+          </span>
+          Sổ vaccine
+        </h1>
+        <button onclick="window.print()"
+                class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 hover:border-mmp-ink text-slate-500 hover:text-mmp-ink transition print:hidden"
+                title="In sổ vaccine">
+          <FeatureIcon name="clipboard" class="w-4 h-4" strokeWidth={2} />
+        </button>
+      </div>
+    </header>
+
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-5 space-y-4">
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- LAYER 1 · PASSPORT HERO — identity, not clinic CTA          -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <section class="relative rounded-3xl bg-mmp-ink text-white overflow-hidden">
+        <div aria-hidden="true" class="absolute -top-16 -right-16 w-48 h-48 rounded-full blur-3xl"
+             style="background: rgba(236, 185, 33, 0.18);"></div>
+
+        <div class="relative p-5 sm:p-6">
+          <div class="flex items-start gap-3 mb-4">
+            <span class="shrink-0 inline-flex items-center justify-center w-14 h-14 rounded-2xl border border-white/15"
+                  style="background: rgba(236, 185, 33, 0.18);">
+              <FeatureIcon name="book-open" class="w-7 h-7" strokeWidth={1.8} style="color: var(--c-gold);" />
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[10px] uppercase tracking-[0.3em] font-bold" style="color: var(--c-gold);">
+                Pet Health Passport
+              </p>
+              <h2 class="font-display italic text-2xl font-semibold mt-1 leading-tight">
+                Sổ Sức Khoẻ Digital
+              </h2>
+              <p class="text-sm text-white/70 mt-1 leading-snug">
+                Vaccine + clinic + ngày tiêm — ghi 1 lần, mang đi đâu cũng có. Tiêm ở phòng khám nào cũng được, miễn nhớ ghi lại.
+              </p>
+            </div>
+          </div>
+
+          {/* 3 compact stats */}
+          <div class="grid grid-cols-3 gap-2 mt-4">
+            <div class="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
+              <p class="text-2xl font-bold tabular-nums" style="color: var(--c-gold);">{totalRecords}</p>
+              <p class="text-[10px] text-white/55 uppercase tracking-wider font-bold mt-1">Mũi đã ghi</p>
+            </div>
+            <div class="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
+              <p class="text-2xl font-bold text-emerald-300 tabular-nums">{upcomingCount}</p>
+              <p class="text-[10px] text-white/55 uppercase tracking-wider font-bold mt-1">Sắp tới</p>
+            </div>
+            <div class="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
+              <p class={`text-2xl font-bold tabular-nums ${overdueCount > 0 ? "text-red-300" : "text-white/40"}`}>{overdueCount}</p>
+              <p class="text-[10px] text-white/55 uppercase tracking-wider font-bold mt-1">Trễ hạn</p>
+            </div>
+          </div>
+
+          {petsWithData.length === 0 && (
+            <p class="text-sm text-white/70 text-center mt-4">Chưa có bé nào trong hồ sơ.</p>
+          )}
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- REMINDERS — cross-pet, ≤30 days, only when relevant         -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      {reminders.length > 0 && (
+        <section class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div class="px-5 pt-5 pb-3 flex items-center justify-between">
+            <h2 class="font-display italic text-base font-semibold text-mmp-ink inline-flex items-center gap-2">
+              <FeatureIcon name="clock" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+              Nhắc tiêm
+            </h2>
+            <span class="text-xs text-slate-500">{reminders.length} mũi · 30 ngày</span>
+          </div>
+          <ul class="px-5 pb-5 space-y-2">
+            {reminders.slice(0, 5).map((r) => {
+              // Astro JSX parser chokes on `<=` inside expressions — use named helper.
+              const reminderColor = reminderColorFor(r.days_until);
+              const color = reminderColor;
+              return (
+                <li class={`rounded-xl border ${color.border} ${color.soft} p-3 flex items-center justify-between gap-3`}>
+                  <div class="min-w-0">
+                    <p class="text-sm font-bold text-mmp-ink leading-tight">
+                      {r.vaccineLabel}
+                      <span class="text-xs font-normal text-slate-500"> · Bé {r.petName}</span>
+                    </p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Hạn {fmtDate(r.due_date)}</p>
+                  </div>
+                  <span class={`text-xs font-bold ${color.text} whitespace-nowrap`}>
+                    {r.days_until < 0 ? `Trễ ${Math.abs(r.days_until)} ngày`
+                      : r.days_until === 0 ? "Hôm nay"
+                      : `Còn ${r.days_until} ngày`}
+                  </span>
+                </li>
+              );
+            })}
+            {reminders.length > 5 && (
+              <li class="text-xs text-slate-400 italic text-center pt-1">
+                + {reminders.length - 5} mũi khác trong 30 ngày
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
+
+      <!-- Empty state -->
+      {petsWithData.length === 0 && (
+        <div class="bg-white rounded-3xl border border-slate-100 p-12 text-center">
+          <span class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-mmp-cream mx-auto mb-3">
+            <FeatureIcon name="shield" class="w-7 h-7" strokeWidth={1.7} style="color: var(--c-gold);" />
+          </span>
+          <p class="text-slate-500 mb-3">Thêm bé để bắt đầu lập sổ.</p>
+          <a href="/onboarding"
+             class="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-mmp-ink transition hover:opacity-90"
+             style="background: var(--c-gold);">
+            <FeatureIcon name="paw" class="w-4 h-4" strokeWidth={2} />
+            Thêm bé →
+          </a>
+        </div>
+      )}
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- LAYER 2 · Per pet — passport identity + PRIMARY LOG CTA     -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      {petsWithData.map((pwd) => (
+        <section class="space-y-3">
+          {/* Pet identity row */}
+          <div class="flex items-center justify-between gap-3 px-1 pt-3">
+            <h2 class="font-display italic text-lg font-semibold text-mmp-ink inline-flex items-center gap-2 min-w-0">
+              <FeatureIcon name="paw" class="w-5 h-5 text-mmp-ink shrink-0" strokeWidth={2} />
+              <span class="truncate">Bé {pwd.pet.name}</span>
+              <span class="text-xs font-normal text-slate-500 shrink-0">
+                · {pwd.pet.species}{pwd.pet.breed ? ` · ${pwd.pet.breed}` : ""}
+              </span>
+            </h2>
+            <a href={`/pets/${pwd.pet.id}?tab=vaccine`}
+               class="text-xs text-mmp-ink hover:underline shrink-0 inline-flex items-center gap-1 font-semibold print:hidden">
+              Chi tiết
+              <FeatureIcon name="arrow" class="w-3 h-3" strokeWidth={2} />
+            </a>
+          </div>
+
+          {/* PRIMARY CTA — gold "Ghi nhận mũi đã tiêm" — passport-first */}
+          <button type="button"
+                  @click={`$dispatch('open-vaccine-log', { petId: ${pwd.pet.id}, petName: ${JSON.stringify(pwd.pet.name)}, species: ${JSON.stringify(pwd.pet.species)} })`}
+                  class="w-full inline-flex items-center justify-center gap-2 font-bold px-4 py-3.5 rounded-2xl text-mmp-ink transition hover:opacity-95 shadow-sm print:hidden"
+                  style="background: var(--c-gold);">
+            <FeatureIcon name="check-square" class="w-5 h-5" strokeWidth={2.2} />
+            <span>Ghi nhận mũi đã tiêm</span>
+            <span class="text-xs bg-mmp-ink/15 px-2 py-0.5 rounded-full font-bold ml-1">+10đ</span>
+          </button>
+
+          {pwd.groups.length === 0 && (
+            <div class="bg-white rounded-2xl border border-slate-100 p-4 text-center">
+              <p class="text-sm text-slate-500">Loài "{pwd.pet.species}" chưa có nhóm vaccine cấu hình.</p>
+            </div>
+          )}
+
+          {/* Group status cards — informational (passport view of what's logged) */}
+          {pwd.groups.map(({ group, status }) => {
+            const colors = URGENCY[status.urgency_color];
+            return (
+              <article class={`relative bg-white rounded-3xl border ${colors.border} overflow-hidden shadow-sm`}>
+                <span aria-hidden="true" class={`absolute left-0 top-0 bottom-0 w-1 rounded-l-3xl ${colors.strip}`}></span>
+
+                <div class="pl-5 pr-5 py-4">
+                  <div class="flex items-start gap-3 mb-2">
+                    <span class={`shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl ${colors.soft}`}>
+                      <FeatureIcon name={group.is_legally_required ? "alert-triangle" : "shield"}
+                                   class={`w-5 h-5 ${colors.text}`} strokeWidth={1.8} />
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-start justify-between gap-2 flex-wrap mb-0.5">
+                        <h3 class="font-bold text-mmp-ink text-sm">{group.name}</h3>
+                        {group.is_legally_required && (
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 text-[10px] uppercase tracking-wider font-bold whitespace-nowrap">
+                            Bắt buộc
+                          </span>
+                        )}
+                      </div>
+                      <p class={`text-xs font-bold ${colors.text}`}>{status.urgency_label}</p>
+                      {status.last_administered_date && (
+                        <p class="text-[11px] text-slate-500 mt-0.5">
+                          Mũi gần nhất {fmtDate(status.last_administered_date)}
+                          {status.next_due_date && status.status !== "not_done" && (
+                          <span> · Nhắc kế {fmtDate(status.next_due_date)}</span>
+                        )}
+                        </p>
+                      )}
+                      {!status.last_administered_date && status.next_due_date && (
+                        <p class="text-[11px] text-slate-500 mt-0.5">Dự kiến {fmtDate(status.next_due_date)}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Details — diseases + brands + matched records (collapsed) */}
+                  <details class="mt-2 group print:open">
+                    <summary class="cursor-pointer list-none inline-flex items-center gap-1.5 text-xs font-semibold hover:underline print:hidden" style="color: var(--c-gold);">
+                      <FeatureIcon name="info" class="w-3.5 h-3.5" strokeWidth={2} />
+                      Chi tiết
+                      <FeatureIcon name="chevron-down" class="w-3 h-3 transition-transform group-open:rotate-180" strokeWidth={2} />
+                    </summary>
+                    <div class="mt-2 p-3 rounded-xl bg-mmp-cream border border-amber-100 text-xs text-slate-700 space-y-2">
+                      <div>
+                        <p class="font-bold text-mmp-ink mb-1">Phòng {group.diseases_covered.length} bệnh:</p>
+                        <div class="flex flex-wrap gap-1">
+                          {group.diseases_covered.map((d) => (
+                            <span class="px-2 py-0.5 rounded-full bg-white text-[10px] text-mmp-ink border border-amber-100">{d}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p class="font-bold text-mmp-ink mb-1">Brand phổ biến VN:</p>
+                        <div class="flex flex-wrap gap-1">
+                          {group.vaccine_brands.map((b) => (
+                            <span class="px-2 py-0.5 rounded-full text-mmp-ink text-[10px] font-bold border border-amber-200"
+                                  style="background: rgba(236, 185, 33, 0.15);">
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      {status.matched_items.length > 0 && (
+                        <div>
+                          <p class="font-bold text-mmp-ink mb-1">Lịch sử ({status.matched_items.length}):</p>
+                          <ul class="space-y-0.5">
+                            {status.matched_items.slice(0, 5).map((r: any) => (
+                              <li class="text-[11px]">
+                                <div class="flex items-center justify-between gap-2">
+                                  <span class="truncate min-w-0 flex-1">
+                                    {r.vaccine_name_vn || r.vaccine_name || r.vaccine_code}
+                                    {r.clinic_name && <span class="text-slate-500"> · {r.clinic_name}</span>}
+                                  </span>
+                                  <span class="text-slate-500 whitespace-nowrap">
+                                    {r.status === "completed" ? fmtDate(r.administered_date) : fmtDate(r.due_date)}
+                                  </span>
+                                </div>
+                                {(r.proof_photo_url || r.invoice_photo_url) && (
+                                  <div class="flex flex-wrap gap-1.5 mt-1">
+                                    {r.proof_photo_url && (
+                                      <a href={r.proof_photo_url} target="_blank" rel="noopener"
+                                         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-amber-200 text-[10px] font-bold text-mmp-ink hover:border-mmp-ink transition">
+                                        <FeatureIcon name="camera" class="w-2.5 h-2.5" strokeWidth={2} style="color: var(--c-gold);" />
+                                        Ảnh sổ
+                                      </a>
+                                    )}
+                                    {r.invoice_photo_url && (
+                                      <a href={r.invoice_photo_url} target="_blank" rel="noopener"
+                                         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-amber-200 text-[10px] font-bold text-mmp-ink hover:border-mmp-ink transition">
+                                        <FeatureIcon name="clipboard" class="w-2.5 h-2.5" strokeWidth={2} style="color: var(--c-gold);" />
+                                        Hoá đơn
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                                {/* Phase 2C — Edit + Xoá actions only for completed rows with a real row id.
+                                    Scheduled placeholders + overdue auto-generated rows would just regenerate. */}
+                                {r.status === "completed" && r.vaccine_row_id && (
+                                  <div class="flex items-center gap-3 mt-1.5 print:hidden">
+                                    <button type="button"
+                                            onclick={`window.openVaccineEdit(${pwd.pet.id}, ${JSON.stringify(pwd.pet.name)}, ${JSON.stringify(pwd.pet.species)}, ${r.vaccine_row_id}, ${JSON.stringify(r.vaccine_name_vn || r.vaccine_name || r.vaccine_code || "Vaccine")}, ${JSON.stringify(r.administered_date || "")}, ${JSON.stringify(r.brand || "")}, ${JSON.stringify(r.clinic_name || "")}, ${JSON.stringify(r.notes || "")}, ${JSON.stringify(r.proof_photo_url || "")}, ${JSON.stringify(r.invoice_photo_url || "")})`}
+                                            class="inline-flex items-center gap-1 text-[10px] font-bold text-mmp-ink hover:underline transition">
+                                      <FeatureIcon name="edit-pencil" class="w-2.5 h-2.5" strokeWidth={2} />
+                                      Sửa
+                                    </button>
+                                    <span class="text-slate-300">·</span>
+                                    <button type="button"
+                                            onclick={`window.deleteVaccineRecord(${pwd.pet.id}, ${r.vaccine_row_id}, ${JSON.stringify(r.vaccine_name_vn || r.vaccine_name || "Vaccine")})`}
+                                            class="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 hover:underline transition">
+                                      <FeatureIcon name="trash" class="w-2.5 h-2.5" strokeWidth={2} />
+                                      Xoá
+                                    </button>
+                                  </div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      ))}
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- FAQ — passport-mindset FAQ                                  -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <div class="pt-3 print:hidden">
+        <h2 class="font-display italic text-lg font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <FeatureIcon name="info" class="w-5 h-5 text-mmp-ink" strokeWidth={2} />
+          Câu hỏi thường gặp
+        </h2>
+      </div>
+
+      <details class="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm print:hidden">
+        <summary class="cursor-pointer list-none flex items-center justify-between gap-3 p-4 hover:bg-slate-50 transition">
+          <span class="font-bold text-mmp-ink">Tiêm ở phòng khám khác có ghi vào đây được không?</span>
+          <FeatureIcon name="chevron-down" class="w-5 h-5 text-slate-400 shrink-0 transition-transform group-open:rotate-180" strokeWidth={2} />
+        </summary>
+        <div class="px-4 pb-4 text-sm text-slate-700 leading-relaxed">
+          <strong class="text-mmp-ink">Được, bất kỳ phòng khám nào.</strong> Sổ Sức Khoẻ Digital của VowVet
+          là <em>của bạn</em> — bạn chọn nơi tiêm rồi ghi lại. App không bó buộc vào 1 clinic nào.
+          Khi tiêm xong, mở app, bấm <strong>"Ghi nhận mũi đã tiêm"</strong> + nhập tên vaccine + ngày + clinic →
+          xong, mãi mãi trong sổ.
+        </div>
+      </details>
+
+      <details class="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm print:hidden">
+        <summary class="cursor-pointer list-none flex items-center justify-between gap-3 p-4 hover:bg-slate-50 transition">
+          <span class="font-bold text-mmp-ink">Tại sao chỉ thấy 2 nhóm vaccine?</span>
+          <FeatureIcon name="chevron-down" class="w-5 h-5 text-slate-400 shrink-0 transition-transform group-open:rotate-180" strokeWidth={2} />
+        </summary>
+        <div class="px-4 pb-4 text-sm text-slate-700 leading-relaxed">
+          Vaccine ở VN hầu hết là <strong class="text-mmp-ink">vaccine đa giá</strong> — 1 mũi cover 4–7 bệnh.
+          Đơn giản, ít chích, hiệu quả tương đương vaccine tách lẻ.
+          Mèo thường tiêm <em>Mũi 4-bệnh</em> + <em>Mũi dại</em>; Chó thường tiêm <em>Mũi 7-bệnh</em> + <em>Mũi dại</em>.
+          Vaccine khác (lepto, parainfluenza riêng, …) ghi vào notes của mũi tương ứng.
+        </div>
+      </details>
+
+      <details class="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm print:hidden">
+        <summary class="cursor-pointer list-none flex items-center justify-between gap-3 p-4 hover:bg-slate-50 transition">
+          <span class="font-bold text-mmp-ink">Bao lâu tiêm lại?</span>
+          <FeatureIcon name="chevron-down" class="w-5 h-5 text-slate-400 shrink-0 transition-transform group-open:rotate-180" strokeWidth={2} />
+        </summary>
+        <div class="px-4 pb-4 text-sm text-slate-700 leading-relaxed">
+          Mũi đầu (puppy/kitten): nhắc lại 3–4 tuần sau (booster). Từ năm thứ 2: 1 năm/lần.
+          Riêng <strong class="text-mmp-ink">mũi dại</strong>: 1 năm/lần theo luật VN. App tự tính ngày
+          nhắc dựa trên ngày tiêm gần nhất.
+        </div>
+      </details>
+
+      <details class="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm print:hidden">
+        <summary class="cursor-pointer list-none flex items-center justify-between gap-3 p-4 hover:bg-slate-50 transition">
+          <span class="font-bold text-mmp-ink">Có tác dụng phụ không?</span>
+          <FeatureIcon name="chevron-down" class="w-5 h-5 text-slate-400 shrink-0 transition-transform group-open:rotate-180" strokeWidth={2} />
+        </summary>
+        <div class="px-4 pb-4 text-sm text-slate-700 leading-relaxed">
+          Hiếm. Phản ứng nhẹ (sốt nhẹ, mệt 1–2 ngày) là bình thường — ghi vào notes của mũi để theo dõi.
+          Phản ứng nặng (sưng to, khó thở, nôn) →
+          <a href={`tel:${clinic.phone_tel_link}`} class="font-bold hover:underline" style="color: var(--c-gold);">gọi BSTY</a>
+          hoặc cấp cứu thú y NGAY.
+        </div>
+      </details>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- BOTTOM · Mon Min SUBORDINATE footer (not primary CTA)        -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <section class="bg-white rounded-2xl border border-slate-100 p-4 print:hidden">
+        <div class="flex items-start gap-3">
+          <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream">
+            <FeatureIcon name="map-pin" class="w-5 h-5" strokeWidth={1.8} style="color: var(--c-gold);" />
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-bold">Cần gợi ý phòng khám?</p>
+            <p class="text-sm text-mmp-ink mt-1 leading-snug">
+              Bạn có thể tiêm ở <strong>bất kỳ phòng khám thú y uy tín</strong> nào. App này
+              không ép buộc — chỉ là sổ ghi nhớ.
+            </p>
+            <p class="text-[11px] text-slate-500 mt-2">
+              Gợi ý: <strong class="text-mmp-ink">{clinic.name}</strong> · {clinic.address}
+            </p>
+            <div class="flex gap-3 mt-2">
+              <a href={`tel:${clinic.phone_tel_link}`}
+                 class="inline-flex items-center gap-1 text-xs font-bold hover:underline" style="color: var(--c-gold);">
+                <FeatureIcon name="siren" class="w-3 h-3" strokeWidth={2} />
+                {clinic.phone}
+              </a>
+              <a href={clinic.zalo_url} target="_blank" rel="noopener"
+                 class="inline-flex items-center gap-1 text-xs font-bold hover:underline" style="color: var(--c-gold);">
+                <FeatureIcon name="message-circle" class="w-3 h-3" strokeWidth={2} />
+                Zalo
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <p class="text-center text-xs text-slate-400 print:hidden">
+        Sổ vaccine theo WSAVA + bối cảnh Việt Nam ·
+        <a href="/settings" class="text-mmp-ink hover:underline font-semibold">Cài đặt nhắc lịch →</a>
+      </p>
+    </div>
+  </main>
+
+  {/* ────────────────────────────────────────────────────────────────────── */}
+  {/* VACCINE LOG MODAL — opens via $dispatch('open-vaccine-log')           */}
+  {/* Posts to existing POST /api/v1/pets/:id/vaccines/custom                */}
+  {/* ────────────────────────────────────────────────────────────────────── */}
+  <div x-data="vaccineLogModal()"
+       @open-vaccine-log.window="onOpen($event.detail)"
+       @open-vaccine-edit.window="onOpenEdit($event.detail)"
+       @keydown.escape.window="close()"
+       x-show="open"
+       x-cloak
+       x-transition.opacity.duration.200ms
+       class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/55 print:hidden"
+       style="display: none;">
+    <div @click.outside="close()"
+         x-show="open"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform translate-y-8"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         class="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[92vh] overflow-y-auto">
+      <div class="p-5 sm:p-6 space-y-4">
+
+        {/* Header */}
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-[0.25em]" style="color: var(--c-gold);">
+              <span x-show="!isEditMode">Ghi nhận mũi đã tiêm</span>
+              <span x-show="isEditMode">Sửa record vaccine</span>
+            </p>
+            <h3 class="font-display italic text-lg font-semibold text-mmp-ink mt-0.5">
+              <span x-show="!isEditMode">Bé <span x-text="petName"></span></span>
+              <span x-show="isEditMode" x-text="vaccineName"></span>
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">
+              <span x-show="!isEditMode">Tiêm ở phòng khám nào cũng OK · App là sổ ghi nhớ</span>
+              <span x-show="isEditMode">Sửa metadata · không đổi tên vaccine (xoá + log lại nếu cần)</span>
+            </p>
+          </div>
+          <button type="button" @click="close()"
+                  class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-400 hover:text-mmp-ink hover:bg-slate-50 transition"
+                  aria-label="Đóng">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Q1 · Vaccine name — preset chips + custom (create mode only) */}
+        <div x-show="!isEditMode">
+          <label class="text-xs font-bold text-mmp-ink uppercase tracking-widest inline-flex items-center gap-1.5">
+            <FeatureIcon name="shield" class="w-3.5 h-3.5" strokeWidth={2} style="color: var(--c-gold);" />
+            Tên mũi vaccine <span class="text-red-500">*</span>
+          </label>
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <template x-for="preset in suggestionsForSpecies" :key="preset">
+              <button type="button" @click="vaccineName = preset"
+                      :class="vaccineName === preset
+                        ? 'bg-mmp-ink text-white border-mmp-ink'
+                        : 'bg-white border-slate-200 text-mmp-ink hover:border-mmp-ink'"
+                      class="px-2 py-2 rounded-xl border-2 font-medium text-xs transition text-left">
+                <span x-text="preset"></span>
+              </button>
+            </template>
+          </div>
+          <input type="text" x-model="vaccineName" maxlength="200"
+                 placeholder="Hoặc gõ tên vaccine cụ thể (vd: Nobivac Tricat Trio)"
+                 class="mt-2 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-mmp-ink focus:outline-none">
+        </div>
+
+        {/* Q1' · Edit-mode read-only name display */}
+        <div x-show="isEditMode" class="rounded-xl bg-mmp-cream border border-amber-100 p-3">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Tên vaccine (không sửa được)</p>
+          <p class="text-sm font-bold text-mmp-ink" x-text="vaccineName"></p>
+        </div>
+
+        {/* Q2 · Date tiêm */}
+        <div>
+          <label class="text-xs font-bold text-mmp-ink uppercase tracking-widest inline-flex items-center gap-1.5">
+            <FeatureIcon name="calendar" class="w-3.5 h-3.5" strokeWidth={2} style="color: var(--c-gold);" />
+            Ngày tiêm <span class="text-red-500">*</span>
+          </label>
+          <input type="date" x-model="administeredDate" :max="todayIso"
+                 class="mt-2 w-full px-3 py-2 rounded-xl border border-slate-200 text-mmp-ink text-sm focus:border-mmp-ink focus:outline-none">
+        </div>
+
+        {/* Q3 · Brand + Clinic (compact 2-col) */}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-mmp-ink uppercase tracking-widest">Brand (tuỳ chọn)</label>
+            <input type="text" x-model="brand" maxlength="100"
+                   placeholder="VD: Nobivac"
+                   class="mt-1.5 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-mmp-ink focus:outline-none">
+          </div>
+          <div>
+            <label class="text-xs font-bold text-mmp-ink uppercase tracking-widest">Phòng khám (tuỳ chọn)</label>
+            <input type="text" x-model="clinicName" maxlength="200"
+                   placeholder="VD: PK Thú y A · Q3"
+                   class="mt-1.5 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-mmp-ink focus:outline-none">
+          </div>
+        </div>
+
+        {/* Q4 · Notes — kitchen sink (vet name + batch + side effects + price) */}
+        <div>
+          <label class="text-xs font-bold text-mmp-ink uppercase tracking-widest inline-flex items-center gap-1.5">
+            <FeatureIcon name="info" class="w-3.5 h-3.5" strokeWidth={2} />
+            Ghi chú (tuỳ chọn)
+          </label>
+          <textarea x-model="notes" rows="3" maxlength="2000"
+                    placeholder="VD: BS Nguyễn A · Lô NB2024-A123 · Giá 350k · Sau tiêm OK"
+                    class="mt-1.5 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-mmp-ink focus:outline-none resize-none"></textarea>
+          <p class="text-[10px] text-slate-400 mt-1">Gợi ý: tên BS, lô vaccine, giá tiền, tác dụng phụ — tất cả ghi vào đây</p>
+        </div>
+
+        {/* Q5 · Photo attachments (collapsed) — +20đ bonus when at least one attached */}
+        <details class="group">
+          <summary class="cursor-pointer list-none inline-flex items-center gap-1.5 text-xs font-bold hover:underline" style="color: var(--c-gold);">
+            <FeatureIcon name="camera" class="w-3.5 h-3.5" strokeWidth={2} />
+            Đính kèm ảnh (tuỳ chọn — +20đ thêm Pet Score)
+            <FeatureIcon name="chevron-down" class="w-3 h-3 transition-transform group-open:rotate-180" strokeWidth={2} />
+          </summary>
+          <div class="mt-3 space-y-3">
+            {/* Photo 1 · paper booklet */}
+            <div>
+              <label class="text-[10px] uppercase tracking-widest text-mmp-ink font-bold mb-1.5 block">
+                Ảnh sổ tiêm giấy
+              </label>
+              <template x-if="!proofPhotoUrl && !uploadingProof">
+                <label class="block p-3 rounded-xl border-2 border-dashed border-slate-300 hover:border-mmp-ink cursor-pointer text-center transition">
+                  <input type="file" accept="image/*" @change="uploadPhoto($event, 'proof')" class="hidden">
+                  <FeatureIcon name="camera" class="w-5 h-5 text-slate-400 mx-auto mb-1" strokeWidth={1.8} />
+                  <p class="text-xs text-slate-500">Chọn ảnh sổ giấy (≤5MB)</p>
+                </label>
+              </template>
+              <template x-if="uploadingProof">
+                <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center">
+                  <svg class="w-4 h-4 animate-spin mx-auto text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="9" stroke-dasharray="40" stroke-dashoffset="10" stroke-linecap="round"/>
+                  </svg>
+                  <p class="text-[11px] text-slate-500 mt-1">Đang upload…</p>
+                </div>
+              </template>
+              <template x-if="proofPhotoUrl && !uploadingProof">
+                <div class="p-3 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <FeatureIcon name="check" class="w-4 h-4 text-emerald-600 shrink-0" strokeWidth={2.5} />
+                    <a :href="proofPhotoUrl" target="_blank" rel="noopener" class="text-xs font-semibold text-emerald-800 truncate hover:underline">Đã upload — xem</a>
+                  </div>
+                  <button type="button" @click="proofPhotoUrl = ''" class="text-[11px] text-red-600 hover:underline shrink-0">Xoá</button>
+                </div>
+              </template>
+            </div>
+
+            {/* Photo 2 · invoice */}
+            <div>
+              <label class="text-[10px] uppercase tracking-widest text-mmp-ink font-bold mb-1.5 block">
+                Ảnh hoá đơn (proof giá)
+              </label>
+              <template x-if="!invoicePhotoUrl && !uploadingInvoice">
+                <label class="block p-3 rounded-xl border-2 border-dashed border-slate-300 hover:border-mmp-ink cursor-pointer text-center transition">
+                  <input type="file" accept="image/*" @change="uploadPhoto($event, 'invoice')" class="hidden">
+                  <FeatureIcon name="clipboard" class="w-5 h-5 text-slate-400 mx-auto mb-1" strokeWidth={1.8} />
+                  <p class="text-xs text-slate-500">Chọn ảnh hoá đơn (≤5MB)</p>
+                </label>
+              </template>
+              <template x-if="uploadingInvoice">
+                <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center">
+                  <svg class="w-4 h-4 animate-spin mx-auto text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="9" stroke-dasharray="40" stroke-dashoffset="10" stroke-linecap="round"/>
+                  </svg>
+                  <p class="text-[11px] text-slate-500 mt-1">Đang upload…</p>
+                </div>
+              </template>
+              <template x-if="invoicePhotoUrl && !uploadingInvoice">
+                <div class="p-3 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <FeatureIcon name="check" class="w-4 h-4 text-emerald-600 shrink-0" strokeWidth={2.5} />
+                    <a :href="invoicePhotoUrl" target="_blank" rel="noopener" class="text-xs font-semibold text-emerald-800 truncate hover:underline">Đã upload — xem</a>
+                  </div>
+                  <button type="button" @click="invoicePhotoUrl = ''" class="text-[11px] text-red-600 hover:underline shrink-0">Xoá</button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </details>
+
+        {/* Submit row */}
+        <div class="flex gap-2 pt-1">
+          <button type="button" @click="close()"
+                  class="flex-1 bg-white border border-slate-200 text-mmp-ink px-4 py-3 rounded-xl font-medium hover:border-mmp-ink transition">
+            Hủy
+          </button>
+          <button type="button" @click="submit()" :disabled="loading || !vaccineName || !administeredDate"
+                  class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-mmp-ink transition hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style="background: var(--c-gold);">
+            <svg x-show="!loading" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <svg x-show="loading" class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9" stroke-dasharray="40" stroke-dashoffset="10" stroke-linecap="round"/>
+            </svg>
+            <span x-text="loading ? 'Đang lưu…' : (isEditMode ? 'Cập nhật' : 'Lưu vào sổ')"></span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    // Vaccine log modal — single global instance; per-pet buttons dispatch
+    // 'open-vaccine-log' with { petId, petName, species }. Posts to the
+    // existing /api/v1/pets/:id/vaccines/custom endpoint (no new API surface).
+    function vaccineLogModal() {
+      const SUGGESTIONS = {
+        cat: ["Mũi 4-bệnh (FVRCP/FeLV)", "Mũi dại (Rabies)", "Khác"],
+        dog: ["Mũi 7-bệnh (DHPPi-L)", "Mũi dại (Rabies)", "Khác"],
+        other: ["Mũi vaccine", "Mũi dại", "Khác"],
+      };
+      const todayIso = new Date().toISOString().slice(0, 10);
+      return {
+        open: false,
+        loading: false,
+        petId: 0,
+        petName: "",
+        species: "",
+        vaccineName: "",
+        administeredDate: todayIso,
+        brand: "",
+        clinicName: "",
+        notes: "",
+        todayIso,
+        // Phase 2A · photo state
+        proofPhotoUrl: "",
+        invoicePhotoUrl: "",
+        uploadingProof: false,
+        uploadingInvoice: false,
+        // Phase 2C · edit mode
+        isEditMode: false,
+        editingId: 0,
+
+        get suggestionsForSpecies() {
+          const s = String(this.species || "").toLowerCase();
+          if (s === "mèo" || s === "meo" || s === "cat") return SUGGESTIONS.cat;
+          if (s === "chó" || s === "cho" || s === "dog") return SUGGESTIONS.dog;
+          return SUGGESTIONS.other;
+        },
+
+        onOpen(detail) {
+          this.petId = Number(detail?.petId) || 0;
+          this.petName = detail?.petName || "";
+          this.species = detail?.species || "";
+          this.vaccineName = "";
+          this.administeredDate = todayIso;
+          this.brand = "";
+          this.clinicName = "";
+          this.notes = "";
+          this.proofPhotoUrl = "";
+          this.invoicePhotoUrl = "";
+          this.uploadingProof = false;
+          this.uploadingInvoice = false;
+          this.isEditMode = false;
+          this.editingId = 0;
+          this.loading = false;
+          this.open = true;
+        },
+
+        // Phase 2C — open the modal in EDIT mode with a record pre-filled.
+        // Detail shape: { petId, petName, recordId, vaccineLabel, administeredDate, brand, clinicName, notes, proofPhotoUrl, invoicePhotoUrl }
+        onOpenEdit(detail) {
+          this.petId = Number(detail?.petId) || 0;
+          this.petName = detail?.petName || "";
+          this.species = detail?.species || "";
+          this.editingId = Number(detail?.recordId) || 0;
+          this.isEditMode = true;
+          // Vaccine name is shown read-only — pulled from the label the API rendered.
+          this.vaccineName = detail?.vaccineLabel || "Vaccine";
+          this.administeredDate = (detail?.administeredDate || todayIso).slice(0, 10);
+          this.brand = detail?.brand || "";
+          this.clinicName = detail?.clinicName || "";
+          // Strip the "[Custom] name — " prefix when prefilling notes so the user
+          // sees only their freeform suffix. Server re-prefixes on PATCH if needed.
+          const rawNotes = String(detail?.notes || "");
+          const m = rawNotes.match(/^\[Custom\]\s+.+?(?:\s+—\s+(.*))?$/);
+          this.notes = m ? (m[1] || "") : rawNotes;
+          this.proofPhotoUrl = detail?.proofPhotoUrl || "";
+          this.invoicePhotoUrl = detail?.invoicePhotoUrl || "";
+          this.uploadingProof = false;
+          this.uploadingInvoice = false;
+          this.loading = false;
+          this.open = true;
+        },
+
+        close() {
+          this.open = false;
+          this.isEditMode = false;
+          this.editingId = 0;
+        },
+
+        async uploadPhoto(event, kind) {
+          const input = event.target;
+          const file = input?.files?.[0];
+          if (!file) return;
+          // Client-side size + MIME guard (server enforces too, but fail fast)
+          if (file.size > 5 * 1024 * 1024) {
+            showVaccineToast("Ảnh quá 5MB — chọn ảnh khác.", false);
+            input.value = "";
+            return;
+          }
+          if (!/^image\//.test(file.type)) {
+            showVaccineToast("Chỉ JPEG/PNG/WebP.", false);
+            input.value = "";
+            return;
+          }
+          if (!this.petId) {
+            showVaccineToast("Thiếu pet — đóng modal và thử lại.", false);
+            return;
+          }
+          const isProof = kind === "proof";
+          if (isProof) this.uploadingProof = true; else this.uploadingInvoice = true;
+          try {
+            const fd = new FormData();
+            fd.append("photo", file);
+            fd.append("kind", kind);
+            const res = await fetch(`/api/v1/pets/${this.petId}/vaccines/photo-upload`, {
+              method: "POST",
+              credentials: "include",
+              body: fd,
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              console.error("[vaccine-upload] non-2xx", res.status, body);
+              const apiMsg = body?.error?.message || body?.error || body?.message || "";
+              const msg = res.status === 401 ? "Hết phiên đăng nhập. Tải lại."
+                        : res.status === 413  ? "Ảnh quá 5MB."
+                        : res.status === 415  ? "Định dạng ảnh không hỗ trợ."
+                        : res.status >= 500   ? (apiMsg ? `Lỗi server: ${apiMsg}` : `Lỗi server (${res.status})`)
+                        : apiMsg || `Lỗi upload (${res.status}).`;
+              showVaccineToast(msg, false);
+              return;
+            }
+            if (isProof) this.proofPhotoUrl = body.url || ""; else this.invoicePhotoUrl = body.url || "";
+            showVaccineToast(isProof ? "Ảnh sổ giấy đã upload." : "Ảnh hoá đơn đã upload.", true);
+          } catch (e) {
+            console.error("[vaccine-upload] network err", e);
+            const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+            showVaccineToast(offline ? "Mất kết nối — kiểm tra wifi." : `Lỗi upload: ${e?.message || e}`, false);
+          } finally {
+            if (isProof) this.uploadingProof = false; else this.uploadingInvoice = false;
+            input.value = ""; // reset so user can re-pick the same file after a Xoá
+          }
+        },
+
+        async submit() {
+          if (!this.vaccineName || !this.administeredDate) {
+            showVaccineToast("Cần ít nhất tên mũi + ngày tiêm.", false);
+            return;
+          }
+          if (!this.petId) {
+            showVaccineToast("Thiếu pet — đóng modal và thử lại.", false);
+            return;
+          }
+          this.loading = true;
+          // Phase 2C — branch on edit mode: POST /custom (create) vs PATCH /:id (edit).
+          // PATCH body intentionally omits vaccine_name (server preserves [Custom] prefix).
+          const isEdit = this.isEditMode && this.editingId > 0;
+          const url = isEdit
+            ? `/api/v1/pets/${this.petId}/vaccines/${this.editingId}`
+            : `/api/v1/pets/${this.petId}/vaccines/custom`;
+          const method = isEdit ? "PATCH" : "POST";
+          const payload = isEdit
+            ? {
+                administered_date: this.administeredDate,
+                brand: this.brand || null,
+                clinic_name: this.clinicName || null,
+                notes: this.notes || null,
+                proof_photo_url: this.proofPhotoUrl || null,
+                invoice_photo_url: this.invoicePhotoUrl || null,
+              }
+            : {
+                vaccine_name: this.vaccineName,
+                administered_date: this.administeredDate,
+                brand: this.brand || null,
+                clinic_name: this.clinicName || null,
+                notes: this.notes || null,
+                proof_photo_url: this.proofPhotoUrl || null,
+                invoice_photo_url: this.invoicePhotoUrl || null,
+              };
+          console.log(`[vaccine-log] ${method}`, url, { isEdit, vaccineName: this.vaccineName });
+          try {
+            const res = await fetch(url, {
+              method,
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              console.error("[vaccine-log] non-2xx", res.status, body);
+              const apiMsg = body?.error?.message || body?.error || body?.message || "";
+              const msg = res.status === 401 ? "Hết phiên đăng nhập. Tải lại."
+                        : res.status === 404 ? "Không tìm thấy bé."
+                        : res.status === 403 ? "Không có quyền với bé này."
+                        : res.status >= 500   ? (apiMsg ? `Lỗi server: ${apiMsg}` : `Lỗi server (${res.status})`)
+                        : apiMsg || `Lỗi ${res.status}. Thử lại.`;
+              showVaccineToast(msg, false);
+              return;
+            }
+            if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+            if (isEdit) {
+              showVaccineToast("Đã cập nhật record.", true);
+            } else {
+              const bonus = body.pet_score_bonus || 0;
+              const photoSuffix = body.has_photo ? " (có ảnh proof!)" : "";
+              showVaccineToast(bonus > 0 ? `+${bonus}đ Pet Score${photoSuffix} — đã ghi vào sổ` : "Đã ghi vào sổ — bé an toàn hơn rồi!", true);
+            }
+            this.close();
+            setTimeout(() => window.location.reload(), 900);
+          } catch (e) {
+            console.error("[vaccine-log] network err", e);
+            const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+            showVaccineToast(offline ? "Mất kết nối — kiểm tra wifi." : `Lỗi kết nối: ${e?.message || e}`, false);
+          } finally {
+            this.loading = false;
+          }
+        },
+      };
+    }
+
+    function showVaccineToast(message, success) {
+      const t = document.createElement("div");
+      t.className =
+        "fixed top-20 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium pointer-events-auto transition-all " +
+        (success ? "bg-mmp-ink text-white" : "bg-red-50 border border-red-200 text-red-700");
+      if (success) t.style.boxShadow = "0 8px 24px -8px rgba(236, 185, 33, 0.4)";
+      t.textContent = message;
+      t.style.opacity = "0";
+      t.style.transform = "translate(-50%, -8px)";
+      document.body.appendChild(t);
+      requestAnimationFrame(() => {
+        t.style.opacity = "1";
+        t.style.transform = "translate(-50%, 0)";
+      });
+      setTimeout(() => {
+        t.style.opacity = "0";
+        t.style.transform = "translate(-50%, -8px)";
+        setTimeout(() => t.remove(), 250);
+      }, 2800);
+    }
+
+    // Phase 2C — delete a vaccine record. Confirms first, then DELETE → reload.
+    async function deleteVaccineRecord(petId, recordId, vaccineLabel) {
+      const labelText = vaccineLabel ? `"${vaccineLabel}"` : "record";
+      if (!confirm(`Xoá ${labelText} vĩnh viễn? Không thể khôi phục.`)) return;
+      const url = `/api/v1/pets/${petId}/vaccines/${recordId}`;
+      console.log("[vaccine-delete] DELETE", url);
+      try {
+        const res = await fetch(url, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error("[vaccine-delete] non-2xx", res.status, body);
+          const apiMsg = body?.error?.message || body?.error || body?.message || "";
+          const msg = res.status === 401 ? "Hết phiên đăng nhập. Tải lại."
+                    : res.status === 404 ? "Không tìm thấy record (đã xoá?)."
+                    : res.status === 403 ? "Không có quyền xoá."
+                    : res.status >= 500   ? (apiMsg ? `Lỗi server: ${apiMsg}` : `Lỗi server (${res.status})`)
+                    : apiMsg || `Lỗi ${res.status}.`;
+          showVaccineToast(msg, false);
+          return;
+        }
+        if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+        showVaccineToast("Đã xoá record.", true);
+        setTimeout(() => window.location.reload(), 700);
+      } catch (e) {
+        console.error("[vaccine-delete] network err", e);
+        const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+        showVaccineToast(offline ? "Mất kết nối — kiểm tra wifi." : `Lỗi: ${e?.message || e}`, false);
+      }
+    }
+    // Expose globally so onclick handlers in the matched_items list can reach it.
+    window.deleteVaccineRecord = deleteVaccineRecord;
+
+    // Phase 2C — dispatch edit modal with the record's full context.
+    // Called via onclick from matched_items list rows (cannot use Alpine
+    // directives outside an x-data scope).
+    function openVaccineEdit(petId, petName, species, recordId, vaccineLabel, administeredDate, brand, clinicName, notes, proofPhotoUrl, invoicePhotoUrl) {
+      window.dispatchEvent(new CustomEvent("open-vaccine-edit", {
+        detail: { petId, petName, species, recordId, vaccineLabel, administeredDate, brand, clinicName, notes, proofPhotoUrl, invoicePhotoUrl },
+      }));
+    }
+    window.openVaccineEdit = openVaccineEdit;
+  </script>
+
+  <style is:global>
+    @media print {
+      header, nav, button, .print\:hidden, [class*="print:hidden"] { display: none !important; }
+      body, main { background: white !important; }
+      section, article { break-inside: avoid; }
+    }
+  </style>
+</Layout>

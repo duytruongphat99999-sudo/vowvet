@@ -1,0 +1,78 @@
+---
+/**
+ * Toggle — switch input (ON = ink, OFF = slate).
+ *
+ * Works standalone (form-submit name+value) or with Alpine.js (x-model).
+ * For Alpine: wrap with x-data and pass `xModel="myFlag"`.
+ *
+ * Usage (vanilla checkbox):
+ *   <Toggle name="notify" defaultOn={user.notify} />
+ *
+ * Usage (Alpine):
+ *   <Toggle xModel="form.notify" labelLeft="Tắt" labelRight="Bật" />
+ */
+interface Props {
+  name?: string;
+  defaultOn?: boolean;
+  disabled?: boolean;
+  labelLeft?: string;
+  labelRight?: string;
+  /** Alpine x-model binding (overrides defaultOn) */
+  xModel?: string;
+  class?: string;
+  id?: string;
+}
+const {
+  name,
+  defaultOn = false,
+  disabled = false,
+  labelLeft,
+  labelRight,
+  xModel,
+  class: extraClass = "",
+  id = name ? `toggle-${name}` : undefined,
+} = Astro.props;
+
+const wrapCls = `inline-flex items-center gap-2.5 ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${extraClass}`;
+const trackCls =
+  "relative inline-block w-10 h-6 rounded-full transition-colors duration-150 cursor-pointer focus-within:ring-2 focus-within:ring-mmp-ink focus-within:ring-offset-2";
+const knobCls =
+  "absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-150";
+---
+
+<label class={wrapCls}>
+  {labelLeft && <span class="text-sm text-slate-600">{labelLeft}</span>}
+
+  {xModel ? (
+    <span
+      class={trackCls}
+      x-bind:class={`${xModel} ? 'bg-mmp-ink' : 'bg-slate-300'`}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        name={name}
+        class="sr-only"
+        disabled={disabled}
+        x-model={xModel}
+      />
+      <span class={knobCls} x-bind:class={`${xModel} ? 'translate-x-4' : 'translate-x-0'`}></span>
+    </span>
+  ) : (
+    <span
+      class={`${trackCls} ${defaultOn ? "bg-mmp-ink" : "bg-slate-300"}`}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        name={name}
+        class="sr-only peer"
+        disabled={disabled}
+        checked={defaultOn}
+      />
+      <span class={`${knobCls} ${defaultOn ? "translate-x-4" : "translate-x-0"} peer-checked:translate-x-4`}></span>
+    </span>
+  )}
+
+  {labelRight && <span class="text-sm text-mmp-ink font-medium">{labelRight}</span>}
+</label>

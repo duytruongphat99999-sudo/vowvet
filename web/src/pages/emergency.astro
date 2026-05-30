@@ -1,0 +1,292 @@
+---
+/**
+ * /emergency — First Aid Hotline + Library (M9.3) — Brand Sync Pass 3 redesign.
+ *
+ * Less alarming than v1:
+ *   - No full red banner. Hero = mmp-ink card with red-500 left stripe + gold details.
+ *   - Subtle slate-50 page bg (was red→orange→amber gradient → felt "panic mode").
+ *   - Severity sections use thin colored borders + ink text (not red-on-red-on-red).
+ *   - Disclaimer = warning Alert primitive (amber, professional).
+ *   - Emojis trimmed to species markers only; chrome icons via FeatureIcon.
+ */
+import Layout from "../layouts/Layout.astro";
+import Alert from "../components/ui/Alert.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
+import { getClinicInfo } from "../../../shared/clinic-info.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// Server-side clinic (env-driven, fast — không cần HTTP hop)
+const clinic = getClinicInfo();
+
+let articles: any[] = [];
+let categories: any[] = [];
+let firstPetId: number | null = null;
+try {
+  const [aRes, pRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/first-aid/articles`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (aRes.ok) {
+    const j = await aRes.json();
+    articles = j.articles || [];
+    categories = j.categories || [];
+  }
+  if (pRes.ok) {
+    const pets = (await pRes.json()).pets || [];
+    firstPetId = pets[0]?.id || null;
+  }
+} catch (_) {}
+
+// Group by severity for UI ordering
+const critical = articles.filter((a) => a.severity === "CRITICAL");
+const urgent = articles.filter((a) => a.severity === "URGENT");
+const important = articles.filter((a) => a.severity === "IMPORTANT");
+
+const initialData = JSON.stringify({ articles, categories });
+---
+
+<Layout title="Cấp cứu thú y · VowVet" description="Hotline + hướng dẫn sơ cứu pet — Mon Min Pet Clinic">
+  <main class="min-h-screen bg-slate-50 px-4 sm:px-6 py-5 pb-12">
+    <div class="max-w-2xl mx-auto" x-data={`emergencyPage(${initialData})`}>
+
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-mmp-ink inline-flex items-center gap-1">
+          <FeatureIcon name="arrow" class="w-4 h-4 rotate-180" strokeWidth={2} />
+          Dashboard
+        </a>
+        <h1 class="font-display italic text-xl font-semibold text-mmp-ink">Cấp cứu thú y</h1>
+        <span class="w-16"></span>
+      </header>
+
+      <!-- HERO: ink call button with red accent stripe -->
+      <a href={`tel:${clinic.phone_tel_link}`}
+         class="relative block bg-mmp-ink hover:bg-slate-900 text-white p-5 sm:p-6 rounded-3xl shadow-lg mb-3 active:scale-[0.99] transition-all overflow-hidden">
+        <!-- Red stripe -->
+        <span aria-hidden="true" class="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500"></span>
+        <!-- Gold spotlight -->
+        <span aria-hidden="true"
+              class="absolute -top-16 -right-16 w-48 h-48 rounded-full opacity-20 pointer-events-none"
+              style="background: radial-gradient(circle, #ecb921 0%, transparent 70%);"></span>
+
+        <div class="relative flex items-center gap-4">
+          <span class="shrink-0 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-500/15 ring-1 ring-red-500/30">
+            <FeatureIcon name="siren" class="w-7 h-7 text-red-400" strokeWidth={2} />
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="text-[11px] uppercase tracking-widest font-bold text-[#ecb921]">Gọi cấp cứu ngay</p>
+            <p class="text-base sm:text-lg font-semibold truncate mt-0.5">{clinic.name}</p>
+            <p class="text-2xl sm:text-3xl font-mono font-bold mt-1 tabular-nums">{clinic.phone}</p>
+            <p class="text-xs text-white/70 mt-1.5 inline-flex items-center gap-1.5">
+              {clinic.emergency_24_7 ? (
+                <>
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot"></span>
+                  Mở 24/7
+                </>
+              ) : (
+                <>Giờ làm: {clinic.hours_weekday}</>
+              )}
+            </p>
+          </div>
+        </div>
+        {clinic.note && (
+          <p class="relative text-xs text-white/80 mt-4 pt-3 border-t border-white/15">{clinic.note}</p>
+        )}
+      </a>
+
+      <!-- Zalo OA fallback (chat 24/7) — cream subtle -->
+      <a href={clinic.zalo_url} target="_blank" rel="noopener"
+         class="block bg-mmp-cream border border-amber-100 hover:border-[#ecb921] hover:shadow-md text-mmp-ink p-4 rounded-2xl mb-5 active:scale-[0.99] transition-all">
+        <div class="flex items-center gap-3">
+          <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-amber-200">
+            <FeatureIcon name="message-circle" class="w-5 h-5 text-[#ecb921]" strokeWidth={2} />
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-sm">Chat Zalo VowVet</p>
+            <p class="text-xs text-slate-600 mt-0.5">Mở Zalo nếu không gọi được — bác sĩ tư vấn trực tiếp</p>
+          </div>
+          <FeatureIcon name="external" class="w-4 h-4 text-slate-400 shrink-0" strokeWidth={2} />
+        </div>
+      </a>
+
+      <!-- Quick links -->
+      <div class="grid grid-cols-3 gap-2.5 mb-7">
+        <a href="/chat/new"
+           class="group bg-white border border-slate-200 hover:border-mmp-ink hover:shadow-md rounded-2xl p-3 text-center transition-all">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-ink/5 group-hover:bg-[#ecb921]/15 transition mb-2">
+            <FeatureIcon name="message-circle" class="w-5 h-5 text-mmp-ink" strokeWidth={1.7} />
+          </span>
+          <p class="text-xs font-bold text-mmp-ink">Chat bác sĩ</p>
+        </a>
+        <a href={firstPetId ? `/triage/${firstPetId}` : "/triage"}
+           class="group bg-white border border-slate-200 hover:border-mmp-ink hover:shadow-md rounded-2xl p-3 text-center transition-all">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-ink/5 group-hover:bg-[#ecb921]/15 transition mb-2">
+            <FeatureIcon name="stethoscope" class="w-5 h-5 text-mmp-ink" strokeWidth={1.7} />
+          </span>
+          <p class="text-xs font-bold text-mmp-ink">Triage</p>
+          <p class="text-[10px] text-slate-500 mt-0.5">Phân loại</p>
+        </a>
+        <a href="/faq"
+           class="group bg-white border border-slate-200 hover:border-mmp-ink hover:shadow-md rounded-2xl p-3 text-center transition-all">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-ink/5 group-hover:bg-[#ecb921]/15 transition mb-2">
+            <FeatureIcon name="info" class="w-5 h-5 text-mmp-ink" strokeWidth={1.7} />
+          </span>
+          <p class="text-xs font-bold text-mmp-ink">FAQ</p>
+          <p class="text-[10px] text-slate-500 mt-0.5">30+ câu hỏi</p>
+        </a>
+      </div>
+
+      <!-- Section header + species filter -->
+      <section class="mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-bold text-mmp-ink inline-flex items-center gap-2">
+            <FeatureIcon name="info" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+            Hướng dẫn sơ cứu
+          </h2>
+          <p class="text-xs text-slate-500">{articles.length} bài</p>
+        </div>
+
+        <!-- Filter chips -->
+        <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          <button @click="speciesFilter = ''"
+            :class="speciesFilter === '' ? 'bg-mmp-ink text-white' : 'bg-white text-slate-700 border border-slate-200 hover:border-mmp-ink'"
+            class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 transition">
+            Tất cả
+          </button>
+          <button @click="speciesFilter = 'dog'"
+            :class="speciesFilter === 'dog' ? 'bg-mmp-ink text-white' : 'bg-white text-slate-700 border border-slate-200 hover:border-mmp-ink'"
+            class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 transition">
+            🐶 Chó
+          </button>
+          <button @click="speciesFilter = 'cat'"
+            :class="speciesFilter === 'cat' ? 'bg-mmp-ink text-white' : 'bg-white text-slate-700 border border-slate-200 hover:border-mmp-ink'"
+            class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 transition">
+            🐱 Mèo
+          </button>
+        </div>
+      </section>
+
+      <!-- CRITICAL section -->
+      {critical.length > 0 && (
+        <section class="mb-5">
+          <div class="flex items-center gap-2 mb-2.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-red-500"></span>
+            <h3 class="text-xs font-bold uppercase tracking-widest text-red-700">Nguy kịch</h3>
+            <span class="text-xs text-slate-400">({critical.length})</span>
+          </div>
+          <div class="space-y-2">
+            {critical.map((a) => (
+              <a href={`/emergency/${a.slug}`}
+                 class="relative block bg-white border border-slate-200 hover:border-red-300 hover:shadow-md rounded-2xl p-3.5 transition-all overflow-hidden"
+                 data-species={a.species.join(",")}
+                 x-show="showCard($el)">
+                <span aria-hidden="true" class="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></span>
+                <div class="flex items-start gap-3 pl-1">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-mmp-ink leading-tight">{a.title_vi}</p>
+                    <p class="text-xs text-slate-500 mt-1 line-clamp-2">{a.preview}</p>
+                    <p class="text-[10px] text-slate-400 mt-1.5">
+                      {a.species.includes("dog") && "🐶 Chó"}
+                      {a.species.includes("dog") && a.species.includes("cat") && " · "}
+                      {a.species.includes("cat") && "🐱 Mèo"}
+                    </p>
+                  </div>
+                  <FeatureIcon name="arrow" class="w-4 h-4 text-slate-300 shrink-0 mt-1" strokeWidth={2} />
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- URGENT section -->
+      {urgent.length > 0 && (
+        <section class="mb-5">
+          <div class="flex items-center gap-2 mb-2.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+            <h3 class="text-xs font-bold uppercase tracking-widest text-amber-700">Khẩn cấp</h3>
+            <span class="text-xs text-slate-400">({urgent.length})</span>
+          </div>
+          <div class="space-y-2">
+            {urgent.map((a) => (
+              <a href={`/emergency/${a.slug}`}
+                 class="relative block bg-white border border-slate-200 hover:border-amber-300 hover:shadow-md rounded-2xl p-3.5 transition-all overflow-hidden"
+                 data-species={a.species.join(",")}
+                 x-show="showCard($el)">
+                <span aria-hidden="true" class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500"></span>
+                <div class="flex items-start gap-3 pl-1">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-mmp-ink leading-tight">{a.title_vi}</p>
+                    <p class="text-xs text-slate-500 mt-1 line-clamp-2">{a.preview}</p>
+                    <p class="text-[10px] text-slate-400 mt-1.5">
+                      {a.species.includes("dog") && "🐶 Chó"}
+                      {a.species.includes("dog") && a.species.includes("cat") && " · "}
+                      {a.species.includes("cat") && "🐱 Mèo"}
+                    </p>
+                  </div>
+                  <FeatureIcon name="arrow" class="w-4 h-4 text-slate-300 shrink-0 mt-1" strokeWidth={2} />
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- IMPORTANT section -->
+      {important.length > 0 && (
+        <section class="mb-6">
+          <div class="flex items-center gap-2 mb-2.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-[#ecb921]"></span>
+            <h3 class="text-xs font-bold uppercase tracking-widest" style="color: var(--c-gold);">Quan trọng</h3>
+            <span class="text-xs text-slate-400">({important.length})</span>
+          </div>
+          <div class="space-y-2">
+            {important.map((a) => (
+              <a href={`/emergency/${a.slug}`}
+                 class="relative block bg-white border border-slate-200 hover:border-[#ecb921] hover:shadow-md rounded-2xl p-3.5 transition-all overflow-hidden"
+                 data-species={a.species.join(",")}
+                 x-show="showCard($el)">
+                <span aria-hidden="true" class="absolute left-0 top-0 bottom-0 w-1 bg-[#ecb921]"></span>
+                <div class="flex items-start gap-3 pl-1">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-mmp-ink leading-tight">{a.title_vi}</p>
+                    <p class="text-xs text-slate-500 mt-1 line-clamp-2">{a.preview}</p>
+                  </div>
+                  <FeatureIcon name="arrow" class="w-4 h-4 text-slate-300 shrink-0 mt-1" strokeWidth={2} />
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- Disclaimer via Alert primitive -->
+      <Alert variant="warning" title="Lưu ý quan trọng">
+        Đây là hướng dẫn sơ cứu cấp tốc — KHÔNG thay chẩn đoán/điều trị của bác sĩ thú y.
+        Luôn liên hệ clinic ngay cả khi triệu chứng có vẻ thuyên giảm.
+      </Alert>
+    </div>
+  </main>
+
+  <script is:inline>
+    function emergencyPage(initial) {
+      return {
+        articles: initial.articles,
+        categories: initial.categories,
+        speciesFilter: "",
+
+        showCard(el) {
+          if (!this.speciesFilter) return true;
+          const speciesAttr = el.getAttribute("data-species") || "";
+          const species = speciesAttr.split(",").map((s) => s.trim());
+          return species.includes(this.speciesFilter) || species.includes("both");
+        },
+      };
+    }
+  </script>
+</Layout>

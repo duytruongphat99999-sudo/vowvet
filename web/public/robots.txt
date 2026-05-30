@@ -1,0 +1,16 @@
+# VowVet — robots.txt (M8)
+# Disallow private user areas, allow public landing + catalog.
+User-agent: *
+Allow: /$
+Allow: /food-brands
+Allow: /p/
+Disallow: /dashboard
+Disallow: /pets/
+Disallow: /onboarding
+Disallow: /settings
+Disallow: /alerts
+Disallow: /vaccines
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://vowvet.monminpet.com/sitemap.xml

@@ -1,0 +1,158 @@
+---
+/**
+ * /playdate/safety-tips — PUBLIC.
+ *
+ * 3 sections:
+ *   1. Why Playdate via VowVet is safer than FB/Zalo (10 comparisons) — NEW
+ *   2. 10 rules to follow (existing content)
+ *   3. Emergency contact block
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let data: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/playdate/safety-tips`);
+  if (res.ok) data = await res.json();
+} catch (_) {}
+
+// Defensive defaults
+const whySafer: any[] = data?.why_safer || [];
+const rules: any[] = data?.tips || [];
+const emergency = data?.emergency || {
+  hotline: "0779 029 133",
+  hotline_e164: "+84779029133",
+  zalo_oa: "https://zalo.me/1136810892220003266",
+  instructions: "Nếu pet bị thương trong playdate: gọi vet gần nhất ngay.",
+};
+---
+
+<Layout title="An toàn Playdate · VowVet" description="Tại sao Playdate qua VowVet an toàn hơn FB/Zalo group + 10 quy tắc cần làm">
+  <main class="min-h-screen bg-gradient-to-b from-slate-50 to-white px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto">
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/playdate" class="text-sm text-slate-500 hover:text-slate-700">← Playdate</a>
+        <h1 class="text-base font-bold text-slate-900">🛡️ An toàn Playdate</h1>
+        <a href="/why-vowvet" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">Về VowVet</a>
+      </header>
+
+      <!-- Hero -->
+      <div class="text-center mb-8 py-7 px-4 bg-gradient-to-br from-emerald-50 via-teal-50 to-white rounded-3xl border border-emerald-100">
+        <div class="text-5xl sm:text-6xl mb-3">🛡️</div>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-emerald-900">An toàn Playdate</h2>
+        <p class="text-sm text-emerald-700 mt-1">Tại sao VowVet an toàn hơn + 10 quy tắc cần làm</p>
+      </div>
+
+      <!-- ======= SECTION 1: Tại sao VowVet an toàn hơn ======= -->
+      <section class="mb-10">
+        <h2 class="text-lg sm:text-xl font-bold mb-2 flex items-center gap-2">
+          <span>🛡️</span>
+          <span>Tại sao Playdate qua VowVet an tâm hơn?</span>
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-600 mb-5">
+          So sánh với meetup qua Facebook group, Zalo group, hoặc rao vặt thông thường:
+        </p>
+
+        {whySafer.length === 0 && (
+          <p class="text-xs text-slate-500 italic">Đang tải...</p>
+        )}
+
+        <div class="space-y-3">
+          {whySafer.map((item: any) => (
+            <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+              <div class="p-3 sm:p-4 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-slate-800 flex items-center gap-3">
+                <span class="text-2xl sm:text-3xl shrink-0">{item.icon}</span>
+                <h3 class="font-bold text-sm sm:text-base text-emerald-900 flex-1 leading-snug">{item.title}</h3>
+              </div>
+              <div class="p-3 sm:p-4 space-y-3">
+                <div class="flex gap-2">
+                  <span class="text-base sm:text-lg shrink-0">❌</span>
+                  <div class="min-w-0">
+                    <p class="text-[10px] sm:text-xs font-bold text-red-700 uppercase tracking-wide">FB / Zalo group</p>
+                    <p class="text-xs sm:text-sm text-slate-700 mt-0.5 leading-relaxed">{item.problem}</p>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <span class="text-base sm:text-lg shrink-0">✅</span>
+                  <div class="min-w-0">
+                    <p class="text-[10px] sm:text-xs font-bold text-emerald-700 uppercase tracking-wide">VowVet</p>
+                    <p class="text-xs sm:text-sm text-slate-700 mt-0.5 leading-relaxed">{item.solution}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <!-- ======= SECTION 2: 10 rules ======= -->
+      <section class="mb-10">
+        <h2 class="text-lg sm:text-xl font-bold mb-2 flex items-center gap-2">
+          <span>✅</span>
+          <span>10 quy tắc bạn cần làm</span>
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-600 mb-5">
+          App chỉ là công cụ — phần còn lại là trách nhiệm của bạn.
+        </p>
+
+        <div class="space-y-2.5">
+          {rules.map((rule: any, idx: number) => (
+            <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+              <div class="flex gap-3 items-start">
+                <span class="text-2xl sm:text-3xl shrink-0">{rule.emoji}</span>
+                <div class="min-w-0">
+                  <p class="font-bold text-slate-900 text-sm sm:text-base">
+                    <span class="text-[10px] bg-mmp-cream text-mmp-ink rounded-full px-2 py-0.5 mr-1 align-middle">{idx + 1}</span>
+                    {rule.title}
+                  </p>
+                  <p class="text-xs sm:text-sm text-slate-700 mt-1 leading-relaxed">{rule.body}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div class="mt-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
+          <p class="font-bold mb-1">⚠️ Lưu ý quan trọng</p>
+          <p class="leading-relaxed">VowVet không chịu trách nhiệm cho các sự kiện ngoài app. Bạn tự chịu trách nhiệm về an toàn của bé và bản thân. Nếu gặp tình huống bất thường: tách bé khỏi nguy hiểm, gọi vet gần nhất, và báo cáo trong app.</p>
+        </div>
+      </section>
+
+      <!-- ======= SECTION 3: Emergency ======= -->
+      <section class="mb-8">
+        <div class="p-5 sm:p-6 rounded-2xl bg-red-50 border-2 border-red-300">
+          <h2 class="font-bold text-red-900 mb-2 text-base sm:text-lg flex items-center gap-2">
+            <span>🚨</span>
+            <span>Tình huống khẩn cấp</span>
+          </h2>
+          <p class="text-xs sm:text-sm text-red-800 mb-4 leading-relaxed">{emergency.instructions}</p>
+
+          <div class="space-y-2">
+            <a href={`tel:${emergency.hotline_e164}`}
+              class="block w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-center font-bold text-base shadow-lg">
+              📞 Gọi cấp cứu: {emergency.hotline}
+            </a>
+            <a href={emergency.zalo_oa} target="_blank" rel="noopener"
+              class="block w-full py-3 rounded-xl bg-mmp-ink hover:bg-mmp-ink text-white text-center font-bold text-sm">
+              💬 Chat Zalo VowVet
+            </a>
+            <a href="/triage" class="block w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-center font-bold text-sm">
+              🚑 Triage: phân loại mức khẩn cấp
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======= CTA bottom ======= -->
+      <div class="mt-6 text-center p-5 sm:p-6 rounded-2xl bg-mmp-cream border border-mmp-cream">
+        <p class="font-bold mb-2 text-mmp-ink">Sẵn sàng tìm bạn cho bé?</p>
+        <a href="/playdate" class="inline-block px-6 py-3 rounded-xl bg-mmp-ink hover:bg-slate-800 text-white font-bold text-sm shadow-lg">
+          🤝 Bắt đầu Playdate
+        </a>
+      </div>
+
+    </div>
+  </main>
+</Layout>

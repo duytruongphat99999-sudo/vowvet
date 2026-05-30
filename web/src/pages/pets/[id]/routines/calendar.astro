@@ -1,0 +1,459 @@
+---
+/**
+ * /pets/[id]/routines/calendar — Monthly calendar view (M19).
+ *
+ * Grid of days; each day shows colored dots per completed routine.
+ * Streak-chain visualization: consecutive qualifying days highlighted.
+ */
+import Layout from "../../../../layouts/Layout.astro";
+import FeatureIcon from "../../../../components/FeatureIcon.astro";
+import { fetchPet } from "../../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+const now = new Date();
+const initialYear = now.getFullYear();
+const initialMonth = now.getMonth() + 1;
+
+let calData: any = { year: initialYear, month: initialMonth, by_date: {}, streak: null };
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/routines/calendar?year=${initialYear}&month=${initialMonth}`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) calData = await res.json();
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name },
+  calData,
+});
+---
+
+<Layout title={`Calendar routine · ${pet.name}`} description="Streak calendar tháng">
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`routineCalendar(${initialData})`}>
+
+      {/* v102: Brand-synced header */}
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a :href="`/pets/${pet.id}/routines`" class="text-sm italic text-[var(--c-ink-54)] hover:text-mmp-ink inline-flex items-center gap-1.5 transition">
+          <FeatureIcon name="arrow" class="w-3.5 h-3.5 rotate-180" />
+          <span>Routines</span>
+        </a>
+        <h1 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <FeatureIcon name="calendar" class="w-4 h-4" style="color: #B48608;" />
+          <span>Lịch Streak</span>
+        </h1>
+        <span class="w-12"></span>
+      </header>
+
+      {/* v102: HERO STATS CARD — ink + gold spotlight, 4 metrics with Pet Score link */}
+      <section class="relative rounded-3xl bg-mmp-ink text-white overflow-hidden mb-4 shadow-md">
+        <div aria-hidden="true" class="absolute -top-14 -right-14 w-48 h-48 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+        <div aria-hidden="true" class="absolute -bottom-10 -left-10 w-32 h-32 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(180,134,8,0.25) 0%, transparent 70%);"></div>
+
+        <div class="relative p-5">
+          <div class="flex items-center justify-between mb-4 gap-3">
+            <div>
+              <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #ecb921;">Tổng quan tháng</p>
+              <p class="font-display italic text-xl font-semibold mt-0.5">
+                Tháng <span x-text="calData.month"></span>/<span x-text="calData.year"></span>
+              </p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button @click="prevMonth()" class="inline-flex items-center justify-center w-8 h-8 rounded-lg transition" style="background: rgba(236,185,33,0.15); color: #ecb921; border: 1px solid rgba(236,185,33,0.35);" title="Tháng trước">
+                <FeatureIcon name="arrow" class="w-3.5 h-3.5 rotate-180" strokeWidth={2} />
+              </button>
+              <button @click="nextMonth()" :disabled="isFutureMonth"
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg transition disabled:opacity-35 disabled:cursor-not-allowed"
+                style="background: rgba(236,185,33,0.15); color: #ecb921; border: 1px solid rgba(236,185,33,0.35);" title="Tháng sau">
+                <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+
+          {/* 4 stat cells */}
+          <div class="grid grid-cols-4 gap-2">
+            <div class="rounded-xl py-2.5 text-center" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.2);">
+              <p class="text-[9px] uppercase italic tracking-wider text-white/55">Ngày OK</p>
+              <p class="font-display italic font-bold text-xl tabular-nums mt-0.5" style="color: #ecb921;">
+                <span x-text="monthStats.qualifyingDays"></span><span class="text-white/40 text-sm">/<span x-text="daysInMonth.length"></span></span>
+              </p>
+            </div>
+            <div class="rounded-xl py-2.5 text-center" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.2);">
+              <p class="text-[9px] uppercase italic tracking-wider text-white/55">Điểm</p>
+              <p class="font-display italic font-bold text-xl tabular-nums mt-0.5" style="color: #ecb921;" x-text="monthStats.totalPoints"></p>
+            </div>
+            <div class="rounded-xl py-2.5 text-center" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.2);">
+              <p class="text-[9px] uppercase italic tracking-wider text-white/55">Streak</p>
+              <p class="font-display italic font-bold text-xl tabular-nums mt-0.5 inline-flex items-center gap-0.5" style="color: #ecb921;">
+                <FeatureIcon name="flame" class="w-3 h-3" />
+                <span x-text="calData.streak?.current_streak ?? 0"></span>
+              </p>
+            </div>
+            <div class="rounded-xl py-2.5 text-center" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.2);">
+              <p class="text-[9px] uppercase italic tracking-wider text-white/55">Kỷ lục</p>
+              <p class="font-display italic font-bold text-xl tabular-nums mt-0.5" style="color: #ecb921;" x-text="calData.streak?.longest_streak ?? 0"></p>
+            </div>
+          </div>
+
+          {/* Pet Score connection callout */}
+          <a :href="`/pets/${pet.id}/pet-score`" class="mt-3 rounded-xl flex items-center justify-between gap-2 px-3 py-2.5 text-xs italic hover:opacity-95 transition" style="background: rgba(236,185,33,0.12); border: 1px solid rgba(236,185,33,0.32);">
+            <span class="inline-flex items-center gap-2 text-white/90">
+              <FeatureIcon name="trophy" class="w-4 h-4" style="color: #ecb921;" />
+              <span>Tháng này đóng góp <span class="font-bold" style="color: #ecb921;" x-text="`+${monthStats.totalPoints} điểm`"></span> vào Pet Score</span>
+            </span>
+            <FeatureIcon name="arrow" class="w-3 h-3 shrink-0" style="color: #ecb921;" />
+          </a>
+        </div>
+      </section>
+
+      {/* v102: Calendar grid — gold heat-intensity per day */}
+      <div class="bg-white rounded-2xl border p-4 mb-4" style="border-color: rgba(180, 134, 8, 0.22);">
+        <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold mb-3" style="color: #B48608;">Lịch hoàn thành</p>
+
+        {/* Weekday header */}
+        <div class="grid grid-cols-7 gap-1.5 mb-1.5">
+          <template x-for="d in ['CN','T2','T3','T4','T5','T6','T7']" :key="d">
+            <p class="text-center text-[10px] font-bold italic uppercase py-1 tracking-wider" style="color: var(--c-ink-54);" x-text="d"></p>
+          </template>
+        </div>
+
+        {/* Days grid */}
+        <div class="grid grid-cols-7 gap-1.5">
+          <template x-for="i in firstDow" :key="`pad-${i}`">
+            <div class="aspect-square"></div>
+          </template>
+
+          <template x-for="day in daysInMonth" :key="day">
+            <button @click="openDay(day)"
+              :class="dayClass(day)"
+              :style="dayStyle(day)"
+              class="aspect-square rounded-lg flex flex-col items-center justify-center text-xs transition active:scale-90 relative overflow-hidden">
+              <span class="font-display italic font-bold relative z-10" :style="dayTextStyle(day)" x-text="day"></span>
+              <template x-if="dayCompletions(day).length > 0">
+                <span class="text-[8px] font-bold relative z-10 leading-none mt-0.5" :style="dayTextStyle(day)" x-text="`+${dayPoints(day)}`"></span>
+              </template>
+              <template x-if="isInStreak(day)">
+                <svg class="absolute top-0.5 right-0.5 w-2.5 h-2.5 z-10" viewBox="0 0 24 24" fill="currentColor" :style="dayTextStyle(day)" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+              </template>
+            </button>
+          </template>
+        </div>
+
+        {/* Heat intensity legend */}
+        <div class="mt-4 pt-3 border-t flex items-center justify-center gap-1.5 text-[10px] italic" style="border-color: rgba(180,134,8,0.18); color: var(--c-ink-54);">
+          <span>Ít</span>
+          <span class="inline-block w-3 h-3 rounded" style="background: rgba(180,134,8,0.08);"></span>
+          <span class="inline-block w-3 h-3 rounded" style="background: rgba(180,134,8,0.25);"></span>
+          <span class="inline-block w-3 h-3 rounded" style="background: rgba(180,134,8,0.55);"></span>
+          <span class="inline-block w-3 h-3 rounded" style="background: #B48608;"></span>
+          <span class="inline-block w-3 h-3 rounded" style="background: #0a0a0a;"></span>
+          <span>Nhiều</span>
+        </div>
+      </div>
+
+      {/* v102: AI INSIGHTS — auto-computed from calData */}
+      <template x-if="insights.list.length > 0">
+        <section class="bg-white rounded-2xl border p-4 mb-4" style="border-color: rgba(180, 134, 8, 0.22);">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg" style="background: rgba(180,134,8,0.1); color: #B48608; border: 1px solid rgba(180,134,8,0.3);">
+              <FeatureIcon name="lightbulb" class="w-4 h-4" />
+            </span>
+            <div>
+              <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">AI Insights</p>
+              <p class="font-display italic font-semibold text-sm text-mmp-ink leading-tight">Mẫu hành vi tháng này</p>
+            </div>
+          </div>
+          <ul class="space-y-2">
+            <template x-for="(item, idx) in insights.list" :key="idx">
+              <li class="flex items-start gap-2.5 text-xs italic text-mmp-ink leading-relaxed">
+                <span class="shrink-0 mt-1 w-1.5 h-1.5 rounded-full" style="background: #B48608;"></span>
+                <span x-html="item"></span>
+              </li>
+            </template>
+          </ul>
+        </section>
+      </template>
+
+      {/* v102: Day modal — brand-synced */}
+      <template x-if="selectedDay !== null">
+        <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style="background: rgba(10, 10, 10, 0.5); backdrop-filter: blur(6px);"
+          @click.self="selectedDay = null">
+          <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl relative" style="border: 1px solid rgba(180,134,8,0.2);">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">Ngày <span x-text="selectedDay"></span>/<span x-text="calData.month"></span></p>
+                <h3 class="font-display italic text-lg font-semibold text-mmp-ink mt-0.5">
+                  <span x-text="dayLabel(selectedDay)"></span>
+                </h3>
+              </div>
+              <button @click="selectedDay = null" class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--c-ink-54)] hover:text-mmp-ink hover:bg-mmp-cream transition">
+                <FeatureIcon name="close" class="w-4 h-4" strokeWidth={2} />
+              </button>
+            </div>
+
+            <template x-if="dayCompletions(selectedDay).length === 0">
+              <div class="text-center py-8">
+                <span class="inline-flex items-center justify-center w-14 h-14 rounded-full mb-2" style="background: rgba(180,134,8,0.08); color: #B48608;">
+                  <FeatureIcon name="calendar" class="w-6 h-6" strokeWidth={1.5} />
+                </span>
+                <p class="text-sm italic text-[var(--c-ink-54)]">Không có routine hoàn thành ngày này</p>
+              </div>
+            </template>
+
+            <div class="space-y-2">
+              <template x-for="c in dayCompletions(selectedDay)" :key="c.id">
+                <div class="rounded-xl p-3 flex items-center gap-3" style="background: rgba(180,134,8,0.06); border: 1px solid rgba(180,134,8,0.18);">
+                  <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg text-xl" style="background: rgba(180,134,8,0.12); color: #B48608;" x-text="c.routine_icon"></span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-display italic font-semibold text-sm text-mmp-ink truncate" x-text="c.routine_name"></p>
+                    <p class="text-[11px] italic mt-0.5 inline-flex items-center gap-1.5" style="color: var(--c-ink-54);">
+                      <span x-text="c.tasks_completion_rate + '%'"></span>
+                      <span class="opacity-50">·</span>
+                      <span x-text="c.tasks_completed.length + '/' + c.tasks_total"></span>
+                      <span class="opacity-50">·</span>
+                      <span class="font-bold inline-flex items-center gap-0.5" style="color: #B48608;">+<span x-text="c.points_earned"></span>
+                        <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 8.5 22 9.3 17 14 18.2 21 12 17.8 5.8 21 7 14 2 9.3 9 8.5 12 2"/></svg>
+                      </span>
+                    </p>
+                  </div>
+                  <template x-if="c.tasks_completion_rate >= 50">
+                    <span class="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full" style="background: rgba(180,134,8,0.18); color: #B48608;">
+                      <FeatureIcon name="check" class="w-3.5 h-3.5" strokeWidth={2.5} />
+                    </span>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function routineCalendar(initial) {
+      return {
+        pet: initial.pet,
+        calData: initial.calData,
+        selectedDay: null,
+
+        get daysInMonth() {
+          const last = new Date(this.calData.year, this.calData.month, 0).getDate();
+          return Array.from({ length: last }, (_, i) => i + 1);
+        },
+
+        get firstDow() {
+          // 0 = Sunday
+          const first = new Date(this.calData.year, this.calData.month - 1, 1).getDay();
+          return Array.from({ length: first }, (_, i) => i);
+        },
+
+        get isFutureMonth() {
+          const now = new Date();
+          const cY = this.calData.year, cM = this.calData.month;
+          return cY > now.getFullYear() || (cY === now.getFullYear() && cM >= now.getMonth() + 1);
+        },
+
+        dayKey(day) {
+          const y = this.calData.year;
+          const m = String(this.calData.month).padStart(2, "0");
+          const d = String(day).padStart(2, "0");
+          return `${y}-${m}-${d}`;
+        },
+
+        dayCompletions(day) {
+          if (!day) return [];
+          return this.calData.by_date[this.dayKey(day)] || [];
+        },
+
+        hasQualifying(day) {
+          return this.dayCompletions(day).some((c) => c.tasks_completion_rate >= 50);
+        },
+
+        isInStreak(day) {
+          // A day is "in streak" if today's date qualifies and the streak window covers it.
+          const last = this.calData.streak?.last_completion_date;
+          const cur = this.calData.streak?.current_streak ?? 0;
+          if (!last || cur <= 0) return false;
+          const dayStr = this.dayKey(day);
+          if (dayStr > last) return false;
+          // Compute streak start
+          const startDate = new Date(last + "T00:00:00Z");
+          startDate.setUTCDate(startDate.getUTCDate() - (cur - 1));
+          const startStr = startDate.toISOString().slice(0, 10);
+          return dayStr >= startStr && dayStr <= last && this.hasQualifying(day);
+        },
+
+        // v102: Heat-intensity day class — gold gradient based on points earned that day
+        dayClass(day) {
+          const today = new Date();
+          const isToday = today.getFullYear() === this.calData.year &&
+                          today.getMonth() + 1 === this.calData.month &&
+                          today.getDate() === day;
+          if (isToday) return "ring-2 ring-offset-1";
+          return "";
+        },
+
+        dayStyle(day) {
+          const today = new Date();
+          const isToday = today.getFullYear() === this.calData.year &&
+                          today.getMonth() + 1 === this.calData.month &&
+                          today.getDate() === day;
+          const points = this.dayPoints(day);
+          let bg = "background: rgba(180, 134, 8, 0.06);"; // empty day
+          if (points >= 1 && points <= 3) bg = "background: rgba(180, 134, 8, 0.25);";
+          else if (points >= 4 && points <= 6) bg = "background: rgba(180, 134, 8, 0.55);";
+          else if (points >= 7 && points <= 10) bg = "background: #B48608;";
+          else if (points > 10) bg = "background: #0a0a0a;";
+          if (isToday) bg += " --tw-ring-color: #B48608; box-shadow: 0 0 0 2px #ecb921, 0 0 12px rgba(236, 185, 33, 0.5);";
+          return bg;
+        },
+
+        dayTextStyle(day) {
+          const points = this.dayPoints(day);
+          if (points > 10) return "color: #ecb921;";  // dark bg → gold text
+          if (points >= 4) return "color: #ffffff;";  // mid bg → white text
+          return "color: var(--c-ink);";
+        },
+
+        dayPoints(day) {
+          const completions = this.dayCompletions(day);
+          return completions.reduce((s, c) => s + (c.points_earned || 0), 0);
+        },
+
+        dayLabel(day) {
+          if (!day) return "";
+          const d = new Date(this.calData.year, this.calData.month - 1, day);
+          const weekday = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"][d.getDay()];
+          return `${weekday}, ${day}/${this.calData.month}`;
+        },
+
+        // v102: Month-level stats computed from calData
+        get monthStats() {
+          const days = this.daysInMonth;
+          let qualifyingDays = 0;
+          let totalPoints = 0;
+          for (const day of days) {
+            const completions = this.dayCompletions(day);
+            const hasQ = completions.some((c) => c.tasks_completion_rate >= 50);
+            if (hasQ) qualifyingDays++;
+            totalPoints += completions.reduce((s, c) => s + (c.points_earned || 0), 0);
+          }
+          return { qualifyingDays, totalPoints };
+        },
+
+        // v102: AI-style insights — auto-computed from completion patterns
+        get insights() {
+          const list = [];
+          const days = this.daysInMonth;
+          const totalDays = days.length;
+          const stats = this.monthStats;
+          const pct = totalDays > 0 ? Math.round((stats.qualifyingDays / totalDays) * 100) : 0;
+
+          // 1. Completion rate
+          if (stats.qualifyingDays > 0) {
+            if (pct >= 80) {
+              list.push(`<strong style="color: #B48608;">Tuyệt vời!</strong> Hoàn thành ${pct}% số ngày (${stats.qualifyingDays}/${totalDays}). Cứ tiếp tục để giữ streak.`);
+            } else if (pct >= 50) {
+              list.push(`Hoàn thành <strong style="color: #B48608;">${pct}%</strong> số ngày (${stats.qualifyingDays}/${totalDays}). Còn ${totalDays - stats.qualifyingDays} ngày nữa để chinh phục tháng.`);
+            } else if (pct > 0) {
+              list.push(`Mới hoàn thành <strong style="color: #B48608;">${pct}%</strong> tháng. Đừng nản — 1 ngày = 1 bước.`);
+            }
+          }
+
+          // 2. Top routine by frequency
+          const routineCount = {};
+          for (const day of days) {
+            for (const c of this.dayCompletions(day)) {
+              if (c.tasks_completion_rate >= 50) {
+                routineCount[c.routine_name] = (routineCount[c.routine_name] || 0) + 1;
+              }
+            }
+          }
+          const topRoutine = Object.entries(routineCount).sort((a, b) => b[1] - a[1])[0];
+          if (topRoutine && topRoutine[1] >= 3) {
+            list.push(`Routine bạn duy trì tốt nhất: <strong style="color: #B48608;">${topRoutine[0]}</strong> (${topRoutine[1]} ngày)`);
+          }
+
+          // 3. Weekday miss pattern (find weekday with lowest completion)
+          if (stats.qualifyingDays >= 5) {
+            const weekdayMisses = [0, 0, 0, 0, 0, 0, 0]; // CN=0, T2=1, ...
+            const weekdayTotal = [0, 0, 0, 0, 0, 0, 0];
+            for (const day of days) {
+              const dow = new Date(this.calData.year, this.calData.month - 1, day).getDay();
+              weekdayTotal[dow]++;
+              const hasQ = this.dayCompletions(day).some((c) => c.tasks_completion_rate >= 50);
+              if (!hasQ) weekdayMisses[dow]++;
+            }
+            const wdNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+            let worstIdx = -1, worstRate = 0;
+            for (let i = 0; i < 7; i++) {
+              if (weekdayTotal[i] >= 2) {
+                const rate = weekdayMisses[i] / weekdayTotal[i];
+                if (rate > worstRate) { worstRate = rate; worstIdx = i; }
+              }
+            }
+            if (worstIdx >= 0 && worstRate >= 0.5) {
+              list.push(`Bạn hay quên vào <strong style="color: #B48608;">${wdNames[worstIdx]}</strong>. Bật reminder cho ngày này nhé.`);
+            }
+          }
+
+          // 4. Pet Score connection
+          if (stats.totalPoints >= 20) {
+            list.push(`Tổng <strong style="color: #B48608;">${stats.totalPoints} điểm</strong> đóng góp vào Pet Score → đổi voucher/quà.`);
+          }
+
+          // 5. Streak milestone forecast
+          const curStreak = this.calData.streak?.current_streak ?? 0;
+          if (curStreak >= 5 && curStreak < 30) {
+            const daysLeft = 30 - curStreak;
+            list.push(`Còn <strong style="color: #B48608;">${daysLeft} ngày</strong> nữa đạt cột mốc "Bậc thầy tháng" 🏆`);
+          } else if (curStreak >= 30 && curStreak < 100) {
+            const daysLeft = 100 - curStreak;
+            list.push(`Còn <strong style="color: #B48608;">${daysLeft} ngày</strong> nữa đạt cột mốc "Trăm ngày" 💯`);
+          }
+
+          return { list, qualifyingPct: pct };
+        },
+
+        openDay(day) {
+          this.selectedDay = day;
+        },
+
+        async loadMonth(year, month) {
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/routines/calendar?year=${year}&month=${month}`, {
+              credentials: "include",
+            });
+            if (res.ok) this.calData = await res.json();
+          } catch (_) {}
+        },
+
+        prevMonth() {
+          let y = this.calData.year, m = this.calData.month - 1;
+          if (m < 1) { y--; m = 12; }
+          this.loadMonth(y, m);
+        },
+
+        nextMonth() {
+          if (this.isFutureMonth) return;
+          let y = this.calData.year, m = this.calData.month + 1;
+          if (m > 12) { y++; m = 1; }
+          this.loadMonth(y, m);
+        },
+      };
+    }
+  </script>
+</Layout>

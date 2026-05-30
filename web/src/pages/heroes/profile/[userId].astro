@@ -1,0 +1,193 @@
+---
+/**
+ * /heroes/profile/[userId] — Public Pet Hero profile.
+ *
+ * Avatar + name + badge tier + stats + recent acts timeline.
+ * Owner sees a "privacy toggle" button.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { getZaloLink } from "../../../../../shared/contact-info.ts";
+
+const userId = Number(Astro.params.userId);
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let profile: any = null;
+let acts: any[] = [];
+try {
+  const [pRes, aRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}`),
+    fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}/acts`),
+  ]);
+  if (pRes.ok) profile = (await pRes.json()).profile;
+  if (aRes.ok) acts = (await aRes.json()).acts || [];
+} catch (_) {}
+
+if (!profile) {
+  return new Response("Profile riêng tư hoặc không tồn tại", { status: 404 });
+}
+
+const user = Astro.locals.user;
+const isOwner = user?.sub === userId;
+
+const initialData = JSON.stringify({
+  profile,
+  acts,
+  zaloUrl: getZaloLink(),
+  isOwner,
+});
+---
+
+<Layout title={`🦸 ${profile.name} · Pet Hero`} description={`${profile.name} đã giúp ${profile.heroes_count} bé tìm về nhà`}>
+  <main class="min-h-screen bg-gradient-to-b from-amber-50 via-yellow-50 to-orange-50 px-4 py-6 pb-16">
+    <div class="max-w-xl mx-auto" x-data={`heroProfile(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/heroes/leaderboard" class="text-sm text-slate-500 hover:text-slate-700">← Leaderboard</a>
+        <h1 class="text-base font-bold text-slate-900">🦸 Pet Hero</h1>
+        <button @click="share()" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">📤 Share</button>
+      </header>
+
+      <!-- Hero card -->
+      <div :class="profile.badge_tier === 'guardian' ? 'bg-gradient-to-br from-amber-500 to-yellow-500 text-white' : 'bg-white border-2 border-amber-200'"
+        class="rounded-3xl p-6 shadow-xl mb-5 text-center">
+        <template x-if="profile.avatar_url">
+          <img :src="profile.avatar_url" alt="" class="w-24 h-24 rounded-full object-cover mx-auto border-4 border-white shadow-lg" />
+        </template>
+        <template x-if="!profile.avatar_url">
+          <div class="w-24 h-24 rounded-full bg-amber-100 mx-auto flex items-center justify-center text-4xl border-4 border-white shadow-lg">🦸</div>
+        </template>
+        <h2 class="text-2xl font-extrabold mt-3" x-text="profile.name"></h2>
+        <p :class="profile.badge_tier === 'guardian' ? 'bg-white/30 text-white' : tierBadge.color_class"
+          class="inline-block px-3 py-1 rounded-full text-xs font-bold mt-2"
+          x-text="`${tierBadge.emoji} ${tierBadge.label_vi}`"></p>
+        <p class="text-3xl font-extrabold mt-4">
+          <span x-text="profile.heroes_count"></span>
+          <span class="text-base font-normal" x-text="profile.badge_tier === 'guardian' ? 'bé được cứu' : 'bé đã giúp'"></span>
+        </p>
+        <template x-if="profile.total_rewards > 0">
+          <p class="text-sm mt-1 opacity-90" x-text="`Tổng thưởng đã nhận: ${profile.total_rewards.toLocaleString('vi-VN')}đ`"></p>
+        </template>
+        <template x-if="profile.hero_first_at">
+          <p class="text-[11px] mt-3 opacity-75" x-text="`Pet Hero từ ${fmtDate(profile.hero_first_at)}`"></p>
+        </template>
+      </div>
+
+      <!-- Privacy toggle (owner only) -->
+      <template x-if="isOwner">
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 mb-5 flex items-center justify-between">
+          <div>
+            <p class="text-sm font-bold text-slate-900">Hiển thị công khai profile</p>
+            <p class="text-[11px] text-slate-500">Người khác có thể xem badge + acts của bạn</p>
+          </div>
+          <button @click="togglePrivate()" :disabled="toggling"
+            class="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+            <span x-show="!toggling">Tắt profile công khai</span>
+            <span x-show="toggling">...</span>
+          </button>
+        </div>
+      </template>
+
+      <!-- Timeline -->
+      <h2 class="text-sm font-bold text-slate-900 mb-3">📜 Hero Acts gần đây</h2>
+      <template x-if="acts.length === 0">
+        <p class="text-xs text-slate-500 italic text-center py-4">Chưa có hoạt động nào.</p>
+      </template>
+      <div class="space-y-2">
+        <template x-for="act in acts" :key="act.id">
+          <div class="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
+            <div :class="actMeta(act.act_type).bg" class="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0">
+              <span x-text="actMeta(act.act_type).emoji"></span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-slate-900" x-text="actMeta(act.act_type).label"></p>
+              <p class="text-[11px] text-slate-500" x-text="`Bé ${act.pet_name || 'ẩn danh'} · ${fmtDateTime(act.created_at)}`"></p>
+            </div>
+            <template x-if="act.reward_received > 0">
+              <p class="text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-0.5 font-bold whitespace-nowrap"
+                x-text="`+${(act.reward_received/1000).toFixed(0)}k`"></p>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- Footer CTA -->
+      <div class="mt-8 p-5 rounded-2xl bg-mmp-cream border border-mmp-cream text-center">
+        <p class="font-bold text-mmp-ink mb-2">Cảm ơn <span x-text="profile.name"></span> đã giúp cộng đồng!</p>
+        <a href="/heroes/leaderboard" class="inline-block bg-mmp-ink hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-sm">
+          Xem leaderboard →
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function heroProfile(initial) {
+      const HERO_TIERS = {
+        none:     { emoji: '🙂', label_vi: 'Không có',      color_class: 'bg-slate-100 text-slate-600' },
+        helper:   { emoji: '🤝', label_vi: 'Pet Helper',   color_class: 'bg-mmp-cream text-mmp-ink' },
+        hero:     { emoji: '🦸', label_vi: 'Pet Hero',     color_class: 'bg-mmp-cream text-mmp-ink' },
+        legend:   { emoji: '🏆', label_vi: 'Pet Legend',   color_class: 'bg-amber-100 text-amber-700' },
+        guardian: { emoji: '👑', label_vi: 'Pet Guardian', color_class: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white' },
+      };
+      return {
+        profile: initial.profile,
+        acts: initial.acts,
+        zaloUrl: initial.zaloUrl,
+        isOwner: initial.isOwner,
+        toggling: false,
+
+        get tierBadge() {
+          return HERO_TIERS[this.profile.badge_tier] || HERO_TIERS.none;
+        },
+
+        actMeta(type) {
+          if (type === 'sighting_confirmed') return { emoji: '👀', label: 'Báo thấy được chủ xác nhận', bg: 'bg-emerald-100' };
+          if (type === 'direct_rescue')      return { emoji: '🦸', label: 'Trực tiếp cứu hộ',           bg: 'bg-mmp-cream' };
+          if (type === 'broadcast_shared')   return { emoji: '📣', label: 'Chia sẻ broadcast',          bg: 'bg-mmp-cream' };
+          return { emoji: '🐾', label: type, bg: 'bg-slate-100' };
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "—";
+          try { return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+          catch { return iso.slice(0, 10); }
+        },
+
+        fmtDateTime(iso) {
+          if (!iso) return "—";
+          try { return new Date(iso).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+          catch { return iso.slice(0, 16); }
+        },
+
+        share() {
+          const url = window.location.href;
+          if (navigator.share) {
+            navigator.share({ title: `🦸 ${this.profile.name} - Pet Hero`, url });
+          } else {
+            navigator.clipboard.writeText(url);
+            alert("Đã copy link!");
+          }
+        },
+
+        async togglePrivate() {
+          this.toggling = true;
+          try {
+            const res = await fetch('/api/v1/heroes/toggle-public', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ enabled: false }),
+            });
+            if (res.ok) {
+              alert("Đã tắt profile công khai. Vào lại bằng /heroes/profile nếu muốn bật lại.");
+              window.location.href = '/dashboard';
+            }
+          } catch (_) {
+            alert("Lỗi kết nối.");
+          } finally { this.toggling = false; }
+        },
+      };
+    }
+  </script>
+</Layout>

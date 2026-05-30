@@ -1,0 +1,406 @@
+---
+/**
+ * /pets/[id]/photos — Casual photo album (Daily Quest "Upload 1 ảnh bé" target).
+ *
+ * Lightweight album surface — distinct from `/pets/:id/profile/complete?focus=photos`
+ * which is the **ID-mode wizard** (6 typed slots for Lost-Pet AI face recognition).
+ *
+ * Endpoint contract (already exists in api/src/routes/pets.ts):
+ *   GET    /api/v1/pets/:id/photos          — returns { photos: [{id, photo_url, photo_type, caption, is_primary, uploaded_at}] }
+ *   POST   /api/v1/pets/:id/photos          — multipart: photo + type ("general" default here) + caption (≤200ch)
+ *                                              → fires trackQuestTrigger("upload_photo") server-side → quest auto-completes
+ *   DELETE /api/v1/pets/:id/photos/:photo_id
+ *
+ * Constraints:
+ *   - Max 10 "general" photos per pet (server returns GENERAL_LIMIT 400 if exceeded)
+ *   - Max file size 5 MB
+ *   - Accept: JPEG / PNG / WebP
+ *
+ * Referer-aware back nav: dashboard / quests hub / pet profile.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login?return_to=/pets/" + Astro.params.id + "/photos");
+
+const petId = Number(Astro.params.id);
+if (!Number.isFinite(petId) || petId <= 0) return Astro.redirect("/dashboard");
+
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+if (status === 403) return new Response("403 Forbidden", { status: 403 });
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// SSR pre-fetch photo list
+let photos: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/photos`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) photos = (await res.json()).photos || [];
+} catch (_) {}
+
+// Stats
+const generalPhotos = photos.filter((p) => p.photo_type === "general");
+const typedPhotos = photos.filter((p) => p.photo_type !== "general");
+const GENERAL_MAX = 10;
+const remainingSlots = Math.max(0, GENERAL_MAX - generalPhotos.length);
+
+// Referer-aware back link
+const referer = Astro.request.headers.get("referer") || "";
+const backHref = referer.includes("/dashboard") ? "/dashboard"
+              : referer.includes("/quests")    ? `/pets/${petId}/quests`
+              : `/pets/${petId}`;
+const backLabel = referer.includes("/dashboard") ? "Dashboard"
+               : referer.includes("/quests")    ? "Nhiệm vụ"
+               : (pet.name || "Pet");
+
+// 6 ID-mode slots — matches PhotoTypeSchema in shared/zod-schemas/profile-sections.ts
+const ID_SLOTS: Array<{ angle: string; label: string; required: boolean }> = [
+  { angle: "face",         label: "Chính diện",  required: true },
+  { angle: "profile",      label: "Nghiêng",     required: true },
+  { angle: "full_body",    label: "Toàn thân",   required: true },
+  { angle: "marks",        label: "Đặc điểm",    required: false },
+  { angle: "eye_close_up", label: "Mắt",         required: false },
+  { angle: "nose_print",   label: "Mũi",         required: false },
+];
+
+// Build a quick lookup: angle → existing photo (or undefined if slot empty)
+const idPhotoByAngle: Record<string, any> = {};
+for (const p of typedPhotos) {
+  if (p.photo_type && !idPhotoByAngle[p.photo_type]) {
+    idPhotoByAngle[p.photo_type] = p;
+  }
+}
+const idCompleted = ID_SLOTS.filter((s) => idPhotoByAngle[s.angle]).length;
+const idRequiredCompleted = ID_SLOTS.filter((s) => s.required && idPhotoByAngle[s.angle]).length;
+const idPercent = Math.round((idCompleted / ID_SLOTS.length) * 100);
+
+// Display labels for typed photos (badge "ID")
+const TYPE_LABEL_VN: Record<string, string> = {
+  face:        "Mặt",
+  profile:     "Nghiêng",
+  full_body:   "Toàn thân",
+  marks:       "Đặc điểm",
+  eye_close_up:"Mắt",
+  nose_print:  "Mũi",
+};
+---
+
+<Layout title={`Album · ${pet.name} · VowVet`} description="Album khoảnh khắc cùng bé">
+  <main class="min-h-screen bg-mmp-cream pb-12">
+
+    <!-- Sticky header -->
+    <header class="sticky top-0 z-30 bg-white border-b border-slate-200">
+      <div class="max-w-2xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <a href={backHref} class="text-sm text-slate-500 hover:text-mmp-ink inline-flex items-center gap-1 transition">
+          <FeatureIcon name="arrow" class="w-4 h-4 rotate-180" strokeWidth={2} />
+          {backLabel}
+        </a>
+        <h1 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-mmp-cream">
+            <FeatureIcon name="image" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+          </span>
+          Album
+        </h1>
+        <span class="text-[10px] bg-mmp-cream text-mmp-ink border border-amber-200 px-2 py-0.5 rounded-full font-bold tabular-nums">
+          {photos.length} ảnh
+        </span>
+      </div>
+    </header>
+
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+
+      <!-- Hero ink card: upload form -->
+      <section class="relative bg-mmp-ink text-white rounded-3xl overflow-hidden shadow-lg">
+        <div aria-hidden="true" class="absolute -top-16 -right-16 w-56 h-56 rounded-full blur-3xl"
+             style="background: rgba(236, 185, 33, 0.18);"></div>
+        <div aria-hidden="true" class="absolute -bottom-20 -left-20 w-48 h-48 rounded-full blur-3xl"
+             style="background: rgba(236, 185, 33, 0.10);"></div>
+
+        <div class="relative p-5 sm:p-6">
+          <p class="text-[11px] uppercase tracking-[0.3em] font-bold mb-1" style="color: var(--c-gold);">
+            Khoảnh khắc
+          </p>
+          <h2 class="font-display italic text-2xl sm:text-3xl font-semibold leading-tight mb-4">
+            Album cùng {pet.name}
+          </h2>
+
+          <form id="photo-upload-form" enctype="multipart/form-data" class="space-y-3">
+            <!-- Drop-zone label -->
+            <label for="photo-input"
+                   class="block w-full p-5 rounded-2xl border-2 border-dashed text-center cursor-pointer transition hover:bg-white/5"
+                   style="border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.04);">
+              <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl mx-auto mb-2 ring-1 ring-white/20"
+                    style="background: rgba(236, 185, 33, 0.18);">
+                <FeatureIcon name="camera" class="w-6 h-6" strokeWidth={1.7} style="color: var(--c-gold);" />
+              </span>
+              <p class="font-semibold text-white" id="photo-label">Chọn ảnh để upload</p>
+              <p class="text-xs text-white/55 mt-1">
+                JPG / PNG / WebP · tối đa 5 MB · còn <strong style="color: var(--c-gold);">{remainingSlots}/{GENERAL_MAX}</strong> slot
+              </p>
+              <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/webp" class="hidden" />
+            </label>
+
+            <!-- Caption -->
+            <input type="text" id="photo-caption" name="caption" maxlength="200"
+                   placeholder="Caption (tuỳ chọn) — VD: Đi dạo công viên cuối tuần"
+                   class="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none transition border"
+                   style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15);" />
+
+            <!-- Error -->
+            <p id="photo-error" class="hidden text-xs text-red-300 font-medium px-1"></p>
+
+            <!-- Submit -->
+            <button type="submit" id="photo-submit"
+                    class="w-full inline-flex items-center justify-center gap-2 h-12 px-5 text-base font-bold rounded-xl text-mmp-ink hover:opacity-90 active:scale-[0.99] transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    style="background: var(--c-gold);"
+                    disabled>
+              <span id="photo-submit-label">Đăng ảnh</span>
+              <span class="inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-full bg-mmp-ink/15">
+                +15 Pet Score
+              </span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Library grid -->
+      <!-- ─── SECTION 1: KHOẢNH KHẮC (general photo_type) ─── -->
+      <section class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-mmp-ink inline-flex items-center gap-2">
+            <FeatureIcon name="camera" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+            Khoảnh khắc
+            <span class="text-sm font-normal text-slate-500">({generalPhotos.length})</span>
+          </h3>
+          <span class="text-xs text-slate-400">+15đ / ảnh</span>
+        </div>
+
+        {generalPhotos.length === 0 ? (
+          <div class="bg-white rounded-3xl border border-slate-100 p-10 text-center shadow-sm">
+            <span class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-mmp-cream mx-auto mb-3">
+              <FeatureIcon name="camera" class="w-7 h-7" strokeWidth={1.5} style="color: var(--c-gold);" />
+            </span>
+            <p class="font-bold text-mmp-ink mb-1">Chưa có khoảnh khắc nào</p>
+            <p class="text-sm text-slate-500 max-w-xs mx-auto">Upload ảnh đầu tiên ở trên — quest "Upload 1 ảnh bé" tự complete.</p>
+          </div>
+        ) : (
+          <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            {generalPhotos.map((p) => (
+              <div class="relative aspect-square rounded-2xl overflow-hidden bg-mmp-cream group ring-1 ring-slate-200">
+                <img src={p.photo_url} alt={p.caption || pet.name} loading="lazy"
+                     class="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                {p.is_primary && (
+                  <span class="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-white shadow ring-1 ring-amber-300">
+                    <FeatureIcon name="star" class="w-3 h-3" strokeWidth={2} style="color: var(--c-gold);" />
+                  </span>
+                )}
+                {p.caption && (
+                  <div class="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/70 via-black/35 to-transparent">
+                    <p class="text-[10px] text-white leading-tight line-clamp-2">{p.caption}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <!-- Divider -->
+      <div class="h-px bg-slate-200"></div>
+
+      <!-- ─── SECTION 2: ẢNH PHÂN LOẠI ID (6 typed slots for Lost-Pet AI) ─── -->
+      <section class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-mmp-ink inline-flex items-center gap-2">
+            <FeatureIcon name="shield" class="w-4 h-4 text-mmp-ink" strokeWidth={2} />
+            Ảnh phân loại ID
+            <span class="text-sm font-normal text-slate-500">({idCompleted}/{ID_SLOTS.length})</span>
+          </h3>
+          <a href={`/pets/${petId}/profile/complete?focus=photos`}
+             class="text-xs font-semibold hover:underline inline-flex items-center gap-1"
+             style="color: var(--c-gold);">
+            Hoàn thiện
+            <FeatureIcon name="arrow" class="w-3 h-3" strokeWidth={2.4} />
+          </a>
+        </div>
+
+        {/* Why-this-section card */}
+        <div class="flex items-start gap-3 p-3 rounded-2xl border"
+             style="background: rgba(236, 185, 33, 0.10); border-color: rgba(236, 185, 33, 0.35);">
+          <span class="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-amber-200">
+            <FeatureIcon name="sparkles" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+          </span>
+          <div class="text-xs text-slate-700 leading-relaxed flex-1 min-w-0">
+            <p class="font-bold text-mmp-ink mb-0.5">Tại sao cần ảnh phân loại?</p>
+            <p>Khi bé đi lạc, AI Lost Pet dùng 6 góc này để nhận diện qua ảnh chụp từ người tìm thấy. Đủ 6 góc → <strong class="text-mmp-ink">+80đ Profile bonus</strong>.</p>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs text-slate-500">
+              Tiến độ <span class="text-mmp-ink font-medium">{idRequiredCompleted}/3</span> bắt buộc · <span class="text-mmp-ink font-medium">{idCompleted}/{ID_SLOTS.length}</span> tổng
+            </span>
+            <span class="text-xs font-bold tabular-nums" style="color: var(--c-gold);">{idPercent}%</span>
+          </div>
+          <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-700"
+                 style={`width: ${idPercent}%; background: linear-gradient(90deg, var(--c-gold) 0%, #fde68a 50%, var(--c-gold) 100%);`}>
+            </div>
+          </div>
+        </div>
+
+        {/* 6-slot grid — placeholders for missing slots */}
+        <div class="grid grid-cols-3 gap-2 sm:gap-3">
+          {ID_SLOTS.map((slot) => {
+            const existing = idPhotoByAngle[slot.angle];
+            const href = `/pets/${petId}/profile/complete?focus=photos&angle=${slot.angle}`;
+            return (
+              <a href={href}
+                 class="relative aspect-square rounded-2xl overflow-hidden bg-white group">
+                {existing ? (
+                  <>
+                    <img src={existing.photo_url} alt={slot.label} loading="lazy"
+                         class="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                    <span class="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-mmp-ink"
+                          style="background: var(--c-gold);">
+                      {slot.label}
+                    </span>
+                  </>
+                ) : (
+                  <div class="w-full h-full flex flex-col items-center justify-center p-2 border-2 border-dashed border-slate-300 hover:border-mmp-ink rounded-2xl transition">
+                    <FeatureIcon name="camera" class="w-6 h-6 text-slate-400 mb-1" strokeWidth={1.5} />
+                    <p class="text-[10px] font-medium text-slate-600 text-center leading-tight">{slot.label}</p>
+                    {slot.required && (
+                      <span class="text-[9px] text-red-600 mt-0.5 font-bold">Bắt buộc</span>
+                    )}
+                  </div>
+                )}
+              </a>
+            );
+          })}
+        </div>
+
+        {idRequiredCompleted < 3 && (
+          <a href={`/pets/${petId}/profile/complete?focus=photos`}
+             class="inline-flex items-center justify-center w-full gap-2 bg-mmp-ink text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition">
+            <FeatureIcon name="camera" class="w-4 h-4" strokeWidth={2} />
+            Hoàn thiện {3 - idRequiredCompleted} góc bắt buộc
+            <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2.4} />
+          </a>
+        )}
+      </section>
+
+      <!-- Helpful footer -->
+      <p class="text-center text-xs text-slate-500">
+        Khoảnh khắc upload tự động hoàn thành quest <strong class="text-mmp-ink">"Upload 1 ảnh bé"</strong>.
+        Toàn bộ điểm cộng được tổng hợp ở
+        <a href={`/pets/${petId}/activity`} class="font-semibold hover:underline" style="color: var(--c-gold);">Hoạt động →</a>
+      </p>
+    </div>
+  </main>
+
+  <script is:inline define:vars={{ petId, GENERAL_MAX, remainingSlots }}>
+    (() => {
+      const form = document.getElementById("photo-upload-form");
+      const input = document.getElementById("photo-input");
+      const labelText = document.getElementById("photo-label");
+      const captionEl = document.getElementById("photo-caption");
+      const submitBtn = document.getElementById("photo-submit");
+      const submitLabel = document.getElementById("photo-submit-label");
+      const errorEl = document.getElementById("photo-error");
+
+      function showErr(msg) {
+        if (!errorEl) return;
+        errorEl.textContent = msg;
+        errorEl.classList.remove("hidden");
+      }
+      function clearErr() {
+        if (!errorEl) return;
+        errorEl.textContent = "";
+        errorEl.classList.add("hidden");
+      }
+
+      if (remainingSlots <= 0) {
+        labelText.textContent = `Đã đạt giới hạn ${GENERAL_MAX} ảnh. Xoá ảnh cũ để upload mới.`;
+        submitBtn.disabled = true;
+        return;
+      }
+
+      input.addEventListener("change", () => {
+        clearErr();
+        const f = input.files?.[0];
+        if (!f) {
+          submitBtn.disabled = true;
+          labelText.textContent = "Chọn ảnh để upload";
+          return;
+        }
+        if (f.size > 5 * 1024 * 1024) {
+          showErr("Ảnh quá 5MB. Chọn ảnh nhỏ hơn.");
+          submitBtn.disabled = true;
+          return;
+        }
+        if (!/^image\/(jpeg|png|webp)$/.test(f.type)) {
+          showErr("Chỉ chấp nhận JPG / PNG / WebP.");
+          submitBtn.disabled = true;
+          return;
+        }
+        labelText.textContent = f.name.length > 32 ? f.name.slice(0, 30) + "…" : f.name;
+        submitBtn.disabled = false;
+      });
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clearErr();
+        const f = input.files?.[0];
+        if (!f) {
+          showErr("Chọn ảnh trước.");
+          return;
+        }
+        submitBtn.disabled = true;
+        submitLabel.textContent = "Đang đăng…";
+
+        const fd = new FormData();
+        fd.append("photo", f);
+        fd.append("type", "general");           // ← casual album type
+        fd.append("caption", captionEl.value || "");
+
+        try {
+          const res = await fetch(`/api/v1/pets/${petId}/photos`, {
+            method: "POST",
+            body: fd,
+            credentials: "include",
+          });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const code = j?.error?.code || "";
+            const msg = code === "GENERAL_LIMIT" ? j.error.message
+                      : code === "FILE_TOO_LARGE" ? "Ảnh quá 5MB."
+                      : code === "BAD_MIME"      ? "Chỉ JPEG / PNG / WebP."
+                      : (j?.error?.message || `Upload thất bại (${res.status}).`);
+            showErr(msg);
+            submitBtn.disabled = false;
+            submitLabel.textContent = "Đăng ảnh";
+            return;
+          }
+          if (navigator.vibrate) navigator.vibrate(10);
+          // Reload to show fresh grid + updated quest state
+          window.location.reload();
+        } catch (err) {
+          console.warn("[photos] upload error", err);
+          showErr("Lỗi kết nối. Thử lại.");
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Đăng ảnh";
+        }
+      });
+    })();
+  </script>
+</Layout>

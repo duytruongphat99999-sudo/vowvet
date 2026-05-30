@@ -1,0 +1,205 @@
+---
+/**
+ * /playdate — Hub page (M27) — Brand Sync Pass 3 redesign.
+ *
+ * Premium ink hero with gold spotlight + clean SVG icons + Vietnamese-first labels.
+ * Lists user's pets with playdate eligibility (≥2 completed vaccines).
+ */
+import Layout from "../layouts/Layout.astro";
+import Banner from "../components/ui/Banner.astro";
+import Button from "../components/ui/Button.astro";
+import Badge from "../components/ui/Badge.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let pets: any[] = [];
+let matchesCount = 0;
+try {
+  const [pRes, mRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/pets`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/playdate/matches`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (pRes.ok) pets = (await pRes.json()).pets || [];
+  if (mRes.ok) matchesCount = ((await mRes.json()).matches || []).length;
+} catch (_) {}
+
+// Fetch eligibility per pet in parallel
+const eligibility: Record<number, { eligible: boolean; vaccine_count: number }> = {};
+const profiles: Record<number, any> = {};
+await Promise.all(pets.map(async (p) => {
+  try {
+    const [eRes, pfRes] = await Promise.all([
+      fetch(`${API_INTERNAL}/api/v1/playdate/can-create/${p.id}`, { headers: { cookie: cookieHeader } }),
+      fetch(`${API_INTERNAL}/api/v1/playdate/profile/${p.id}`, { headers: { cookie: cookieHeader } }),
+    ]);
+    if (eRes.ok) eligibility[p.id] = await eRes.json();
+    if (pfRes.ok) profiles[p.id] = (await pfRes.json()).profile;
+  } catch (_) {}
+}));
+
+const initialData = JSON.stringify({ pets, eligibility, profiles, matchesCount });
+---
+
+<Layout title="Tìm bạn chơi · VowVet" description="Tìm bạn chơi cho bé — Playdate Việt qua app">
+  <main class="min-h-screen bg-slate-50 px-4 py-5 pb-20">
+    <div class="max-w-2xl mx-auto" x-data={`playdateHub(${initialData})`}>
+
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-mmp-ink inline-flex items-center gap-1">
+          <FeatureIcon name="arrow" class="w-4 h-4 rotate-180" strokeWidth={2} />
+          Dashboard
+        </a>
+        <h1 class="font-display italic text-xl font-semibold text-mmp-ink">Tìm bạn chơi</h1>
+        <a href="/playdate/safety-tips" class="text-xs bg-white border border-slate-200 hover:border-mmp-ink px-2.5 py-1 rounded-lg text-slate-600 inline-flex items-center gap-1 transition">
+          <FeatureIcon name="info" class="w-3.5 h-3.5" strokeWidth={2} />
+          An toàn
+        </a>
+      </header>
+
+      <!-- Hero ink banner -->
+      <Banner variant="ink" eyebrow="Playdate Việt" title="Tìm bạn chơi cho bé" class="mb-5">
+        <p>Ghép cặp theo loài, tính cách, tuổi, kích thước và khoảng cách. An toàn hơn FB group — yêu cầu vaccine.</p>
+        <Fragment slot="cta">
+          <span class="inline-flex items-center gap-1.5 text-xs bg-white/15 backdrop-blur rounded-lg px-2.5 py-1.5 text-white">
+            <FeatureIcon name="syringe" class="w-3.5 h-3.5 text-[#ecb921]" strokeWidth={2} />
+            Cần ≥ 2 vaccine để bật profile
+          </span>
+        </Fragment>
+      </Banner>
+
+      <!-- Quick links -->
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <a href="/playdate/matches"
+           class="group block bg-white border border-slate-200 hover:border-mmp-ink hover:shadow-md rounded-2xl p-4 transition-all">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-ink/5 group-hover:bg-[#ecb921]/15 transition mb-2">
+            <FeatureIcon name="message-circle" class="w-5 h-5 text-mmp-ink" strokeWidth={1.7} />
+          </span>
+          <p class="text-sm font-bold text-mmp-ink">Matches</p>
+          <p class="text-xs text-slate-500 mt-0.5"><span x-text="matchesCount"></span> cuộc trò chuyện</p>
+        </a>
+        <a href="/playdate/safety-tips"
+           class="group block bg-mmp-cream border border-amber-100 hover:border-[#ecb921] hover:shadow-md rounded-2xl p-4 transition-all">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-amber-200 mb-2">
+            <FeatureIcon name="info" class="w-5 h-5" strokeWidth={1.7} style="color: var(--c-gold);" />
+          </span>
+          <p class="text-sm font-bold text-mmp-ink">Tại sao an toàn?</p>
+          <p class="text-xs text-slate-600 mt-0.5">10 lý do + 10 quy tắc cần làm</p>
+        </a>
+      </div>
+
+      <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500 mb-3">Chọn bé để bắt đầu</h2>
+
+      <!-- Empty -->
+      <template x-if="pets.length === 0">
+        <div class="bg-white rounded-3xl p-8 text-center border border-slate-100">
+          <span class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-mmp-cream mx-auto mb-3">
+            <FeatureIcon name="paw" class="w-7 h-7" strokeWidth={1.5} style="color: var(--c-gold);" />
+          </span>
+          <p class="text-sm text-slate-600">Bạn chưa có bé nào.</p>
+          <div class="mt-4">
+            <Button variant="primary" size="md" href="/pets/new">Thêm bé →</Button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Pet cards -->
+      <div class="space-y-3">
+        <template x-for="p in pets" :key="p.id">
+          <div class="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+              <template x-if="p.photo_url">
+                <img :src="p.photo_url" alt="" class="w-16 h-16 rounded-2xl object-cover border-2 border-mmp-cream" />
+              </template>
+              <template x-if="!p.photo_url">
+                <div class="w-16 h-16 rounded-2xl bg-mmp-cream flex items-center justify-center">
+                  <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="#ecb921" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="4" cy="8" r="2"/><circle cx="6.5" cy="14" r="2.5"/><circle cx="15.5" cy="14" r="2.5"/><path d="M11 18a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+                </div>
+              </template>
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-mmp-ink" x-text="p.name"></p>
+                <p class="text-[11px] text-slate-500" x-text="species(p.species)"></p>
+                <div class="flex items-center gap-2 mt-1.5">
+                  <template x-if="eligibility[p.id]?.eligible">
+                    <template x-if="profiles[p.id]?.active && !profiles[p.id]?.hidden">
+                      <span class="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Đang hoạt động
+                      </span>
+                    </template>
+                    <template x-if="profiles[p.id]?.hidden">
+                      <span class="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
+                        Đang ẩn (≥3 báo cáo)
+                      </span>
+                    </template>
+                    <template x-if="!profiles[p.id] || (!profiles[p.id]?.active && !profiles[p.id]?.hidden)">
+                      <span class="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full font-semibold">Chưa bật profile</span>
+                    </template>
+                  </template>
+                  <template x-if="!eligibility[p.id]?.eligible">
+                    <span class="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
+                      Cần thêm <span x-text="Math.max(0, 2 - (eligibility[p.id]?.vaccine_count || 0))"></span> vaccine
+                    </span>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-3">
+              <template x-if="eligibility[p.id]?.eligible">
+                <a :href="`/playdate/setup/${p.id}`"
+                   class="text-xs bg-white hover:bg-mmp-cream border border-mmp-ink text-mmp-ink font-semibold py-2.5 rounded-xl text-center transition">
+                  <span x-text="profiles[p.id] ? 'Sửa profile' : '+ Tạo profile'"></span>
+                </a>
+              </template>
+              <template x-if="!eligibility[p.id]?.eligible">
+                <a href="/vaccines"
+                   class="text-xs bg-[#ecb921] hover:bg-[#d4a417] text-mmp-ink font-semibold py-2.5 rounded-xl text-center transition">
+                  Cập nhật vaccine
+                </a>
+              </template>
+              <template x-if="eligibility[p.id]?.eligible && profiles[p.id]?.active && !profiles[p.id]?.hidden">
+                <a :href="`/playdate/discover/${p.id}`"
+                   class="text-xs bg-mmp-ink hover:bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-center transition">
+                  Khám phá →
+                </a>
+              </template>
+              <template x-if="!profiles[p.id] || !profiles[p.id]?.active || profiles[p.id]?.hidden">
+                <span class="text-xs bg-slate-100 text-slate-400 font-semibold py-2.5 rounded-xl text-center cursor-not-allowed">Khám phá</span>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <p class="text-[11px] text-slate-400 text-center italic mt-6 leading-relaxed">
+        Mon Min Pet không chịu trách nhiệm cho các sự kiện ngoài app.<br />
+        Luôn gặp gỡ nơi công cộng + đem theo sổ vaccine.
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function playdateHub(initial) {
+      return {
+        pets: initial.pets,
+        eligibility: initial.eligibility,
+        profiles: initial.profiles,
+        matchesCount: initial.matchesCount,
+
+        species(s) {
+          const v = (typeof s === "object" && s) ? s.value : s;
+          if (v === "dog") return "🐶 Chó";
+          if (v === "cat") return "🐱 Mèo";
+          return "🐾 " + (v || "khác");
+        },
+      };
+    }
+  </script>
+</Layout>

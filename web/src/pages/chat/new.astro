@@ -1,0 +1,263 @@
+---
+/**
+ * /chat/new — Create new thread form (M9.2) — Brand Sync (dashboard-anchored).
+ *
+ * Matches the /chat/index.astro brand language:
+ *   - Sticky header (bg-white border-slate-200)
+ *   - Vet-info recap ink card (small version of /chat hero)
+ *   - Form inputs with mmp-ink focus border (NOT sky)
+ *   - Primary CTA bg-mmp-ink; gold "Mẹo" tip card
+ *
+ * Identity (brand-safe per task #57): uses clinic-info.ts vet.name = "BSTY Mon Min Pet"
+ * Pre-fill flow: ?subject=... + ?pet=N (existing query-param contract preserved)
+ */
+import Layout from "../../layouts/Layout.astro";
+import Button from "../../components/ui/Button.astro";
+import FeatureIcon from "../../components/FeatureIcon.astro";
+import {
+  getClinicInfo,
+  isClinicOpenNow,
+  getResponseTimeLabel,
+} from "../../../../shared/clinic-info.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login?return_to=/chat/new");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let pets: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) {
+    const j = await res.json();
+    pets = j.pets || [];
+  }
+} catch (_) {}
+
+// Optional: pre-select pet from query param ?pet=N
+const preselectedPet = Astro.url.searchParams.get("pet");
+// M9.3: pre-fill subject from query param ?subject=... (from emergency article CTA + chat hub quick-prompts)
+const preselectedSubject = (Astro.url.searchParams.get("subject") || "").slice(0, 200);
+
+const initialData = JSON.stringify({
+  pets: pets.map((p) => ({ id: p.id, name: p.name, species: p.species })),
+  preselectedPet: preselectedPet ? Number(preselectedPet) : null,
+  preselectedSubject,
+});
+
+const clinic = getClinicInfo();
+const vet = clinic.vet;
+const isOpen = isClinicOpenNow();
+const responseTime = getResponseTimeLabel();
+---
+
+<Layout title="Tin nhắn mới · VowVet" description="Tạo cuộc chat mới với BSTY Mon Min Pet">
+  <main class="min-h-screen bg-mmp-cream pb-12">
+
+    <!-- Sticky header (matches /chat hub) -->
+    <header class="sticky top-0 z-30 bg-white border-b border-slate-200">
+      <div class="max-w-2xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <a href="/chat" class="text-sm text-slate-500 hover:text-mmp-ink inline-flex items-center gap-1 transition">
+          <FeatureIcon name="arrow" class="w-4 h-4 rotate-180" strokeWidth={2} />
+          Tin nhắn
+        </a>
+        <h1 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-mmp-cream">
+            <FeatureIcon name="edit-pencil" class="w-4 h-4" strokeWidth={2} style="color: var(--c-gold);" />
+          </span>
+          Tin nhắn mới
+        </h1>
+        <span class="w-16"></span>
+      </div>
+    </header>
+
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-5" x-data={`newChatForm(${initialData})`}>
+
+      <!-- Vet recap ink card (compact version of /chat hero) -->
+      <div class="relative rounded-3xl bg-mmp-ink text-white overflow-hidden shadow-lg">
+        <div aria-hidden="true" class="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"
+             style="background: rgba(236, 185, 33, 0.16);"></div>
+        <div class="relative p-5 flex items-center gap-3">
+          <div class="relative shrink-0">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center ring-2 ring-amber-400/40"
+                 style="background: rgba(236, 185, 33, 0.18);">
+              {vet.photo_url ? (
+                <img src={vet.photo_url} alt={vet.name} class="w-full h-full object-cover rounded-2xl" />
+              ) : (
+                <FeatureIcon name="user-md" class="w-6 h-6" strokeWidth={1.7} style="color: var(--c-gold);" />
+              )}
+            </div>
+            <span class={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-mmp-ink ${
+              isOpen ? "bg-emerald-500" : "bg-slate-500"
+            }`}>
+              {isOpen && (
+                <span class="absolute inset-0 rounded-full bg-emerald-400 opacity-75 animate-ping" aria-hidden="true"></span>
+              )}
+            </span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[10px] uppercase tracking-[0.25em] font-bold" style="color: var(--c-gold);">
+              Gửi đến
+            </p>
+            <p class="font-bold text-base leading-tight truncate">{vet.name}</p>
+            <p class="text-xs text-white/65 mt-0.5">{vet.title}</p>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-[10px] uppercase tracking-wider text-white/60 font-semibold">Phản hồi</p>
+            <p class="text-sm font-bold" style="color: var(--c-gold);">{responseTime}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form -->
+      <form @submit.prevent="submit()" class="space-y-4">
+
+        <!-- Pet dropdown (optional) -->
+        <div class="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+          <label class="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">
+            Pet liên quan (tuỳ chọn)
+          </label>
+          <select x-model.number="petId"
+            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-mmp-ink focus:border-mmp-ink focus:outline-none text-sm transition">
+            <option :value="null">— Không gắn pet cụ thể —</option>
+            <template x-for="p in pets" :key="p.id">
+              <option :value="p.id" x-text="`${p.name} (${p.species})`"></option>
+            </template>
+          </select>
+          <p class="text-xs text-slate-500 mt-2">
+            Gắn pet giúp bác sĩ xem nhanh hồ sơ + vaccine + dinh dưỡng của bé
+          </p>
+        </div>
+
+        <!-- Subject -->
+        <div class="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+          <label class="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">
+            Chủ đề <span class="text-red-600">*</span>
+          </label>
+          <input type="text" x-model="subject" maxlength="200" required
+            placeholder="VD: Bé bỏ ăn 2 ngày"
+            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-mmp-ink focus:border-mmp-ink focus:outline-none text-sm transition" />
+          <p class="text-xs text-slate-500 mt-2">
+            <span x-text="subject.length"></span>/200 ký tự
+          </p>
+        </div>
+
+        <!-- Initial message -->
+        <div class="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+          <label class="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">
+            Mô tả triệu chứng / câu hỏi <span class="text-red-600">*</span>
+          </label>
+          <textarea x-model="initialMessage" maxlength="5000" rows="6" required
+            placeholder="Mô tả triệu chứng, hành vi bất thường, hoặc câu hỏi của bạn cho bác sĩ..."
+            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-mmp-ink focus:border-mmp-ink focus:outline-none text-sm resize-none transition"></textarea>
+          <p class="text-xs text-slate-500 mt-2">
+            <span x-text="initialMessage.length"></span>/5000 ký tự
+          </p>
+        </div>
+
+        <!-- Tip card (gold accent) -->
+        <div class="flex items-start gap-3 p-4 rounded-2xl border"
+             style="background: rgba(236, 185, 33, 0.10); border-color: rgba(236, 185, 33, 0.35);">
+          <span class="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-amber-200">
+            <svg class="w-4 h-4" style="color: var(--c-gold);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18h6"/><path d="M10 22h4"/>
+              <path d="M12 2a7 7 0 00-4 12.74V17a1 1 0 001 1h6a1 1 0 001-1v-2.26A7 7 0 0012 2z"/>
+            </svg>
+          </span>
+          <div class="text-xs text-slate-700 leading-relaxed flex-1 min-w-0">
+            <p class="font-bold text-mmp-ink mb-0.5">Mẹo</p>
+            <p>Mô tả tuổi, giống, cân nặng, triệu chứng cụ thể (bao lâu, tần suất, kèm gì) để bác sĩ tư vấn chính xác nhất.</p>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <template x-if="errorMsg">
+          <div class="bg-red-50 border border-red-200 rounded-2xl p-4">
+            <p class="text-sm text-red-700" x-text="errorMsg"></p>
+          </div>
+        </template>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-2 pt-1">
+          <button type="submit" :disabled="!canSubmit || submitting"
+            class="flex-1 inline-flex items-center justify-center h-12 px-5 text-base font-semibold rounded-xl bg-mmp-ink text-white hover:bg-slate-800 active:bg-black transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed gap-2">
+            <span x-show="!submitting" class="inline-flex items-center gap-2">
+              Gửi tin nhắn
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </span>
+            <span x-show="submitting">Đang gửi…</span>
+          </button>
+          <a href="/chat"
+             class="inline-flex items-center justify-center h-12 px-5 text-base font-semibold rounded-xl bg-white text-mmp-ink border border-slate-200 hover:border-mmp-ink hover:bg-mmp-cream transition">
+            Huỷ
+          </a>
+        </div>
+      </form>
+
+      <!-- Privacy footer -->
+      <p class="text-center text-xs text-slate-500 leading-relaxed inline-flex items-start justify-center gap-1.5 w-full">
+        <FeatureIcon name="lock" class="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" strokeWidth={2} />
+        <span>
+          Tin nhắn được mã hoá đường truyền giữa bạn và <strong class="text-mmp-ink">{vet.name}</strong>.<br />
+          Phản hồi trong giờ làm việc <strong>{clinic.hours_weekday}</strong>.
+          Nếu khẩn cấp, <a href="/emergency" class="font-semibold hover:underline" style="color: var(--c-gold);">cấp cứu thú y</a>.
+        </span>
+      </p>
+    </div>
+  </main>
+
+  <script is:inline>
+    function newChatForm(initial) {
+      return {
+        pets: initial.pets,
+        petId: initial.preselectedPet,
+        subject: initial.preselectedSubject || "",
+        initialMessage: "",
+        submitting: false,
+        errorMsg: "",
+
+        get canSubmit() {
+          return this.subject.trim().length > 0 && this.initialMessage.trim().length > 0;
+        },
+
+        async submit() {
+          if (!this.canSubmit) return;
+          this.submitting = true;
+          this.errorMsg = "";
+          try {
+            const res = await fetch("/api/v1/chat/threads", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                pet_id: this.petId,
+                subject: this.subject.trim(),
+                initial_message: this.initialMessage.trim(),
+              }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              if (res.status === 429) {
+                this.errorMsg = j.error?.message || "Bạn đã gửi quá nhiều cuộc chat. Thử lại sau 1 phút.";
+              } else {
+                this.errorMsg = j.error?.message || "Lỗi tạo cuộc chat";
+              }
+              return;
+            }
+            // Redirect to new thread
+            window.location.href = `/chat/${j.thread.id}`;
+          } catch (err) {
+            this.errorMsg = "Lỗi kết nối. Thử lại.";
+          } finally {
+            this.submitting = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

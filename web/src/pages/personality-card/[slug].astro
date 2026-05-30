@@ -1,0 +1,229 @@
+---
+/**
+ * /personality-card/[slug] — Public personality showcase page (v140 · Task #9).
+ *
+ * Đích đến của QR trong Wow Card (Step 4 Growth Journey). Mở khi:
+ *   • Stranger scan QR từ ảnh thẻ của 1 bé
+ *   • Hoặc click link share Zalo/Messenger
+ *
+ * NO AUTH required. Resolve pet qua public_slug (M12). Pet phải bật is_public.
+ *
+ * Layout: cream luxury editorial card giống Wow Card trong personality.astro,
+ * thêm CTA "Khám phá tính cách bé nhà bạn" cuối trang (dẫn về /login).
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const slug = (Astro.params.slug || "").trim();
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const APP_DOMAIN =
+  import.meta.env.APP_DOMAIN ||
+  process.env.APP_DOMAIN ||
+  "https://vowvet.monminpet.com";
+
+// Resolve public pet by slug — M12 public API
+let publicPet: any = null;
+let lookupStatus: number = 0;
+if (slug && /^[A-Za-z0-9-]{3,60}$/.test(slug)) {
+  try {
+    const res = await fetch(`${API_INTERNAL}/api/v1/public/p/${slug}`);
+    lookupStatus = res.status;
+    if (res.ok) {
+      const j = await res.json();
+      publicPet = j.pet;
+    }
+  } catch (_) {}
+}
+
+const notFound = !publicPet;
+const noType = publicPet && !publicPet.personality_type;
+
+// SEO
+const canonicalUrl = `${APP_DOMAIN}/personality-card/${slug}`;
+const ogFallback = `${APP_DOMAIN}/og-image.svg`;
+const seoTitle = notFound
+  ? "Thẻ tính cách không khả dụng · VowVet"
+  : noType
+  ? `${publicPet.name} chưa khám phá tính cách · VowVet`
+  : `${publicPet.name} — ${publicPet.personality_type} · VowVet`;
+const seoDescription = notFound
+  ? "Thẻ tính cách này không khả dụng. Có thể link đã hết hạn hoặc chủ đã tắt profile."
+  : noType
+  ? `${publicPet.name} chưa làm bài khám phá tính cách. Bạn có muốn thử cho bé của mình?`
+  : `Bé ${publicPet.name} thuộc nhóm tính cách "${publicPet.personality_type}". Khám phá 12 type tính cách thú cưng tại VowVet.`;
+const ogImage = publicPet?.photo_url || ogFallback;
+
+const jsonLd: Record<string, any> | null = publicPet && !noType
+  ? {
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      url: canonicalUrl,
+      name: seoTitle,
+      description: seoDescription,
+      inLanguage: "vi-VN",
+      primaryImageOfPage: { "@type": "ImageObject", url: ogImage },
+      isPartOf: {
+        "@type": "WebSite",
+        name: "VowVet by Mon Min Pet",
+        url: APP_DOMAIN,
+      },
+      mainEntity: {
+        "@type": "Animal",
+        name: publicPet.name,
+        image: ogImage,
+        additionalType: "https://schema.org/Pet",
+        ...(publicPet.species && {
+          animalSpecies:
+            publicPet.species === "dog"
+              ? "Canis lupus familiaris"
+              : publicPet.species === "cat"
+              ? "Felis catus"
+              : publicPet.species,
+        }),
+        description: `Personality type: ${publicPet.personality_type}`,
+      },
+    }
+  : null;
+---
+
+<Layout title={seoTitle} description={seoDescription}>
+  <Fragment slot="head">
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="robots" content={notFound ? "noindex,follow" : "index,follow,max-image-preview:large"} />
+    <meta property="og:type" content="profile" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={seoTitle} />
+    <meta property="og:description" content={seoDescription} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={`Thẻ tính cách ${publicPet?.name || "bé"}`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={seoTitle} />
+    <meta name="twitter:description" content={seoDescription} />
+    <meta name="twitter:image" content={ogImage} />
+    {jsonLd && (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+    )}
+  </Fragment>
+
+  <main class="min-h-screen flex flex-col items-center justify-start py-10 px-4 sm:py-14 sm:px-6"
+        style="background: radial-gradient(ellipse 800px 400px at 20% 0%, rgba(180,134,8,0.08), transparent 55%), linear-gradient(180deg, #fff 0%, #FAF6EC 100%);">
+
+    {notFound && (
+      <section class="max-w-md w-full text-center py-16">
+        <div class="inline-block px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.28em] font-bold"
+             style="color:#B48608; border:1px solid rgba(180,134,8,0.3);">· Mon Min Pet ·</div>
+        <h1 class="font-display italic text-3xl font-semibold mt-6 text-[#0a0a0a]">Thẻ này không tồn tại</h1>
+        <p class="font-display italic text-sm text-slate-500 mt-3 leading-relaxed">
+          Có thể link đã hết hạn hoặc chủ đã tắt chế độ công khai. Hãy yêu cầu chủ bé chia sẻ lại.
+        </p>
+        <a href="/" class="inline-block mt-8 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-[0.06em] transition-all"
+           style="background:#0a0a0a; color:#ecb921; border:1px solid #0a0a0a;">
+          Về trang chủ VowVet
+        </a>
+      </section>
+    )}
+
+    {!notFound && (
+      <section class="max-w-md w-full flex flex-col items-center gap-8">
+
+        <!-- Personality Card (same design as Wow Card) -->
+        <article class="relative w-[360px] aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+                 style="background-color: #FAF6EC; border: 1px solid rgba(180,134,8,0.30); font-family: var(--font-display, 'Fraunces', serif);"
+                 aria-label={`Thẻ tính cách của ${publicPet.name}`}>
+
+          <!-- Hairline gold top -->
+          <div class="absolute top-0 left-6 right-6"
+               style="height: 1.5px; background: linear-gradient(90deg, transparent, #B48608, #ecb921, #B48608, transparent);"></div>
+
+          <!-- Top: brand eyebrow + personality badge -->
+          <div class="pt-7 pb-2 px-6 text-center">
+            <p class="text-[9px] uppercase font-bold m-0"
+               style="letter-spacing: 0.32em; color: #B48608;">· Mon Min Pet ·</p>
+            {publicPet.personality_type ? (
+              <div class="mt-3 inline-block px-4 py-1.5 rounded-full text-[11px] font-bold uppercase"
+                   style="background: #0a0a0a; color: #ecb921; letter-spacing: 0.16em;">
+                {publicPet.personality_type}
+              </div>
+            ) : (
+              <div class="mt-3 inline-block px-4 py-1.5 rounded-full text-[11px] font-bold uppercase"
+                   style="background: rgba(10,10,10,0.08); color: rgba(10,10,10,0.55); letter-spacing: 0.16em;">
+                Chưa khám phá
+              </div>
+            )}
+          </div>
+
+          <!-- Center: pet silhouette + gold rings -->
+          <div class="flex-1 flex items-center justify-center px-6 relative">
+            <div class="absolute inset-0 pointer-events-none"
+                 style="background: radial-gradient(circle at 50% 50%, rgba(236,185,33,0.18), transparent 60%); opacity: 0.55;"></div>
+            <div class="relative">
+              <div class="absolute rounded-full"
+                   style="inset: -14px; border: 1px solid rgba(180,134,8,0.25);"></div>
+              <div class="absolute rounded-full"
+                   style="inset: -6px; border: 2px solid rgba(180,134,8,0.6);"></div>
+              <div class="w-40 h-40 rounded-full overflow-hidden shadow-lg"
+                   style="border: 4px solid #ffffff;">
+                {publicPet.photo_url ? (
+                  <img src={publicPet.photo_url} alt={publicPet.name} class="w-full h-full object-cover" loading="eager"/>
+                ) : (
+                  <div class="w-full h-full flex items-center justify-center text-5xl"
+                       style="background: #0a0a0a; color: #ecb921;">
+                    {publicPet.species === "cat" ? "🐱" : "🐶"}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom: pet name + tagline -->
+          <div class="px-6 pt-3 text-center">
+            <h1 class="text-[26px] leading-tight font-semibold italic m-0"
+                style="color: #0a0a0a;">{publicPet.name}</h1>
+            <p class="mt-2 text-[12.5px] italic leading-snug m-0"
+               style="color: rgba(10,10,10,0.72);">
+              {publicPet.personality_type
+                ? `Tự hào là chủ nhân của một bé ${publicPet.personality_type} tại VowVet`
+                : `Bé ${publicPet.name} chưa khám phá tính cách`}
+            </p>
+          </div>
+
+          <!-- Bottom corner: logo + slug url -->
+          <div class="px-6 pb-5 pt-3 flex items-end justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <img src="/logo-mmp.png" alt="VowVet" width="28" height="28" class="w-7 h-7"/>
+              <div class="leading-tight">
+                <p class="text-[10px] italic m-0"
+                   style="color: rgba(10,10,10,0.55); font-family: var(--font-display);">vowvet</p>
+                <p class="text-[8.5px] font-bold uppercase m-0"
+                   style="color: #B48608; letter-spacing: 0.18em;">.monminpet.com</p>
+              </div>
+            </div>
+            <div class="text-right leading-tight">
+              <p class="text-[8.5px] font-bold uppercase m-0"
+                 style="color: rgba(10,10,10,0.4); letter-spacing: 0.2em;">Slug</p>
+              <p class="text-[10px] font-mono m-0" style="color:#0a0a0a;">{slug}</p>
+            </div>
+          </div>
+        </article>
+
+        <!-- Stranger CTA: try VowVet for your own pet -->
+        <div class="max-w-sm w-full text-center pt-2">
+          <p class="font-display italic text-[15px] leading-relaxed text-[#0a0a0a]/72">
+            Bạn cũng tò mò tính cách bé nhà mình? <br/>
+            VowVet có quiz 20 câu khám phá 1 trong 12 personality types khoa học.
+          </p>
+          <a href={`/?ref=personality-card&slug=${slug}`}
+             class="inline-flex items-center gap-2 mt-5 px-6 py-3 rounded-full text-sm font-bold uppercase transition-all shadow-lg"
+             style="background:#0a0a0a; color:#ecb921; border:1px solid #0a0a0a; letter-spacing:0.06em;">
+            Thử cho bé của bạn
+            <span aria-hidden="true">→</span>
+          </a>
+          <p class="text-[11px] text-slate-400 mt-4">
+            Hoặc xem trang công khai của
+            <a href={`/p/${slug}`} class="underline hover:text-[#B48608]">{publicPet.name}</a>
+          </p>
+        </div>
+
+      </section>
+    )}
+  </main>
+</Layout>

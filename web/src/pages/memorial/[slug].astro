@@ -1,0 +1,302 @@
+---
+/**
+ * /memorial/[slug] — Public memorial page (M30).
+ *
+ * No auth required (link share). Visitors can light a candle + leave a message.
+ * Owner sees Edit + Upgrade buttons (link to /pets/:id since owner page handles).
+ *
+ * Status check: archived/private → 404.
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const slug = Astro.params.slug as string;
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let memorial: any = null;
+let visits: any[] = [];
+let petName = "bé";
+let petPhoto: string | null = null;
+
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/public/memorial/${slug}`);
+  if (res.ok) {
+    memorial = (await res.json()).memorial;
+    const vRes = await fetch(`${API_INTERNAL}/api/v1/public/memorial/${slug}/visits`);
+    if (vRes.ok) visits = (await vRes.json()).visits || [];
+    // Resolve pet info (optional, but nicer UX)
+    try {
+      const pRes = await fetch(`${API_INTERNAL}/api/v1/public/pet/${memorial.pet_id}/passport`);
+      if (pRes.ok) {
+        const pj = await pRes.json();
+        petName = pj?.pet?.name || petName;
+        petPhoto = pj?.pet?.cover_photo_url || pj?.pet?.profile_photo_url || null;
+      }
+    } catch (_) {}
+  }
+} catch (_) {}
+
+if (!memorial) {
+  return new Response("Memorial không khả dụng", { status: 404 });
+}
+
+const initialData = JSON.stringify({
+  memorial,
+  visits,
+  petName,
+  petPhoto: petPhoto || memorial.cover_photo_url,
+});
+
+const ogTitle = `Tưởng nhớ ${petName}`;
+const ogDesc = (memorial.tribute_message || "").slice(0, 160) || `Trang tưởng niệm cho ${petName}`;
+
+// v136: SEO + Schema.org cho memorial public page (Zalo/FB preview).
+const APP_DOMAIN =
+  import.meta.env.APP_DOMAIN ||
+  process.env.APP_DOMAIN ||
+  "https://vowvet.monminpet.com";
+const canonicalUrl = `${APP_DOMAIN}/memorial/${slug}`;
+const ogImage = petPhoto || memorial.cover_photo_url || `${APP_DOMAIN}/og-image.svg`;
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  url: canonicalUrl,
+  name: ogTitle,
+  description: ogDesc,
+  inLanguage: "vi-VN",
+  primaryImageOfPage: { "@type": "ImageObject", url: ogImage },
+  isPartOf: {
+    "@type": "WebSite",
+    name: "VowVet by Mon Min Pet",
+    url: APP_DOMAIN,
+  },
+  about: {
+    "@type": "Animal",
+    name: petName,
+    image: ogImage,
+    additionalType: "https://schema.org/Pet",
+    ...(memorial.passed_away_date && { deathDate: memorial.passed_away_date }),
+  },
+};
+---
+
+<Layout title={ogTitle} description={ogDesc}>
+  <Fragment slot="head">
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDesc} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={`Tưởng nhớ ${petName}`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDesc} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+  </Fragment>
+  <main class="min-h-screen bg-gradient-to-b from-slate-900 via-slate-700 to-slate-900 text-white">
+    <div class="max-w-2xl mx-auto px-4 py-8 pb-20" x-data={`memorialPublic(${initialData})`}>
+
+      <!-- Cover -->
+      <div class="text-center mb-8">
+        <template x-if="petPhoto">
+          <img :src="petPhoto" alt="cover" class="w-32 h-32 rounded-full object-cover mx-auto border-4 border-mmp-cream/50 shadow-xl shadow-purple-500/30" />
+        </template>
+        <template x-if="!petPhoto">
+          <div class="w-32 h-32 rounded-full bg-mmp-ink mx-auto flex items-center justify-center text-5xl border-4 border-mmp-cream/50">
+            🐾
+          </div>
+        </template>
+        <h1 class="text-3xl font-extrabold mt-4 text-white" x-text="`🕯️ Tưởng nhớ ${petName}`"></h1>
+        <template x-if="memorial.passed_away_date">
+          <p class="text-sm text-yellow-700 mt-1">
+            Ra đi ngày <span x-text="fmtDate(memorial.passed_away_date)"></span>
+          </p>
+        </template>
+        <div class="flex items-center justify-center gap-4 mt-3 text-xs text-yellow-700">
+          <span>🕯️ <span x-text="memorial.candles_lit_count"></span> nến</span>
+          <span>💬 <span x-text="memorial.visitor_count"></span> lượt viếng</span>
+        </div>
+      </div>
+
+      <!-- Tribute message -->
+      <template x-if="memorial.tribute_message">
+        <div class="bg-purple-900/40 border border-mmp-cream/50 rounded-2xl p-5 mb-6 backdrop-blur">
+          <p class="text-base leading-relaxed whitespace-pre-line text-yellow-700" x-text="memorial.tribute_message"></p>
+        </div>
+      </template>
+
+      <!-- Candle action -->
+      <div class="bg-gradient-to-br from-amber-900/30 to-orange-900/30 border border-amber-700/50 rounded-2xl p-5 mb-6 text-center backdrop-blur">
+        <p class="text-5xl mb-2">🕯️</p>
+        <p class="text-sm text-amber-100 mb-3">Hãy thắp một ngọn nến để tưởng nhớ bé.</p>
+        <button @click="lightCandle()" :disabled="candleSending || candleSent"
+          class="bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg">
+          <span x-show="!candleSending && !candleSent">🕯️ Thắp nến</span>
+          <span x-show="candleSending">Đang thắp...</span>
+          <span x-show="candleSent">✓ Đã thắp nến</span>
+        </button>
+      </div>
+
+      <!-- Message form -->
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-yellow-700 mb-3">💬 Gửi lời nhắn</h2>
+        <input type="text" x-model="msgForm.visitor_name" placeholder="Tên bạn (optional)" maxlength="100"
+          class="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm mb-2" />
+        <textarea x-model="msgForm.message" rows="3" maxlength="1000" placeholder="Lời chia buồn của bạn..."
+          class="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm mb-2"></textarea>
+        <label class="flex items-center gap-2 text-xs mb-3">
+          <input type="checkbox" x-model="msgForm.candle_lit" class="rounded" />
+          <span>🕯️ Đồng thời thắp nến</span>
+        </label>
+        <template x-if="msgError">
+          <p class="text-xs bg-red-900/50 border border-red-500 rounded p-2 mb-2" x-text="msgError"></p>
+        </template>
+        <button @click="sendMessage()" :disabled="!msgForm.message.trim() || msgSending"
+          class="w-full bg-mmp-ink hover:bg-slate-800 disabled:opacity-50 font-bold py-2.5 rounded-xl text-sm">
+          <span x-show="!msgSending">Gửi lời nhắn</span>
+          <span x-show="msgSending">Đang gửi...</span>
+        </button>
+      </div>
+
+      <!-- Visit wall -->
+      <template x-if="visits.length > 0">
+        <div>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-yellow-700 mb-3">Lời chia buồn</h2>
+          <div class="space-y-3">
+            <template x-for="v in visits" :key="v.id">
+              <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-semibold text-yellow-700" x-text="v.visitor_name"></span>
+                  <span class="text-[10px] text-slate-400" x-text="fmtRel(v.visited_at)"></span>
+                </div>
+                <template x-if="v.message">
+                  <p class="text-sm text-slate-200 whitespace-pre-line" x-text="v.message"></p>
+                </template>
+                <template x-if="v.candle_lit && !v.message">
+                  <p class="text-xs text-amber-300">🕯️ đã thắp nến</p>
+                </template>
+                <template x-if="v.candle_lit && v.message">
+                  <p class="text-[11px] text-amber-300 mt-1">🕯️ + đã thắp nến</p>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Owner controls -->
+      <template x-if="isOwner">
+        <div class="mt-8 pt-6 border-t border-white/10 space-y-2">
+          <a :href="`/memorial/${memorial.public_slug}/upgrade`"
+            class="block bg-mmp-cream hover:opacity-90 text-center font-bold py-3 rounded-xl text-sm">
+            ✨ Nâng cấp (Tribute / Lifetime / Pro)
+          </a>
+          <a :href="`/pets/${memorial.pet_id}`"
+            class="block bg-white/10 hover:bg-white/20 text-center font-medium py-2.5 rounded-xl text-sm">
+            ← Về hồ sơ bé
+          </a>
+        </div>
+      </template>
+
+      <p class="text-[10px] text-slate-500 text-center italic mt-8 leading-relaxed">
+        VowVet Memorial · Không liên kết với bất kỳ nhà tang lễ hay dịch vụ hỏa táng.<br />
+        Hỗ trợ: <a href="https://zalo.me/1136810892220003266" target="_blank" rel="noopener" class="underline text-yellow-700">Zalo VowVet</a> · <a href="tel:+84779029133" class="underline text-yellow-700">0779 029 133</a>
+      </p>
+    </div>
+  </main>
+
+  <script is:inline>
+    function memorialPublic(initial) {
+      return {
+        memorial: initial.memorial,
+        visits: initial.visits,
+        petName: initial.petName,
+        petPhoto: initial.petPhoto,
+        candleSending: false,
+        candleSent: false,
+        msgForm: { visitor_name: "", message: "", candle_lit: false },
+        msgSending: false,
+        msgError: "",
+
+        get isOwner() {
+          // Cannot check from server here (no JS auth); show link conditionally via querystring if needed
+          // For minimal viable, always show — owner gets it, non-owner sees friendly upgrade pitch
+          return new URLSearchParams(location.search).has("owner");
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "—";
+          try {
+            return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("vi-VN", {
+              day: "2-digit", month: "long", year: "numeric"
+            });
+          } catch { return iso; }
+        },
+
+        fmtRel(iso) {
+          if (!iso) return "—";
+          try {
+            const ago = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+            if (ago < 1) return "vừa xong";
+            if (ago < 60) return `${ago} phút trước`;
+            if (ago < 1440) return `${Math.floor(ago / 60)} giờ trước`;
+            if (ago < 60 * 24 * 7) return `${Math.floor(ago / 1440)} ngày trước`;
+            return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+          } catch { return ""; }
+        },
+
+        async lightCandle() {
+          this.candleSending = true;
+          try {
+            const res = await fetch(`/api/v1/public/memorial/${this.memorial.public_slug}/candle`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ visitor_name: this.msgForm.visitor_name || "" }),
+            });
+            if (res.ok) {
+              const j = await res.json();
+              this.visits = [j.visit, ...this.visits];
+              this.memorial.candles_lit_count++;
+              this.memorial.visitor_count++;
+              this.candleSent = true;
+            }
+          } catch (_) {}
+          finally { this.candleSending = false; }
+        },
+
+        async sendMessage() {
+          if (!this.msgForm.message.trim()) return;
+          this.msgError = "";
+          this.msgSending = true;
+          try {
+            const res = await fetch(`/api/v1/public/memorial/${this.memorial.public_slug}/message`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                visitor_name: this.msgForm.visitor_name || "Ẩn danh",
+                message: this.msgForm.message,
+                candle_lit: this.msgForm.candle_lit,
+              }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.msgError = j?.error?.message || "Lỗi gửi";
+              return;
+            }
+            this.visits = [j.visit, ...this.visits];
+            this.memorial.visitor_count++;
+            if (this.msgForm.candle_lit) this.memorial.candles_lit_count++;
+            this.msgForm.message = "";
+            this.msgForm.candle_lit = false;
+          } catch (_) {
+            this.msgError = "Lỗi kết nối.";
+          } finally {
+            this.msgSending = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

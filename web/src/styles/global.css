@@ -1,0 +1,2601 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Azeret+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+
+/* ================================================================
+ * Mon Min Pet brand tokens — verified against bio.monminpet.com
+ * Gold (#ecb921) is the signature accent; ink (#0a0a0a) is primary text.
+ * VowVet sub-brand adds blue (info/health) + emerald (success).
+ * ================================================================ */
+@theme {
+  /* Mon Min Pet core */
+  --color-mmp-ink: #0a0a0a;
+  --color-mmp-gold: #ecb921;
+  --color-mmp-cream: #f5f1eb;
+  --color-mmp-paper: #fafafa;
+  --color-mmp-brown: #8b6f47;
+
+  /* VowVet semantic */
+  --color-vv-primary: #0a0a0a;          /* CTAs use ink (matches bio) */
+  --color-vv-accent: #ecb921;           /* Gold accent */
+  --color-vv-info: #2563eb;             /* Trust blue for AI/health context */
+  --color-vv-success: #10b981;          /* Emerald */
+  --color-vv-warning: #f59e0b;          /* Amber */
+  --color-vv-danger: #dc2626;           /* Red */
+
+  /* Surface scale */
+  --color-vv-surface-0: #ffffff;
+  --color-vv-surface-1: #fafafa;
+  --color-vv-surface-2: #f5f5f4;
+  --color-vv-surface-cream: #f5f1eb;
+  --color-vv-border: #e5e5e5;
+
+  /* Type */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", "Roboto", sans-serif;
+  --font-display: "Fraunces", Georgia, ui-serif, serif;
+  --font-mono: "Azeret Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Backward-compat for any legacy --color-vow-* references */
+:root {
+  --color-vow-primary: #0a0a0a;
+  --color-vow-primary-dark: #0a0a0a;
+  --color-vow-accent: #ecb921;
+
+  /* Mon Min Pet opacity variants (mirror bio.monminpet.com) */
+  --c-ink: #0a0a0a;
+  --c-ink-08: #0a0a0a14;
+  --c-ink-12: #0a0a0a1f;
+  --c-ink-36: #0a0a0a5c;
+  --c-ink-54: #0a0a0a8a;
+  --c-ink-72: #0a0a0ab8;
+  --c-ink-90: #0a0a0ae6;
+  --c-gold: #ecb921;
+  --c-gold-12: #ecb9211f;
+  --c-gold-30: #ecb9214d;
+  --c-cream: #f5f1eb;
+  --c-white: #ffffff;
+}
+
+html {
+  font-family: var(--font-sans);
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-vv-surface-1 text-mmp-ink antialiased;
+}
+
+/* Brand display headings — use Fraunces italic for hero/marketing only */
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+}
+
+/* Eyebrow label (uppercase tracking) — common pattern across Mon Min Pet */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-ink-54);
+}
+
+/* Gold dot indicator */
+.gold-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--c-gold);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Reusable card patterns aligned with Mon Min Pet */
+.mmp-card {
+  background: #fff;
+  border: 1px solid var(--c-ink-12);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.mmp-card-cream {
+  background: var(--c-cream);
+  border: 1px solid var(--c-ink-12);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.mmp-card-ink {
+  background: var(--c-ink);
+  color: #fff;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+/* Alpine.js: hide elements until Alpine initializes to prevent FOUC */
+[x-cloak] { display: none !important; }
+
+/* ─── Marquee (infinite horizontal scroll for trust signal strips) ──── */
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: inline-flex;
+  width: max-content;
+  animation: marquee-scroll 40s linear infinite;
+  will-change: transform;
+}
+.marquee-wrapper:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* ─── Highlighted credibility stats in marquee (gold halo pulse) ──── */
+@keyframes stat-glow-pulse {
+  0%, 100% {
+    text-shadow:
+      0 0 8px rgba(236, 185, 33, 0.45),
+      0 0 18px rgba(236, 185, 33, 0.25);
+  }
+  50% {
+    text-shadow:
+      0 0 14px rgba(236, 185, 33, 0.75),
+      0 0 30px rgba(236, 185, 33, 0.45);
+  }
+}
+.stat-glow {
+  animation: stat-glow-pulse 2.4s ease-in-out infinite;
+}
+
+/* ─── "Bạn đang ở đây" card — multi-layered attention ──── */
+@keyframes card-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(236, 185, 33, 0.5),
+      0 0 24px -4px rgba(236, 185, 33, 0.35),
+      0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(236, 185, 33, 0.85),
+      0 0 48px -2px rgba(236, 185, 33, 0.6),
+      0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+}
+.attention-card {
+  animation: card-glow 3s ease-in-out infinite;
+}
+
+@keyframes pill-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.attention-pill {
+  background-image: linear-gradient(
+    90deg,
+    #ecb921 0%,
+    #fde68a 45%,
+    #ffffff 50%,
+    #fde68a 55%,
+    #ecb921 100%
+  );
+  background-size: 200% auto;
+  animation: pill-shimmer 3s linear infinite;
+  color: #0a0a0a;
+}
+
+@keyframes live-dot-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.45;transform: scale(1.3); }
+}
+.live-dot {
+  animation: live-dot-pulse 1.4s ease-in-out infinite;
+}
+
+/* ─── Hero entrance + ambient floats ──── */
+@keyframes hero-fade-up {
+  0%   { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.hero-fade {
+  animation: hero-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hero-fade-d1 { animation-delay: 0.1s; }
+.hero-fade-d2 { animation-delay: 0.25s; }
+.hero-fade-d3 { animation-delay: 0.4s; }
+.hero-fade-d4 { animation-delay: 0.55s; }
+.hero-fade-d5 { animation-delay: 0.7s; }
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.float-y      { animation: float-y 5s ease-in-out infinite; }
+.float-y-slow { animation: float-y 7s ease-in-out infinite; animation-delay: 1s; }
+.float-y-fast { animation: float-y 4s ease-in-out infinite; animation-delay: 0.5s; }
+
+/* Gold sweep under a word (decorative underline that "wipes" across) */
+@keyframes gold-sweep {
+  0%   { transform: scaleX(0); transform-origin: left; }
+  60%  { transform: scaleX(1); transform-origin: left; }
+  100% { transform: scaleX(1); transform-origin: left; }
+}
+.gold-sweep::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -6px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #ecb921 30%, #fde68a 50%, #ecb921 70%, transparent);
+  transform-origin: left;
+  animation: gold-sweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both;
+}
+
+/* ─── Dashboard ambient animations ──── */
+@keyframes subtle-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.025); }
+}
+.animate-subtle-breathe {
+  animation: subtle-breathe 4s ease-in-out infinite;
+}
+
+@keyframes pulse-urgent-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+  50%      { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+}
+@keyframes pulse-urgent-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); }
+  50%      { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+}
+.animate-pulse-urgent-critical { animation: pulse-urgent-red 2s ease-in-out infinite; }
+.animate-pulse-urgent-urgent   { animation: pulse-urgent-amber 2s ease-in-out infinite; }
+
+@keyframes progress-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(236, 185, 33, 0.5); }
+  50%      { box-shadow: 0 0 0 4px rgba(236, 185, 33, 0); }
+}
+.animate-progress-pulse { animation: progress-pulse 1.5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .marquee-track,
+  .stat-glow,
+  .attention-card,
+  .attention-pill,
+  .live-dot,
+  .hero-fade,
+  .float-y, .float-y-slow, .float-y-fast,
+  .gold-sweep::after,
+  .animate-subtle-breathe,
+  .animate-pulse-urgent-critical,
+  .animate-pulse-urgent-urgent,
+  .animate-progress-pulse { animation: none; opacity: 1; transform: none; }
+}
+
+/* ================================================================
+ * v53 Phase 2B-1 — European Typography System
+ * Section titles · Metadata labels · Numerical mono values
+ * Reusable cho toàn site sau Pet Profile reskin.
+ * ================================================================ */
+
+/* Section title — Fraunces SemiBold italic, editorial */
+.title-section {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--c-ink);
+}
+
+/* Metadata label — Inter Italic Caps, 10px tracked */
+.label-eu {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--c-ink-54);
+}
+
+/* Numerical value / identifier — Azeret Mono 12px tabular */
+.value-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+/* Hairline divider — system-wide 12% ink */
+.divider-hairline {
+  height: 1px;
+  background: var(--c-ink-12);
+}
+
+/* ================================================================
+ * v54 Phase 2B-2 — Section EU theming
+ * Wrap section với .section-eu → auto-apply European typography +
+ * ink-themed inputs + horizontal label-left/value-right (Tier B desktop).
+ * ================================================================ */
+
+.section-eu label {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--c-ink-54);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.section-eu input[type="text"],
+.section-eu input[type="number"],
+.section-eu input[type="date"],
+.section-eu input[type="tel"],
+.section-eu input[type="email"],
+.section-eu input[type="url"],
+.section-eu textarea {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--c-ink-12);
+  background: #fff;
+  padding: 10px 14px;
+  width: 100%;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.section-eu input:focus,
+.section-eu textarea:focus {
+  border-color: var(--c-ink) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--c-ink-08);
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * Tier B — Horizontal label-left / value-right desktop layout
+ * Uses :has() (Chrome 105+, Safari 15.4+, Firefox 121+)
+ * Mobile (<768px): stacks vertically by default
+ * ──────────────────────────────────────────────────────────────── */
+
+@media (min-width: 768px) {
+  /* Collapse inner 2-col field-row grids to single column → each field becomes its own horizontal row */
+  .section-eu .grid.sm\:grid-cols-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  /* Each leaf field (label + input/textarea) → horizontal: label 160px left, value 1fr right */
+  .section-eu div:has(> label + input:not([type="checkbox"])),
+  .section-eu div:has(> label + select),
+  .section-eu div:has(> label + textarea) {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    align-items: start;
+    gap: 1.5rem;
+    padding: 14px 0;
+    border-top: 1px solid var(--c-ink-12);
+  }
+
+  /* First field row in section: no top border */
+  .section-eu > div:first-of-type:has(> label + input),
+  .section-eu > div:first-of-type:has(> label + textarea),
+  .section-eu .grid > div:first-child:has(> label + input),
+  .section-eu .grid > div:first-child:has(> label + textarea) {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  /* Labels in horizontal layout: align top, no margin-bottom */
+  .section-eu div:has(> label + input:not([type="checkbox"])) > label,
+  .section-eu div:has(> label + select) > label,
+  .section-eu div:has(> label + textarea) > label {
+    padding-top: 0.75rem;
+    margin-bottom: 0 !important;
+  }
+}
+
+/* ================================================================
+ * v55 Phase 2B-3 — Tabular records + Restaurant menu cards
+ * ================================================================ */
+
+/* Tabular data row — for health records (vaccines/dewormers/allergies) */
+.tabular-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--c-ink-12);
+}
+.tabular-row:last-child {
+  border-bottom: 1px solid var(--c-ink-12);
+}
+
+/* Restaurant-style menu card — Diet schedule (Le Bernardin / Per Se feel) */
+.menu-card {
+  padding: 1.5rem 1.5rem 1.5rem 1.75rem;
+  background: var(--c-cream);
+  border-radius: 12px;
+  border-left: 3px solid var(--c-gold);
+}
+.menu-card .menu-label {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  color: var(--c-ink);
+  line-height: 1.2;
+}
+.menu-card .menu-value {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--c-ink);
+  font-variant-numeric: tabular-nums;
+}
+.menu-card .menu-dotline {
+  flex: 1;
+  border-bottom: 1px dotted var(--c-ink-12);
+  margin: 0 0.5rem;
+  height: 0.9em;
+}
+
+/* ================================================================
+ * v56 Phase 2C — Motion Choreography
+ * Subtle, editorial. Ease-out only. Never bounce. Respect reduced-motion.
+ * ================================================================ */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero panel children stagger on initial paint */
+.hero-stagger > * {
+  animation: fade-in-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.hero-stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.hero-stagger > *:nth-child(2)  { animation-delay: 60ms; }
+.hero-stagger > *:nth-child(3)  { animation-delay: 120ms; }
+.hero-stagger > *:nth-child(4)  { animation-delay: 180ms; }
+.hero-stagger > *:nth-child(5)  { animation-delay: 240ms; }
+.hero-stagger > *:nth-child(6)  { animation-delay: 300ms; }
+.hero-stagger > *:nth-child(7)  { animation-delay: 360ms; }
+.hero-stagger > *:nth-child(8)  { animation-delay: 420ms; }
+.hero-stagger > *:nth-child(9)  { animation-delay: 480ms; }
+.hero-stagger > *:nth-child(10) { animation-delay: 540ms; }
+
+/* Section transition wrapper — used with Alpine x-transition */
+.section-fade-in {
+  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Subtle card lift on hover — for interactive cards */
+.lift-on-hover {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lift-on-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(10, 10, 10, 0.06);
+}
+
+/* Consistent focus ring — WCAG AA visible, gold accent (matches Verified medallion) */
+.section-eu input:focus-visible,
+.section-eu textarea:focus-visible,
+.section-eu select:focus-visible,
+.section-eu button:focus-visible,
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--c-gold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Override section-eu input default focus (kept from v54) to match new system */
+.section-eu input:focus,
+.section-eu textarea:focus {
+  outline: none;
+}
+
+/* Smooth button state transitions */
+.section-eu button[type="button"],
+.btn-eu {
+  transition: background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .hero-stagger > *,
+  .section-fade-in,
+  .lift-on-hover,
+  .section-eu button {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+/* ================================================================
+ * v56 Phase 2D — Print Stylesheet (Pet Passport export)
+ * A4 layout, hide UI chrome, show all sections, B/W maximum contrast
+ * ================================================================ */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10.5pt;
+  }
+
+  /* Hide everything that's UI chrome — navbar, mobile nav, buttons, action banners */
+  nav,
+  .no-print,
+  button[type="button"],
+  a[href^="/dashboard"],
+  a[href^="/food-brands"],
+  a[href^="/login"],
+  [x-data="medicalProfileForm()"],
+  .lg\:hidden,
+  .SectionActions,
+  [class*="SectionActions"],
+  header {
+    display: none !important;
+  }
+
+  /* Layout: linearize grid for print pagination */
+  .grid,
+  .lg\:grid,
+  .lg\:grid-cols-5,
+  .lg\:grid-cols-2,
+  .lg\:grid-cols-3,
+  .lg\:grid-cols-4 {
+    display: block !important;
+    gap: 0 !important;
+  }
+
+  /* Hero panel sticky → static */
+  aside.lg\:sticky,
+  .lg\:sticky {
+    position: static !important;
+    top: auto !important;
+  }
+
+  /* Show ALL sections, not just activeSection */
+  section[x-show*="activeSection"] {
+    display: block !important;
+    page-break-inside: avoid;
+    margin-top: 8mm;
+    padding: 4mm 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* Section titles get page-break protection */
+  .title-section {
+    page-break-after: avoid;
+    margin-top: 6mm;
+    color: #000 !important;
+  }
+
+  /* Hairlines stay visible in print */
+  .divider-hairline,
+  [class*="border-slate"],
+  [class*="border-amber"] {
+    border-color: #999 !important;
+  }
+
+  /* Gold accents kept for Verified medallion + cert badge */
+  [style*="#B48608"] {
+    color: #B48608 !important;
+  }
+
+  /* Mono values keep their font */
+  .value-mono,
+  .menu-card .menu-value {
+    font-family: "Azeret Mono", ui-monospace, monospace !important;
+  }
+
+  /* Print-only header: appears at top of every printed page */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    border-bottom: 2px solid #000;
+    padding-bottom: 4mm;
+    margin-bottom: 6mm;
+  }
+  .print-header .print-brand {
+    font-family: "Fraunces", Georgia, serif;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 18pt;
+    letter-spacing: -0.01em;
+  }
+  .print-header .print-subtitle {
+    font-family: "Inter", sans-serif;
+    font-style: italic;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: #555;
+    margin-top: 2mm;
+  }
+
+  /* Default: print-header hidden on screen */
+  .print-header { display: none; }
+}
+
+/* Print header element is always present but only shown in print */
+.print-header { display: none; }
+@media print {
+  .print-header { display: block !important; }
+}
+
+/* ================================================================
+ * v57 Phase 2E — Mobile + Accessibility
+ * Skip link, touch targets, screen-reader utilities
+ * ================================================================ */
+
+/* Skip-to-content link — visible only on focus, WCAG 2.4.1 */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  z-index: 100;
+  background: var(--c-ink);
+  color: #fff;
+  padding: 12px 20px;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 0 0 12px 0;
+  transition: top 0.2s ease-out;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid var(--c-gold);
+  outline-offset: -4px;
+}
+
+/* Screen reader only — Tailwind sr-only equivalent (in case not available) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Mobile touch targets — Apple HIG / WCAG 2.5.5 minimum 44×44 px */
+@media (max-width: 767px) {
+  .section-eu button[type="button"],
+  .section-eu input[type="text"],
+  .section-eu input[type="number"],
+  .section-eu input[type="date"],
+  .section-eu input[type="tel"],
+  .section-eu input[type="email"],
+  .section-eu input[type="url"],
+  .section-eu select,
+  nav button {
+    min-height: 44px;
+  }
+
+  /* Star rating buttons get touch buffer */
+  .section-eu button[aria-label*="Đánh giá"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* High-contrast focus for keyboard nav (already gold from v56) — boost ring on link buttons */
+.btn-eu:focus-visible,
+.section-eu a:focus-visible {
+  outline-offset: 4px;
+}
+
+/* ================================================================
+ * v57 Phase 2F — QA Polish: loading skeletons, empty states
+ * ================================================================ */
+
+/* Skeleton shimmer for loading states */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--c-ink-08) 0%,
+    var(--c-ink-12) 50%,
+    var(--c-ink-08) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--c-ink-08);
+  }
+}
+
+/* Print mode: never show skeletons */
+@media print {
+  .skeleton {
+    display: none !important;
+  }
+}
+
+/* ================================================================
+ * v62 — Pet Detail page-level tab filter
+ * Hides widgets whose data-page-tab doesn't match parent's data-active.
+ * Print mode shows ALL widgets regardless of active tab.
+ * ================================================================ */
+
+.pet-detail-tabs[data-active="overview"]  [data-page-tab]:not([data-page-tab="overview"]),
+.pet-detail-tabs[data-active="health"]    [data-page-tab]:not([data-page-tab="health"]),
+.pet-detail-tabs[data-active="lifestyle"] [data-page-tab]:not([data-page-tab="lifestyle"]),
+.pet-detail-tabs[data-active="profile"]   [data-page-tab]:not([data-page-tab="profile"]),
+.pet-detail-tabs[data-active="memories"]  [data-page-tab]:not([data-page-tab="memories"]) {
+  display: none !important;
+}
+
+@media print {
+  .pet-detail-tabs [data-page-tab] {
+    display: block !important;
+  }
+}
+
+/* ================================================================
+ * v63 — SUPREME LUXURY OVERRIDE for Pet Detail page widgets
+ * Transform 17 M-widget cards + accordions + sub-tabs into
+ * monochromatic editorial cards (Patek Philippe catalog feel).
+ * Single CSS override — zero HTML refactor needed.
+ * ================================================================ */
+
+/* All link-card widgets inside pet-detail-tabs — strip gradients, apply luxury */
+.pet-detail-tabs a[data-page-tab] {
+  background: #fff !important;
+  background-image: none !important;
+  border: 1px solid var(--c-ink-12) !important;
+  color: var(--c-ink) !important;
+  box-shadow: none !important;
+  border-radius: 16px !important;
+  padding: 24px !important;
+  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  text-decoration: none !important;
+}
+
+.pet-detail-tabs a[data-page-tab]:hover {
+  border-color: var(--c-ink) !important;
+  box-shadow: 0 6px 20px rgba(10, 10, 10, 0.06) !important;
+  transform: translateY(-1px);
+}
+
+/* Card icon emoji — circular ink-cream badge instead of large floating emoji */
+.pet-detail-tabs a[data-page-tab] > div > span:first-child,
+.pet-detail-tabs a[data-page-tab] .text-3xl {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--c-cream) !important;
+  border: 1px solid var(--c-ink-12);
+  border-radius: 50%;
+  font-size: 22px !important;
+  flex-shrink: 0;
+}
+
+/* Card title — Fraunces italic display */
+.pet-detail-tabs a[data-page-tab] p.font-bold {
+  font-family: var(--font-display) !important;
+  font-style: italic;
+  font-weight: 600 !important;
+  color: var(--c-ink) !important;
+  font-size: 1.125rem !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.01em;
+}
+
+/* Card description — italic ink-54 */
+.pet-detail-tabs a[data-page-tab] p.text-xs {
+  font-style: italic;
+  color: var(--c-ink-54) !important;
+  font-size: 12px !important;
+  opacity: 1 !important;
+  margin-top: 4px !important;
+  line-height: 1.5;
+}
+
+/* Card chevron arrow — subtle ink */
+.pet-detail-tabs a[data-page-tab] > div > span:last-child,
+.pet-detail-tabs a[data-page-tab] .text-2xl {
+  color: var(--c-ink-54) !important;
+  font-size: 18px !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s;
+}
+
+.pet-detail-tabs a[data-page-tab]:hover > div > span:last-child,
+.pet-detail-tabs a[data-page-tab]:hover .text-2xl {
+  color: var(--c-ink) !important;
+  transform: translateX(2px);
+}
+
+/* Special override: Lost Pet stays red for urgency semantic */
+.pet-detail-tabs a[data-page-tab][href*="lost/report"] {
+  background: rgb(254, 242, 242) !important;
+  border-color: rgb(252, 165, 165) !important;
+}
+.pet-detail-tabs a[data-page-tab][href*="lost/report"] p.font-bold {
+  color: rgb(127, 29, 29) !important;
+}
+.pet-detail-tabs a[data-page-tab][href*="lost/report"] p.text-xs {
+  color: rgb(185, 28, 28) !important;
+}
+
+/* Sub-tab nav (existing care/vaccine/climate/nutrition system) — luxury upgrade */
+.pet-detail-tabs [data-page-tab="health"] > div:first-child {
+  border-radius: 16px !important;
+  border-color: var(--c-ink-12) !important;
+  box-shadow: none !important;
+}
+
+.pet-detail-tabs [data-page-tab="health"] .border-sky-500 {
+  border-color: var(--c-ink) !important;
+}
+.pet-detail-tabs [data-page-tab="health"] .text-sky-700 {
+  color: var(--c-ink) !important;
+  font-weight: 600;
+}
+.pet-detail-tabs [data-page-tab="health"] [class*="border-sky-"]:not(.border-sky-500) {
+  border-color: var(--c-ink-12) !important;
+}
+
+/* 8 accordion sections — apply European typography */
+.pet-detail-tabs [data-page-tab="profile"] > h2,
+.pet-detail-tabs [data-page-tab="profile"] h2.text-lg {
+  font-family: var(--font-display) !important;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.5rem !important;
+  letter-spacing: -0.01em;
+  color: var(--c-ink);
+}
+
+.pet-detail-tabs [data-page-tab="profile"] .border-slate-100 {
+  border-color: var(--c-ink-12) !important;
+}
+
+/* M30 Memorial details — luxury upgrade */
+.pet-detail-tabs details[data-page-tab="memories"] {
+  background: #fff !important;
+  border: 1px solid var(--c-ink-12) !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  padding: 24px !important;
+}
+
+.pet-detail-tabs details[data-page-tab="memories"] summary {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--c-ink);
+}
+
+/* Active tab gold dot indicator — wow micro-detail */
+.pet-detail-tabs nav button[aria-current="page"]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #B48608;
+  margin-right: 8px;
+  vertical-align: middle;
+  animation: gold-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes gold-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-detail-tabs nav button[aria-current="page"]::before {
+    animation: none;
+  }
+}
+
+/* Increase whitespace between major zones for editorial breathing room */
+.pet-detail-tabs > .grid > .lg\:col-span-3 {
+  gap: 0;
+}
+
+.pet-detail-tabs > .grid > .lg\:col-span-3 > * + * {
+  margin-top: 16px !important;
+}
+
+/* Inter-zone spacing (between widget container, accordions, sub-tab section) */
+.pet-detail-tabs > .grid + div,
+.pet-detail-tabs > div[x-data*="openSections"],
+.pet-detail-tabs > div[x-effect*="activeTab"] {
+  margin-top: 48px !important;
+}
+
+/* ================================================================
+ * v64 — STRICT 3-COLOR PALETTE OVERRIDE
+ * Pet Detail page restricted to: GOLD (#B48608) · WHITE (#FFF) · INK (#0a0a0a)
+ * Hairline borders ink-12. Subtle text ink-54. NO sky/emerald/indigo/teal/rose chaos.
+ * Exception: Lost Pet card keeps red (semantic urgency).
+ * ================================================================ */
+
+/* Text color overrides — slate/zinc/gray → ink scale */
+.pet-detail-tabs [class*="text-slate-9"],
+.pet-detail-tabs [class*="text-slate-8"],
+.pet-detail-tabs [class*="text-slate-7"],
+.pet-detail-tabs [class*="text-slate-6"] {
+  color: var(--c-ink) !important;
+}
+.pet-detail-tabs [class*="text-slate-5"],
+.pet-detail-tabs [class*="text-slate-4"] {
+  color: var(--c-ink-54) !important;
+}
+.pet-detail-tabs [class*="text-slate-3"] {
+  color: var(--c-ink-36) !important;
+}
+
+/* Background overrides — slate/zinc/stone → cream or white */
+.pet-detail-tabs [class*="bg-slate-100"],
+.pet-detail-tabs [class*="bg-slate-50"],
+.pet-detail-tabs [class*="bg-stone-100"],
+.pet-detail-tabs [class*="bg-stone-50"] {
+  background-color: var(--c-cream) !important;
+}
+
+/* Sky/indigo/teal/cyan/violet semantic colors → ink + gold accent */
+.pet-detail-tabs [class*="text-sky"]:not(.text-sky-700),
+.pet-detail-tabs [class*="text-indigo"],
+.pet-detail-tabs [class*="text-teal"],
+.pet-detail-tabs [class*="text-cyan"],
+.pet-detail-tabs [class*="text-violet"],
+.pet-detail-tabs [class*="text-blue"] {
+  color: var(--c-ink) !important;
+}
+.pet-detail-tabs [class*="text-sky-700"] {
+  color: var(--c-ink) !important;
+  font-weight: 600;
+}
+
+/* Emerald/green success → gold (luxury success indicator) */
+.pet-detail-tabs [class*="text-emerald"],
+.pet-detail-tabs [class*="text-green"] {
+  color: #B48608 !important;
+}
+.pet-detail-tabs [class*="bg-emerald"],
+.pet-detail-tabs [class*="bg-green"] {
+  background-color: rgba(180, 134, 8, 0.08) !important;
+}
+
+/* Amber → gold (consolidate) */
+.pet-detail-tabs [class*="text-amber"]:not(.text-amber-700),
+.pet-detail-tabs [class*="text-orange"]:not(.text-orange-600) {
+  color: var(--c-ink) !important;
+}
+.pet-detail-tabs [class*="text-amber-7"],
+.pet-detail-tabs [class*="text-amber-8"],
+.pet-detail-tabs [class*="text-amber-9"] {
+  color: #B48608 !important;
+}
+
+/* Border overrides — all colored borders → ink-12 hairline */
+.pet-detail-tabs [class*="border-slate"],
+.pet-detail-tabs [class*="border-sky"]:not(.border-sky-500),
+.pet-detail-tabs [class*="border-emerald"]:not(.border-emerald-300),
+.pet-detail-tabs [class*="border-indigo"],
+.pet-detail-tabs [class*="border-teal"],
+.pet-detail-tabs [class*="border-cyan"],
+.pet-detail-tabs [class*="border-violet"],
+.pet-detail-tabs [class*="border-orange"],
+.pet-detail-tabs [class*="border-amber"]:not(.border-amber-300) {
+  border-color: var(--c-ink-12) !important;
+}
+
+/* Active button states — use gold border instead of sky */
+.pet-detail-tabs .border-sky-500 {
+  border-color: var(--c-ink) !important;
+}
+
+/* Pill badges — bg-sky-100/orange-100/etc → cream + ink */
+.pet-detail-tabs [class*="bg-sky-100"],
+.pet-detail-tabs [class*="bg-orange-100"],
+.pet-detail-tabs [class*="bg-indigo-100"],
+.pet-detail-tabs [class*="bg-amber-100"]:not([class*="bg-amber-100/"]) {
+  background-color: var(--c-cream) !important;
+  color: var(--c-ink) !important;
+}
+
+/* Exception: Lost Pet card semantic red preserved (already handled in v63) */
+/* Exception: Emergency section bg-amber-50 preserved for warning */
+
+/* Gold dot indicator for active checkmarks (replace green ✓) */
+.pet-detail-tabs .text-green-500 {
+  color: #B48608 !important;
+}
+
+/* Sub-tab nav (line 821+) — strict 3-color */
+.pet-detail-tabs > div[x-effect*="activeTab"] button {
+  border-color: var(--c-ink-12) !important;
+  color: var(--c-ink-54) !important;
+}
+.pet-detail-tabs > div[x-effect*="activeTab"] button.border-sky-500,
+.pet-detail-tabs > div[x-effect*="activeTab"] button[class*="text-sky-700"] {
+  border-color: var(--c-ink) !important;
+  color: var(--c-ink) !important;
+  font-weight: 600;
+}
+
+/* Progress bar bg (completion bar etc) — slate → ink-12 */
+.pet-detail-tabs [class*="bg-slate-200"] {
+  background-color: var(--c-ink-12) !important;
+}
+.pet-detail-tabs .bg-mmp-cream {
+  background-color: #B48608 !important;
+}
+
+/* ================================================================
+ * v67 — NUCLEAR MONOCHROME · Force ALL link cards to gold+white+ink
+ * Stronger specificity than v63. Catches widgets NOT tagged data-page-tab.
+ * Emphasis via: bold weight, italic, size, border-thick, cream subtle bg.
+ * NO COLOR DIFFERENTIATION between cards — uniform luxury palette.
+ * ================================================================ */
+
+/* All link cards inside pet-detail-tabs — nuclear override regardless of original class */
+.pet-detail-tabs a.block,
+.pet-detail-tabs a[class*="bg-gradient"],
+.pet-detail-tabs a[class*="bg-mmp-ink"],
+.pet-detail-tabs a[class*="bg-red-50"],
+.pet-detail-tabs a[class*="bg-sky"],
+.pet-detail-tabs a[class*="bg-rose"],
+.pet-detail-tabs a[class*="bg-orange"],
+.pet-detail-tabs a[class*="bg-emerald"],
+.pet-detail-tabs a[class*="bg-indigo"],
+.pet-detail-tabs a[class*="bg-amber"]:not([class*="bg-amber-50/"]),
+.pet-detail-tabs a[class*="bg-teal"],
+.pet-detail-tabs a[class*="bg-violet"] {
+  background: #fff !important;
+  background-image: none !important;
+  background-color: #fff !important;
+  border: 1px solid var(--c-ink-12) !important;
+  color: var(--c-ink) !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+
+.pet-detail-tabs a.block:hover,
+.pet-detail-tabs a[class*="bg-gradient"]:hover,
+.pet-detail-tabs a[class*="bg-mmp-ink"]:hover,
+.pet-detail-tabs a[class*="bg-red-50"]:hover,
+.pet-detail-tabs a[class*="bg-amber-"]:hover {
+  background: #fff !important;
+  border-color: var(--c-ink) !important;
+  box-shadow: 0 6px 20px rgba(10, 10, 10, 0.06) !important;
+  opacity: 1 !important;
+  transform: translateY(-1px);
+}
+
+/* All text inside link cards → ink (no white-text on white-bg) */
+.pet-detail-tabs a.block,
+.pet-detail-tabs a.block *:not(.text-3xl):not(.text-2xl):not(.text-xl):not([class*="bg-"]),
+.pet-detail-tabs a[class*="bg-gradient"] *,
+.pet-detail-tabs a[class*="bg-mmp-ink"] *,
+.pet-detail-tabs a[class*="bg-amber-"] * {
+  color: var(--c-ink) !important;
+}
+
+.pet-detail-tabs a.block p.text-xs,
+.pet-detail-tabs a.block .text-xs,
+.pet-detail-tabs a.block [class*="opacity-9"],
+.pet-detail-tabs a[class*="bg-gradient"] p.text-xs,
+.pet-detail-tabs a[class*="bg-mmp-ink"] p.text-xs {
+  color: var(--c-ink-54) !important;
+  opacity: 1 !important;
+}
+
+/* Gamification mini cards — same monochrome system */
+.gamification-mini {
+  background: #fff !important;
+  border: 1px solid var(--c-ink-12) !important;
+  color: var(--c-ink) !important;
+}
+.gamification-mini:hover {
+  border-color: var(--c-ink) !important;
+  box-shadow: 0 4px 14px rgba(10, 10, 10, 0.06);
+  transform: translateY(-1px);
+}
+.gamification-mini p {
+  color: var(--c-ink) !important;
+  font-family: var(--font-display) !important;
+  font-style: italic !important;
+  font-weight: 600 !important;
+}
+
+/* Lost Pet card — KEEP monochrome but emphasis via thicker border + cream + uppercase tracking */
+.pet-detail-tabs a[href*="lost/report"] {
+  background: var(--c-cream) !important;
+  border: 2px solid var(--c-ink) !important;
+  position: relative;
+}
+.pet-detail-tabs a[href*="lost/report"] p.font-bold,
+.pet-detail-tabs a[href*="lost/report"] p[class*="text-red"] {
+  color: var(--c-ink) !important;
+  font-family: var(--font-display) !important;
+  font-style: italic !important;
+  letter-spacing: -0.01em;
+}
+.pet-detail-tabs a[href*="lost/report"] p.text-xs,
+.pet-detail-tabs a[href*="lost/report"] [class*="text-red-7"] {
+  color: var(--c-ink-72) !important;
+  font-style: italic;
+}
+.pet-detail-tabs a[href*="lost/report"] .text-2xl {
+  color: var(--c-ink) !important;
+}
+/* Lost Pet emergency marker — gold dot pulsing for urgency without using red */
+.pet-detail-tabs a[href*="lost/report"]::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  background: #B48608;
+  border-radius: 50%;
+  animation: gold-pulse 1.6s ease-in-out infinite;
+}
+
+/* Memorial details — monochrome */
+.pet-detail-tabs details[data-page-tab="memories"] summary,
+.pet-detail-tabs details[data-page-tab="memories"] *:not([class*="bg-"]) {
+  color: var(--c-ink-54) !important;
+}
+.pet-detail-tabs details[data-page-tab="memories"] a[class*="bg-slate"] {
+  background: var(--c-cream) !important;
+  border: 1px solid var(--c-ink-12) !important;
+  color: var(--c-ink) !important;
+}
+
+/* Sub-tab nav (care/climate/vaccine/nutrition system) — strict ink + cream */
+.pet-detail-tabs [data-page-tab="health"] .bg-sky-600,
+.pet-detail-tabs [data-page-tab="health"] [class*="bg-sky-"] {
+  background-color: var(--c-ink) !important;
+  color: #fff !important;
+}
+.pet-detail-tabs [data-page-tab="health"] .bg-sky-50,
+.pet-detail-tabs [data-page-tab="health"] [class*="bg-sky-50"] {
+  background-color: var(--c-cream) !important;
+  color: var(--c-ink) !important;
+}
+
+/* 8 accordion section badges (% indicator) — gold instead of green */
+.pet-detail-tabs [data-page-tab="profile"] .text-green-500,
+.pet-detail-tabs [data-page-tab="profile"] [class*="text-green"] {
+  color: #B48608 !important;
+}
+
+/* Strong CTA buttons inside cards (Tạo QR, Save, etc.) — solid ink with gold hover */
+.pet-detail-tabs button[class*="bg-orange-"],
+.pet-detail-tabs button[class*="bg-sky-"]:not([class*="bg-sky-50"]) {
+  background: var(--c-ink) !important;
+  color: #fff !important;
+}
+.pet-detail-tabs button[class*="bg-orange-"]:hover,
+.pet-detail-tabs button[class*="bg-sky-"]:hover {
+  background: #B48608 !important;
+}
+
+/* Photo upload widget (LEFT col of main grid) — same monochrome */
+.pet-detail-tabs [class*="bg-sky-50"]:not(button):not(a),
+.pet-detail-tabs [class*="border-sky-"]:not(.border-sky-500):not(button):not(a) {
+  background: var(--c-cream) !important;
+  border-color: var(--c-ink-12) !important;
+}
+
+/* Emphasis system: How to highlight WITHOUT changing colors */
+/* 1. Gold accent dot ◆ used in labels */
+/* 2. Bold weight + Fraunces italic for titles */
+/* 3. Bigger size (text-xl vs text-sm) */
+/* 4. Border-2 thicker for important cards */
+/* 5. Cream subtle background var(--c-cream) for emphasis cards */
+
+/* ================================================================
+ * v68 — LUXURY ICON FRAME SYSTEM
+ * Replace emoji-floating-large pattern with squircle ink-5% containers.
+ * Matches reference: w-16 h-16 rounded-2xl bg-mmp-ink/5 + hover gold-15%.
+ * ================================================================ */
+
+/* Override v63 circular icon → squircle luxury container */
+.pet-detail-tabs a[data-page-tab] > div > span:first-child,
+.pet-detail-tabs a[data-page-tab] .text-3xl {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 56px !important;
+  height: 56px !important;
+  background: rgba(10, 10, 10, 0.05) !important;    /* ink 5% */
+  border: 1px solid var(--c-ink-12);
+  border-radius: 16px !important;                    /* squircle, not circle */
+  font-size: 24px !important;
+  flex-shrink: 0;
+  transition: background 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover state: ink-5% → gold-15% (signature MonMin pattern) */
+.pet-detail-tabs a[data-page-tab]:hover > div > span:first-child,
+.pet-detail-tabs a[data-page-tab]:hover .text-3xl {
+  background: rgba(180, 134, 8, 0.15) !important;   /* gold 15% */
+  border-color: rgba(180, 134, 8, 0.3);
+}
+
+/* Chevron arrow inside icon frame should not be wrapped — only first span */
+.pet-detail-tabs a[data-page-tab] > div > span:last-child {
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: 18px !important;
+}
+
+/* Gamification mini cards — same icon frame system */
+.gamification-mini > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(10, 10, 10, 0.05);
+  border: 1px solid var(--c-ink-12);
+  border-radius: 12px;
+  font-size: 18px;
+  margin: 0 auto 8px;
+}
+.gamification-mini:hover > span:first-child {
+  background: rgba(180, 134, 8, 0.15);
+  border-color: rgba(180, 134, 8, 0.3);
+}
+
+/* ================================================================
+ * v68 — HERO PASSPORT ACCENT
+ * Subtle warm cream gradient bg + gold top signature line.
+ * "Official document" feel without color overuse.
+ * ================================================================ */
+
+/* v69: HERO WOW — MonMin signature "highlight card" — ink bg + gold spotlight glow */
+.hero-passport {
+  position: relative;
+  background: #0a0a0a !important;             /* INK bg — full dark passport */
+  color: #fff !important;
+  border: 1px solid var(--c-ink) !important;
+  overflow: hidden;                            /* contain spotlight */
+  padding: 32px 32px 28px !important;
+  box-shadow: 0 12px 40px rgba(10, 10, 10, 0.18);
+}
+
+@media (min-width: 640px) {
+  .hero-passport {
+    padding: 44px 44px 40px !important;
+  }
+}
+
+/* Gold spotlight glow — radial top-right corner */
+.hero-passport::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle at top right, rgba(236, 185, 33, 0.32) 0%, rgba(236, 185, 33, 0.12) 35%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Secondary spotlight — left bottom subtle */
+.hero-passport::after {
+  content: "";
+  position: absolute;
+  bottom: -40px;
+  left: -40px;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(236, 185, 33, 0.10) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* All Hero content sits ABOVE spotlights */
+.hero-passport > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* === Hero content color inversions === */
+
+/* Names + identity values → white on ink bg */
+.hero-passport h2,
+.hero-passport h3,
+.hero-passport dd,
+.hero-passport .text-\[var\(--c-ink\)\] {
+  color: #fff !important;
+}
+
+/* Labels → gold accent (signature) */
+.hero-passport .label-eu,
+.hero-passport dt {
+  color: rgba(236, 185, 33, 0.85) !important;  /* gold-85 */
+}
+
+/* Secondary text (ink-54) → white-54 */
+.hero-passport .text-\[var\(--c-ink-54\)\] {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Hairline dividers → gold-25 (visible on ink) */
+.hero-passport .divider-hairline {
+  background: rgba(236, 185, 33, 0.25) !important;
+  height: 1px;
+}
+
+/* QR frame background — stays WHITE (QR must be black on white to scan) */
+.hero-passport .photo-id-card,
+.hero-passport [class*="bg-white"] {
+  background: #ffffff !important;
+}
+
+/* QR frame border → gold instead of ink-12 */
+.hero-passport .photo-id-card,
+.hero-passport > div > div:first-child > div:first-child {
+  border-color: rgba(236, 185, 33, 0.4) !important;
+}
+
+/* Mã passport text inside QR area → gold on ink */
+.hero-passport .value-mono {
+  color: #fff !important;
+}
+
+/* Edit button → gold border + gold text on ink */
+.hero-passport button[class*="border-[var(--c-ink)]"] {
+  border-color: rgba(236, 185, 33, 0.6) !important;
+  color: #fff !important;
+}
+.hero-passport button[class*="border-[var(--c-ink)]"]:hover {
+  background: #B48608 !important;
+  color: #0a0a0a !important;
+  border-color: #B48608 !important;
+}
+
+/* Copy URL button — gold accent */
+.hero-passport button[class*="text-[var(--c-ink)]"] {
+  border-color: rgba(236, 185, 33, 0.4) !important;
+  color: #fff !important;
+}
+.hero-passport button[class*="text-[var(--c-ink)]"]:hover {
+  background: rgba(236, 185, 33, 0.15) !important;
+}
+
+/* "Tạo QR" button — solid gold instead of ink */
+.hero-passport button[class*="bg-[var(--c-ink)]"] {
+  background: #B48608 !important;
+  color: #0a0a0a !important;
+}
+.hero-passport button[class*="bg-[var(--c-ink)]"]:hover {
+  background: #d4a615 !important;
+}
+
+/* "Đã triệt sản" pill — flip to gold solid on ink bg */
+.hero-passport [style*="background: rgba(180,134,8,0.1)"] {
+  background: rgba(236, 185, 33, 0.2) !important;
+  border-color: rgba(236, 185, 33, 0.5) !important;
+  color: #B48608 !important;
+}
+
+/* Biệt danh marker — already gold, keep */
+
+/* Verified medallion — stays white circle with gold (already correct) */
+
+/* Photo card label "ẢNH ĐỊNH DANH" overlay still works (separate context) */
+
+/* === "PASSPORT OFFICIAL" floating pill — wow signature === */
+.hero-passport-pill {
+  position: absolute;
+  top: -12px;
+  left: 32px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #B48608;
+  color: #0a0a0a;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(180, 134, 8, 0.4);
+}
+.hero-passport-pill::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #0a0a0a;
+  border-radius: 50%;
+  animation: gold-pulse 2s ease-in-out infinite;
+}
+
+/* ================================================================
+ * v68 — PHOTO CARD label overlay (LEFT col of main grid)
+ * Adds "ẢNH ĐỊNH DANH" editorial caption + bottom gradient.
+ * ================================================================ */
+
+.photo-id-card {
+  position: relative;
+  border: 1px solid var(--c-ink-12) !important;
+}
+
+.photo-id-card::before {
+  content: "ẢNH ĐỊNH DANH";
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  padding: 4px 10px;
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* Gold corner brackets on photo too (passport feel) */
+.photo-id-card::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 2px solid transparent;
+  border-image: linear-gradient(135deg, #B48608 0%, transparent 20%, transparent 80%, #B48608 100%) 1;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* ================================================================
+ * v70 — LUCIDE ICON SYNC — tile pattern matching landing page
+ * `.m-card-icon`: 48px rounded tile on M-card list items
+ *    (paired with v67 monochrome — bg ink/5 → hover gold/15)
+ * `.accordion-icon`: 32px tile in accordion section headers
+ * `.page-tab-icon`: inline icon in sticky page nav (no tile)
+ * `.gamification-mini` already styled in v67 (uses generic span:first-child)
+ * ================================================================ */
+
+.m-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(180, 134, 8, 0.08);
+  color: var(--c-ink);
+  border: 1px solid rgba(180, 134, 8, 0.2);
+  transition: background 200ms ease, color 200ms ease, transform 200ms ease;
+}
+/* When parent card hover → flip icon tile to solid gold */
+a:hover > .flex > .m-card-icon,
+a:hover .m-card-icon {
+  background: rgba(180, 134, 8, 0.2);
+  color: #B48608;
+  transform: scale(1.05);
+}
+/* Override inside ink (dark) cards — m-card-icon already overridden by v67 monochrome */
+/* Force consistent gold tile even on ink cards */
+.bg-mmp-ink .m-card-icon,
+[class*="from-mmp-ink"] .m-card-icon {
+  background: rgba(236, 185, 33, 0.18);
+  color: #ecb921;
+  border-color: rgba(236, 185, 33, 0.4);
+}
+
+.accordion-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(180, 134, 8, 0.08);
+  color: var(--c-ink);
+  border: 1px solid rgba(180, 134, 8, 0.18);
+  transition: background 200ms ease, color 200ms ease;
+}
+button:hover > .accordion-icon {
+  background: rgba(180, 134, 8, 0.18);
+  color: #B48608;
+}
+
+.page-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+}
+
+/* Bigger Lucide stroke for emphasis in passport hero (override default 1.5) */
+.hero-passport svg {
+  stroke-width: 1.6;
+}
+
+/* When inside Hero ink bg — make sure icons are gold-ish */
+.hero-passport .btn-eu svg {
+  color: currentColor;
+}
+
+/* ================================================================
+ * v71 — SPOTLIGHT SIDEBAR — fills LEFT col below photo
+ * Subtle gold corner mark + soft hover lift
+ * ================================================================ */
+.spotlight-card {
+  position: relative;
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 240ms ease;
+  box-shadow: 0 1px 0 rgba(10, 10, 10, 0.02);
+}
+.spotlight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(10, 10, 10, 0.06);
+}
+/* Gold corner mark — top-right tiny bracket */
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 14px;
+  height: 14px;
+  border-top: 1.5px solid rgba(180, 134, 8, 0.45);
+  border-right: 1.5px solid rgba(180, 134, 8, 0.45);
+  border-top-right-radius: 4px;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 240ms ease;
+}
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+/* Tip card (ink bg variant) — no gold corner needed (spotlight already inside) */
+.spotlight-tip-card {
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 240ms ease;
+  box-shadow: 0 4px 20px rgba(10, 10, 10, 0.18);
+}
+.spotlight-tip-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(10, 10, 10, 0.28);
+}
+
+/* ================================================================
+ * v72 — COMPLETION BADGES — Lucide medal/trophy/award in 3-color
+ * Replaces 🥇🥈🥉 emoji. Hierarchy via fill weight (no silver/bronze color).
+ *   --gold        : solid gold tile + ink stroke icon (TOP)
+ *   --outline-gold: gold outline + gold stroke icon (MID)
+ *   --outline-ink : ink outline + ink stroke icon (BASIC)
+ * ================================================================ */
+.completion-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.completion-badge--gold {
+  background: #B48608;
+  color: #fff;
+  border: 1.5px solid #B48608;
+  box-shadow: 0 2px 8px rgba(180, 134, 8, 0.35);
+}
+.completion-badge--gold:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(180, 134, 8, 0.5);
+}
+.completion-badge--outline-gold {
+  background: rgba(180, 134, 8, 0.1);
+  color: #B48608;
+  border: 1.5px solid rgba(180, 134, 8, 0.5);
+}
+.completion-badge--outline-ink {
+  background: rgba(10, 10, 10, 0.04);
+  color: var(--c-ink);
+  border: 1.5px solid var(--c-ink-36);
+}
+
+/* ================================================================
+ * v74 — WOW ADDITIVE LAYER (Pet Detail Hero polish)
+ * Pure additions: scroll progress bar, MonMin pill badge,
+ * floating gold particles, paw watermark, rotated MonMin stamp,
+ * one-time gold shimmer sweep on pet name.
+ * NO existing element modified · 3-color strict (gold + ink + white).
+ * ================================================================ */
+
+/* === Scroll progress bar (gold) — top of viewport === */
+.pet-scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(10, 10, 10, 0.06);
+  z-index: 100;
+  pointer-events: none;
+}
+.pet-scroll-progress__fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #B48608 0%, #ecb921 50%, #B48608 100%);
+  box-shadow: 0 0 10px rgba(236, 185, 33, 0.55);
+  transition: width 80ms linear;
+}
+@media print {
+  .pet-scroll-progress { display: none !important; }
+}
+
+/* === MonMin "Passport Official" badge pill (v76: relocated under Copy URL button, block-flow full-width) === */
+.hero-monmin-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(10, 10, 10, 0.6);
+  color: #ecb921 !important;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  border: 1px solid rgba(236, 185, 33, 0.55);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(10, 10, 10, 0.32);
+  width: 100%;
+  text-align: center;
+  pointer-events: none;
+  animation: hero-badge-in 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) 0.4s 1 both;
+}
+.hero-monmin-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ecb921;
+  box-shadow: 0 0 10px rgba(236, 185, 33, 1), 0 0 4px rgba(236, 185, 33, 0.9);
+  animation: gold-pulse 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes hero-badge-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  .hero-monmin-badge {
+    font-size: 9px;
+    padding: 7px 10px;
+    letter-spacing: 0.16em;
+  }
+}
+
+/* === Floating gold particles inside Hero (drift loop) === */
+.hero-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(236, 185, 33, 0.85) 0%, rgba(236, 185, 33, 0) 70%);
+  pointer-events: none;
+  z-index: 0 !important;
+}
+.hero-particle--1 { width: 14px; height: 14px; top: 32%; left: 14%;  animation: hero-drift-a 13s ease-in-out infinite; }
+.hero-particle--2 { width: 8px;  height: 8px;  top: 62%; left: 42%; animation: hero-drift-b 17s ease-in-out infinite 1s; }
+.hero-particle--3 { width: 18px; height: 18px; top: 20%; right: 26%; animation: hero-drift-a 15s ease-in-out infinite 2s; }
+.hero-particle--4 { width: 6px;  height: 6px;  bottom: 22%; right: 18%; animation: hero-drift-b 11s ease-in-out infinite 0.5s; }
+.hero-particle--5 { width: 10px; height: 10px; bottom: 28%; left: 28%; animation: hero-drift-a 18s ease-in-out infinite 3s; }
+@keyframes hero-drift-a {
+  0%, 100% { transform: translate(0, 0);     opacity: 0.55; }
+  33%      { transform: translate(22px, -16px); opacity: 0.9; }
+  66%      { transform: translate(-14px, 10px); opacity: 0.4; }
+}
+@keyframes hero-drift-b {
+  0%, 100% { transform: translate(0, 0);      opacity: 0.3; }
+  50%      { transform: translate(-20px, 14px); opacity: 0.8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-particle { animation: none; opacity: 0.45; }
+}
+
+/* === Decorative paw watermark (right-bottom of Hero) === */
+.hero-paw-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0 !important;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='%23ecb921' fill-opacity='0.085' d='M50 60c-9 0-16 7-16 16s7 16 16 16 16-7 16-16-7-16-16-16zm-22-8c-5 0-9 4-9 9s4 9 9 9 9-4 9-9-4-9-9-9zm44 0c-5 0-9 4-9 9s4 9 9 9 9-4 9-9-4-9-9-9zM38 22c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11zm24 0c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11z'/></svg>");
+  background-repeat: no-repeat;
+  background-size: 480px 480px;
+  background-position: right -110px bottom -90px;
+  opacity: 0.95;
+}
+@media (max-width: 640px) {
+  .hero-paw-bg {
+    background-size: 320px 320px;
+    background-position: right -80px bottom -60px;
+  }
+}
+
+/* === MonMin official stamp (v79: unified gold-earth #B48608, no paper backdrop, big corner seal) === */
+.hero-stamp {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  width: 208px;
+  height: 208px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.96;
+  transform: rotate(-12deg);
+  filter:
+    drop-shadow(0 0 14px rgba(236, 185, 33, 0.5))
+    drop-shadow(0 0 28px rgba(180, 134, 8, 0.22))
+    drop-shadow(0 8px 24px rgba(0, 0, 0, 0.5));
+  animation: hero-stamp-in 1s cubic-bezier(0.22, 0.61, 0.36, 1) 0.55s 1 both;
+}
+.hero-stamp__ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1.5px dashed rgba(236, 185, 33, 0.7);
+  border-radius: 50%;
+  position: relative;
+  background: radial-gradient(circle at center, rgba(236, 185, 33, 0.05) 0%, transparent 65%);
+}
+.hero-stamp__ring::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(236, 185, 33, 0.55);
+  border-radius: 50%;
+}
+.hero-stamp__ring::after {
+  content: "★";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  color: rgba(236, 185, 33, 0.9);
+}
+.hero-stamp__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 18px;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 7.5px;
+  letter-spacing: 0.22em;
+  color: rgba(236, 185, 33, 0.92) !important;
+  text-transform: uppercase;
+  line-height: 1.1;
+  text-align: center;
+}
+.hero-stamp__label-top {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 16px;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 7.5px;
+  letter-spacing: 0.22em;
+  color: rgba(236, 185, 33, 0.92) !important;
+  text-transform: uppercase;
+  line-height: 1.1;
+  text-align: center;
+}
+@keyframes hero-stamp-in {
+  0%   { opacity: 0;    transform: rotate(8deg) scale(1.6); }
+  45%  { opacity: 0.96; transform: rotate(-14deg) scale(0.88); }
+  72%  { transform: rotate(-11deg) scale(1.03); }
+  100% { opacity: 0.92; transform: rotate(-12deg) scale(1); }
+}
+@media (max-width: 640px) {
+  .hero-stamp { width: 140px; height: 140px; bottom: 10px; right: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-stamp { animation: none; }
+}
+
+/* === Gold shimmer sweep on pet name h1 (one-time on load) === */
+.hero-passport h2.font-display {
+  background: linear-gradient(
+    100deg,
+    #ffffff 0%,
+    #ffffff 38%,
+    #ecb921 50%,
+    #ffffff 62%,
+    #ffffff 100%
+  );
+  background-size: 260% 100%;
+  background-position: 110% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: hero-name-shimmer 2.6s ease-out 0.5s 1 forwards;
+}
+@keyframes hero-name-shimmer {
+  0%   { background-position: 110% 0; }
+  100% { background-position: -110% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-passport h2.font-display {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: #ffffff;
+  }
+}
+@media print {
+  .hero-passport h2.font-display {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: #0a0a0a;
+    color: #0a0a0a !important;
+  }
+  .hero-monmin-badge,
+  .hero-stamp,
+  .hero-particle,
+  .hero-paw-bg,
+  .hero-vv-monogram,
+  .hero-spark { display: none !important; }
+}
+
+/* ================================================================
+ * v75 — WOW UPGRADE LAYER (Pet Detail Hero refinement)
+ * Adds: VV monogram crest, twinkle sparkles around stamp,
+ * signature flourish under pet name. Stamp content upgraded to SVG.
+ * ALL ADDITIVE · 3-color strict.
+ * ================================================================ */
+
+/* === VV monogram crest (top-left of Hero — fills old badge spot) === */
+.hero-vv-monogram {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  width: 46px;
+  height: 46px;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.85;
+  animation: hero-vv-in 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) 0.2s 1 both;
+}
+.hero-vv-monogram svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@keyframes hero-vv-in {
+  from { opacity: 0; transform: rotate(-18deg) scale(0.5); }
+  to   { opacity: 0.85; transform: rotate(0deg) scale(1); }
+}
+@media (max-width: 640px) {
+  .hero-vv-monogram { width: 34px; height: 34px; top: 12px; left: 14px; }
+}
+
+/* === Stamp SVG inner (v79: unified gold-earth #B48608) === */
+.hero-stamp-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.hero-stamp-svg text {
+  fill: #B48608;
+}
+/* v78: Logo recolor handled by SVG filter url(#hsp-logo-gold) in defs — no CSS filter override */
+
+/* === Twinkle sparkles around stamp === */
+.hero-spark {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+}
+.hero-spark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 0 4px rgba(236, 185, 33, 0.8));
+}
+.hero-spark--1 { right: 12px;  bottom: 138px; width: 10px; height: 10px; animation: hero-spark-twinkle 2.6s ease-in-out 0.6s infinite; }
+.hero-spark--2 { right: 146px; bottom: 58px;  width: 14px; height: 14px; animation: hero-spark-twinkle 3.2s ease-in-out 1.1s infinite; }
+.hero-spark--3 { right: 46px;  bottom: 18px;  width: 8px;  height: 8px;  animation: hero-spark-twinkle 2.4s ease-in-out 1.6s infinite; }
+.hero-spark--4 { right: 140px; bottom: 124px; width: 12px; height: 12px; animation: hero-spark-twinkle 3.6s ease-in-out 0.3s infinite; }
+.hero-spark--5 { right: 88px;  bottom: 152px; width: 7px;  height: 7px;  animation: hero-spark-twinkle 2.8s ease-in-out 1.9s infinite; }
+@keyframes hero-spark-twinkle {
+  0%, 100% { opacity: 0;   transform: scale(0.4) rotate(0deg); }
+  20%      { opacity: 0.9; transform: scale(1.1) rotate(45deg); }
+  45%      { opacity: 0.4; transform: scale(0.7) rotate(90deg); }
+  70%      { opacity: 1;   transform: scale(1.2) rotate(180deg); }
+}
+@media (max-width: 640px) {
+  .hero-spark--1 { right: 8px;  bottom: 96px; }
+  .hero-spark--2 { right: 100px; bottom: 42px; }
+  .hero-spark--3 { right: 30px;  bottom: 8px; }
+  .hero-spark--4 { right: 96px;  bottom: 86px; }
+  .hero-spark--5 { right: 60px;  bottom: 104px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-spark { animation: none !important; opacity: 0.5; }
+}
+
+/* === Signature flourish under pet name h2 (v81: single elegant gradient line that fades right) === */
+.hero-passport h2.font-display {
+  position: relative;
+}
+.hero-passport h2.font-display::after {
+  content: "";
+  display: block;
+  width: 84px;
+  height: 2px;
+  margin-top: 12px;
+  background: linear-gradient(90deg, #ecb921 0%, #B48608 55%, rgba(180, 134, 8, 0) 100%);
+  border-radius: 2px;
+  pointer-events: none;
+  transform-origin: left center;
+  animation: hero-flourish-in 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) 1.1s 1 both;
+}
+@keyframes hero-flourish-in {
+  from { opacity: 0; transform: scaleX(0); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-passport h2.font-display::after { animation: none; }
+}
+
+/* ================================================================
+ * v81 — CARE PLAN PAGE: brand sync + WOW polish
+ * Scope: .care-plan-page (added to <main> of /pets/:id/care-plan)
+ * Remaps amber/emerald/red/sky/blue/indigo/orange/rose/purple → gold + ink.
+ * Adds: Hero animated gold border, CTA shimmer, progress bar shimmer, card lift.
+ * ================================================================ */
+
+/* === Backgrounds — all non-brand status colors → gold-tinted === */
+.care-plan-page [class*="bg-amber-"]:not([class*="bg-amber-50"]),
+.care-plan-page [class*="bg-emerald-"],
+.care-plan-page [class*="bg-red-"]:not(.bg-red-50),
+.care-plan-page [class*="bg-rose-"],
+.care-plan-page [class*="bg-sky-"],
+.care-plan-page [class*="bg-blue-"],
+.care-plan-page [class*="bg-indigo-"],
+.care-plan-page [class*="bg-orange-"],
+.care-plan-page [class*="bg-purple-"] {
+  background-color: rgba(236, 185, 33, 0.12) !important;
+}
+.care-plan-page .bg-amber-50,
+.care-plan-page .bg-red-50,
+.care-plan-page .bg-emerald-50 {
+  background-color: rgba(236, 185, 33, 0.08) !important;
+}
+
+/* === Borders === */
+.care-plan-page [class*="border-amber-"],
+.care-plan-page [class*="border-emerald-"],
+.care-plan-page [class*="border-red-"],
+.care-plan-page [class*="border-rose-"],
+.care-plan-page [class*="border-sky-"],
+.care-plan-page [class*="border-blue-"],
+.care-plan-page [class*="border-indigo-"],
+.care-plan-page [class*="border-orange-"],
+.care-plan-page [class*="border-purple-"] {
+  border-color: rgba(180, 134, 8, 0.42) !important;
+}
+
+/* === Text colors on LIGHT bg (cream) — deeper gold for contrast === */
+.care-plan-page [class*="text-amber-"],
+.care-plan-page [class*="text-emerald-"],
+.care-plan-page [class*="text-red-"],
+.care-plan-page [class*="text-rose-"],
+.care-plan-page [class*="text-sky-"],
+.care-plan-page [class*="text-blue-"],
+.care-plan-page [class*="text-indigo-"],
+.care-plan-page [class*="text-orange-"],
+.care-plan-page [class*="text-purple-"] {
+  color: #B48608 !important;
+}
+
+/* === Text colors on DARK bg (.bg-mmp-ink) — brighter gold for visibility === */
+.care-plan-page .bg-mmp-ink [class*="text-amber-"],
+.care-plan-page .bg-mmp-ink [class*="text-emerald-"],
+.care-plan-page .bg-mmp-ink [class*="text-red-"],
+.care-plan-page .bg-mmp-ink [class*="text-rose-"],
+.care-plan-page .bg-mmp-ink [class*="text-sky-"],
+.care-plan-page .bg-mmp-ink [class*="text-blue-"],
+.care-plan-page .bg-mmp-ink [class*="text-indigo-"] {
+  color: #ecb921 !important;
+}
+
+/* === Ring colors === */
+.care-plan-page [class*="ring-amber-"],
+.care-plan-page [class*="ring-emerald-"],
+.care-plan-page [class*="ring-red-"],
+.care-plan-page [class*="ring-sky-"],
+.care-plan-page [class*="ring-blue-"],
+.care-plan-page [class*="ring-indigo-"],
+.care-plan-page [class*="ring-rose-"] {
+  --tw-ring-color: rgba(236, 185, 33, 0.45) !important;
+}
+
+/* === Gradient cards → solid ink === */
+.care-plan-page [class*="bg-gradient-to-br"],
+.care-plan-page [class*="bg-gradient-to-r"],
+.care-plan-page [class*="bg-gradient-to-l"],
+.care-plan-page [class*="bg-gradient-to-t"],
+.care-plan-page [class*="bg-gradient-to-b"] {
+  background-image: none !important;
+  background-color: #0a0a0a !important;
+  color: #fff !important;
+}
+
+/* === Slate borders → ink soft === */
+.care-plan-page .border-slate-100,
+.care-plan-page .border-slate-200,
+.care-plan-page .border-slate-300 {
+  border-color: rgba(10, 10, 10, 0.12) !important;
+}
+
+/* === WOW 1: Hero card animated gold border flow === */
+.care-plan-page section.bg-mmp-ink,
+.care-plan-page section[class*="bg-mmp-ink"] {
+  position: relative;
+}
+.care-plan-page section.bg-mmp-ink::before,
+.care-plan-page section[class*="bg-mmp-ink"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(120deg,
+    rgba(236, 185, 33, 0) 25%,
+    rgba(236, 185, 33, 0.75) 48%,
+    rgba(255, 235, 150, 0.95) 52%,
+    rgba(236, 185, 33, 0.75) 56%,
+    rgba(236, 185, 33, 0) 80%);
+  background-size: 220% 100%;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+  animation: care-hero-border-flow 5s linear infinite;
+}
+@keyframes care-hero-border-flow {
+  0%   { background-position: 220% 0; }
+  100% { background-position: -220% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .care-plan-page section.bg-mmp-ink::before,
+  .care-plan-page section[class*="bg-mmp-ink"]::before { animation: none; }
+}
+
+/* === WOW 2: Gold CTA shimmer sweep === */
+.care-plan-page button[style*="--c-gold"],
+.care-plan-page a[style*="--c-gold"] {
+  position: relative;
+  overflow: hidden;
+}
+.care-plan-page button[style*="--c-gold"]::after,
+.care-plan-page a[style*="--c-gold"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 65%);
+  background-size: 220% 100%;
+  background-position: 200% 0;
+  animation: care-cta-shimmer 3.4s ease-in-out 1.5s infinite;
+  pointer-events: none;
+  border-radius: inherit;
+}
+@keyframes care-cta-shimmer {
+  0%, 40%   { background-position: 220% 0; }
+  70%       { background-position: -120% 0; }
+  100%      { background-position: -120% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .care-plan-page button[style*="--c-gold"]::after,
+  .care-plan-page a[style*="--c-gold"]::after { animation: none; }
+}
+
+/* === WOW 3: Progress bar shimmer (the gold fill bar inside hero) === */
+.care-plan-page section.bg-mmp-ink .h-2 {
+  position: relative;
+  overflow: hidden;
+}
+.care-plan-page section.bg-mmp-ink .h-2 > div[style*="--c-gold"] {
+  position: relative;
+}
+.care-plan-page section.bg-mmp-ink .h-2 > div[style*="--c-gold"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%);
+  animation: care-progress-shimmer 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes care-progress-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .care-plan-page section.bg-mmp-ink .h-2 > div[style*="--c-gold"]::after { animation: none; display: none; }
+}
+
+/* === WOW 4: Section card subtle hover lift (non-hero cards) === */
+.care-plan-page section:not(.bg-mmp-ink):not([class*="bg-mmp-ink"]) {
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+              box-shadow 0.35s ease-out;
+}
+.care-plan-page section:not(.bg-mmp-ink):not([class*="bg-mmp-ink"]):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(10, 10, 10, 0.08);
+}
+
+/* === WOW 5: Pet identity strip in Hero — gold pulse on label === */
+.care-plan-page section.bg-mmp-ink p[style*="--c-gold"]:first-of-type {
+  position: relative;
+  display: inline-block;
+}
+.care-plan-page section.bg-mmp-ink p[style*="--c-gold"]:first-of-type::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ecb921;
+  margin-right: 8px;
+  vertical-align: middle;
+  box-shadow: 0 0 8px rgba(236, 185, 33, 0.85);
+  animation: gold-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .care-plan-page section.bg-mmp-ink p[style*="--c-gold"]:first-of-type::before { animation: none; }
+}
+
+/* === Print: kill all WOW animations + restore high-contrast === */
+@media print {
+  .care-plan-page section.bg-mmp-ink::before,
+  .care-plan-page button[style*="--c-gold"]::after,
+  .care-plan-page a[style*="--c-gold"]::after,
+  .care-plan-page section.bg-mmp-ink .h-2 > div[style*="--c-gold"]::after { display: none !important; }
+}
+
+/* ================================================================
+ * v84 — GLOBAL QUICK-NAV (context-aware floating cluster)
+ * Brand logo (logged in) + pet avatar (has pet).
+ * Smart CSS :has() rules:
+ *   • Hide brand piece when page already has its own VowVet logo lockup
+ *   • Hide ENTIRE quick-nav on pages with dashboard-style nav (alerts+settings)
+ *     → dashboard renders pet avatar INLINE in its own nav strip
+ * ================================================================ */
+.vowvet-quick-nav {
+  /* v85: position: absolute — anchored at top of page, scrolls away with content (not sticky) */
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  animation: quick-nav-in 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) 0.2s 1 both;
+}
+/* Ensure body is positioning context for absolute quick-nav */
+body:has(.vowvet-quick-nav) {
+  position: relative;
+}
+.vowvet-quick-nav > * {
+  pointer-events: auto;
+}
+@keyframes quick-nav-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.vowvet-quick-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 3px 10px rgba(10, 10, 10, 0.14), 0 1px 3px rgba(10, 10, 10, 0.06);
+  border: 1px solid rgba(10, 10, 10, 0.08);
+  transition: transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.25s ease-out;
+  text-decoration: none;
+}
+.vowvet-quick-nav__brand:hover,
+.vowvet-quick-nav__brand:focus-visible {
+  transform: scale(1.08) rotate(-3deg);
+  box-shadow: 0 5px 16px rgba(180, 134, 8, 0.25), 0 2px 6px rgba(10, 10, 10, 0.08);
+  outline: none;
+}
+.vowvet-quick-nav__brand img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+}
+
+.vowvet-quick-nav__pet {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f5f1eb;
+  border: 2px solid #B48608;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.92),
+    0 4px 12px rgba(180, 134, 8, 0.26);
+  transition: transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.25s ease-out;
+  text-decoration: none;
+}
+.vowvet-quick-nav__pet:hover,
+.vowvet-quick-nav__pet:focus-visible {
+  transform: scale(1.1);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.98),
+    0 6px 18px rgba(180, 134, 8, 0.4),
+    0 0 14px rgba(236, 185, 33, 0.42);
+  outline: none;
+}
+.vowvet-quick-nav__pet img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.vowvet-quick-nav__pet-fallback {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 17px;
+  color: #B48608;
+  line-height: 1;
+}
+.vowvet-quick-nav__pet-ping {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ecb921;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px rgba(236, 185, 33, 0.8);
+  animation: gold-pulse 2.4s ease-in-out infinite;
+}
+
+/* === SMART AUTO-HIDE via :has() — context-aware behavior === */
+
+/* When page has its own VowVet logo lockup, hide the brand piece (avoid duplicate) */
+body:has(a[aria-label="VowVet by Mon Min Pet"]) .vowvet-quick-nav__brand,
+body:has(div[aria-label="VowVet by Mon Min Pet"]) .vowvet-quick-nav__brand {
+  display: none;
+}
+
+/* When page has dashboard-style nav (alerts + chat + settings), hide entire quick-nav.
+   The dashboard renders its OWN inline pet avatar via .dashboard-pet-jump button. */
+body:has(a[href="/alerts"]):has(a[href="/chat"]):has(a[href="/settings"]) .vowvet-quick-nav {
+  display: none;
+}
+
+/* v85: Hide quick-nav on landing / public marketing pages where it's not relevant */
+body[data-route="/"] .vowvet-quick-nav,
+body[data-route="/login"] .vowvet-quick-nav,
+body[data-route="/why-vowvet"] .vowvet-quick-nav,
+body[data-route="/insurance"] .vowvet-quick-nav,
+body[data-route="/onboarding"] .vowvet-quick-nav,
+body[data-route^="/articles"] .vowvet-quick-nav,
+body[data-route^="/faq"] .vowvet-quick-nav {
+  display: none;
+}
+
+/* v88: Hide quick-nav on all pet sub-routes — each pet page has its own back-arrow header
+   with right-aligned actions (Calendar/AI v2/Xuất PDF/etc.) that floating avatar overlaps.
+   Quick-nav stays useful on global pages (alerts, chat, food-brands, map, community, etc.) */
+body[data-route^="/pets/"] .vowvet-quick-nav {
+  display: none;
+}
+
+/* When neither brand nor pet renders (e.g., logged in but no pet), hide empty wrapper */
+.vowvet-quick-nav:not(:has(> *)),
+.vowvet-quick-nav:has(.vowvet-quick-nav__brand[hidden]):not(:has(.vowvet-quick-nav__pet)) {
+  display: none;
+}
+
+/* Mobile compact */
+@media (max-width: 640px) {
+  .vowvet-quick-nav {
+    top: 12px;
+    right: 12px;
+    gap: 6px;
+  }
+  .vowvet-quick-nav__brand { width: 34px; height: 34px; }
+  .vowvet-quick-nav__brand img { width: 22px; height: 22px; }
+  .vowvet-quick-nav__pet { width: 38px; height: 38px; }
+  .vowvet-quick-nav__pet-fallback { font-size: 16px; }
+  .vowvet-quick-nav__pet-ping { width: 9px; height: 9px; bottom: -1px; right: -1px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vowvet-quick-nav,
+  .vowvet-quick-nav__brand,
+  .vowvet-quick-nav__pet,
+  .vowvet-quick-nav__pet-ping { animation: none; transition: none; }
+}
+
+@media print {
+  .vowvet-quick-nav { display: none !important; }
+}
+
+/* ================================================================
+ * v84 — Dashboard inline pet avatar (replaces floating on dashboard)
+ * Styled to match the existing nav buttons (w-10 h-10 rounded-xl)
+ * but with pet photo + gold ring to distinguish as "home/identity".
+ * ================================================================ */
+.dashboard-pet-jump {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f5f1eb;
+  border: 1.5px solid #B48608;
+  box-shadow: 0 2px 8px rgba(180, 134, 8, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.25s ease-out;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.dashboard-pet-jump:hover,
+.dashboard-pet-jump:focus-visible {
+  transform: scale(1.06);
+  box-shadow:
+    0 4px 14px rgba(180, 134, 8, 0.35),
+    0 0 10px rgba(236, 185, 33, 0.35);
+  outline: none;
+}
+.dashboard-pet-jump img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dashboard-pet-jump__fallback {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 16px;
+  color: #B48608;
+  line-height: 1;
+}
+.dashboard-pet-jump__ping {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ecb921;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px rgba(236, 185, 33, 0.8);
+  animation: gold-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-pet-jump,
+  .dashboard-pet-jump__ping { animation: none; transition: none; }
+}
+
+/* ================================================================
+ * v136: SW Update Toast — bottom-center floating banner.
+ * Hiển thị khi sw.js activate phiên bản mới. Click "Cập nhật" → reload.
+ * Giải quyết root cause "user kẹt SW cũ" (CONTEXT_SYNC #3.1).
+ * ================================================================ */
+.sw-update-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translate(-50%, 16px);
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  background: #0a0a0a;
+  color: #faf6ec;
+  border: 1px solid rgba(236, 185, 33, 0.55);
+  border-radius: 999px;
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.55), 0 2px 0 rgba(255, 255, 255, 0.05) inset;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  max-width: calc(100% - 32px);
+}
+.sw-update-toast[hidden] {
+  display: none !important;
+}
+.sw-update-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.sw-update-toast__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #ecb921;
+  animation: sw-toast-spin 2.4s linear infinite;
+}
+.sw-update-toast__text {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.sw-update-toast__btn {
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #ecb921;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.sw-update-toast__btn:hover {
+  background: #f5c93a;
+  transform: translateY(-1px);
+}
+.sw-update-toast__btn:focus-visible {
+  outline: 2px solid #ecb921;
+  outline-offset: 2px;
+}
+.sw-update-toast__close {
+  background: transparent;
+  border: none;
+  color: rgba(250, 246, 236, 0.7);
+  padding: 4px;
+  margin-left: -2px;
+  cursor: pointer;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 160ms ease, background 160ms ease;
+}
+.sw-update-toast__close:hover {
+  color: #faf6ec;
+  background: rgba(255, 255, 255, 0.08);
+}
+.sw-update-toast__close:focus-visible {
+  outline: 2px solid #ecb921;
+  outline-offset: 2px;
+}
+@keyframes sw-toast-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (max-width: 480px) {
+  .sw-update-toast {
+    font-size: 13px;
+    padding: 9px 10px 9px 12px;
+    gap: 8px;
+    bottom: 16px;
+  }
+  .sw-update-toast__text {
+    white-space: normal;
+    max-width: 140px;
+  }
+  .sw-update-toast__btn {
+    padding: 6px 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sw-update-toast { transition: opacity 120ms ease; transform: translate(-50%, 0); }
+  .sw-update-toast__icon { animation: none; }
+  .sw-update-toast__btn:hover { transform: none; }
+}

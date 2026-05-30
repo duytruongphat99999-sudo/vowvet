@@ -1,0 +1,491 @@
+---
+/**
+ * /pets/[id]/rewards — KHO BẠC (Vault) — Reward catalog redesign v103.
+ *
+ * Brand-synced ink+gold luxury vault aesthetic.
+ * Hero Vault card with Pet Score progress + 3 stat pills + Next Unlock featured.
+ * Tabs: Mở khóa ngay (unlockable) · Sắp đạt (locked) · Đã nhận (claimed).
+ */
+import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let unlockable: any[] = [];
+let locked: any[] = [];
+let claimed: any[] = [];
+let petScore: any = null;
+try {
+  const [uRes, cRes, sRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/rewards/pets/${petId}/unlockable`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/rewards/pets/${petId}/claimed`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/pet-score`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (uRes.ok) {
+    const j = await uRes.json();
+    unlockable = j.unlockable || [];
+    locked = j.locked || [];
+  }
+  if (cRes.ok) {
+    claimed = (await cRes.json()).claims || [];
+  }
+  if (sRes.ok) {
+    petScore = await sRes.json();
+  }
+} catch (_) {}
+
+// Find closest unlock (locked reward with highest progress %)
+const sortedLocked = [...locked].sort((a, b) => (b.progress?.percent || 0) - (a.progress?.percent || 0));
+const nextUnlock = sortedLocked[0] || null;
+const restLocked = sortedLocked.slice(nextUnlock ? 1 : 0);
+
+const scoreValue = petScore?.score ?? 0;
+const scoreMax = 1000;
+const scorePct = Math.min(100, Math.round((scoreValue / scoreMax) * 100));
+const scoreTier = petScore?.tier_label || (scoreValue >= 800 ? "Vàng" : scoreValue >= 500 ? "Bạc" : "Đồng");
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name },
+  unlockable, locked: restLocked, claimed,
+});
+---
+
+<Layout title={`Kho thưởng · ${pet.name}`} description={`Voucher & quà tặng cho ${pet.name}`}>
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`rewardsPage(${initialData})`}>
+
+      {/* v103: Brand-synced header */}
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm italic text-[var(--c-ink-54)] hover:text-mmp-ink inline-flex items-center gap-1.5 transition">
+          <FeatureIcon name="arrow" class="w-3.5 h-3.5 rotate-180" />
+          <span>{pet.name}</span>
+        </a>
+        <h1 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <FeatureIcon name="gift" class="w-4 h-4" style="color: #B48608;" />
+          <span>Kho thưởng</span>
+        </h1>
+        <a href={`/pets/${pet.id}/achievements`} class="inline-flex items-center gap-1 text-xs italic font-semibold px-2.5 py-1.5 rounded-lg transition" style="background: rgba(180,134,8,0.08); color: #B48608; border: 1px solid rgba(180,134,8,0.25);">
+          <FeatureIcon name="trophy" class="w-3 h-3" />
+          <span class="hidden sm:inline">Huy hiệu</span>
+        </a>
+      </header>
+
+      {/* v103: VAULT HERO — Pet Score progress ring + 3 stat pills + tier badge */}
+      <section class="relative rounded-3xl bg-mmp-ink text-white overflow-hidden mb-5 shadow-md">
+        <div aria-hidden="true" class="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+        <div aria-hidden="true" class="absolute -bottom-12 -left-12 w-40 h-40 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(180,134,8,0.28) 0%, transparent 70%);"></div>
+
+        <div class="relative p-5 sm:p-6">
+          <div class="flex items-center gap-4 mb-4">
+            {/* Pet Score ring */}
+            <a href={`/pets/${pet.id}/pet-score`} class="relative shrink-0" style="width: 100px; height: 100px;" title="Xem Pet Score chi tiết">
+              <svg viewBox="0 0 100 100" style="position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
+                <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(236,185,33,0.18)" stroke-width="6"/>
+                <circle cx="50" cy="50" r="44" fill="none" stroke="#ecb921" stroke-width="6" stroke-linecap="round"
+                  stroke-dasharray={`${(scorePct / 100) * 276} 276`}
+                  style="transition: stroke-dasharray 0.8s cubic-bezier(0.22, 0.61, 0.36, 1); filter: drop-shadow(0 0 6px rgba(236,185,33,0.5));"/>
+              </svg>
+              <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                <p class="text-[9px] uppercase italic tracking-wider font-bold leading-none" style="color: #ecb921;">Pet Score</p>
+                <p class="font-display italic font-bold tabular-nums leading-none mt-1" style="color: #ffffff; font-size: 30px;">{scoreValue}</p>
+                <p class="text-[9px] italic leading-none mt-1 text-white/65">/ {scoreMax}</p>
+              </div>
+            </a>
+
+            <div class="flex-1 min-w-0">
+              <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #ecb921;">Kho bạc của bé</p>
+              <h2 class="font-display italic text-xl sm:text-2xl font-semibold mt-0.5 leading-tight">Bé {pet.name}</h2>
+              <p class="text-xs italic text-white/70 mt-1.5 inline-flex items-center gap-1.5">
+                <FeatureIcon name="medal" class="w-3 h-3" style="color: #ecb921;" />
+                <span>Hạng <span class="font-bold" style="color: #ecb921;">{scoreTier}</span> · {scorePct}% tới mức tiếp theo</span>
+              </p>
+            </div>
+          </div>
+
+          {/* 3 stat pills */}
+          <div class="grid grid-cols-3 gap-2">
+            <button @click="tab = 'unlockable'" class="rounded-xl py-2.5 text-center transition" :class="tab === 'unlockable' ? 'is-active' : ''" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.25);">
+              <p class="text-[9px] uppercase italic tracking-wider text-white/55">Mở được</p>
+              <p class="font-display italic font-bold text-xl tabular-nums mt-0.5" style="color: #ecb921;">{unlockable.length}</p>
+            </button>
+            <button @click="tab = 'locked'" class="rounded-xl py-2.5 text-center transition" :class="tab === 'locked' ? 'is-active' : ''" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.25);">
+              <p class="text-[9px] uppercase italic tracking-wider text-white/55">Sắp đạt</p>
+              <p class="font-display italic font-bold text-xl tabular-nums mt-0.5" style="color: #ecb921;">{locked.length + (nextUnlock ? 1 : 0)}</p>
+            </button>
+            <button @click="tab = 'claimed'" class="rounded-xl py-2.5 text-center transition" :class="tab === 'claimed' ? 'is-active' : ''" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.25);">
+              <p class="text-[9px] uppercase italic tracking-wider text-white/55">Đã nhận</p>
+              <p class="font-display italic font-bold text-xl tabular-nums mt-0.5" style="color: #ecb921;">{claimed.length}</p>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* v103: NEXT UNLOCK featured card — show closest reward, drive engagement */}
+      {nextUnlock && unlockable.length === 0 && (
+        <section class="relative rounded-2xl bg-white border-2 p-4 mb-4 overflow-hidden" style="border-color: rgba(180,134,8,0.4);">
+          <div aria-hidden="true" class="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.18) 0%, transparent 70%);"></div>
+          <div class="relative">
+            <div class="flex items-start gap-3 mb-3">
+              <span class="shrink-0 inline-flex items-center justify-center w-12 h-12 rounded-xl" style="background: rgba(180,134,8,0.1); border: 1px solid rgba(180,134,8,0.3); color: #B48608;" set:html={`<span style="display:inline-flex;width:24px;height:24px;font-size:24px;line-height:1;">${nextUnlock.emoji || '🎁'}</span>`}></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">Sắp tới ★</p>
+                <h3 class="font-display italic font-semibold text-base text-mmp-ink leading-tight">{nextUnlock.name}</h3>
+                <p class="text-xs italic text-[var(--c-ink-54)] mt-0.5">{nextUnlock.description}</p>
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="flex items-center justify-between text-[11px] italic font-bold mb-1.5">
+                <span class="text-mmp-ink tabular-nums">{nextUnlock.progress?.current ?? 0} / {nextUnlock.progress?.required ?? 0}</span>
+                <span class="tabular-nums" style="color: #B48608;">{nextUnlock.progress?.percent ?? 0}%</span>
+              </div>
+              <div class="w-full h-2 rounded-full overflow-hidden" style="background: rgba(180,134,8,0.1);">
+                <div class="h-full rounded-full transition-all duration-700" style={`width: ${nextUnlock.progress?.percent ?? 0}%; background: linear-gradient(90deg, #ecb921 0%, #B48608 100%);`}></div>
+              </div>
+              {(nextUnlock.progress?.required ?? 0) - (nextUnlock.progress?.current ?? 0) > 0 && (
+                <p class="text-[11px] italic mt-2 inline-flex items-center gap-1.5" style="color: var(--c-ink-54);">
+                  <FeatureIcon name="lightbulb" class="w-3 h-3" style="color: #B48608;" />
+                  <span>Còn <strong style="color: #B48608;">{(nextUnlock.progress.required - nextUnlock.progress.current)}</strong> điểm/streak nữa để mở khoá</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* v103: Tab switcher — brand-synced */}
+      <div class="flex bg-white rounded-2xl p-1 mb-4 shadow-sm" style="border: 1px solid rgba(180,134,8,0.18);">
+        <button @click="tab = 'unlockable'" :class="tab === 'unlockable' ? 'is-active' : ''"
+          class="reward-tab flex-1 py-2 rounded-xl text-xs sm:text-sm italic font-bold transition inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="gift" class="w-3.5 h-3.5" />
+          <span>Mở khoá <span x-text="`(${unlockable.length})`"></span></span>
+        </button>
+        <button @click="tab = 'locked'" :class="tab === 'locked' ? 'is-active' : ''"
+          class="reward-tab flex-1 py-2 rounded-xl text-xs sm:text-sm italic font-bold transition inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="clock" class="w-3.5 h-3.5" />
+          <span>Sắp đạt <span x-text="`(${locked.length})`"></span></span>
+        </button>
+        <button @click="tab = 'claimed'" :class="tab === 'claimed' ? 'is-active' : ''"
+          class="reward-tab flex-1 py-2 rounded-xl text-xs sm:text-sm italic font-bold transition inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="file-text" class="w-3.5 h-3.5" />
+          <span>Đã nhận <span x-text="`(${claimed.length})`"></span></span>
+        </button>
+      </div>
+
+      {/* UNLOCKABLE — gold glow shimmer + claim CTA */}
+      <div x-show="tab === 'unlockable'" x-cloak>
+        <template x-if="unlockable.length === 0">
+          <div class="bg-white rounded-2xl border-2 border-dashed p-8 text-center" style="border-color: rgba(180,134,8,0.3);">
+            <span class="inline-flex items-center justify-center w-14 h-14 rounded-full mb-3" style="background: rgba(180,134,8,0.08); color: #B48608;">
+              <FeatureIcon name="gift" class="w-6 h-6" strokeWidth={1.5} />
+            </span>
+            <p class="text-sm italic font-semibold text-mmp-ink mb-1">Chưa có thưởng nào để nhận</p>
+            <p class="text-xs italic text-[var(--c-ink-54)] mb-3">Tăng Pet Score hoặc unlock achievement để mở khoá</p>
+            <a href={`/pets/${pet.id}/routines`} class="inline-flex items-center gap-1.5 font-bold italic text-mmp-ink hover:opacity-95 transition px-4 py-2 rounded-xl text-sm" style="background: #ecb921; box-shadow: 0 4px 12px rgba(236,185,33,0.3);">
+              <FeatureIcon name="flame" class="w-3.5 h-3.5" />
+              <span>Hoàn thành routine</span>
+            </a>
+          </div>
+        </template>
+        <div class="space-y-3">
+          <template x-for="r in unlockable" :key="r.code">
+            <article class="reward-unlock-card relative rounded-2xl bg-mmp-ink text-white p-4 overflow-hidden">
+              <div aria-hidden="true" class="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.35) 0%, transparent 70%);"></div>
+              <div class="relative">
+                <div class="flex items-start gap-3 mb-3">
+                  <span class="shrink-0 inline-flex items-center justify-center w-14 h-14 rounded-2xl" style="background: rgba(236,185,33,0.18); border: 2px solid rgba(236,185,33,0.45); color: #ecb921;" x-html="renderIcon(r.emoji, '28px')"></span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #ecb921;">Mở khoá ngay</p>
+                    <h3 class="font-display italic font-semibold text-base text-white leading-tight mt-0.5" x-text="r.name"></h3>
+                    <p class="text-xs italic text-white/70 mt-1" x-text="r.description"></p>
+                    <p class="text-[10px] italic mt-1.5 inline-flex items-center gap-1" style="color: #ecb921;" x-show="r.partner_name">
+                      <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      <span>Đối tác: <span x-text="r.partner_name"></span></span>
+                    </p>
+                  </div>
+                </div>
+                <template x-if="r.claim_error">
+                  <p class="text-xs italic mb-2 inline-flex items-start gap-1.5 px-3 py-2 rounded-lg" style="color: #ecb921; background: rgba(236,185,33,0.08); border: 1px solid rgba(236,185,33,0.3);">
+                    <svg class="w-3 h-3 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>
+                    <span x-text="r.claim_error"></span>
+                  </p>
+                </template>
+                <button @click="claim(r)" :disabled="r.claiming"
+                  class="claim-btn w-full inline-flex items-center justify-center gap-2 font-bold italic py-3 rounded-xl text-sm text-mmp-ink hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  style="background: linear-gradient(90deg, #ecb921 0%, #B48608 100%); box-shadow: 0 4px 14px rgba(236,185,33,0.4);">
+                  <FeatureIcon name="gift" class="w-4 h-4" strokeWidth={2.2} />
+                  <span x-show="!r.claiming">Nhận voucher ngay</span>
+                  <span x-show="r.claiming">Đang nhận…</span>
+                </button>
+              </div>
+            </article>
+          </template>
+        </div>
+      </div>
+
+      {/* LOCKED — progress bars + days-to-go forecast */}
+      <div x-show="tab === 'locked'" x-cloak>
+        <template x-if="locked.length === 0">
+          <div class="bg-white rounded-2xl border-2 border-dashed p-8 text-center" style="border-color: rgba(180,134,8,0.3);">
+            <span class="inline-flex items-center justify-center w-14 h-14 rounded-full mb-3" style="background: rgba(180,134,8,0.08); color: #B48608;">
+              <FeatureIcon name="trophy" class="w-6 h-6" strokeWidth={1.5} />
+            </span>
+            <p class="text-sm italic font-semibold text-mmp-ink">Đã mở hết!</p>
+            <p class="text-xs italic text-[var(--c-ink-54)] mt-1">Bạn đã unlock tất cả thưởng có thể</p>
+          </div>
+        </template>
+        <div class="space-y-3">
+          <template x-for="r in locked" :key="r.code">
+            <article class="bg-white rounded-2xl border p-4" style="border-color: rgba(180,134,8,0.22);">
+              <div class="flex items-start gap-3 mb-3">
+                <span class="shrink-0 inline-flex items-center justify-center w-12 h-12 rounded-xl opacity-60" style="background: rgba(10,10,10,0.04); color: #B48608;" x-html="renderIcon(r.emoji, '24px')"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">Còn đang khoá</p>
+                  <h3 class="font-display italic font-semibold text-sm text-mmp-ink leading-tight" x-text="r.name"></h3>
+                  <p class="text-xs italic text-[var(--c-ink-54)] mt-0.5" x-text="r.description"></p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] italic font-bold mb-1.5">
+                <span class="text-mmp-ink tabular-nums" x-text="`${r.progress.current} / ${r.progress.required}`"></span>
+                <span class="tabular-nums" style="color: #B48608;" x-text="`${r.progress.percent}%`"></span>
+              </div>
+              <div class="w-full h-2 rounded-full overflow-hidden" style="background: rgba(180,134,8,0.08);">
+                <div class="h-full rounded-full transition-all duration-700" :style="`width: ${r.progress.percent}%; background: linear-gradient(90deg, #ecb921 0%, #B48608 100%);`"></div>
+              </div>
+            </article>
+          </template>
+        </div>
+      </div>
+
+      {/* CLAIMED — voucher history */}
+      <div x-show="tab === 'claimed'" x-cloak>
+        <template x-if="claimed.length === 0">
+          <div class="bg-white rounded-2xl border-2 border-dashed p-8 text-center" style="border-color: rgba(180,134,8,0.3);">
+            <span class="inline-flex items-center justify-center w-14 h-14 rounded-full mb-3" style="background: rgba(180,134,8,0.08); color: #B48608;">
+              <FeatureIcon name="file-text" class="w-6 h-6" strokeWidth={1.5} />
+            </span>
+            <p class="text-sm italic font-semibold text-mmp-ink">Chưa nhận voucher nào</p>
+            <p class="text-xs italic text-[var(--c-ink-54)] mt-1">Voucher đã nhận sẽ lưu tại đây</p>
+          </div>
+        </template>
+        <div class="space-y-2.5">
+          <template x-for="c in claimed" :key="c.id">
+            <a :href="`/rewards/${c.id}`" class="block bg-white rounded-2xl p-4 hover:shadow-md transition" style="border: 1px solid rgba(180,134,8,0.2);">
+              <div class="flex items-center gap-3">
+                <span class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl" style="background: rgba(180,134,8,0.08); border: 1px solid rgba(180,134,8,0.22); color: #B48608;" x-html="renderIcon(c.definition?.emoji || '🎁', '22px')"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="font-display italic font-semibold text-sm text-mmp-ink truncate" x-text="c.definition?.name || c.reward_code"></p>
+                  <p class="text-[11px] italic font-mono tabular-nums mt-0.5" style="color: var(--c-ink-54);" x-text="c.voucher_code"></p>
+                </div>
+                <span :class="statusBadge(c.status)" class="shrink-0 text-[10px] italic font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                  x-text="statusLabel(c.status)"></span>
+              </div>
+            </a>
+          </template>
+        </div>
+      </div>
+
+      {/* v103: Pet Score footer link */}
+      <a href={`/pets/${pet.id}/pet-score`} class="mt-5 block rounded-xl text-center p-3 transition hover:opacity-95" style="background: rgba(180,134,8,0.08); border: 1px solid rgba(180,134,8,0.28);">
+        <p class="text-xs italic inline-flex items-center gap-2" style="color: var(--c-ink-72);">
+          <FeatureIcon name="trophy" class="w-3.5 h-3.5" style="color: #B48608;" />
+          <span>Xem Pet Score chi tiết & cách tăng điểm để mở thêm voucher</span>
+          <FeatureIcon name="arrow" class="w-3 h-3" style="color: #B48608;" />
+        </p>
+      </a>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    // v104: Emoji → Lucide SVG map (brand-sync reward icons)
+    const REWARD_LUCIDE_ICONS = {
+      "🎁": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
+      "🛁": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+      "💊": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M10.5 20.5a4.5 4.5 0 0 1-6.36-6.36L13.64 4.64a4.5 4.5 0 0 1 6.36 6.36z"/><path d="M8.5 8.5l7 7"/></svg>',
+      "💉": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M10.5 20.5a4.5 4.5 0 0 1-6.36-6.36L13.64 4.64a4.5 4.5 0 0 1 6.36 6.36z"/><path d="M8.5 8.5l7 7"/></svg>',
+      "🦷": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+      "🎓": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0-1 4.5 2.5 2.5 0 0 0 1 4.5A2.5 2.5 0 0 0 7 18.5v.5a2.5 2.5 0 0 0 5 0V4.5A2.5 2.5 0 0 0 9.5 2z"/><path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1 1 4.5 2.5 2.5 0 0 1-1 4.5A2.5 2.5 0 0 1 17 18.5v.5a2.5 2.5 0 0 1-5 0V4.5A2.5 2.5 0 0 1 14.5 2z"/></svg>',
+      "🍴": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>',
+      "🍽️": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M2 12h20"/><path d="M4 12a8 8 0 0 1 16 0v3a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M8 8c1 0 2-1 2-3M14 8c1 0 2-1 2-3"/></svg>',
+      "🐾": '<svg viewBox="0 0 24 24" fill="currentColor" style="width:100%;height:100%;"><ellipse cx="6.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="17.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="10" cy="6.5" rx="2" ry="2.5"/><ellipse cx="14" cy="6.5" rx="2" ry="2.5"/><path d="M12 12c-3.4 0-6.5 2.9-6.5 6.2 0 1.5 1.2 2.8 2.8 2.8 1 0 1.8-.5 2.8-1 .3-.2.6-.3.9-.3s.6.1.9.3c1 .5 1.8 1 2.8 1 1.6 0 2.8-1.3 2.8-2.8 0-3.3-3.1-6.2-6.5-6.2z"/></svg>',
+      "❤️": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+      "🏆": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 4H5a2 2 0 0 0-2 2v1a3 3 0 0 0 3 3M17 4h2a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3"/></svg>',
+      "🥇": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M7 2L5 7l7 13 7-13-2-5"/><circle cx="12" cy="14" r="6"/></svg>',
+      "🏅": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M7 2L5 7l7 13 7-13-2-5"/><circle cx="12" cy="14" r="6"/></svg>',
+      "⭐": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+      "✨": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+      "🔥": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+      "🎯": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+      "📋": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+      "📚": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+      "🧘": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.96c1.4 9.3-3.3 16.2-8.2 17.04Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>',
+      "💧": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+      "🌟": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+      "👑": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M2 6l4 6 6-8 6 8 4-6v12H2z"/><path d="M2 18h20"/></svg>',
+      "💎": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M6 3h12l4 6-10 13L2 9l4-6zM12 22V3M2 9h20M9 3l-3 6M15 3l3 6"/></svg>',
+      "🚀": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>',
+      "🌙": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+      "🦋": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>',
+      "🦸": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+    };
+
+    function renderRewardIcon(emoji, size) {
+      const s = size || '24px';
+      const svg = REWARD_LUCIDE_ICONS[emoji];
+      if (svg) return '<span style="display:inline-flex;width:' + s + ';height:' + s + ';">' + svg + '</span>';
+      // Fallback: emoji char
+      return '<span style="font-size:' + s + ';line-height:1;">' + (emoji || '🎁') + '</span>';
+    }
+
+    function rewardsPage(initial) {
+      return {
+        pet: initial.pet,
+        unlockable: initial.unlockable.map(r => ({ ...r, claiming: false, claim_error: null })),
+        locked: initial.locked,
+        claimed: initial.claimed,
+        tab: 'unlockable',
+        renderIcon: renderRewardIcon,
+
+        statusBadge(s) {
+          return ({
+            active: 'bg-gold-tint-strong text-gold-ink',
+            redeemed: 'bg-ink-tint text-ink-strong',
+            expired: 'bg-ink-soft text-ink-mute',
+            cancelled: 'bg-ink-tint text-ink-strong',
+            pending: 'bg-gold-tint text-gold',
+          }[s]) || 'bg-ink-tint text-ink-strong';
+        },
+
+        statusLabel(s) {
+          return ({ active: 'Hiệu lực', redeemed: 'Đã dùng', expired: 'Hết hạn', cancelled: 'Đã huỷ', pending: 'Chờ' }[s]) || s;
+        },
+
+        launchConfetti() {
+          const colors = ['#ecb921', '#B48608', '#fff7d6', '#d4a615'];
+          for (let i = 0; i < 50; i++) {
+            const el = document.createElement('div');
+            el.className = 'confetti-piece';
+            el.style.left = Math.random() * 100 + 'vw';
+            el.style.background = colors[Math.floor(Math.random() * colors.length)];
+            el.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+            el.style.animationDuration = (1.8 + Math.random() * 1.4) + 's';
+            el.style.animationDelay = Math.random() * 0.4 + 's';
+            document.body.appendChild(el);
+            el.addEventListener('animationend', () => el.remove());
+          }
+        },
+
+        async claim(r) {
+          if (r.claiming) return;
+          r.claiming = true;
+          r.claim_error = null;
+          try {
+            const res = await fetch(`/api/v1/rewards/pets/${this.pet.id}/${r.code}/claim`, {
+              method: 'POST', credentials: 'include',
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              r.claim_error = j?.error?.message || 'Lỗi claim';
+              return;
+            }
+            this.launchConfetti();
+            // Delay redirect to let confetti show
+            setTimeout(() => {
+              window.location.href = `/rewards/${j.claim.id}`;
+            }, 1200);
+          } catch (_) {
+            r.claim_error = 'Lỗi kết nối';
+          } finally {
+            r.claiming = false;
+          }
+        },
+      };
+    }
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+
+    /* v103: Brand status badges (replacing emerald/yellow/red) */
+    .bg-gold-tint-strong { background: rgba(236, 185, 33, 0.22); }
+    .bg-gold-tint { background: rgba(236, 185, 33, 0.12); }
+    .bg-ink-tint { background: rgba(10, 10, 10, 0.08); }
+    .bg-ink-soft { background: rgba(10, 10, 10, 0.04); }
+    .text-gold-ink { color: #5a4a2a; }
+    .text-gold { color: #B48608; }
+    .text-ink-strong { color: #0a0a0a; }
+    .text-ink-mute { color: rgba(10, 10, 10, 0.54); }
+
+    /* v103: Tab active state (in vault hero + tab switcher) */
+    .reward-tab {
+      background: transparent;
+      color: var(--c-ink-72);
+    }
+    .reward-tab.is-active {
+      background: linear-gradient(90deg, #ecb921 0%, #B48608 100%);
+      color: #0a0a0a;
+      box-shadow: 0 3px 10px rgba(236, 185, 33, 0.3);
+    }
+    button[class*="rounded-xl"][class*="text-center"].is-active {
+      box-shadow: inset 0 0 0 2px #ecb921, 0 0 12px rgba(236, 185, 33, 0.35);
+    }
+
+    /* v103: Unlockable card glow pulse */
+    .reward-unlock-card {
+      animation: vault-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes vault-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(236, 185, 33, 0.55), 0 4px 14px rgba(10, 10, 10, 0.18); }
+      50%      { box-shadow: 0 0 0 10px rgba(236, 185, 33, 0), 0 6px 22px rgba(236, 185, 33, 0.25); }
+    }
+
+    /* v103: Claim button gold shimmer sweep */
+    .claim-btn {
+      position: relative;
+      overflow: hidden;
+    }
+    .claim-btn:not([disabled])::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.4) 50%, transparent 65%);
+      background-size: 220% 100%;
+      background-position: 220% 0;
+      animation: claim-shimmer 3.2s ease-in-out 1.2s infinite;
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    @keyframes claim-shimmer {
+      0%, 40%  { background-position: 220% 0; }
+      70%      { background-position: -120% 0; }
+      100%     { background-position: -120% 0; }
+    }
+
+    /* v103: Confetti falling */
+    @keyframes confetti-fall {
+      0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(80vh) rotate(540deg); opacity: 0; }
+    }
+    .confetti-piece {
+      position: fixed; top: 10vh;
+      width: 9px; height: 9px;
+      animation: confetti-fall 2.2s ease-out forwards;
+      z-index: 9999; pointer-events: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reward-unlock-card { animation: none; }
+      .claim-btn::after { animation: none; }
+    }
+  </style>
+</Layout>

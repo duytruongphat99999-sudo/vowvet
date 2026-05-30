@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.astro
+**/.next
+**/.cache
+**/.env.local
+**/.env.*.local
+**/*.log
+.git
+.gitignore
+.vscode
+.idea
+README.md
+**/coverage

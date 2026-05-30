@@ -1,0 +1,314 @@
+---
+/**
+ * /playdate/discover/[petId] — Tinder-style swipe UI (M27).
+ *
+ * Touch events: swipe right=like, left=pass, tap buttons too.
+ * Server pre-loads first batch; client refetches when stack runs low.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.petId);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let candidates: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/playdate/discover?petId=${petId}&limit=20`, { headers: { cookie: cookieHeader } });
+  if (res.ok) candidates = (await res.json()).candidates || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name },
+  candidates,
+});
+---
+
+<Layout title={`Khám phá · ${pet.name}`} description="Vuốt phải để thích, vuốt trái để bỏ qua">
+  <main class="min-h-screen bg-mmp-cream px-4 py-4 pb-4 overflow-hidden">
+    <div class="max-w-md mx-auto h-screen flex flex-col" x-data={`discoverPage(${initialData})`} x-init="init()">
+
+      <header class="flex items-center justify-between gap-3 mb-3">
+        <a href="/playdate" class="text-sm text-slate-500 hover:text-slate-700">← Playdate</a>
+        <h1 class="text-base font-bold text-slate-900">🔥 Khám phá · <span x-text="pet.name"></span></h1>
+        <a href="/playdate/matches" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">💬</a>
+      </header>
+
+      <!-- Match modal -->
+      <div x-show="matchModal" x-cloak class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-mmp-ink text-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+          <p class="text-center text-7xl">💕</p>
+          <h2 class="text-center text-3xl font-extrabold mt-2">Match!</h2>
+          <p class="text-center text-sm opacity-95 mt-1">Bạn và <span x-text="matchedName"></span> đã thích nhau!</p>
+          <div class="flex gap-2 mt-5">
+            <button @click="matchModal = false" class="flex-1 bg-white/20 hover:bg-white/30 font-bold py-2.5 rounded-xl text-sm">Tiếp tục swipe</button>
+            <a :href="`/playdate/chat/${matchedId}`" class="flex-1 bg-white text-mmp-ink font-bold py-2.5 rounded-xl text-sm text-center">💬 Nói lời chào →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rate limit modal -->
+      <div x-show="rateLimitModal" x-cloak class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full">
+          <p class="text-center text-5xl">⏰</p>
+          <h2 class="text-center text-xl font-extrabold mt-2 text-slate-900">Đã đạt giới hạn</h2>
+          <p class="text-center text-sm text-slate-600 mt-1">Bạn đã swipe 50 lần hôm nay. Quay lại ngày mai!</p>
+          <button @click="rateLimitModal = false; window.location.href='/playdate'" class="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm">Về trang chính</button>
+        </div>
+      </div>
+
+      <!-- Card stack -->
+      <div class="flex-1 relative" style="min-height: 480px;">
+        <template x-if="candidates.length === 0">
+          <div class="absolute inset-0 flex items-center justify-center">
+            <div class="bg-white/80 backdrop-blur rounded-2xl p-8 text-center max-w-xs">
+              <p class="text-5xl">🐾</p>
+              <p class="text-base font-bold text-slate-900 mt-2">Hết bé phù hợp!</p>
+              <p class="text-xs text-slate-600 mt-1">Quay lại sau khi có bé mới đăng ký, hoặc tăng khoảng cách trong Setup.</p>
+              <div class="grid grid-cols-2 gap-2 mt-4">
+                <a :href="`/playdate/setup/${pet.id}`" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-xs">⚙️ Setup</a>
+                <a href="/playdate/matches" class="bg-mmp-ink text-white font-bold py-2 rounded-lg text-xs">💬 Matches</a>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Show top 3 cards stacked -->
+        <template x-for="(c, idx) in candidates.slice(0, 3)" :key="c.profile.id">
+          <div class="absolute inset-x-0 mx-auto bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
+            :style="cardStyle(idx)"
+            @touchstart="idx === 0 && touchStart($event)"
+            @touchmove="idx === 0 && touchMove($event)"
+            @touchend="idx === 0 && touchEnd()"
+            @mousedown="idx === 0 && touchStart($event)"
+            @mousemove="idx === 0 && touchMove($event)"
+            @mouseup="idx === 0 && touchEnd()"
+            @mouseleave="idx === 0 && touchEnd()">
+
+            <!-- Like/Pass overlays (top card only) -->
+            <template x-if="idx === 0">
+              <div>
+                <div class="absolute top-6 right-6 z-10 transition-opacity duration-200" :style="`opacity: ${Math.max(0, dragX / 100)}`">
+                  <p class="text-emerald-600 text-5xl font-extrabold border-4 border-emerald-600 rounded-xl px-3 py-1 rotate-12">LIKE</p>
+                </div>
+                <div class="absolute top-6 left-6 z-10 transition-opacity duration-200" :style="`opacity: ${Math.max(0, -dragX / 100)}`">
+                  <p class="text-red-600 text-5xl font-extrabold border-4 border-red-600 rounded-xl px-3 py-1 -rotate-12">PASS</p>
+                </div>
+              </div>
+            </template>
+
+            <!-- Card content -->
+            <div class="h-72 bg-mmp-cream relative">
+              <template x-if="c.pet.photo_url">
+                <img :src="c.pet.photo_url" alt="" class="absolute inset-0 w-full h-full object-cover" draggable="false" />
+              </template>
+              <template x-if="!c.pet.photo_url">
+                <div class="absolute inset-0 flex items-center justify-center text-8xl">🐾</div>
+              </template>
+              <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-4 text-white">
+                <div class="flex items-end justify-between">
+                  <div>
+                    <p class="text-2xl font-extrabold" x-text="c.pet.name"></p>
+                    <p class="text-xs opacity-90">
+                      <span x-text="speciesEmoji(c.pet.species)"></span>
+                      <span x-text="c.pet.breed || ''"></span>
+                      <template x-if="c.pet.age_years"><span> · <span x-text="c.pet.age_years"></span> tuổi</span></template>
+                    </p>
+                  </div>
+                  <div class="bg-white/20 backdrop-blur rounded-full px-3 py-1 text-sm font-bold" x-text="`💚 ${c.compatibility.total}%`"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4">
+              <template x-if="c.profile.bio">
+                <p class="text-sm text-slate-700 mb-3 line-clamp-3" x-text="c.profile.bio"></p>
+              </template>
+
+              <!-- Compat breakdown -->
+              <div class="grid grid-cols-5 gap-1 text-center mb-3">
+                <template x-for="cat in compatRows(c.compatibility.breakdown)" :key="cat.key">
+                  <div class="bg-slate-50 rounded-lg p-1.5">
+                    <p class="text-base" x-text="cat.emoji"></p>
+                    <p class="text-[9px] font-bold text-slate-700" x-text="cat.label"></p>
+                    <p class="text-[10px] font-bold" :class="cat.value > 0 ? 'text-emerald-600' : 'text-slate-300'" x-text="cat.value"></p>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Play styles -->
+              <template x-if="c.profile.play_styles?.length > 0">
+                <div class="flex flex-wrap gap-1 mb-2">
+                  <template x-for="ps in c.profile.play_styles" :key="ps">
+                    <span class="text-[10px] bg-mmp-cream text-mmp-ink px-2 py-0.5 rounded-full font-bold" x-text="psLabel(ps)"></span>
+                  </template>
+                </div>
+              </template>
+
+              <template x-if="c.compatibility.distance_km != null">
+                <p class="text-[11px] text-slate-500">📍 <span x-text="c.compatibility.distance_km.toFixed(1)"></span> km</p>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Action buttons -->
+      <template x-if="candidates.length > 0">
+        <div class="flex items-center justify-center gap-6 py-4">
+          <button @click="reportTop()" class="w-12 h-12 bg-white border border-slate-200 rounded-full shadow-md text-xl">🚩</button>
+          <button @click="swipe('pass')" :disabled="swiping" class="w-16 h-16 bg-white border-2 border-red-300 rounded-full shadow-lg text-3xl disabled:opacity-50">❌</button>
+          <button @click="swipe('like')" :disabled="swiping" class="w-16 h-16 bg-white border-2 border-emerald-400 rounded-full shadow-lg text-3xl disabled:opacity-50">💚</button>
+          <button @click="undoStub()" class="w-12 h-12 bg-white border border-slate-200 rounded-full shadow-md text-lg">↩️</button>
+        </div>
+      </template>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function discoverPage(initial) {
+      return {
+        pet: initial.pet,
+        candidates: initial.candidates,
+        swiping: false,
+        dragX: 0,
+        dragStartX: 0,
+        dragging: false,
+        matchModal: false,
+        matchedId: 0,
+        matchedName: "",
+        rateLimitModal: false,
+
+        init() {},
+
+        speciesEmoji(s) {
+          if (s === "dog") return "🐶";
+          if (s === "cat") return "🐱";
+          return "🐾";
+        },
+
+        psLabel(key) {
+          const m = { fetch: "🎾 Ném bắt", wrestle: "🤼 Vật lộn", chase: "💨 Đuổi bắt", calm: "🧘 Nhẹ nhàng", swim: "🏊 Bơi" };
+          return m[key] || key;
+        },
+
+        compatRows(b) {
+          return [
+            { key: "species", emoji: "🐾", label: "Loài", value: b.species_match },
+            { key: "personality", emoji: "🎭", label: "Cá tính", value: b.personality_match },
+            { key: "age", emoji: "🎂", label: "Tuổi", value: b.age_proximity },
+            { key: "size", emoji: "⚖️", label: "Kích thước", value: b.size_proximity },
+            { key: "distance", emoji: "📍", label: "Gần", value: b.distance_proximity },
+          ];
+        },
+
+        cardStyle(idx) {
+          if (idx === 0) {
+            const rotate = this.dragX * 0.05;
+            const opacity = this.swiping ? 0 : 1;
+            return `transform: translateX(${this.dragX}px) rotate(${rotate}deg); opacity: ${opacity}; z-index: 30; transition: ${this.dragging ? 'none' : 'transform 0.3s, opacity 0.2s'};`;
+          }
+          const scale = 1 - idx * 0.04;
+          const translate = idx * 8;
+          return `transform: scale(${scale}) translateY(${translate}px); z-index: ${30 - idx}; opacity: ${1 - idx * 0.2};`;
+        },
+
+        touchStart(e) {
+          const x = e.touches ? e.touches[0].clientX : e.clientX;
+          this.dragStartX = x;
+          this.dragging = true;
+        },
+
+        touchMove(e) {
+          if (!this.dragging) return;
+          const x = e.touches ? e.touches[0].clientX : e.clientX;
+          this.dragX = x - this.dragStartX;
+        },
+
+        touchEnd() {
+          if (!this.dragging) return;
+          this.dragging = false;
+          const threshold = 100;
+          if (this.dragX > threshold) {
+            this.swipe('like');
+          } else if (this.dragX < -threshold) {
+            this.swipe('pass');
+          } else {
+            this.dragX = 0;
+          }
+        },
+
+        async swipe(direction) {
+          if (this.candidates.length === 0 || this.swiping) return;
+          const target = this.candidates[0];
+          this.swiping = true;
+          this.dragX = direction === 'like' ? 400 : -400;
+
+          try {
+            const res = await fetch('/api/v1/playdate/swipe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                from_pet_id: this.pet.id,
+                to_pet_id: target.pet.id,
+                direction,
+              }),
+            });
+            const j = await res.json();
+            if (res.status === 429) {
+              this.rateLimitModal = true;
+              this.dragX = 0;
+              this.swiping = false;
+              return;
+            }
+            if (j.matched) {
+              this.matchedId = j.match_id;
+              this.matchedName = target.pet.name;
+              this.matchModal = true;
+            }
+          } catch (_) {}
+
+          setTimeout(() => {
+            this.candidates.shift();
+            this.dragX = 0;
+            this.swiping = false;
+          }, 250);
+        },
+
+        async reportTop() {
+          if (this.candidates.length === 0) return;
+          const target = this.candidates[0];
+          const reason = prompt("Lý do báo cáo? (spam/harassment/inappropriate/fake/other)", "inappropriate");
+          if (!reason) return;
+          try {
+            await fetch('/api/v1/playdate/report', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ reported_pet_id: target.pet.id, reason }),
+            });
+            alert("Đã báo cáo. Mon Min sẽ review.");
+            this.candidates.shift();
+          } catch (_) {}
+        },
+
+        undoStub() {
+          alert("Tính năng undo đang phát triển.");
+        },
+      };
+    }
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</Layout>

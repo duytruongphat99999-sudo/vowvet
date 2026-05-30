@@ -1,0 +1,440 @@
+---
+/**
+ * /p/[slug] — Public Pet Card (M12) + Legacy QR passport (M3) unified handler.
+ *
+ * Resolution priority:
+ *   1. Try as M12 public_slug → render public profile card (hero design)
+ *   2. Fallback try as M3 qr_code → render lost-and-found passport (legacy)
+ *   3. Neither match → 404 page
+ *
+ * NO AUTH required — public profile is meant to be shared on social/Zalo.
+ * Privacy: server-side sanitization via PUBLIC_PET_FIELDS whitelist.
+ */
+import Layout from "../../layouts/Layout.astro";
+import { fetchPublicPet } from "../../lib/api-client.ts";
+import { calculatePetAge } from "@shared/public-pet-fields.ts";
+
+// CRITICAL: KHÔNG lowercase slug — QR codes generated bằng uppercase alphabet
+// (qr.ts dùng ABCDEFGHJKLMNPQRSTUVWXYZ23456789, format "XXXXXXXX-XX").
+// Trước đây bug lowercase → tất cả QR shares trả 404 vì DB lưu uppercase.
+const slug = (Astro.params.slug || "").trim();
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const APP_DOMAIN = import.meta.env.APP_DOMAIN || process.env.APP_DOMAIN || "https://vowvet.monminpet.com";
+const OG_FALLBACK = `${APP_DOMAIN}/og-pet-fallback.png`;
+
+// Track which lookup attempts failed for richer error UX
+let publicPet: any = null;
+let legacyQrPet: any = null;
+let m12Status: number | null = null; // 404 not found, 403 private, 200 ok
+let qrStatus: number | null = null;
+
+// Try M12 public_slug first (case-INsensitive regex — allow both uppercase QR + lowercase slugs)
+if (slug && /^[A-Za-z0-9-]{3,60}$/.test(slug)) {
+  try {
+    const res = await fetch(`${API_INTERNAL}/api/v1/public/p/${slug}`);
+    m12Status = res.status;
+    if (res.ok) {
+      const j = await res.json();
+      publicPet = j.pet;
+    }
+  } catch (_) {}
+}
+
+// Fallback: M3 QR passport (uses qr_code field — case-sensitive in DB,
+// QR codes generated uppercase so DON'T pre-lowercase the input)
+if (!publicPet && slug) {
+  legacyQrPet = await fetchPublicPet(slug);
+  if (legacyQrPet) qrStatus = 200;
+  else qrStatus = 404;
+}
+
+// Determine mode + error reason for UX
+const mode: "public" | "qr" | "notfound" = publicPet ? "public" : legacyQrPet ? "qr" : "notfound";
+
+// Error reason for friendlier message
+type NotFoundReason = "invalid_format" | "not_found" | "private" | "network";
+let notFoundReason: NotFoundReason = "not_found";
+if (mode === "notfound") {
+  if (!/^[A-Za-z0-9-]{3,60}$/.test(slug)) notFoundReason = "invalid_format";
+  else if (m12Status === 403) notFoundReason = "private";
+  else if (m12Status === null && qrStatus === null) notFoundReason = "network";
+  else notFoundReason = "not_found";
+}
+
+// Title + meta cho mỗi mode
+let title = "Pet không tìm thấy · Mon Min Pet";
+let description = "Bé không có ở đây. Có thể link đã hết hạn hoặc chủ đã tắt profile.";
+let ogImage = OG_FALLBACK;
+let ogType = "website";
+
+if (mode === "public" && publicPet) {
+  title = `${publicPet.name} · ${publicPet.breed || "Pet"} · Mon Min Pet`;
+  description = publicPet.public_quote || publicPet.public_bio?.slice(0, 200) || `Profile của ${publicPet.name} trên Mon Min Pet`;
+  ogImage = publicPet.photo_url || OG_FALLBACK;
+  ogType = "profile";
+} else if (mode === "qr" && legacyQrPet) {
+  title = `Tìm chủ cho ${legacyQrPet.name} · Mon Min Pet`;
+  description = `Bạn nhặt được ${legacyQrPet.name}? Liên hệ chủ qua Mon Min Pet Passport.`;
+  ogImage = legacyQrPet.photo_url || OG_FALLBACK;
+}
+
+const canonicalUrl = `${APP_DOMAIN}/p/${slug}`;
+
+// v136: JSON-LD Schema.org cho rich snippets (Google/Zalo preview).
+// publicPet → mainEntity = Animal (additionalType Pet); qr → LostPet ProfilePage.
+let jsonLd: Record<string, any> | null = null;
+if (mode === "public" && publicPet) {
+  jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    url: canonicalUrl,
+    name: title,
+    description,
+    inLanguage: "vi-VN",
+    primaryImageOfPage: { "@type": "ImageObject", url: ogImage },
+    isPartOf: {
+      "@type": "WebSite",
+      name: "VowVet by Mon Min Pet",
+      url: APP_DOMAIN,
+    },
+    mainEntity: {
+      "@type": "Animal",
+      name: publicPet.name,
+      image: ogImage,
+      additionalType: "https://schema.org/Pet",
+      ...(publicPet.species && {
+        animalSpecies:
+          publicPet.species === "dog"
+            ? "Canis lupus familiaris"
+            : publicPet.species === "cat"
+            ? "Felis catus"
+            : publicPet.species,
+      }),
+      ...(publicPet.breed && { breed: publicPet.breed }),
+      ...(publicPet.public_bio && { description: String(publicPet.public_bio).slice(0, 500) }),
+    },
+  };
+} else if (mode === "qr" && legacyQrPet) {
+  jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    url: canonicalUrl,
+    name: title,
+    description,
+    inLanguage: "vi-VN",
+    primaryImageOfPage: { "@type": "ImageObject", url: ogImage },
+    isPartOf: {
+      "@type": "WebSite",
+      name: "Mon Min Pet Passport",
+      url: APP_DOMAIN,
+    },
+    about: {
+      "@type": "Animal",
+      name: legacyQrPet.name,
+      image: ogImage,
+      additionalType: "https://schema.org/Pet",
+    },
+  };
+}
+
+// Gradient theo species cho public mode
+function speciesGradient(species: string | null): string {
+  if (!species) return "from-emerald-400 to-slate-800";
+  const s = species.toLowerCase();
+  if (s === "dog" || s.includes("chó")) return "from-orange-400 to-white";
+  if (s === "cat" || s.includes("mèo")) return "from-mmp-cream to-indigo-500";
+  return "from-emerald-400 to-slate-800";
+}
+
+// Age string
+let ageStr = "";
+if (publicPet?.dob_yearmonth) {
+  const age = calculatePetAge(publicPet.dob_yearmonth);
+  if (age) {
+    if (age.years === 0 && age.months > 0) ageStr = `${age.months} tháng tuổi`;
+    else if (age.years > 0 && age.months === 0) ageStr = `${age.years} tuổi`;
+    else if (age.years > 0) ageStr = `${age.years} tuổi ${age.months} tháng`;
+  }
+}
+
+const speciesVi = publicPet?.species
+  ? publicPet.species === "dog"
+    ? "🐶 Chó"
+    : publicPet.species === "cat"
+    ? "🐱 Mèo"
+    : "🐾 Pet"
+  : "";
+
+const gradient = mode === "public" ? speciesGradient(publicPet?.species) : "from-orange-400 to-amber-500";
+---
+
+<Layout title={title} description={description}>
+  <Fragment slot="head">
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={publicPet?.name || legacyQrPet?.name || "Pet"} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    {mode !== "notfound" && (
+      <meta name="robots" content="index,follow,max-image-preview:large" />
+    )}
+    {mode === "notfound" && (
+      <meta name="robots" content="noindex,follow" />
+    )}
+    {jsonLd && (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+    )}
+  </Fragment>
+
+  {/* ===== MODE: M12 PUBLIC PROFILE ===== */}
+  {mode === "public" && publicPet && (
+    <main class={`min-h-screen bg-gradient-to-br ${gradient} relative overflow-hidden`}>
+      {/* Subtle paw pattern overlay */}
+      <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 25% 25%, rgba(255,255,255,0.4) 8px, transparent 8px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.3) 6px, transparent 6px); background-size: 80px 80px;"></div>
+
+      <div class="relative max-w-xl mx-auto px-4 py-8 sm:py-12">
+        {/* Photo circular hero */}
+        <div class="flex justify-center mb-6">
+          <div class="relative">
+            <div class="w-40 h-40 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 border-white shadow-2xl bg-white">
+              {publicPet.photo_url ? (
+                <img src={publicPet.photo_url} alt={publicPet.name} class="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <div class="w-full h-full flex items-center justify-center bg-mmp-cream text-7xl">
+                  {publicPet.species === "cat" ? "🐱" : "🐶"}
+                </div>
+              )}
+            </div>
+            {publicPet.personality_type && (
+              <span class="absolute -bottom-2 -right-2 bg-white text-2xl rounded-full w-12 h-12 flex items-center justify-center shadow-lg" title={`Tính cách: ${publicPet.personality_type}`}>
+                🎭
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Name + breed/age */}
+        <div class="text-center text-white mb-6">
+          <h1 class="text-4xl sm:text-5xl font-extrabold drop-shadow-md tracking-tight">{publicPet.name}</h1>
+          <p class="text-sm sm:text-base mt-2 opacity-95 font-medium">
+            {speciesVi}
+            {publicPet.breed && <> · {publicPet.breed}</>}
+            {ageStr && <> · {ageStr}</>}
+          </p>
+        </div>
+
+        {/* Quote */}
+        {publicPet.public_quote && (
+          <p class="text-center text-lg sm:text-xl italic text-white/95 max-w-md mx-auto mb-6 leading-relaxed drop-shadow-sm">
+            "{publicPet.public_quote}"
+          </p>
+        )}
+
+        {/* Bio + personality + buttons trong white card */}
+        <div class="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 mt-2">
+          {publicPet.public_bio && (
+            <section class="mb-6">
+              <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">📖 Về tôi</h2>
+              <p class="text-slate-800 leading-relaxed whitespace-pre-wrap">{publicPet.public_bio}</p>
+            </section>
+          )}
+
+          {publicPet.personality_type && (
+            <section class="mb-6">
+              <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">🎭 Tính cách</h2>
+              <div class="inline-flex items-center gap-2 bg-mmp-cream text-mmp-ink px-4 py-2 rounded-full font-semibold">
+                <span>🎭</span>
+                <span>{publicPet.personality_type}</span>
+                {publicPet.personality_secondary_type && (
+                  <span class="text-xs text-mmp-ink opacity-75">+ {publicPet.personality_secondary_type}</span>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Action buttons */}
+          <div class="grid grid-cols-2 gap-2 mt-6" x-data="publicPetActions()">
+            <button @click="share()" :disabled="sharing"
+              class="bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-bold py-3.5 rounded-xl shadow-lg transition active:scale-95">
+              <span x-show="!shared && !sharing">📤 Chia sẻ</span>
+              <span x-show="sharing">…</span>
+              <span x-show="shared" class="text-xs">✓ Đã copy link</span>
+            </button>
+            <button @click="showQrModal = true"
+              class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-xl shadow-lg transition active:scale-95">
+              📱 QR Collar
+            </button>
+
+            {/* QR modal */}
+            <template x-if="showQrModal">
+              <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" @click.self="showQrModal = false">
+                <div class="bg-white rounded-3xl p-6 max-w-sm w-full">
+                  <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-slate-900">📱 QR Collar</h3>
+                    <button @click="showQrModal = false" class="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+                  </div>
+                  <div class="bg-white p-4 rounded-2xl border-2 border-slate-100 flex items-center justify-center min-h-[240px]">
+                    <canvas x-ref="qrCanvas" width="220" height="220"></canvas>
+                  </div>
+                  <p class="text-xs text-slate-600 mt-4 leading-relaxed">
+                    In QR ra → gắn collar bé. Người nhặt được scan → thấy profile + cách liên hệ.
+                  </p>
+                  <button @click="downloadQr()" class="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg text-sm">
+                    ⬇️ Tải QR PNG
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer class="text-center text-white/80 text-xs mt-8 mb-4 drop-shadow">
+          <p>
+            Powered by <a href={`${APP_DOMAIN}/`} class="font-semibold underline hover:text-white">Mon Min Pet 🐾</a>
+          </p>
+          <p class="mt-1 opacity-75">{publicPet.public_view_count || 0} lượt xem</p>
+        </footer>
+      </div>
+
+      <script is:inline src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+      <script is:inline define:vars={{ shareUrl: canonicalUrl, slug, petName: publicPet.name, petQuote: publicPet.public_quote || `Đây là ${publicPet.name}` }}>
+        function publicPetActions() {
+          return {
+            shared: false,
+            sharing: false,
+            showQrModal: false,
+
+            async share() {
+              this.sharing = true;
+              const shareData = {
+                title: `${petName} · Mon Min Pet`,
+                text: petQuote,
+                url: shareUrl,
+              };
+              try {
+                if (navigator.share) {
+                  await navigator.share(shareData);
+                  this.shared = true;
+                } else {
+                  await navigator.clipboard.writeText(shareUrl);
+                  this.shared = true;
+                  setTimeout(() => (this.shared = false), 3000);
+                }
+                // Fire share-click counter (fire-and-forget)
+                fetch(`/api/v1/public/p/${slug}/share-click`, { method: "POST" }).catch(() => {});
+              } catch (_) {
+                // user cancelled — silent
+              } finally {
+                this.sharing = false;
+              }
+            },
+
+            downloadQr() {
+              const canvas = this.$refs.qrCanvas;
+              if (!canvas) return;
+              const link = document.createElement("a");
+              link.download = `qr-${slug}.png`;
+              link.href = canvas.toDataURL("image/png");
+              link.click();
+            },
+
+            init() {
+              // Render QR khi modal mở
+              this.$watch("showQrModal", (open) => {
+                if (open && window.QRCode && this.$refs.qrCanvas) {
+                  this.$nextTick(() => {
+                    window.QRCode.toCanvas(this.$refs.qrCanvas, shareUrl, { width: 220, margin: 1 }, () => {});
+                  });
+                }
+              });
+            },
+          };
+        }
+      </script>
+    </main>
+  )}
+
+  {/* ===== MODE: M3 LEGACY QR PASSPORT ===== */}
+  {mode === "qr" && legacyQrPet && (
+    <main class="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-sky-50">
+      <div class="max-w-xl mx-auto px-4 py-8">
+        <div class="bg-white rounded-3xl shadow-xl overflow-hidden">
+          <div class="aspect-square bg-mmp-cream flex items-center justify-center">
+            {legacyQrPet.photo_url ? (
+              <img src={legacyQrPet.photo_url} alt={legacyQrPet.name} class="w-full h-full object-cover" />
+            ) : (
+              <span class="text-9xl">{legacyQrPet.species === "Chó" ? "🐶" : legacyQrPet.species === "Mèo" ? "🐱" : "🐾"}</span>
+            )}
+          </div>
+          <div class="p-6 text-center">
+            <h1 class="text-3xl font-bold text-slate-900">{legacyQrPet.name}</h1>
+            <div class="mt-3 flex justify-center gap-2 flex-wrap">
+              <span class="text-xs font-semibold bg-sky-100 text-sky-700 px-3 py-1 rounded-full">{legacyQrPet.species}</span>
+              {legacyQrPet.breed && (
+                <span class="text-xs font-semibold bg-orange-100 text-amber-700 px-3 py-1 rounded-full">{legacyQrPet.breed}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 flex items-start gap-3">
+          <span class="text-2xl shrink-0">⚠️</span>
+          <div class="text-sm text-amber-900">
+            <p class="font-semibold">Nếu bạn tìm thấy bé này</p>
+            <p class="mt-1">Vui lòng liên hệ chủ qua thông tin bên dưới. Chủ đang rất nhớ bé!</p>
+          </div>
+        </div>
+
+        <div class="mt-4 bg-white rounded-2xl shadow-md p-6">
+          <p class="text-xs text-slate-500 uppercase tracking-wider mb-2">Chủ nuôi</p>
+          <p class="text-2xl font-bold text-slate-900 font-mono">{legacyQrPet.owner_phone_masked}</p>
+          <p class="text-xs text-slate-500 mt-2">Số được ẩn 1 phần để bảo vệ riêng tư.</p>
+        </div>
+
+        <footer class="mt-8 text-center text-xs text-slate-500">
+          <p>Powered by <span class="font-semibold text-slate-700">Mon Min Pet 🐾</span></p>
+          <a href="/" class="inline-block mt-2 text-sky-600 hover:text-sky-700">Tạo passport cho pet của bạn →</a>
+        </footer>
+      </div>
+    </main>
+  )}
+
+  {/* ===== MODE: NOT FOUND ===== */}
+  {mode === "notfound" && (
+    <main class="min-h-screen bg-gradient-to-b from-slate-50 to-sky-50 flex items-center justify-center px-4 py-12">
+      <div class="max-w-md w-full text-center">
+        <p class="text-7xl mb-3 select-none">
+          {notFoundReason === "private" ? "🔒" : notFoundReason === "network" ? "📡" : notFoundReason === "invalid_format" ? "⚠️" : "🐾"}
+        </p>
+        <h1 class="text-3xl font-bold text-slate-900 mb-2">
+          {notFoundReason === "private" && "Hồ sơ riêng tư"}
+          {notFoundReason === "network" && "Không kết nối được"}
+          {notFoundReason === "invalid_format" && "Link không hợp lệ"}
+          {notFoundReason === "not_found" && "Không tìm thấy bé"}
+        </h1>
+        <p class="text-slate-600 mb-2">
+          {notFoundReason === "private" && "Chủ bé đã tắt chế độ public. Liên hệ trực tiếp chủ bé để xem hồ sơ."}
+          {notFoundReason === "network" && "Đường truyền có vấn đề. Vui lòng thử lại sau vài giây."}
+          {notFoundReason === "invalid_format" && "Định dạng mã passport không hợp lệ. Kiểm tra lại link bạn vừa mở."}
+          {notFoundReason === "not_found" && `Mã passport "${slug}" không tồn tại hoặc bé đã được xoá.`}
+        </p>
+        <p class="text-xs text-slate-400 mb-6 font-mono">slug: <span set:text={slug}></span></p>
+        <div class="flex flex-col sm:flex-row gap-2 justify-center">
+          <a href="/" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition">
+            🏠 Về trang chủ
+          </a>
+          <a href="/food-brands" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-6 py-3 rounded-xl transition">
+            📚 Catalog dinh dưỡng
+          </a>
+        </div>
+      </div>
+    </main>
+  )}
+</Layout>

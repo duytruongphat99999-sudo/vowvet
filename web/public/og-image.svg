@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Mon Min Pet brand OG image: ink background, gold accent, Fraunces-style display title -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0a0a"/>
+      <stop offset="100%" stop-color="#1a1a1a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Gold accent line top -->
+  <rect x="80" y="80" width="60" height="2" fill="#ecb921"/>
+
+  <!-- Eyebrow label -->
+  <text x="80" y="120"
+        fill="#ecb921"
+        font-family="Inter, system-ui, sans-serif"
+        font-size="20"
+        font-weight="600"
+        letter-spacing="6">
+    <tspan>●</tspan>
+    <tspan dx="12">VÌ PET LÀ GIA ĐÌNH</tspan>
+  </text>
+
+  <!-- Logo lockup ring -->
+  <circle cx="1050" cy="160" r="60" fill="none" stroke="#ecb921" stroke-width="2" opacity="0.4"/>
+  <text x="1050" y="160" text-anchor="middle" dy=".34em"
+        fill="#ecb921"
+        font-family="Georgia, ui-serif, serif"
+        font-size="64"
+        font-style="italic"
+        font-weight="600">V</text>
+
+  <!-- Main display title -->
+  <text x="80" y="280"
+        fill="#ffffff"
+        font-family="Georgia, ui-serif, serif"
+        font-size="78"
+        font-style="italic"
+        font-weight="600">
+    VowVet
+  </text>
+  <text x="80" y="370"
+        fill="rgba(255,255,255,0.92)"
+        font-family="Georgia, ui-serif, serif"
+        font-size="58"
+        font-style="italic"
+        font-weight="500">
+    Người bạn đồng hành sức khoẻ
+  </text>
+  <text x="80" y="430"
+        fill="#ecb921"
+        font-family="Georgia, ui-serif, serif"
+        font-size="58"
+        font-style="italic"
+        font-weight="500">
+    cho thú cưng
+  </text>
+
+  <!-- Subtitle / standards line -->
+  <text x="80" y="520"
+        fill="rgba(255,255,255,0.7)"
+        font-family="Inter, system-ui, sans-serif"
+        font-size="24"
+        font-weight="400">
+    AI + WSAVA + AAFCO  ·  Tiếng Việt  ·  Miễn phí trọn đời
+  </text>
+
+  <!-- Footer line: by Mon Min Pet -->
+  <rect x="80" y="552" width="40" height="1" fill="#ecb921"/>
+  <text x="80" y="588"
+        fill="rgba(255,255,255,0.55)"
+        font-family="Inter, system-ui, sans-serif"
+        font-size="20"
+        font-weight="500"
+        letter-spacing="4">
+    BY MON MIN PET  ·  VOWVET.MONMINPET.COM
+  </text>
+</svg>

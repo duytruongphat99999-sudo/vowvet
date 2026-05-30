@@ -1,0 +1,226 @@
+---
+/**
+ * /pets/[id]/birthday-party — Party planner (M14.1 Phase 4).
+ *
+ * Countdown + party size picker + checklist + voucher + auto card preview.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let birthday: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/birthday`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) birthday = await res.json();
+} catch (_) {}
+
+if (!birthday || !birthday.dob) {
+  return Astro.redirect(`/pets/${petId}`);
+}
+
+const APP_DOMAIN = import.meta.env.APP_DOMAIN || process.env.APP_DOMAIN || "https://vowvet.monminpet.com";
+const cardImageUrl = `${APP_DOMAIN}/api/v1/pets/${petId}/birthday-card.svg`;
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, species: pet.species, breed: pet.breed, photo_url: pet.photo_url },
+  birthday,
+  cardImageUrl,
+});
+---
+
+<Layout title={`Sinh nhật ${pet.name} · VowVet`} description={`${birthday.days_until} ngày nữa bé ${pet.name} tròn ${birthday.age_turning} tuổi`}>
+  <main class="min-h-screen bg-gradient-to-b from-pink-50 via-orange-50 to-amber-50 px-4 sm:px-6 py-6 pb-12">
+    <div class="max-w-2xl mx-auto" x-data={`partyPlanner(${initialData})`}>
+      <header class="flex items-center justify-between mb-4 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900">🎂 Sinh nhật</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <!-- Countdown hero -->
+      <section class:list={[
+        "rounded-3xl p-6 sm:p-8 mb-4 shadow-xl text-white text-center",
+        birthday.is_birthday_week
+          ? "bg-gradient-to-br from-pink-500 via-fuchsia-500 to-orange-500 animate-pulse"
+          : "bg-gradient-to-br from-pink-400 to-orange-500"
+      ]}>
+        <p class="text-7xl mb-2 select-none">🎂</p>
+        {birthday.days_until === 0 ? (
+          <>
+            <p class="text-4xl sm:text-5xl font-extrabold drop-shadow">🎉 HÔM NAY!</p>
+            <p class="mt-2 text-lg font-semibold opacity-95">Bé {birthday.pet_name} tròn {birthday.age_turning} tuổi</p>
+          </>
+        ) : (
+          <>
+            <p class="text-5xl sm:text-6xl font-extrabold drop-shadow">{birthday.days_until} ngày</p>
+            <p class="mt-2 text-lg font-medium opacity-95">
+              Bé {birthday.pet_name} sắp tròn <span class="font-bold">{birthday.age_turning} tuổi</span>
+            </p>
+          </>
+        )}
+        <p class="mt-1 text-xs opacity-80">Sinh nhật: {birthday.next_birthday}</p>
+      </section>
+
+      <!-- Party size picker -->
+      <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+        <h2 class="text-base font-semibold text-slate-900 mb-3">🎯 Chọn quy mô tiệc</h2>
+        <div class="space-y-2">
+          {["small", "medium", "large"].map((size) => {
+            const labels = {
+              small: { emoji: "🏠", title: "Tiệc nhỏ (gia đình)" },
+              medium: { emoji: "🐾", title: "Playdate vừa (3-5 pet)" },
+              large: { emoji: "🎊", title: "Pet party lớn (6-10 bạn)" },
+            };
+            const l = labels[size as keyof typeof labels];
+            return (
+              <button @click={`pickSize('${size}')`}
+                :class={`size === '${size}' ? 'bg-orange-50 border-orange-400 ring-2 ring-orange-300' : 'bg-white border-slate-200'`}
+                class="w-full text-left border-2 rounded-xl p-3 transition active:scale-[0.98]">
+                <div class="flex items-start gap-3">
+                  <span class="text-2xl shrink-0">{l.emoji}</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-slate-900">{l.title}</p>
+                    <p class="text-xs text-slate-600 mt-1">{birthday.party_suggestions[size]}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <!-- Checklist (depends on selected size) -->
+      <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+        <h2 class="text-base font-semibold text-slate-900 mb-3">✅ Checklist chuẩn bị</h2>
+        <div class="space-y-1.5">
+          <template x-for="(item, idx) in checklist" :key="idx">
+            <label class="flex items-start gap-2 cursor-pointer group">
+              <input type="checkbox" :checked="checkedItems.includes(idx)" @change={`toggleCheck(idx)`}
+                class="mt-0.5 shrink-0 rounded text-orange-500" />
+              <span class="text-sm text-slate-800 group-hover:text-slate-900" :class="checkedItems.includes(idx) ? 'line-through text-slate-400' : ''" x-text="item"></span>
+            </label>
+          </template>
+        </div>
+      </section>
+
+      <!-- Voucher -->
+      <section class="bg-gradient-to-br from-emerald-50 to-sky-50 border-2 border-emerald-200 rounded-2xl p-5 mb-4">
+        <h2 class="text-base font-semibold text-emerald-900 mb-1">🎁 Voucher sinh nhật</h2>
+        <p class="text-xs text-emerald-700 mb-3">Giảm 15% Mon Min Shop khi mua sinh nhật cho bé</p>
+        <div class="bg-white border-2 border-emerald-300 border-dashed rounded-xl p-3 flex items-center justify-between gap-2">
+          <code class="font-mono font-bold text-emerald-900 text-sm sm:text-base" x-text="birthday.voucher_code"></code>
+          <button @click="copyCode()"
+            class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1.5 rounded-lg shrink-0">
+            <span x-show="!codeCopied">📋 Copy</span>
+            <span x-show="codeCopied">✓ Copied</span>
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-2">
+          Active: {birthday.voucher_active_from} → {birthday.voucher_active_to}
+        </p>
+      </section>
+
+      <!-- Auto birthday card preview -->
+      <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+        <h2 class="text-base font-semibold text-slate-900 mb-3">🖼️ Card sinh nhật</h2>
+        <div class="bg-gradient-to-br from-pink-100 to-orange-100 rounded-xl p-2 overflow-hidden">
+          <img :src="cardImageUrl" alt="Birthday card" class="w-full rounded-lg shadow"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+          <div style="display:none" class="text-center py-12 text-slate-400 text-sm">
+            ⚠️ Card đang generate (refresh sau vài giây)
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <a :href="cardImageUrl" download={`birthday-${pet.name}.svg`}
+            class="flex-1 bg-pink-500 hover:bg-pink-600 text-white text-center font-semibold py-2.5 rounded-lg transition text-sm">
+            ⬇️ Tải SVG
+          </a>
+          <button @click="shareCard()"
+            class="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2.5 rounded-lg transition text-sm">
+            <span x-show="!shared">📤 Share Zalo</span>
+            <span x-show="shared">✓ Copied</span>
+          </button>
+        </div>
+      </section>
+
+      <p class="text-xs text-slate-400 text-center mt-4 italic">
+        Mon Min Pet 🐾 — chúc bé {pet.name} sinh nhật thật vui!
+      </p>
+    </div>
+  </main>
+
+  <script is:inline>
+    function partyPlanner(initial) {
+      return {
+        pet: initial.pet,
+        birthday: initial.birthday,
+        cardImageUrl: initial.cardImageUrl,
+        size: "small",
+        checkedItems: [],
+        codeCopied: false,
+        shared: false,
+
+        get checklist() {
+          const base = [
+            "Đặt cake pet-safe (rau củ + thịt không gia vị) — gợi ý: Mon Min Bakery, Pet Wonderland HCM",
+            "Mua quà mới cho bé (đồ chơi / collar mới)",
+            "Chụp ảnh trước-trong-sau party (lưu kỷ niệm)",
+          ];
+          if (this.size === "medium" || this.size === "large") {
+            base.push("Mời bạn pet qua Zalo (check vaccine status họ)");
+            base.push("Chuẩn bị snack pet-safe + nước (mèo: pate, chó: thịt luộc)");
+          }
+          if (this.size === "large") {
+            base.push("Thuê venue pet-friendly (gợi ý: Pet Hotel HCM Q1, Boomerang Pet Cafe)");
+            base.push("Liên hệ photographer chuyên pet");
+            base.push("Chuẩn bị first-aid kit cho 1 nhóm pet (khử trùng + bandage)");
+          }
+          return base;
+        },
+
+        pickSize(s) {
+          this.size = s;
+          this.checkedItems = [];
+        },
+
+        toggleCheck(idx) {
+          const i = this.checkedItems.indexOf(idx);
+          if (i === -1) this.checkedItems.push(idx);
+          else this.checkedItems.splice(i, 1);
+        },
+
+        async copyCode() {
+          try {
+            await navigator.clipboard.writeText(this.birthday.voucher_code);
+            this.codeCopied = true;
+            setTimeout(() => (this.codeCopied = false), 2000);
+          } catch (_) {}
+        },
+
+        async shareCard() {
+          const text = `🎉 Sinh nhật bé ${this.pet.name} sắp tới (${this.birthday.days_until} ngày)! Sắp tròn ${this.birthday.age_turning} tuổi. — Mon Min Pet 🐾`;
+          try {
+            if (navigator.share) {
+              await navigator.share({ text, url: this.cardImageUrl });
+            } else {
+              await navigator.clipboard.writeText(`${text}\n${this.cardImageUrl}`);
+            }
+            this.shared = true;
+            setTimeout(() => (this.shared = false), 3000);
+          } catch (_) {}
+        },
+      };
+    }
+  </script>
+</Layout>

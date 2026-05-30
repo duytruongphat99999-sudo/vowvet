@@ -1,0 +1,114 @@
+---
+/**
+ * Alert — inline message panel.
+ *
+ * Variants (warmer / less alarming than vanilla bootstrap red):
+ *   - info    : mmp-cream + ink text + gold dot
+ *   - success : emerald-50 + emerald text
+ *   - warning : amber-50 + amber text (most "alerts" use this — NOT red)
+ *   - urgent  : ink bg + red-400 left-stripe accent (high-stakes but premium)
+ *   - danger  : red-50 + red text (true emergencies only — e.g. medication overdose)
+ *
+ * Optional `title` + `dismissible` (Alpine) + named `actions` slot.
+ *
+ * Usage:
+ *   <Alert variant="warning" title="Cảnh báo nắng nóng">
+ *     Hôm nay 38°C — hạn chế dắt pet ra ngoài 11-15h.
+ *   </Alert>
+ *
+ *   <Alert variant="urgent" title="Lưu ý" dismissible>
+ *     Pet của bạn quá hạn vaccine 7 ngày.
+ *     <Fragment slot="actions">
+ *       <Button size="sm" variant="gold">Đặt lịch ngay →</Button>
+ *     </Fragment>
+ *   </Alert>
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+
+interface Props {
+  variant?: "info" | "success" | "warning" | "urgent" | "danger";
+  title?: string;
+  dismissible?: boolean;
+  icon?: string;
+  class?: string;
+}
+const {
+  variant = "info",
+  title,
+  dismissible = false,
+  icon,
+  class: extraClass = "",
+} = Astro.props;
+
+const VARIANTS: Record<string, { box: string; iconBg: string; iconColor: string; defaultIcon: string }> = {
+  info: {
+    box: "bg-mmp-cream border border-amber-100 text-mmp-ink",
+    iconBg: "bg-white border border-amber-200",
+    iconColor: "text-[#ecb921]",
+    defaultIcon: "info",
+  },
+  success: {
+    box: "bg-emerald-50 border border-emerald-200 text-emerald-900",
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-700",
+    defaultIcon: "check",
+  },
+  warning: {
+    box: "bg-amber-50 border border-amber-200 text-amber-900",
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-700",
+    defaultIcon: "info",
+  },
+  urgent: {
+    box: "bg-mmp-ink text-white border border-mmp-ink relative overflow-hidden",
+    iconBg: "bg-white/10 ring-1 ring-white/20",
+    iconColor: "text-[#ecb921]",
+    defaultIcon: "siren",
+  },
+  danger: {
+    box: "bg-red-50 border border-red-200 text-red-900",
+    iconBg: "bg-red-100",
+    iconColor: "text-red-700",
+    defaultIcon: "siren",
+  },
+};
+const v = VARIANTS[variant];
+const iconName = icon || v.defaultIcon;
+---
+
+<div
+  class={`relative rounded-2xl p-4 sm:p-5 ${v.box} ${extraClass}`}
+  role={variant === "urgent" || variant === "danger" ? "alert" : "status"}
+  {...(dismissible ? { "x-data": "{ open: true }", "x-show": "open" } : {})}
+>
+  {variant === "urgent" && (
+    <span aria-hidden="true" class="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></span>
+  )}
+
+  <div class="flex items-start gap-3">
+    <span class={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg ${v.iconBg}`} aria-hidden="true">
+      <FeatureIcon name={iconName} class={`w-5 h-5 ${v.iconColor}`} strokeWidth={2} />
+    </span>
+
+    <div class="flex-1 min-w-0">
+      {title && <h3 class="font-semibold mb-0.5 leading-tight">{title}</h3>}
+      <div class="text-sm leading-relaxed opacity-95"><slot /></div>
+      {Astro.slots.has("actions") && (
+        <div class="mt-3 flex flex-wrap gap-2"><slot name="actions" /></div>
+      )}
+    </div>
+
+    {dismissible && (
+      <button
+        type="button"
+        class="shrink-0 p-1 -mt-1 -mr-1 opacity-70 hover:opacity-100 transition"
+        aria-label="Đóng cảnh báo"
+        x-on:click="open = false"
+      >
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 6l12 12M6 18L18 6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    )}
+  </div>
+</div>

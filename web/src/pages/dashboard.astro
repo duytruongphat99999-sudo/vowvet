@@ -1,0 +1,342 @@
+---
+/**
+ * /dashboard — behavior-driven, brand-aligned WOW redesign.
+ *
+ * 6 zones (top-to-bottom — v29 merged former TopNudge into Pet Score subtitle):
+ *   1. PetHeroCard  — pet + mood + top action
+ *   2. UrgencyBar   — conditional: vaccine overdue / lost / climate / voucher expiring
+ *   3. QuestStrip   — daily 3 quests with cta_link
+ *   4. PetScoreCompact — count-up + progress + tier_close nudge absorbed as subtitle
+ *   5.5 CarePlanProgress — daily care plan completion (conditional)
+ *   6. QuickAccess  — 3×2 grid quick links
+ *   7. CommunityMini — top 3 community events
+ *
+ * Plus: sticky header with Logo + actions, EcosystemNav footer.
+ *
+ * SSR-first with parallel fetches. Fail-soft: any failed endpoint just hides
+ * its zone — dashboard stays usable.
+ */
+import Layout from "../layouts/Layout.astro";
+import Logo from "../components/Logo.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
+import EcosystemNav from "../components/EcosystemNav.astro";
+import PetHeroCard from "../components/dashboard/PetHeroCard.astro";
+import UrgencyBar from "../components/dashboard/UrgencyBar.astro";
+import QuestStrip from "../components/dashboard/QuestStrip.astro";
+import PetScoreCompact from "../components/dashboard/PetScoreCompact.astro";
+import QuickAccess from "../components/dashboard/QuickAccess.astro";
+import CommunityMini from "../components/dashboard/CommunityMini.astro";
+import CarePlanProgress from "../components/dashboard/CarePlanProgress.astro";
+import { fetchMe } from "../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const { data, setCookie } = await fetchMe(cookieHeader);
+if (setCookie) Astro.response.headers.append("set-cookie", setCookie);
+if (!data) return Astro.redirect("/login");
+
+const { user, pets } = data;
+const displayName = user.name?.trim() || user.phone || "bạn";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const primaryPet = pets[0];
+
+// ────────────────────────────────────────────────────────────
+// Parallel fetch all dashboard data (fail-soft)
+// ────────────────────────────────────────────────────────────
+async function safeJson(url: string): Promise<any | null> {
+  try {
+    const r = await fetch(url, { headers: { cookie: cookieHeader } });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+let moodInfo: any = null;
+let questsInfo: any = null;
+let nudges: any = null;
+let scoreInfo: any = null;
+let community: any = null;
+let urgentAlerts: any = null;
+let chatUnreadTotal = 0;
+let hasUrgentClimate = false;
+let carePlanSummary: any = null;
+let carePlanTotalItems = 0;
+
+if (primaryPet) {
+  const [m, q, n, s, c, u, chat, climate, cps, cpp] = await Promise.all([
+    safeJson(`${API_INTERNAL}/api/v1/mood/pets/${primaryPet.id}`),
+    safeJson(`${API_INTERNAL}/api/v1/quests/pets/${primaryPet.id}/today`),
+    safeJson(`${API_INTERNAL}/api/v1/nudges/pets/${primaryPet.id}`),
+    safeJson(`${API_INTERNAL}/api/v1/pets/${primaryPet.id}/pet-score`),
+    safeJson(`${API_INTERNAL}/api/v1/community/feed?limit=3`),
+    safeJson(`${API_INTERNAL}/api/v1/alerts/urgent/${primaryPet.id}`),
+    safeJson(`${API_INTERNAL}/api/v1/chat/threads?limit=50`),
+    safeJson(`${API_INTERNAL}/api/v1/alerts/today`),
+    safeJson(`${API_INTERNAL}/api/v1/pets/${primaryPet.id}/care-plan/completions/summary`),
+    safeJson(`${API_INTERNAL}/api/v1/pets/${primaryPet.id}/care-plan/v2/preview`),
+  ]);
+  moodInfo = m?.mood || null;
+  questsInfo = q;
+  nudges = n;
+  scoreInfo = s;
+  community = c;
+  urgentAlerts = u;
+  carePlanSummary = cps || null;
+  if (cpp?.has_cache && cpp.plan) {
+    // total items = eating + exercise + monitoring sections
+    carePlanTotalItems =
+      (cpp.plan.eating?.items?.length || 0) +
+      (cpp.plan.exercise?.items?.length || 0) +
+      (cpp.plan.monitoring?.length || 0);
+  }
+  if (chat) {
+    chatUnreadTotal = (chat.threads || []).reduce(
+      (sum: number, t: any) => sum + (t.unread_count_owner || 0),
+      0,
+    );
+  }
+  if (climate) {
+    hasUrgentClimate = (climate.alerts || []).some((a: any) => {
+      const sev = typeof a.severity === "object" ? a.severity?.value : a.severity;
+      return (sev === "urgent" || sev === "critical") && !a.dismissed_at;
+    });
+  }
+}
+
+// Banner flags
+const setupSuccess = new URL(Astro.request.url).searchParams.get("setup") === "success";
+const welcomeNew = new URL(Astro.request.url).searchParams.get("welcome") === "1";
+
+// Tier-close nudge (absorbed into Pet Score card as subtitle — TopNudge zone removed for unified UX)
+const tierNudge = (nudges?.opportunities || []).find((o: any) => o.type === "tier_close") || null;
+// Community events
+const communityEvents = community?.events || [];
+// Urgent alerts list
+const urgentList = urgentAlerts?.alerts || [];
+---
+
+<Layout title={`${primaryPet ? primaryPet.name + " · " : ""}VowVet`}>
+  <main class="min-h-screen pb-24 relative" style="background: linear-gradient(180deg, #f5f1eb 0%, #fafaf7 30%, #fafafa 60%, #f5f1eb 100%);">
+
+    <!-- ─── Sticky header with brand Logo + actions ─── -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200">
+      <div class="max-w-screen-md mx-auto px-4 h-16 flex items-center justify-between gap-3">
+        <Logo variant="default" href="/dashboard" />
+        <nav class="flex items-center gap-1 sm:gap-1.5">
+          {primaryPet && (
+            <a href={`/pets/${primaryPet.id}`} class="dashboard-pet-jump" aria-label={`Đến hồ sơ ${primaryPet.name}`} title={`Hồ sơ ${primaryPet.name}`}>
+              {primaryPet.photo_url ? (
+                <img src={primaryPet.photo_url} alt={primaryPet.name} loading="eager" decoding="async" />
+              ) : (
+                <span class="dashboard-pet-jump__fallback">{(primaryPet.name || "?").charAt(0).toUpperCase()}</span>
+              )}
+              <span class="dashboard-pet-jump__ping" aria-hidden="true"></span>
+            </a>
+          )}
+          <a href="/alerts" class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 hover:text-mmp-ink hover:bg-slate-100 transition" title="Cảnh báo">
+            <FeatureIcon name="bell" class="w-5 h-5" strokeWidth={1.7} />
+            {hasUrgentClimate && (
+              <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+            )}
+          </a>
+          <a href="/chat" class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 hover:text-mmp-ink hover:bg-slate-100 transition" title="Chat">
+            <FeatureIcon name="message-circle" class="w-5 h-5" strokeWidth={1.7} />
+            {chatUnreadTotal > 0 && (
+              <span class="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center ring-2 ring-white">
+                {chatUnreadTotal}
+              </span>
+            )}
+          </a>
+          <a href="/settings" class="inline-flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 hover:text-mmp-ink hover:bg-slate-100 transition" title="Cài đặt">
+            <FeatureIcon name="settings" class="w-5 h-5" strokeWidth={1.7} />
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="max-w-screen-md mx-auto px-4 py-5 space-y-4 sm:space-y-5">
+
+      <!-- Welcome banner sau onboarding lần đầu -->
+      {welcomeNew && (
+        <div class="p-4 rounded-2xl bg-mmp-cream border-2 border-amber-200 flex items-center gap-3">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white shadow-sm" style="color: var(--c-gold);">
+            <FeatureIcon name="sparkles" class="w-6 h-6" strokeWidth={1.8} />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-mmp-ink">Chào mừng đến VowVet, {displayName}!</p>
+            <p class="text-xs text-slate-700 mt-0.5">Bé yêu đã được tạo. Bắt đầu chăm sóc bé nào.</p>
+          </div>
+        </div>
+      )}
+
+      {setupSuccess && (
+        <div class="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 inline-flex items-center gap-2">
+          <FeatureIcon name="check" class="w-4 h-4 text-emerald-600" strokeWidth={3} />
+          Đã setup email + mật khẩu. Lần sau bạn có thể đăng nhập 1-click.
+        </div>
+      )}
+
+      {!primaryPet ? (
+        <!-- Empty state — no pets yet -->
+        <section class="bg-white rounded-3xl border border-slate-200 p-10 text-center">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-mmp-cream mb-4 text-mmp-ink/40">
+            <FeatureIcon name="paw" class="w-10 h-10" />
+          </div>
+          <h2 class="text-xl font-bold text-mmp-ink mb-2">Chưa có pet nào</h2>
+          <p class="text-sm text-slate-600 mb-6">Thêm bé đầu tiên để bắt đầu hành trình chăm sóc.</p>
+          <a href="/pets/new" class="inline-flex items-center gap-2 bg-mmp-ink hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-xl transition">
+            <FeatureIcon name="plus" class="w-4 h-4" strokeWidth={2.5} />
+            Thêm pet đầu tiên
+          </a>
+        </section>
+      ) : (
+        <>
+          <!-- ─── ZONE 1: Pet Hero (dark ink WOW, clean avatar no overlay) ─── -->
+          {/* occupiedLinks = mọi destination đã render ở dashboard khác (QuestStrip + QuickAccess +
+              /quests header) → PetHeroCard CTA sẽ pick action KHÔNG trùng */}
+          <PetHeroCard
+            pet={primaryPet}
+            mood={moodInfo}
+            occupiedLinks={[
+              `/pets/${primaryPet.id}`,                                 // QuickAccess "Hồ sơ bé"
+              `/pets/${primaryPet.id}/quests`,                          // QuestStrip header
+              `/pets/${primaryPet.id}/diary`,                           // QuickAccess "Nhật ký"
+              "/vaccines",                                              // QuickAccess "Vaccine"
+              "/food-brands",                                           // QuickAccess "Dinh dưỡng"
+              "/playdate",                                              // QuickAccess "Tìm bạn chơi"
+              "/emergency",                                             // QuickAccess "Cấp cứu"
+              // Quest CTA targets (questsInfo could route to these too)
+              ...(questsInfo?.quests || []).map((q: any) => q.cta_link).filter(Boolean),
+            ]}
+          />
+
+          <!-- ─── ZONE 2: Urgency (conditional) ─── -->
+          {urgentList.length > 0 && <UrgencyBar alerts={urgentList} />}
+
+          <!-- ─── ZONE 3: Quest (3 quests/day; trifecta bonus +50 when 3/3) ─── -->
+          {questsInfo?.quests && questsInfo.quests.length > 0 && (
+            <QuestStrip
+              quests={questsInfo.quests}
+              completed_count={questsInfo.completed_count || 0}
+              petId={primaryPet.id}
+              trifecta_bonus={questsInfo.trifecta_bonus || 50}
+            />
+          )}
+
+          <!-- ─── ZONE 4: Pet Score CENTERPIECE (absorbs tier nudge as subtitle) ─── -->
+          {scoreInfo && (
+            <PetScoreCompact
+              petId={primaryPet.id}
+              score={scoreInfo.score}
+              levelId={scoreInfo.level?.id || "bronze"}
+              levelEmoji={scoreInfo.level?.emoji}
+              levelNameVi={scoreInfo.level?.name_vi}
+              breakdown={scoreInfo.breakdown}
+              tierNudge={tierNudge}
+            />
+          )}
+
+          <!-- ─── ZONE 5.5: Care Plan progress (Phase 2 of Care Plan WOW) ─── -->
+          {carePlanSummary && (
+            <CarePlanProgress
+              petId={primaryPet.id}
+              petName={primaryPet.name}
+              completedCount={carePlanSummary.completed_count || 0}
+              totalItems={carePlanTotalItems}
+              trifectaGranted={!!carePlanSummary.trifecta_granted}
+            />
+          )}
+
+          <!-- ─── ZONE 6: Quick access ─── -->
+          <QuickAccess petId={primaryPet.id} />
+
+          <!-- ─── ZONE 7: Community mini feed ─── -->
+          {communityEvents.length > 0 && <CommunityMini events={communityEvents} />}
+
+          <!-- Multi-pet switcher (if user has ≥2 pets) -->
+          {pets.length > 1 && (
+            <section class="space-y-3">
+              <div class="flex items-center justify-between">
+                <h2 class="font-bold text-mmp-ink">Pet của bạn ({pets.length})</h2>
+                <a href="/pets/new" class="text-xs font-semibold transition" style="color: var(--c-gold);">+ Thêm pet</a>
+              </div>
+              <div class="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
+                {pets.slice(0, 8).map((p: any) => (
+                  <a href={`/pets/${p.id}`} class="block bg-white rounded-2xl border border-slate-100 hover:border-mmp-ink hover:shadow transition overflow-hidden">
+                    <div class="aspect-square bg-mmp-cream flex items-center justify-center text-mmp-ink/30">
+                      {p.photo_url ? (
+                        <img src={p.photo_url} alt={p.name} class="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <FeatureIcon name="paw" class="w-8 h-8" />
+                      )}
+                    </div>
+                    <p class="text-xs font-medium text-mmp-ink text-center px-1 py-1.5 truncate">{p.name}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      <!-- ─── Ecosystem nav ─── -->
+      <div class="pt-2">
+        <EcosystemNav active="vowvet" />
+      </div>
+
+      <!-- Footer — emphasised quick access (Cấp cứu + FAQ) + secondary links -->
+      <footer class="pt-6 pb-2">
+        <!-- Row 1: 2 PROMINENT action pills (Cấp cứu red + FAQ gold) -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <a href="/emergency"
+             class="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-600 hover:text-white hover:border-red-600 font-semibold text-sm transition-all">
+            <FeatureIcon name="siren" class="w-4 h-4" strokeWidth={2} />
+            <span>Cấp cứu 24/7</span>
+          </a>
+          <a href="/faq"
+             class="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-mmp-cream border border-amber-200 hover:border-mmp-ink hover:shadow-sm font-semibold text-sm transition-all"
+             style="color: var(--c-gold);">
+            <FeatureIcon name="search" class="w-4 h-4" strokeWidth={2} />
+            <span class="text-mmp-ink">Câu hỏi thường gặp</span>
+          </a>
+        </div>
+
+        <!-- Row 2: secondary links (smaller, muted) — NOTE: Cài đặt removed (already in top nav ⚙) -->
+        <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+          <a href="/why-vowvet" class="hover:text-mmp-ink transition">Vì sao VowVet</a>
+          <span class="text-slate-300">·</span>
+          <a href="/insurance" class="hover:text-mmp-ink transition">Bảo hiểm</a>
+          <span class="text-slate-300">·</span>
+          <a href="https://bio.monminpet.com" target="_blank" rel="noopener" class="hover:text-mmp-ink transition inline-flex items-center gap-1">
+            Tư vấn BSTY
+            <FeatureIcon name="external" class="w-3 h-3" strokeWidth={2} />
+          </a>
+          <span class="text-slate-300">·</span>
+          <a href="/logout" class="hover:text-red-600 transition">Đăng xuất</a>
+        </div>
+
+        <p class="text-center mt-3 text-[10px] text-slate-400">
+          VowVet by Mon Min Pet · © 2026 CTY TNHH Duy Trường Phát
+        </p>
+      </footer>
+    </div>
+  </main>
+
+  <!-- Auto-scroll to quest widget when ?focus=quests in URL (from /pets/[id]/quests redirect) -->
+  <script is:inline>
+    (() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("focus") !== "quests") return;
+        // Defer to next tick so Alpine has time to hydrate the widget
+        requestAnimationFrame(() => {
+          const el = document.querySelector('[data-widget="quests"]');
+          if (!el) return;
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          // Brief gold flash to draw the eye (CSS animation already defined in global.css)
+          el.classList.add("animate-progress-pulse");
+          setTimeout(() => el.classList.remove("animate-progress-pulse"), 2400);
+        });
+      } catch (_) {}
+    })();
+  </script>
+</Layout>

@@ -1,0 +1,219 @@
+---
+/**
+ * ZONE 4 — Pet Score CENTERPIECE (WOW redesign).
+ *
+ * Premium full-width card with:
+ *   - LEFT: BIG SVG circular gauge (3/4 arc, gold gradient) + count-up
+ *   - RIGHT: tier badge + label + progress hint + breakdown chips (4 key stats)
+ *   - Subtle gold spotlight + ring glow when near next tier
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+
+interface Props {
+  petId: number;
+  score: number;
+  levelId: string;
+  levelEmoji?: string;
+  levelNameVi?: string;
+  breakdown?: any | null;       // ScoreBreakdown with .components[]
+  tierNudge?: any | null;       // tier_close opportunity from /nudges (absorbed from former TopNudge zone)
+}
+const { petId, score, levelId, levelNameVi = "", breakdown, tierNudge = null } = Astro.props;
+
+// Chip → destination URL map (each chip is its own <a>, replacing former
+// whole-card click target). Default fallback → /pet-score detail page.
+const CHIP_URL_MAP: Record<string, string> = {
+  vaccine_compliance:  "/vaccines",
+  bcs_optimal:         `/pets/${petId}/bcs`,
+  checkin_streak:      `/pets/${petId}/routines`,
+  vet_visit_recent:    `/pets/${petId}/bills`,
+  routine_consistency: `/pets/${petId}/routines`,
+  water_intake:        `/pets/${petId}/water`,
+  pain_status:         `/pets/${petId}/pain`,
+  mobility:            `/pets/${petId}/mobility`,
+};
+
+const TIER_ORDER = ["bronze", "silver", "gold", "platinum", "diamond"];
+const TIER_THRESHOLDS: Record<string, number> = {
+  bronze: 0, silver: 301, gold: 501, platinum: 701, diamond: 851,
+};
+const TIER_META: Record<string, { icon: string; label: string; color: string; ring: string; gradFrom: string; gradTo: string }> = {
+  bronze:   { icon: "medal",   label: "Mới bắt đầu", color: "#a0826d", ring: "ring-amber-200", gradFrom: "#fbbf24", gradTo: "#a0826d" },
+  silver:   { icon: "medal",   label: "Tốt",         color: "#64748b", ring: "ring-slate-200", gradFrom: "#cbd5e1", gradTo: "#64748b" },
+  gold:     { icon: "trophy",  label: "Rất tốt",     color: "#ecb921", ring: "ring-amber-300", gradFrom: "#ecb921", gradTo: "#fde68a" },
+  platinum: { icon: "crown",   label: "Xuất sắc",    color: "#3b82f6", ring: "ring-sky-200",   gradFrom: "#60a5fa", gradTo: "#3b82f6" },
+  diamond:  { icon: "diamond", label: "Hoàn hảo",    color: "#7c3aed", ring: "ring-mmp-ink", gradFrom: "#a78bfa", gradTo: "#7c3aed" },
+};
+const tier = TIER_META[levelId] || TIER_META.bronze;
+
+const idx = TIER_ORDER.indexOf(levelId);
+const nextTier = idx >= 0 && idx < TIER_ORDER.length - 1 ? TIER_ORDER[idx + 1] : null;
+const nextThreshold = nextTier ? TIER_THRESHOLDS[nextTier] : 1000;
+const pointsToNext = nextTier ? Math.max(0, nextThreshold - score) : 0;
+const isNearNext = nextTier && pointsToNext > 0 && pointsToNext <= 100;
+const percent = Math.min(100, (score / 1000) * 100);
+
+// Gauge geometry — 3/4 arc on a 100x100 viewBox
+const RADIUS = 40;
+const CIRC = 2 * Math.PI * RADIUS;
+const ARC = CIRC * 0.75;
+const offset = ARC * (1 - percent / 100);
+
+// Top breakdown chips (top 4 positive components from breakdown.components)
+const COMPONENT_ICON_MAP: Record<string, { icon: string; label: string }> = {
+  vaccine_compliance:  { icon: "syringe",    label: "Vaccine" },
+  bcs_optimal:         { icon: "activity",   label: "BCS" },
+  checkin_streak:      { icon: "flame",      label: "Streak" },
+  vet_visit_recent:    { icon: "stethoscope", label: "Vet" },
+  routine_consistency: { icon: "check",      label: "Routine" },
+  water_intake:        { icon: "bowl",       label: "Nước" },
+  pain_status:         { icon: "activity",   label: "Đau" },
+  mobility:            { icon: "activity",   label: "Vận động" },
+};
+
+let chips: Array<{ icon: string; label: string; pct: number; url: string; }> = [];
+if (breakdown?.components && Array.isArray(breakdown.components)) {
+  for (const c of breakdown.components) {
+    const meta = COMPONENT_ICON_MAP[c.key];
+    if (!meta || c.max_possible <= 0) continue;
+    const pct = Math.max(0, Math.min(100, Math.round((c.current_value / c.max_possible) * 100)));
+    chips.push({
+      icon: meta.icon,
+      label: meta.label,
+      pct,
+      url: CHIP_URL_MAP[c.key] || `/pets/${petId}/pet-score`,
+    });
+  }
+  // Show top 4 by score
+  chips.sort((a, b) => b.pct - a.pct);
+  chips = chips.slice(0, 4);
+}
+---
+
+<div class="space-y-2">
+<div
+  class="relative bg-white rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm overflow-hidden"
+  x-data={`{
+    score: 0,
+    init() {
+      const target = ${score};
+      const duration = 1800;
+      const start = performance.now();
+      const tick = (now) => {
+        const p = Math.min((now - start) / duration, 1);
+        this.score = Math.round(target * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  }`}
+>
+  {/* Subtle gold spotlight in corner */}
+  <div class="absolute -top-16 -right-16 w-48 h-48 rounded-full opacity-20 pointer-events-none" aria-hidden="true"
+       style={`background: radial-gradient(circle, ${tier.color}55 0%, transparent 70%);`}></div>
+
+  <div class="relative grid grid-cols-[auto_1fr] gap-5 sm:gap-7 items-center">
+
+    {/* ─── LEFT: BIG circular gauge (wrapped in <a> → /pet-score detail) ─── */}
+    <a
+      href={`/pets/${petId}/pet-score`}
+      class="relative shrink-0 w-32 h-32 sm:w-36 sm:h-36 block hover:opacity-90 transition"
+      aria-label="Chi tiết Pet Score"
+    >
+      <svg viewBox="0 0 100 100" class="w-full h-full -rotate-[135deg]">
+        <defs>
+          <linearGradient id={`gauge-${levelId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color={tier.gradFrom}/>
+            <stop offset="100%" stop-color={tier.gradTo}/>
+          </linearGradient>
+        </defs>
+        {/* Background track */}
+        <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#f1f5f9" stroke-width="8" stroke-linecap="round" stroke-dasharray={`${ARC} ${CIRC}`} />
+        {/* Progress */}
+        <circle
+          cx="50" cy="50" r={RADIUS}
+          fill="none"
+          stroke={`url(#gauge-${levelId})`}
+          stroke-width="8" stroke-linecap="round"
+          stroke-dasharray={`${ARC} ${CIRC}`}
+          stroke-dashoffset={offset}
+          class={isNearNext ? "animate-progress-pulse" : ""}
+          style="transition: stroke-dashoffset 1.8s cubic-bezier(0.16, 1, 0.3, 1);"
+        />
+      </svg>
+      {/* Center overlay */}
+      <div class="absolute inset-0 flex flex-col items-center justify-center">
+        <span class="text-3xl sm:text-4xl font-bold text-mmp-ink leading-none tabular-nums" x-text="score">{score}</span>
+        <span class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-medium">/ 1000</span>
+      </div>
+      {/* Floating tier badge top */}
+      <div class={`absolute -top-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white shadow-md ring-1 ${tier.ring}`}>
+        <FeatureIcon name={tier.icon} class="w-3.5 h-3.5" strokeWidth={1.8} />
+        <span class="text-[10px] font-bold uppercase tracking-wider" style={`color: ${tier.color};`}>{levelId}</span>
+      </div>
+    </a>
+
+    {/* ─── RIGHT: title link + absorbed nudge subtitle + chips ─── */}
+    <div class="min-w-0">
+
+      {/* Title (wrapped in <a> → /pet-score detail) */}
+      <a
+        href={`/pets/${petId}/pet-score`}
+        class="block hover:opacity-90 transition"
+        aria-label="Chi tiết Pet Score"
+      >
+        <p class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Pet Score</p>
+        <p class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink leading-tight mt-0.5">{levelNameVi || tier.label}</p>
+      </a>
+
+      {/* Absorbed nudge subtitle (replaces former TopNudge banner).
+          Priority: tierNudge.title (punchy) > "Còn X điểm" (formal) > crown (max tier). */}
+      {tierNudge?.title ? (
+        <p class="text-xs font-semibold mt-2 inline-flex items-center gap-1.5 leading-snug" style="color: var(--c-gold);">
+          <FeatureIcon name="rocket" class="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+          <span class="line-clamp-1">{tierNudge.title}</span>
+        </p>
+      ) : nextTier ? (
+        <p class="text-xs text-slate-600 mt-2 leading-snug">
+          Còn <span class="font-bold tabular-nums" style="color: var(--c-gold);">{pointsToNext}</span> điểm đến tier
+          <span class="font-bold text-mmp-ink uppercase ml-0.5">{nextTier}</span>
+        </p>
+      ) : (
+        <p class="text-xs mt-2 font-bold inline-flex items-center gap-1" style="color: var(--c-gold);">
+          <FeatureIcon name="crown" class="w-3.5 h-3.5" strokeWidth={2} />
+          Đã đạt tier cao nhất
+        </p>
+      )}
+
+      {/* Breakdown chips — each is now a clickable <a> to its detail page (visible sm+) */}
+      {chips.length > 0 && (
+        <div class="hidden sm:flex flex-wrap gap-1.5 mt-3">
+          {chips.map((c) => (
+            <a
+              href={c.url}
+              class="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 hover:bg-mmp-cream hover:border-amber-200 hover:text-mmp-ink hover:shadow-sm transition"
+              aria-label={`Xem chi tiết ${c.label}`}
+            >
+              <FeatureIcon name={c.icon} class="w-3 h-3" strokeWidth={2} />
+              <span class="font-semibold">{c.label}</span>
+              <span class="tabular-nums" style="color: var(--c-gold);">{c.pct}%</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+</div>
+
+  {/* Subtle link to activity timeline — "where do points come from?" (giữ nguyên đích /activity) */}
+  <a
+    href={`/pets/${petId}/activity`}
+    class="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 hover:underline transition-colors"
+    style="color: var(--c-gold);"
+    aria-label="Xem 7 ngày hoạt động"
+  >
+    <FeatureIcon name="activity" class="w-3.5 h-3.5" strokeWidth={2} />
+    <span>Xem 7 ngày hoạt động</span>
+    <span aria-hidden="true">→</span>
+  </a>
+</div>

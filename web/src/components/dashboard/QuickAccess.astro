@@ -1,0 +1,56 @@
+---
+/**
+ * ZONE 6 — Quick access (matching homepage ecosystem card pattern).
+ *
+ * 3-col grid (md+) / 2-col (mobile-sm) / horizontal scroll on tiny viewports.
+ * Each card: 14x14 icon container · hover bg-mmp-gold/15 · ink hover-border.
+ * Same DNA as homepage "3 platform · 1 sứ mệnh" cards.
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+
+interface Props {
+  petId: number;
+}
+const { petId } = Astro.props;
+
+// Each card MUST point to a DISTINCT destination so they don't visually duplicate
+// the PetHeroCard CTA (which targets the smartest single action based on mood).
+// "Hồ sơ bé" goes to pet detail root (where check-in is embedded) — reframed as
+// "see everything about my pet" to differ semantically from the dynamic CTA.
+const items = [
+  { icon: "paw",         label: "Hồ sơ bé",      sub: "Tổng quan + check-in", href: `/pets/${petId}` },
+  { icon: "syringe",     label: "Vaccine",       sub: "Lịch tiêm WSAVA",      href: "/vaccines" },
+  { icon: "bowl",        label: "Dinh dưỡng",    sub: "AAFCO calorie",        href: "/food-brands" },
+  { icon: "image",       label: "Nhật ký",       sub: "Khoảnh khắc",          href: `/pets/${petId}/diary` },
+  { icon: "handshake",   label: "Tìm bạn chơi",  sub: "Playdate Việt",        href: "/playdate" },
+  { icon: "siren",       label: "Cấp cứu",       sub: "Hotline 24/7",         href: "/emergency" },
+] as const;
+---
+
+<section>
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-2">
+      <FeatureIcon name="lightning" class="w-5 h-5" strokeWidth={1.8} style="color: var(--c-gold);" />
+      <h2 class="font-bold text-mmp-ink">Truy cập nhanh</h2>
+    </div>
+    <a href={`/pets/${petId}`} class="text-xs font-semibold inline-flex items-center gap-1" style="color: var(--c-gold);">
+      Xem hết
+      <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2} />
+    </a>
+  </div>
+
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    {items.map((item) => (
+      <a
+        href={item.href}
+        class="group block bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 hover:border-mmp-ink hover:shadow-md transition-all"
+      >
+        <div class="w-12 h-12 rounded-xl bg-mmp-ink/5 flex items-center justify-center mb-3 group-hover:bg-mmp-gold/15 transition">
+          <FeatureIcon name={item.icon} class="w-6 h-6 text-mmp-ink" strokeWidth={1.7} />
+        </div>
+        <h3 class="font-bold text-sm text-mmp-ink">{item.label}</h3>
+        <p class="text-[11px] text-slate-500 mt-0.5">{item.sub}</p>
+      </a>
+    ))}
+  </div>
+</section>

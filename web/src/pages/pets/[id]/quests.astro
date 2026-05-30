@@ -1,0 +1,16 @@
+---
+/**
+ * DEPRECATED — Daily Quests đã được gộp vào dashboard expandable widget.
+ *
+ * Trước đây có 2 surface tương tác với quests:
+ *   1. Click card từ dashboard → đi thẳng đến feature page (cta_link)
+ *   2. Click header "Nhiệm vụ hôm nay" → đến page này (full list + history)
+ *
+ * UX duplicate → user confused. Giải pháp: gộp tất cả vào dashboard expandable
+ * widget (tap card = expand inline detail). Page này redirect về dashboard với
+ * `?focus=quests` để widget auto-scroll + auto-expand quest đầu tiên chưa xong.
+ *
+ * URL được giữ cho backward-compat (bookmark, push-notification deep-link).
+ */
+return Astro.redirect("/dashboard?focus=quests", 308);
+---

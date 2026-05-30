@@ -1,0 +1,261 @@
+---
+/**
+ * /why-vowvet — Marketing landing (PUBLIC).
+ *
+ * 6 sections: hero → 8 risks → ecosystem → trust signals → compare table → testimonials → CTA.
+ * SSR fetches structured content from /api/v1/marketing/why-vowvet (static, no DB hit).
+ */
+import Layout from "../layouts/Layout.astro";
+import Logo from "../components/Logo.astro";
+import EcosystemNav from "../components/EcosystemNav.astro";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let data: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/marketing/why-vowvet`);
+  if (res.ok) data = await res.json();
+} catch (_) {}
+
+// Fallback minimal structure if API hiccup
+if (!data) {
+  data = {
+    risks: [], ecosystem: { title: "", examples: [] }, trust_signals: [],
+    compare_table: { headers: [], rows: [] }, testimonials: [],
+    cta: { title: "Sẵn sàng?", primary_label: "Bắt đầu", primary_link: "/login",
+      contact_label: "Liên hệ", hotline: "0779 029 133", hotline_e164: "+84779029133",
+      zalo_oa: "https://zalo.me/1136810892220003266" },
+    brand: { legal_name: "CTY TNHH Duy Trường Phát", product_name: "VowVet", parent_brand: "Mon Min Pet" },
+  };
+}
+---
+
+<Layout title="Tại sao chọn VowVet? · Mon Min Pet" description="Tại sao 100+ pet owner HCM chọn VowVet thay vì làm thủ công. 8 tình huống thực tế + so sánh với FB group + 5 lý do tin tưởng.">
+  <main class="bg-white min-h-screen pb-12">
+
+    <!-- ======= HERO (dark ink, matching bio.monminpet.com) ======= -->
+    <header class="bg-mmp-ink text-white">
+      <div class="max-w-3xl mx-auto px-4 py-5">
+        <Logo variant="full" href="/" class="text-white" />
+      </div>
+      <div class="text-center py-12 sm:py-16 px-4">
+        <div class="max-w-2xl mx-auto">
+          <p class="eyebrow mb-4" style="color: var(--c-gold);">
+            <span class="gold-dot"></span>Vì pet là gia đình
+          </p>
+          <h1 class="font-display italic text-3xl sm:text-4xl md:text-5xl font-semibold mb-5 leading-tight tracking-tight">
+            Chăm sóc bé yêu — an toàn hơn, thông minh hơn
+          </h1>
+          <p class="text-base sm:text-lg text-white/72 mb-8 max-w-xl mx-auto">
+            Tại sao pet owner HCM chọn VowVet thay vì làm thủ công
+          </p>
+          <a href="/login" class="inline-block px-7 py-3.5 bg-mmp-gold text-mmp-ink rounded-xl font-bold text-base shadow-md hover:scale-[1.02] transition">
+            Bắt đầu miễn phí →
+          </a>
+          <p class="text-xs text-white/60 mt-3">30 giây setup · 0đ trọn đời free tier</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- ======= SECTION 1: 8 RỦI RO ======= -->
+    <section class="max-w-3xl mx-auto px-4 py-12">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">
+        8 tình huống thực tế
+      </h2>
+      <p class="text-center text-sm sm:text-base text-slate-600 mb-10">
+        Đây là những tình huống pet owner gặp hàng ngày. Cách giải quyết "thủ công" vs cách VowVet xử lý.
+      </p>
+
+      <div class="space-y-5">
+        {data.risks.map((risk: any, idx: number) => (
+          <div class="bg-white rounded-3xl shadow-md overflow-hidden border border-mmp-cream">
+            <!-- Header card -->
+            <div class="p-4 sm:p-5 bg-mmp-cream flex items-center gap-3 sm:gap-4 border-b border-mmp-cream">
+              <div class="text-3xl sm:text-4xl shrink-0">{risk.icon}</div>
+              <div class="min-w-0">
+                <p class="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wide font-medium">Tình huống {idx + 1}</p>
+                <h3 class="font-bold text-sm sm:text-lg leading-snug">{risk.scenario_title}</h3>
+              </div>
+            </div>
+
+            <!-- Problem -->
+            <div class="p-4 sm:p-5 border-b border-slate-100">
+              <div class="flex gap-2 sm:gap-3">
+                <div class="text-xl sm:text-2xl shrink-0">❌</div>
+                <div>
+                  <p class="text-[10px] sm:text-xs font-bold text-red-700 uppercase tracking-wide mb-1">Cách thủ công</p>
+                  <p class="text-sm sm:text-base text-slate-700 leading-relaxed">{risk.problem}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Solution -->
+            <div class="p-4 sm:p-5 bg-emerald-50">
+              <div class="flex gap-2 sm:gap-3">
+                <div class="text-xl sm:text-2xl shrink-0">✅</div>
+                <div class="flex-1">
+                  <p class="text-[10px] sm:text-xs font-bold text-emerald-700 uppercase tracking-wide mb-1">VowVet giải quyết</p>
+                  <p class="text-sm sm:text-base text-slate-800 mb-3 leading-relaxed">{risk.solution}</p>
+                  <a href={risk.feature_link} class="inline-block px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold transition">
+                    Xem {risk.feature_name} →
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- ======= SECTION 2: HỆ SINH THÁI ======= -->
+    <section class="max-w-3xl mx-auto px-4 py-8">
+      <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-6 sm:p-8 border border-amber-200">
+        <div class="text-center mb-5 sm:mb-6">
+          <div class="text-4xl sm:text-5xl mb-3">🔗</div>
+          <h2 class="text-xl sm:text-2xl font-bold text-amber-900">{data.ecosystem.title}</h2>
+        </div>
+        <div class="space-y-2.5">
+          {data.ecosystem.examples.map((ex: string) => (
+            <div class="p-3 sm:p-4 bg-white rounded-xl border border-amber-200">
+              <p class="text-sm leading-relaxed">{ex}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SECTION 3: TRUST SIGNALS ======= -->
+    <section class="max-w-3xl mx-auto px-4 py-12">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">5 lý do tin tưởng Mon Min</h2>
+      <p class="text-center text-sm sm:text-base text-slate-600 mb-8 sm:mb-10">VowVet được build bởi vet, cho pet owner.</p>
+
+      <div class="grid sm:grid-cols-2 gap-3 sm:gap-4">
+        {data.trust_signals.map((signal: any) => (
+          <div class="p-4 sm:p-5 bg-white rounded-2xl border border-mmp-cream shadow-sm">
+            <div class="text-2xl sm:text-3xl mb-2">{signal.icon}</div>
+            <h3 class="font-bold mb-1 text-sm sm:text-base">{signal.title}</h3>
+            <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">{signal.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- ======= SECTION 4: COMPARE TABLE ======= -->
+    <section class="max-w-3xl mx-auto px-4 py-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">Bảng so sánh tổng</h2>
+      <p class="text-center text-sm sm:text-base text-slate-600 mb-8 sm:mb-10">8 tình huống quan trọng</p>
+
+      <div class="overflow-x-auto rounded-2xl shadow-md border border-slate-200">
+        <table class="w-full bg-white">
+          <thead class="bg-mmp-ink hover:bg-slate-800 text-white">
+            <tr>
+              {data.compare_table.headers.map((h: string) => (
+                <th class="p-3 text-left text-xs sm:text-sm font-bold whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.compare_table.rows.map((row: string[], idx: number) => (
+              <tr class={idx % 2 === 0 ? "bg-white" : "bg-mmp-cream"}>
+                <td class="p-3 text-xs sm:text-sm font-bold border-t border-slate-100">{row[0]}</td>
+                <td class="p-3 text-xs sm:text-sm text-red-700 border-t border-slate-100">❌ {row[1]}</td>
+                <td class="p-3 text-xs sm:text-sm text-emerald-700 border-t border-slate-100">✅ {row[2]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ======= SECTION 5: TESTIMONIALS ======= -->
+    <section class="max-w-3xl mx-auto px-4 py-12">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">Pet owner nói gì?</h2>
+      <p class="text-center text-sm sm:text-base text-slate-600 mb-8 sm:mb-10">User thật từ pilot Mon Min</p>
+
+      <div class="grid sm:grid-cols-3 gap-3 sm:gap-4">
+        {data.testimonials.map((t: any) => (
+          <div class="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200">
+            {t.is_placeholder ? (
+              <div class="text-center text-slate-400 py-3">
+                <div class="text-3xl mb-2">💬</div>
+                <p class="text-xs italic">Đang chờ user thật chia sẻ</p>
+                <p class="font-bold mt-3 text-sm text-slate-700">{t.name}</p>
+                <p class="text-xs text-slate-500">{t.pet}</p>
+              </div>
+            ) : (
+              <div>
+                <p class="text-sm italic mb-3">"{t.quote}"</p>
+                <p class="font-bold text-sm">{t.name}</p>
+                <p class="text-xs text-slate-500">{t.pet}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- ======= SECTION 6: CTA ======= -->
+    <section class="max-w-2xl mx-auto px-4 py-12 sm:py-16">
+      <div class="text-center p-6 sm:p-8 rounded-3xl bg-mmp-ink hover:bg-slate-800 text-white shadow-2xl">
+        <h2 class="text-2xl sm:text-3xl font-bold mb-3">{data.cta.title}</h2>
+        <a href={data.cta.primary_link} class="inline-block px-6 sm:px-8 py-3.5 sm:py-4 bg-white text-mmp-ink rounded-2xl font-bold text-base sm:text-lg shadow-lg hover:scale-105 transition mt-4 mb-6">
+          {data.cta.primary_label}
+        </a>
+
+        <div class="border-t border-white/30 pt-5 sm:pt-6 mt-4">
+          <p class="text-xs sm:text-sm opacity-90 mb-3">{data.cta.contact_label}</p>
+          <div class="flex flex-col sm:flex-row gap-3 justify-center">
+            <a href={`tel:${data.cta.hotline_e164}`} class="px-5 py-3 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur font-bold text-sm">
+              📞 {data.cta.hotline}
+            </a>
+            <a href={data.cta.zalo_oa} target="_blank" rel="noopener" class="px-5 py-3 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur font-bold text-sm">
+              💬 Chat Zalo VowVet
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SHARE BUTTONS ======= -->
+    <section class="max-w-2xl mx-auto px-4 py-6 text-center" x-data={`{
+      shareUrl: typeof window !== 'undefined' ? window.location.href : 'https://vowvet.monminpet.com/why-vowvet',
+      copied: false,
+      async copyLink() {
+        try { await navigator.clipboard.writeText(this.shareUrl); }
+        catch (_) {}
+        this.copied = true;
+        setTimeout(() => this.copied = false, 2000);
+      }
+    }`}>
+      <p class="text-xs sm:text-sm text-slate-600 mb-4">Chia sẻ với pet owner khác</p>
+      <div class="flex flex-wrap gap-2 sm:gap-3 justify-center">
+        <button @click="copyLink()" class="px-4 sm:px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs sm:text-sm font-bold">
+          <span x-show="!copied">📋 Copy link</span>
+          <span x-show="copied">✓ Đã copy</span>
+        </button>
+        <a :href="`https://zalo.me/share/url?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent('Tại sao chọn VowVet để chăm sóc thú cưng?')}`"
+          target="_blank" rel="noopener"
+          class="px-4 sm:px-5 py-2 rounded-xl bg-mmp-ink hover:bg-mmp-ink text-white text-xs sm:text-sm font-bold">
+          💬 Share Zalo
+        </a>
+        <a :href="`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`"
+          target="_blank" rel="noopener"
+          class="px-4 sm:px-5 py-2 rounded-xl bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs sm:text-sm font-bold">
+          👍 Share FB
+        </a>
+      </div>
+    </section>
+
+    <!-- ======= FOOTER ======= -->
+    <footer class="mt-8 sm:mt-12 py-8 border-t border-slate-200 bg-mmp-cream">
+      <div class="max-w-3xl mx-auto px-4">
+        <EcosystemNav active="vowvet" />
+        <div class="text-center text-xs sm:text-sm text-slate-500 mt-6">
+          <p><strong>VowVet by Mon Min Pet</strong> · vận hành bởi <strong>{data.brand.legal_name}</strong></p>
+          <p class="text-[10px] sm:text-xs mt-1">© 2026 · Bác sĩ + Cấp cứu 24/7: {data.cta.hotline}</p>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+</Layout>

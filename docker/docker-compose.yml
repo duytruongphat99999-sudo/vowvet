@@ -1,0 +1,70 @@
+﻿# VowVet docker compose â€” Phase 0
+# Cháº¡y: docker compose -f docker/docker-compose.yml up --build
+#
+# Network: cáº£ 2 container join external "bos-network" Ä‘á»ƒ Nginx Proxy Manager
+# (cÃ¹ng network) reach Ä‘Æ°á»£c vowvet-web:4321 vÃ  vowvet-api:3000 qua docker DNS.
+# Host ports chá»‰ bind 127.0.0.1 cho debug local, khÃ´ng táº¡o conflict vá»›i
+# cÃ¡c container khÃ¡c (hetuphala-web Ä‘ang dÃ¹ng 0.0.0.0:4321,
+# intern-dtp-app Ä‘ang dÃ¹ng 127.0.0.1:3000).
+
+name: vowvet
+
+services:
+  vowvet-api:
+    container_name: vowvet-api
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    ports:
+      # Debug only: gÃµ http://127.0.0.1:3010 tá»« host. Nginx KHÃ”NG dÃ¹ng port nÃ y.
+      - "127.0.0.1:3010:3000"
+    env_file:
+      - ../.env
+    environment:
+      # Trong container, localhost = chÃ­nh container. host.docker.internal
+      # trá» vá» Windows host nÆ¡i Baserow container Ä‘ang publish 8888.
+      BASEROW_URL: http://host.docker.internal:8888
+      NODE_ENV: development
+      PORT: "3000"
+      # M4: deterministic weather cho test escalation (set tá»« shell khi run E2E).
+      # Empty = fetch real OpenWeather.
+      WEATHER_MOCK_FEELS_LIKE: ${WEATHER_MOCK_FEELS_LIKE:-}
+    volumes:
+      - ../api/src:/app/api/src
+      - ../shared:/app/shared
+      - ../baserow-config.json:/app/baserow-config.json:ro
+      # M4: /app/data persistent cho gemini-usage.log.jsonl (budget tracking)
+      - ../data/api:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - bos-network
+
+  vowvet-web:
+    container_name: vowvet-web
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    ports:
+      # Debug only: gÃµ http://127.0.0.1:4322 tá»« host. Production traffic qua nginx-proxy.
+      - "127.0.0.1:4322:4321"
+    env_file:
+      - ../.env
+    environment:
+      # Vite dev server proxy /api/* â†’ vowvet-api container qua docker DNS
+      API_INTERNAL_URL: http://vowvet-api:3000
+      NODE_ENV: development
+    volumes:
+      - ../web/src:/app/web/src
+      - ../web/public:/app/web/public
+      - ../web/astro.config.mjs:/app/web/astro.config.mjs:ro
+      - ../shared:/app/shared
+    depends_on:
+      - vowvet-api
+    networks:
+      bos-network:
+      
+networks:
+  bos-network:
+    external: true
+

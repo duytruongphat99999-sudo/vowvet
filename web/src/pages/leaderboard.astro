@@ -1,0 +1,204 @@
+---
+/**
+ * /leaderboard — Public Pet Score leaderboard.
+ *
+ * Different from /heroes/leaderboard (M27 — ranks by hero count).
+ * This ranks pets by Pet Score, opt-in only via /api/v1/leaderboard/opt-in.
+ *
+ * Podium top 3 + table top 100. Filters: period (this/last month/all), species (dog/cat/all).
+ */
+import Layout from "../layouts/Layout.astro";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+const initialPeriod = (Astro.url.searchParams.get("period") || "this_month") as "this_month" | "last_month" | "all_time";
+const initialSpecies = Astro.url.searchParams.get("species") || "";
+
+let entries: any[] = [];
+try {
+  const params = new URLSearchParams({ period: initialPeriod, limit: "100" });
+  if (initialSpecies) params.set("species", initialSpecies);
+  const r = await fetch(`${API_INTERNAL}/api/v1/leaderboard?${params}`);
+  if (r.ok) entries = (await r.json()).entries || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({ initialPeriod, initialSpecies, entries });
+---
+
+<Layout title="🏆 Pet Score Leaderboard · VowVet" description="Bảng xếp hạng Pet Score — top pets HCM">
+  <main class="min-h-screen bg-mmp-cream px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`leaderboardPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700">← Dashboard</a>
+        <h1 class="text-lg font-bold text-slate-900">🏆 Leaderboard</h1>
+        <a href="/heroes/leaderboard" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">🦸 Heroes</a>
+      </header>
+
+      <!-- Hero -->
+      <div class="text-center py-7 px-4 mb-5 rounded-3xl bg-mmp-ink hover:bg-slate-800 text-white shadow-xl">
+        <p class="text-5xl mb-2">🏆</p>
+        <h2 class="text-2xl font-extrabold">Pet Score Top</h2>
+        <p class="text-sm opacity-95 mt-1">Vinh danh pets chăm sóc tốt nhất HCM</p>
+      </div>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <div class="flex bg-white rounded-2xl p-1 shadow-sm border border-slate-100 flex-1 min-w-[200px]">
+          <template x-for="p in periods" :key="p.key">
+            <button @click="changePeriod(p.key)"
+              :class="period === p.key ? 'bg-mmp-ink text-white' : 'text-slate-600'"
+              class="flex-1 py-1.5 rounded-xl text-xs font-bold transition">
+              <span x-text="p.label"></span>
+            </button>
+          </template>
+        </div>
+        <div class="flex bg-white rounded-2xl p-1 shadow-sm border border-slate-100">
+          <template x-for="s in speciesFilters" :key="s.key">
+            <button @click="changeSpecies(s.key)"
+              :class="species === s.key ? 'bg-mmp-ink text-white' : 'text-slate-600'"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition">
+              <span x-text="s.label"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Empty -->
+      <template x-if="entries.length === 0">
+        <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
+          <p class="text-5xl mb-2">🌱</p>
+          <p class="text-base font-bold text-slate-900">Chưa có ai opt-in</p>
+          <p class="text-sm text-slate-600 mt-1">Bạn là người đầu tiên — opt-in trong Pet Score page để bé xuất hiện trên bảng xếp hạng.</p>
+          <a href="/dashboard" class="inline-block mt-4 bg-mmp-ink text-white font-bold px-4 py-2 rounded-xl text-sm">Về Dashboard</a>
+        </div>
+      </template>
+
+      <!-- Podium (top 3) -->
+      <template x-if="entries.length > 0">
+        <div class="grid grid-cols-3 gap-2 mb-5 items-end">
+          <template x-if="entries[1]">
+            <a :href="`/heroes/profile/${entries[1].user_id}`" class="text-center">
+              <div class="bg-white rounded-2xl p-3 border-2 border-slate-300 shadow-md min-h-[150px] flex flex-col justify-end">
+                <p class="text-3xl mb-1">🥈</p>
+                <p class="font-bold text-sm truncate" x-text="entries[1].pet_name"></p>
+                <p class="text-xs text-slate-500" x-text="entries[1].pet_score + ' đ'"></p>
+                <p class="text-[10px] text-slate-400 truncate" x-text="entries[1].display_name"></p>
+              </div>
+            </a>
+          </template>
+          <template x-if="!entries[1]"><div></div></template>
+
+          <template x-if="entries[0]">
+            <a :href="`/heroes/profile/${entries[0].user_id}`" class="text-center">
+              <div class="bg-gradient-to-br from-amber-200 to-yellow-300 rounded-2xl p-4 border-2 border-amber-400 shadow-xl min-h-[190px] flex flex-col justify-end">
+                <p class="text-5xl mb-2">👑</p>
+                <p class="font-extrabold text-base text-amber-900 truncate" x-text="entries[0].pet_name"></p>
+                <p class="text-sm text-amber-800 font-bold mt-1" x-text="entries[0].pet_score + ' đ'"></p>
+                <p class="text-[11px] text-amber-700 truncate mt-1" x-text="entries[0].display_name"></p>
+              </div>
+            </a>
+          </template>
+
+          <template x-if="entries[2]">
+            <a :href="`/heroes/profile/${entries[2].user_id}`" class="text-center">
+              <div class="bg-white rounded-2xl p-3 border-2 border-amber-700 shadow-md min-h-[120px] flex flex-col justify-end">
+                <p class="text-3xl mb-1">🥉</p>
+                <p class="font-bold text-sm truncate" x-text="entries[2].pet_name"></p>
+                <p class="text-xs text-slate-500" x-text="entries[2].pet_score + ' đ'"></p>
+                <p class="text-[10px] text-slate-400 truncate" x-text="entries[2].display_name"></p>
+              </div>
+            </a>
+          </template>
+          <template x-if="!entries[2]"><div></div></template>
+        </div>
+      </template>
+
+      <!-- Rest of list (rank 4+) -->
+      <template x-if="entries.length > 3">
+        <div class="space-y-2">
+          <template x-for="e in entries.slice(3)" :key="e.pet_id">
+            <a :href="`/heroes/profile/${e.user_id}`"
+              class="flex items-center gap-3 p-3 rounded-2xl bg-white border border-slate-100 hover:shadow-md transition">
+              <span class="font-bold text-slate-400 w-8 text-center text-sm" x-text="`#${e.rank}`"></span>
+              <template x-if="e.pet_avatar_url">
+                <img :src="e.pet_avatar_url" alt="" class="w-10 h-10 rounded-full object-cover border-2 border-mmp-cream" />
+              </template>
+              <template x-if="!e.pet_avatar_url">
+                <div class="w-10 h-10 rounded-full bg-mmp-cream flex items-center justify-center text-base"
+                  x-text="e.pet_species === 'cat' ? '🐱' : e.pet_species === 'dog' ? '🐶' : '🐾'"></div>
+              </template>
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-slate-900 truncate" x-text="e.pet_name"></p>
+                <p class="text-[10px] text-slate-500 truncate" x-text="e.display_name"></p>
+              </div>
+              <div class="text-right">
+                <p class="font-bold text-mmp-ink text-sm" x-text="`${e.pet_score} đ`"></p>
+                <p class="text-[10px] text-slate-500"><span x-text="e.tier_emoji"></span> · <span x-text="e.achievements_count"></span> 🏆</p>
+              </div>
+            </a>
+          </template>
+        </div>
+      </template>
+
+      <!-- CTA -->
+      <div class="mt-8 p-5 rounded-2xl bg-mmp-cream border border-mmp-cream text-center">
+        <p class="font-bold text-mmp-ink mb-1">Bé bạn có nằm trong top?</p>
+        <p class="text-xs text-slate-600 mb-3">Opt-in để xuất hiện trên leaderboard. Có thể tắt bất cứ lúc nào.</p>
+        <a href="/dashboard" class="inline-block bg-mmp-ink hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-sm">
+          Mở Pet Score →
+        </a>
+      </div>
+
+      <p class="text-[11px] text-slate-400 text-center italic mt-4 leading-relaxed">
+        Chỉ hiển thị users đã opt-in. Pet Score cập nhật khi check-in, BCS, vaccine, achievement unlock.
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function leaderboardPage(initial) {
+      return {
+        period: initial.initialPeriod,
+        species: initial.initialSpecies || '',
+        entries: initial.entries,
+
+        periods: [
+          { key: 'this_month', label: 'Tháng này' },
+          { key: 'last_month', label: 'Tháng trước' },
+          { key: 'all_time',   label: 'Toàn thời gian' },
+        ],
+
+        speciesFilters: [
+          { key: '',    label: 'Tất cả' },
+          { key: 'dog', label: '🐶' },
+          { key: 'cat', label: '🐱' },
+        ],
+
+        async changePeriod(p) {
+          if (this.period === p) return;
+          this.period = p;
+          await this.reload();
+        },
+
+        async changeSpecies(s) {
+          if (this.species === s) return;
+          this.species = s;
+          await this.reload();
+        },
+
+        async reload() {
+          try {
+            const params = new URLSearchParams({ period: this.period, limit: '100' });
+            if (this.species) params.set('species', this.species);
+            const r = await fetch(`/api/v1/leaderboard?${params}`);
+            if (r.ok) {
+              this.entries = (await r.json()).entries || [];
+            }
+          } catch (_) {}
+        },
+      };
+    }
+  </script>
+</Layout>

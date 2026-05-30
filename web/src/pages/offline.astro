@@ -1,0 +1,22 @@
+---
+/**
+ * /offline — PWA offline fallback page.
+ * Service worker cache this khi user mất mạng.
+ */
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Offline · VowVet" description="Bạn đang offline. Kết nối lại để tiếp tục.">
+  <main class="min-h-screen bg-gradient-to-b from-slate-100 to-slate-200 flex items-center justify-center px-4 py-12">
+    <div class="max-w-md w-full text-center">
+      <p class="text-7xl mb-2 select-none">📡</p>
+      <h1 class="text-3xl sm:text-4xl font-bold text-slate-800 mb-3">Mất kết nối</h1>
+      <p class="text-slate-600 mb-2">Bạn đang offline.</p>
+      <p class="text-sm text-slate-500 mb-8">Kiểm tra wifi/4G rồi tải lại trang. Một số data đã cache có thể vẫn xem được.</p>
+      <button onclick="window.location.reload()" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition">
+        🔄 Thử kết nối lại
+      </button>
+      <p class="text-xs text-slate-400 mt-8">VowVet đang offline-first cho dashboard + alerts cache.</p>
+    </div>
+  </main>
+</Layout>

@@ -1,0 +1,171 @@
+---
+/**
+ * /lost/nearby — Pets currently lost near you (M20).
+ *
+ * Browser geolocation → POST /api/v1/lost-pets/nearby. Shows list + OSM map.
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+---
+
+<Layout title="Pets đang mất gần bạn · VowVet" description="Tìm pets mất tích trong khu vực">
+  <main class="min-h-screen bg-gradient-to-b from-red-50 to-amber-50 px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data="nearbyPage()" x-init="onMount()">
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700">← Dashboard</a>
+        <h1 class="text-lg font-bold text-red-700">🐾 Pets mất gần bạn</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <!-- Radius picker -->
+      <div class="bg-white rounded-2xl border border-slate-100 p-4 mb-4 shadow-sm">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <p class="text-sm font-semibold text-slate-700">Bán kính tìm kiếm</p>
+          <select x-model.number="radius" @change="load()"
+            class="border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+            <option :value="1">1 km</option>
+            <option :value="5">5 km</option>
+            <option :value="10">10 km</option>
+            <option :value="20">20 km</option>
+            <option :value="50">50 km</option>
+          </select>
+        </div>
+        <template x-if="myLocation">
+          <p class="text-xs text-slate-500">
+            📍 Từ vị trí <span class="font-mono" x-text="`${myLocation.lat.toFixed(4)}, ${myLocation.lng.toFixed(4)}`"></span>
+          </p>
+        </template>
+        <template x-if="!myLocation && !loading">
+          <button @click="getLocation()" class="text-xs text-mmp-ink hover:underline font-semibold">
+            📍 Bật vị trí
+          </button>
+        </template>
+      </div>
+
+      <!-- Loading -->
+      <template x-if="loading">
+        <div class="text-center py-10">
+          <p class="text-4xl mb-2 animate-spin">🔄</p>
+          <p class="text-sm text-slate-500">Đang tìm...</p>
+        </div>
+      </template>
+
+      <!-- Error -->
+      <template x-if="error">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700" x-text="error"></div>
+      </template>
+
+      <!-- No results -->
+      <template x-if="!loading && !error && reports.length === 0 && myLocation">
+        <div class="bg-white rounded-2xl border border-slate-100 p-10 text-center shadow-sm">
+          <p class="text-5xl mb-3">✨</p>
+          <p class="font-bold text-slate-800 mb-1">Không có pet nào mất gần bạn</p>
+          <p class="text-sm text-slate-500">Trong bán kính <span x-text="radius"></span> km</p>
+        </div>
+      </template>
+
+      <!-- Results -->
+      <div class="space-y-3" x-show="!loading && reports.length > 0">
+        <template x-for="r in reports" :key="r.id">
+          <a :href="`/lost/${r.public_url_slug}`"
+            class="block bg-white rounded-2xl border-2 border-red-200 p-4 shadow-sm hover:shadow-md transition">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl shrink-0">🚨</span>
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-slate-900 text-sm truncate" x-text="r.last_seen_location"></p>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Mất <span x-text="formatRelative(r.last_seen_at)"></span>
+                </p>
+                <p class="text-[11px] text-slate-600 mt-1 line-clamp-2" x-text="r.circumstances"></p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="text-xs font-bold text-red-700" x-text="`${r.distance_km.toFixed(1)} km`"></p>
+                <template x-if="r.reward_amount > 0">
+                  <p class="text-[10px] text-amber-700 font-semibold mt-1" x-text="fmtVnd(r.reward_amount)"></p>
+                </template>
+              </div>
+            </div>
+          </a>
+        </template>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 mt-6 italic">
+        Vị trí của bạn KHÔNG được lưu — chỉ dùng tìm kiếm.
+      </p>
+    </div>
+  </main>
+
+  <script is:inline>
+    function nearbyPage() {
+      return {
+        radius: 5,
+        myLocation: null,
+        reports: [],
+        loading: false,
+        error: "",
+
+        onMount() {
+          this.getLocation();
+        },
+
+        getLocation() {
+          if (!navigator.geolocation) {
+            this.error = "Trình duyệt không hỗ trợ vị trí";
+            return;
+          }
+          this.loading = true;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              this.myLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+              this.load();
+            },
+            (err) => {
+              this.error = "Không lấy được vị trí: " + err.message;
+              this.loading = false;
+            },
+            { enableHighAccuracy: false, timeout: 10000 }
+          );
+        },
+
+        async load() {
+          if (!this.myLocation) return;
+          this.loading = true;
+          this.error = "";
+          try {
+            const url = `/api/v1/lost-pets/nearby?lat=${this.myLocation.lat}&lng=${this.myLocation.lng}&radius=${this.radius}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+              this.error = "Lỗi load (HTTP " + res.status + ")";
+              return;
+            }
+            const j = await res.json();
+            this.reports = j.reports || [];
+          } catch (err) {
+            this.error = "Không kết nối server.";
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        formatRelative(iso) {
+          if (!iso) return "—";
+          const diffMs = Date.now() - new Date(iso).getTime();
+          const hr = diffMs / 3600000;
+          if (hr < 1) return `${Math.max(1, Math.floor(diffMs / 60000))} phút trước`;
+          if (hr < 24) return `${Math.floor(hr)} giờ trước`;
+          return `${Math.floor(hr / 24)} ngày trước`;
+        },
+
+        fmtVnd(n) {
+          try {
+            return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
+          } catch { return n + "đ"; }
+        },
+      };
+    }
+  </script>
+</Layout>

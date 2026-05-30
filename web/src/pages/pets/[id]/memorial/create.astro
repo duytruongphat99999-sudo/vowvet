@@ -1,0 +1,162 @@
+---
+/**
+ * /pets/[id]/memorial/create — Create memorial (M30).
+ *
+ * Owner-only. Free tier full features. Upgrades go through /memorial/[slug]/upgrade
+ * which collects "interest" (no payment processing).
+ */
+import Layout from "../../../../layouts/Layout.astro";
+import { fetchPet } from "../../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// Check existing memorial
+let existing: any = null;
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/memorial`, { headers: { cookie: cookieHeader } });
+  if (r.ok) existing = (await r.json()).memorial;
+} catch (_) {}
+
+if (existing) {
+  return Astro.redirect(`/memorial/${existing.public_slug}`);
+}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name },
+});
+---
+
+<Layout title={`Tưởng nhớ ${pet.name}`} description="Tạo trang tưởng nhớ vĩnh viễn">
+  <main class="min-h-screen bg-gradient-to-b from-slate-900 via-slate-700 to-slate-900 text-white px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`memorialCreate(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-6 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-300 hover:text-white">← {pet.name}</a>
+        <h1 class="text-lg font-bold">🕯️ Tạo Tưởng Nhớ</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <div class="bg-purple-900/50 border border-mmp-cream rounded-2xl p-5 mb-5 backdrop-blur">
+        <p class="text-sm leading-relaxed">
+          Trang tưởng nhớ là không gian vĩnh viễn để bạn lưu giữ kỷ niệm về <strong>{pet.name}</strong>.
+          Bạn bè có thể gửi lời nhắn và thắp nến qua link công khai.
+        </p>
+        <p class="text-xs text-yellow-700 mt-2">
+          ✨ <strong>Miễn phí trọn đời</strong> · 20 ảnh · Lời chia buồn không giới hạn · Link chia sẻ riêng
+        </p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs font-bold text-yellow-700 uppercase">Ngày ra đi (optional)</label>
+          <input type="date" x-model="form.passed_away_date" :max="todayIso"
+            class="w-full mt-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white placeholder-slate-400" />
+          <p class="text-[11px] text-slate-400 mt-1">Để bật chế độ nhắc kỷ niệm hằng năm.</p>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-yellow-700 uppercase">Lời tưởng niệm</label>
+          <textarea x-model="form.tribute_message" rows="6" maxlength="5000"
+            placeholder={`Hãy viết về ${pet.name}... những kỷ niệm đẹp, tính cách của bé, lời nhắn cuối...`}
+            class="w-full mt-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white placeholder-slate-400"></textarea>
+          <p class="text-[11px] text-slate-400 mt-1"><span x-text="form.tribute_message.length"></span>/5000</p>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-yellow-700 uppercase">Ảnh đại diện (URL, optional)</label>
+          <input type="url" x-model="form.cover_photo_url" placeholder="https://..."
+            class="w-full mt-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white placeholder-slate-400" />
+          <p class="text-[11px] text-slate-400 mt-1">Sau khi tạo, bạn có thể upload ảnh từ thư viện bé.</p>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-yellow-700 uppercase">Quyền riêng tư</label>
+          <div class="grid grid-cols-2 gap-2 mt-1">
+            <button @click="form.memorial_status = 'active'" type="button"
+              :class="form.memorial_status === 'active' ? 'bg-mmp-ink ring-2 ring-mmp-ink' : 'bg-white/10'"
+              class="px-3 py-2.5 rounded-xl text-sm font-bold text-left">
+              🌍 Công khai
+              <p class="text-[10px] font-normal opacity-80">Ai có link đều xem được</p>
+            </button>
+            <button @click="form.memorial_status = 'private'" type="button"
+              :class="form.memorial_status === 'private' ? 'bg-mmp-ink ring-2 ring-mmp-ink' : 'bg-white/10'"
+              class="px-3 py-2.5 rounded-xl text-sm font-bold text-left">
+              🔒 Riêng tư
+              <p class="text-[10px] font-normal opacity-80">Chỉ bạn xem được</p>
+            </button>
+          </div>
+        </div>
+
+        <template x-if="error">
+          <p class="text-xs bg-red-900/50 border border-red-500 rounded-lg p-3" x-text="error"></p>
+        </template>
+
+        <button @click="submit()" :disabled="saving"
+          class="w-full bg-gradient-to-r from-mmp-cream to-white hover:opacity-90 disabled:opacity-50 font-bold py-3.5 rounded-xl shadow-lg">
+          <span x-show="!saving">🕯️ Tạo Tưởng Nhớ</span>
+          <span x-show="saving">Đang tạo...</span>
+        </button>
+
+        <p class="text-[10px] text-slate-400 text-center italic mt-2">
+          Bằng cách tạo memorial, bạn đồng ý không sử dụng cho mục đích thương mại bên thứ 3.<br />
+          Mon Min không xử lý dịch vụ hỏa táng hay liên kết với bất kỳ nhà tang lễ nào.
+        </p>
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function memorialCreate(initial) {
+      return {
+        pet: initial.pet,
+        todayIso: new Date().toISOString().slice(0, 10),
+        form: {
+          passed_away_date: "",
+          tribute_message: "",
+          cover_photo_url: "",
+          memorial_status: "active",
+        },
+        saving: false,
+        error: "",
+
+        async submit() {
+          this.error = "";
+          this.saving = true;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/memorial`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                passed_away_date: this.form.passed_away_date || null,
+                tribute_message: this.form.tribute_message,
+                cover_photo_url: this.form.cover_photo_url || null,
+                memorial_status: this.form.memorial_status,
+              }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.error = j?.error?.message || "Lỗi tạo memorial";
+              return;
+            }
+            window.location.href = `/memorial/${j.memorial.public_slug}`;
+          } catch (_) {
+            this.error = "Lỗi kết nối.";
+          } finally {
+            this.saving = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

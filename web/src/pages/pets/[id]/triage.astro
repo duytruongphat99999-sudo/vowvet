@@ -1,0 +1,508 @@
+---
+/**
+ * /pets/:id/triage — Symptom Triage wizard (M9.1).
+ *
+ * 4 steps:
+ *   1. Category picker
+ *   2. Multi-select symptoms trong category đã chọn (có thể quay lại step 1 add thêm category)
+ *   3. Duration + notes
+ *   4. Submit → loading → result
+ *
+ * SSR pre-fetch symptom list (filter theo loài pet) để Alpine render ngay không phải request thêm.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const petId = Number(Astro.params.id);
+
+if (!Number.isFinite(petId) || petId <= 0) {
+  return Astro.redirect("/dashboard");
+}
+
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+if (status === 403) return new Response("403 Forbidden", { status: 403 });
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// Pre-fetch symptoms filter theo species
+const speciesEN = pet.species === "Chó" ? "dog" : pet.species === "Mèo" ? "cat" : "";
+let symptomsByCategory: Record<string, any[]> = {};
+let categories: any[] = [];
+try {
+  const res = await fetch(
+    `${API_INTERNAL}/api/v1/triage/symptoms${speciesEN ? `?species=${speciesEN}` : ""}`,
+    { headers: { cookie: cookieHeader } }
+  );
+  if (res.ok) {
+    const j = await res.json();
+    symptomsByCategory = j.by_category || {};
+    categories = (j.categories || []).filter((c: any) => c.count > 0);
+  }
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, species: pet.species },
+  symptomsByCategory,
+  categories,
+});
+
+// Emergency phone — derive from clinic-info (env-driven). Strip + for display.
+import { getClinicInfo } from "@shared/clinic-info.ts";
+const clinic = getClinicInfo();
+const EMERGENCY_PHONE = clinic.phone.replace(/^\+84/, "0").replace(/\s+/g, "");
+---
+
+<Layout title={`Triage ${pet.name} · VowVet`} description="Đánh giá khẩn cấp triệu chứng cho thú cưng">
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6">
+    <div class="max-w-2xl mx-auto" x-data={`triageWizard(${initialData}, "${EMERGENCY_PHONE}")`}>
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-4 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900">🩺 Triage</h1>
+        <span class="text-xs text-slate-400">Bước <span x-text="step"></span>/4</span>
+      </header>
+
+      <!-- Progress bar -->
+      <div class="flex gap-1 mb-6">
+        <template x-for="n in 4" :key="n">
+          <div class="flex-1 h-2 rounded-full transition-colors duration-500" :class="step >= n ? 'bg-sky-500' : 'bg-slate-200'"></div>
+        </template>
+      </div>
+
+      <!-- ========== STEP 1: Category picker ========== -->
+      <template x-if="step === 1">
+        <section class="bg-white rounded-2xl border border-slate-100 p-5"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+          <h2 class="text-base font-semibold text-slate-900 mb-1">Triệu chứng thuộc nhóm nào?</h2>
+          <p class="text-xs text-slate-500 mb-3">Chọn 1-3 nhóm phù hợp. Có thể chọn nhiều nhóm.</p>
+
+          <!-- Empty state when categories.length === 0 (database chưa seed hoặc fetch lỗi) -->
+          <template x-if="!categories || categories.length === 0">
+            <div class="text-center py-10">
+              <p class="text-5xl mb-3">🩺</p>
+              <p class="font-bold text-slate-800 mb-1">Chưa có danh sách triệu chứng</p>
+              <p class="text-sm text-slate-500 mb-4 max-w-sm mx-auto">
+                Database triệu chứng cho loài này chưa được seed. Nếu cần gấp, gọi clinic ngay:
+              </p>
+              <a :href="`tel:${emergencyPhone}`"
+                class="inline-block bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-3 rounded-xl text-sm shadow-lg">
+                📞 Gọi <span x-text="emergencyPhone"></span>
+              </a>
+              <div class="mt-4">
+                <a :href="`/pets/${pet.id}`" class="text-xs text-slate-500 hover:text-slate-700">← Về hồ sơ bé</a>
+              </div>
+            </div>
+          </template>
+
+          <div x-show="categories && categories.length > 0" class="grid grid-cols-2 gap-2">
+            <template x-for="cat in categories" :key="cat.key">
+              <button type="button" @click="toggleCategory(cat.key)"
+                :class="selectedCategories.includes(cat.key) ? 'bg-sky-50 border-sky-400 text-sky-900' : 'bg-white border-slate-200 text-slate-700'"
+                class="border-2 rounded-xl px-3 py-3 text-left text-sm hover:border-sky-300 transition">
+                <span class="font-medium" x-text="cat.label"></span>
+                <span class="block text-[10px] text-slate-400" x-text="cat.count + ' triệu chứng'"></span>
+              </button>
+            </template>
+          </div>
+          <button type="button" @click="goStep2()" :disabled="selectedCategories.length === 0"
+            class="mt-5 w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-xl transition">
+            Tiếp →
+          </button>
+        </section>
+      </template>
+
+      <!-- ========== STEP 2: Symptoms multi-select ========== -->
+      <template x-if="step === 2">
+        <section class="space-y-4"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+          <div class="bg-white rounded-2xl border border-slate-100 p-5">
+            <h2 class="text-base font-semibold text-slate-900 mb-1">Chọn triệu chứng quan sát thấy</h2>
+            <p class="text-xs text-slate-500 mb-3">
+              <span x-text="selectedSymptoms.length"></span> đã chọn · có thể chọn nhiều
+            </p>
+
+            <!-- Symptom list grouped by category -->
+            <div class="space-y-4 max-h-[60vh] overflow-y-auto">
+              <template x-for="catKey in selectedCategories" :key="catKey">
+                <div>
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2" x-text="categoryLabel(catKey)"></h3>
+                  <div class="space-y-1.5">
+                    <template x-for="s in symptomsByCategory[catKey] || []" :key="s.id">
+                      <label
+                        :class="selectedSymptoms.includes(s.id)
+                          ? (s.red_flag ? 'bg-red-50 border-red-300' : 'bg-sky-50 border-sky-300')
+                          : 'bg-white border-slate-200'"
+                        class="flex items-start gap-2 border-2 rounded-lg p-2.5 cursor-pointer hover:border-sky-300 transition">
+                        <input type="checkbox" :value="s.id" x-model="selectedSymptoms" class="mt-0.5 shrink-0" />
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm font-medium text-slate-900 flex items-center gap-1.5 flex-wrap">
+                            <span x-text="s.name_vi"></span>
+                            <template x-if="s.red_flag">
+                              <span class="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-bold">RED FLAG</span>
+                            </template>
+                          </p>
+                          <p x-show="s.description_vi" class="text-xs text-slate-500 mt-0.5" x-text="s.description_vi"></p>
+                        </div>
+                      </label>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" @click="step = 1"
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl transition">
+              ← Quay lại
+            </button>
+            <button type="button" @click="step = 3" :disabled="selectedSymptoms.length === 0"
+              class="flex-1 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-xl transition">
+              Tiếp →
+            </button>
+          </div>
+        </section>
+      </template>
+
+      <!-- ========== STEP 3: Duration + notes ========== -->
+      <template x-if="step === 3">
+        <section class="space-y-4"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+          <div class="bg-white rounded-2xl border border-slate-100 p-5">
+            <h2 class="text-base font-semibold text-slate-900 mb-3">Bao lâu triệu chứng đã xuất hiện?</h2>
+
+            <!-- Quick presets -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+              <template x-for="preset in durationPresets" :key="preset.hours">
+                <button type="button" @click="durationHours = preset.hours"
+                  :class="durationHours === preset.hours ? 'bg-sky-50 border-sky-400 text-sky-900' : 'bg-white border-slate-200 text-slate-700'"
+                  class="border-2 rounded-xl py-2 text-sm font-medium hover:border-sky-300 transition" x-text="preset.label"></button>
+              </template>
+            </div>
+
+            <!-- Custom input -->
+            <label class="block text-xs text-slate-600 mb-1">Hoặc nhập giờ chính xác:</label>
+            <input type="number" inputmode="decimal" min="0" max="720" step="0.5"
+              x-model.number="durationHours"
+              placeholder="VD: 6"
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:outline-none text-sm" />
+
+            <label class="block text-xs text-slate-600 mt-4 mb-1">Ghi chú thêm (tùy chọn):</label>
+            <textarea x-model="userNotes" maxlength="1000" rows="3"
+              placeholder="VD: bé ăn xương gà chiều qua, sau đó nôn"
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:outline-none text-sm resize-none"></textarea>
+          </div>
+
+          <!-- Summary of selections -->
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+            <p class="font-semibold text-slate-700 mb-1">📋 Tóm tắt:</p>
+            <p class="text-slate-600">
+              <span x-text="selectedSymptoms.length"></span> triệu chứng, <span x-text="durationDisplay"></span>
+            </p>
+            <p x-show="hasRedFlagSelected" class="mt-1 text-red-700 font-semibold">⚠️ Có triệu chứng RED FLAG — sẽ trigger emergency level</p>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" @click="step = 2"
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl transition">
+              ← Quay lại
+            </button>
+            <button type="button" @click="submit()" :disabled="durationHours == null || durationHours < 0 || submitting"
+              class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-xl transition">
+              <span x-show="!submitting">🩺 Phân tích AI</span>
+              <span x-show="submitting">Đang phân tích…</span>
+            </button>
+          </div>
+        </section>
+      </template>
+
+      <!-- ========== STEP 4: Result ========== -->
+      <template x-if="step === 4">
+        <section class="space-y-4"
+                 x-transition:enter="transition ease-out duration-500"
+                 x-transition:enter-start="opacity-0 translate-y-3"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+          <template x-if="submitError">
+            <div class="bg-red-50 border-2 border-red-200 rounded-2xl p-5 text-center">
+              <p class="text-4xl mb-2">❌</p>
+              <p class="font-semibold text-red-900" x-text="submitError"></p>
+              <button @click="step = 3; submitError = ''" class="mt-3 bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2 rounded-lg">Thử lại</button>
+            </div>
+          </template>
+
+          <template x-if="result && !submitError">
+            <div class="space-y-4">
+              <!-- Urgency badge -->
+              <article :class="urgencyCardClass(result.ai_urgency_level)"
+                       class="rounded-2xl border-2 p-5 text-center">
+                <p class="text-xs uppercase tracking-wider opacity-80 mb-1">Urgency Level</p>
+                <p class="text-6xl sm:text-7xl font-bold leading-none" x-text="result.ai_urgency_level"></p>
+                <p class="text-lg font-semibold mt-2" x-text="urgencyLabel(result.ai_urgency_level)"></p>
+                <template x-if="result.ai_urgency_level === 5">
+                  <p class="mt-2 inline-block bg-red-700 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">🚨 CẤP CỨU NGAY</p>
+                </template>
+                <template x-if="result.red_flag_override">
+                  <p class="mt-2 text-xs opacity-80">⚠️ Áp dụng red flag override</p>
+                </template>
+              </article>
+
+              <!-- AI reasoning -->
+              <div class="bg-white rounded-2xl border border-slate-100 p-5">
+                <h3 class="text-sm font-semibold text-slate-700 mb-2">💭 Lý do</h3>
+                <p class="text-sm text-slate-800 leading-relaxed whitespace-pre-line" x-text="result.ai_reasoning_text"></p>
+              </div>
+
+              <!-- Recommended action -->
+              <div class="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-5">
+                <h3 class="text-sm font-semibold text-emerald-900 mb-2">✅ Khuyến nghị</h3>
+                <p class="text-sm text-emerald-900 leading-relaxed whitespace-pre-line" x-text="result.ai_recommended_action"></p>
+              </div>
+
+              <!-- M9.2: Chat ngay với bác sĩ (level >= 3) -->
+              <template x-if="result.ai_urgency_level >= 3">
+                <button @click="escalateToChat()" :disabled="escalating"
+                  :class="result.ai_urgency_level === 5 ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-sky-600 hover:bg-sky-700'"
+                  class="w-full text-white font-bold px-4 py-3.5 rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+                  <span x-show="!escalating">💬 Chat ngay với bác sĩ</span>
+                  <span x-show="escalating">Đang tạo cuộc chat…</span>
+                </button>
+              </template>
+              <p x-show="escalateError" class="text-xs text-red-600 text-center" x-text="escalateError"></p>
+
+              <!-- Action buttons (level >= 3) -->
+              <template x-if="result.ai_urgency_level >= 3">
+                <div class="grid grid-cols-2 gap-2">
+                  <a :href="`tel:${emergencyPhone}`" @click="sendFeedback('emergency')"
+                     :class="result.ai_urgency_level === 5 ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' : 'bg-orange-500 hover:bg-orange-600 text-white'"
+                     class="text-center font-bold px-4 py-3 rounded-xl shadow-lg transition">
+                    📞 Gọi cấp cứu
+                    <span class="block text-xs font-mono opacity-90" x-text="emergencyPhone"></span>
+                  </a>
+                  <a href="/emergency"
+                     class="bg-amber-500 hover:bg-amber-600 text-white text-center font-bold px-4 py-3 rounded-xl shadow-lg transition">
+                    📖 Sơ cứu
+                    <span class="block text-xs opacity-90">Hướng dẫn 12 case</span>
+                  </a>
+                </div>
+              </template>
+
+              <!-- Lower-level actions -->
+              <template x-if="result.ai_urgency_level < 3">
+                <div class="grid grid-cols-2 gap-2">
+                  <button @click="sendFeedback('monitor')"
+                          class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-3 rounded-xl">
+                    ✓ Tôi sẽ theo dõi
+                  </button>
+                  <button @click="sendFeedback('ignored')"
+                          class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-xl">
+                    Bỏ qua
+                  </button>
+                </div>
+              </template>
+
+              <!-- Feedback status -->
+              <p x-show="feedbackSent" class="text-center text-xs text-emerald-700">✓ Đã ghi nhận lựa chọn của bạn</p>
+
+              <!-- Disclaimer -->
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                <p class="font-semibold mb-1">⚠️ Disclaimer</p>
+                <p>Đây là công cụ AI hỗ trợ phân loại mức độ khẩn cấp, KHÔNG thay thế chẩn đoán của bác sĩ thú y. Luôn liên hệ phòng khám khi nghi ngờ.</p>
+              </div>
+
+              <!-- Restart -->
+              <button @click="reset()" class="w-full text-sm text-sky-600 hover:text-sky-700 font-medium">
+                🔄 Triage mới cho {pet.name}
+              </button>
+            </div>
+          </template>
+        </section>
+      </template>
+
+      <!-- History link -->
+      <div class="mt-6 text-center">
+        <a :href={`/pets/${pet.id}/triage/history`} class="text-xs text-slate-400 hover:text-sky-600">
+          Xem lịch sử triage trước đây →
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    function triageWizard(initial, emergencyPhone) {
+      return {
+        pet: initial.pet,
+        symptomsByCategory: initial.symptomsByCategory,
+        categories: initial.categories,
+        emergencyPhone,
+
+        step: 1,
+        selectedCategories: [],
+        selectedSymptoms: [],
+        durationHours: null,
+        userNotes: "",
+        durationPresets: [
+          { label: "<1h", hours: 0.5 },
+          { label: "6h", hours: 6 },
+          { label: "24h", hours: 24 },
+          { label: "3 ngày", hours: 72 },
+        ],
+
+        submitting: false,
+        submitError: "",
+        result: null,
+        feedbackSent: false,
+
+        // M9.2: escalation state
+        escalating: false,
+        escalateError: "",
+
+        toggleCategory(key) {
+          if (this.selectedCategories.includes(key)) {
+            this.selectedCategories = this.selectedCategories.filter((k) => k !== key);
+            // Cleanup symptoms từ category bị remove
+            const removedSymIds = (this.symptomsByCategory[key] || []).map((s) => s.id);
+            this.selectedSymptoms = this.selectedSymptoms.filter((id) => !removedSymIds.includes(id));
+          } else {
+            this.selectedCategories.push(key);
+          }
+        },
+
+        goStep2() {
+          if (this.selectedCategories.length === 0) return;
+          this.step = 2;
+        },
+
+        categoryLabel(key) {
+          const found = this.categories.find((c) => c.key === key);
+          return found?.label || key;
+        },
+
+        get durationDisplay() {
+          if (this.durationHours == null) return "(chưa nhập)";
+          if (this.durationHours < 1) return "<1 giờ";
+          if (this.durationHours < 24) return Math.round(this.durationHours) + "h";
+          return Math.round(this.durationHours / 24) + " ngày";
+        },
+
+        get hasRedFlagSelected() {
+          for (const catKey of this.selectedCategories) {
+            const syms = this.symptomsByCategory[catKey] || [];
+            for (const s of syms) {
+              if (this.selectedSymptoms.includes(s.id) && s.red_flag) return true;
+            }
+          }
+          return false;
+        },
+
+        urgencyLabel(level) {
+          return ({
+            1: "Bình thường",
+            2: "Theo dõi 24h",
+            3: "Gọi bác sĩ",
+            4: "Khám trong 24h",
+            5: "CẤP CỨU NGAY",
+          })[level] || "—";
+        },
+
+        urgencyCardClass(level) {
+          if (level === 5) return "bg-red-50 border-red-500 text-red-900";
+          if (level === 4) return "bg-amber-50 border-orange-400 text-orange-900";
+          if (level === 3) return "bg-yellow-50 border-yellow-400 text-yellow-900";
+          if (level === 2) return "bg-sky-50 border-sky-300 text-sky-900";
+          return "bg-emerald-50 border-emerald-300 text-emerald-900";
+        },
+
+        async submit() {
+          if (this.durationHours == null || this.durationHours < 0) {
+            this.submitError = "Cần nhập thời gian triệu chứng";
+            return;
+          }
+          this.submitting = true;
+          this.submitError = "";
+          this.step = 4; // show loading on step 4
+
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/triage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                symptoms: this.selectedSymptoms,
+                duration_hours: this.durationHours,
+                notes: this.userNotes || null,
+              }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.submitError = j.error?.message || "Lỗi sinh triage";
+              return;
+            }
+            this.result = j.session;
+          } catch (err) {
+            this.submitError = "Lỗi mạng. Thử lại.";
+          } finally {
+            this.submitting = false;
+          }
+        },
+
+        async sendFeedback(action) {
+          if (!this.result || this.feedbackSent) return;
+          try {
+            await fetch(`/api/v1/triage/sessions/${this.result.id}/feedback`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ user_action_taken: action }),
+            });
+            this.feedbackSent = true;
+          } catch {}
+        },
+
+        // M9.2: Escalate triage → tạo chat thread + redirect
+        async escalateToChat() {
+          if (!this.result?.id || this.escalating) return;
+          this.escalating = true;
+          this.escalateError = "";
+          try {
+            const res = await fetch(`/api/v1/triage/sessions/${this.result.id}/escalate-to-chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.escalateError = j.error?.message || "Không tạo được cuộc chat";
+              return;
+            }
+            // Log action feedback (book_clinic semantically) trước khi redirect
+            this.sendFeedback("book_clinic").catch(() => {});
+            window.location.href = `/chat/${j.thread_id}`;
+          } catch (err) {
+            this.escalateError = "Lỗi kết nối. Thử lại.";
+          } finally {
+            this.escalating = false;
+          }
+        },
+
+        reset() {
+          this.step = 1;
+          this.selectedCategories = [];
+          this.selectedSymptoms = [];
+          this.durationHours = null;
+          this.userNotes = "";
+          this.submitting = false;
+          this.submitError = "";
+          this.result = null;
+          this.feedbackSent = false;
+        },
+      };
+    }
+  </script>
+</Layout>

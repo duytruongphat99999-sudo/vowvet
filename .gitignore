@@ -1,0 +1,22 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+.DS_Store
+*.log
+baserow-config.json
+.vscode/
+.idea/
+
+# --- git baseline additions (2026-05-30) ---
+# all env files incl .env.backup (live secrets)
+.env*
+# .env.backup and docker-compose.yml.backup
+*.backup
+# phase-backup files incl .bak-* variants (history now tracked by git; files stay on disk)
+*.bak*
+# Astro build cache
+.astro/
+# docs/archive/MIGRATION_REPORT.md — live Baserow token + password + email
+docs/archive/MIGRATION_REPORT.md

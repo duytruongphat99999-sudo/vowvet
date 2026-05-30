@@ -1,0 +1,361 @@
+---
+/**
+ * /chat/[id] — Thread detail (M9.2).
+ *
+ * Core UX của chat: fixed header + scrollable messages + sticky input.
+ * Polling 5s khi tab focused, pause khi hidden.
+ *
+ * SSR pre-load thread + messages cho fast first render.
+ * Alpine.js manages polling state + send.
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const threadId = Number(Astro.params.id);
+if (!Number.isFinite(threadId) || threadId <= 0) {
+  return Astro.redirect("/chat");
+}
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let thread: any = null;
+let messages: any[] = [];
+let permission: any = { canRead: false, canSendAsOwner: false, canSendAsVet: false };
+let loadStatus: number = 0;
+
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/chat/threads/${threadId}`, {
+    headers: { cookie: cookieHeader },
+  });
+  loadStatus = res.status;
+  if (res.ok) {
+    const j = await res.json();
+    thread = j.thread;
+    messages = j.messages || [];
+    permission = j.permission || permission;
+  }
+} catch (_) {}
+
+if (loadStatus === 401) return Astro.redirect("/login");
+if (loadStatus === 403) return new Response("403 Forbidden", { status: 403 });
+if (!thread) return Astro.redirect("/chat");
+
+// Reverse messages so newest at bottom (backend returns newest first)
+messages = [...messages].reverse();
+
+const initialData = JSON.stringify({
+  thread,
+  messages,
+  permission,
+  currentUserId: user.sub,
+});
+---
+
+<Layout title={`${thread.subject} · Chat · VowVet`} description="Tin nhắn với bác sĩ thú y">
+  <main class="h-screen flex flex-col bg-slate-50">
+    <div class="flex-1 flex flex-col max-w-2xl w-full mx-auto" x-data={`chatDetail(${initialData})`}>
+
+      <!-- Fixed header -->
+      <header class="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 shrink-0 shadow-sm">
+        <a href="/chat" class="text-slate-500 hover:text-slate-700 text-lg shrink-0" title="Quay lại">←</a>
+        <div class="flex-1 min-w-0">
+          <h1 class="font-semibold text-slate-900 text-sm sm:text-base truncate" x-text="thread.subject"></h1>
+          <p class="text-xs text-slate-500">
+            <span x-show="thread.status === 'waiting_vet'" class="text-amber-700">🟡 Chờ bác sĩ phản hồi</span>
+            <span x-show="thread.status === 'open'" class="text-emerald-700">🟢 Đang chat với bác sĩ</span>
+            <span x-show="thread.status === 'closed'" class="text-slate-500">⚪ Đã đóng</span>
+          </p>
+        </div>
+        <!-- M9.3: emergency shortcut -->
+        <a href="/emergency" title="Cấp cứu thú y"
+          class="text-xl text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg p-1.5 transition shrink-0">
+          🚨
+        </a>
+        <!-- Close button (only owner or handling vet) -->
+        <button x-show="permission.canClose && thread.status !== 'closed'" @click="confirmClose()"
+          class="text-xs text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-300 px-2 py-1 rounded-lg transition shrink-0">
+          Đóng
+        </button>
+      </header>
+
+      <!-- Scrollable message list -->
+      <div id="msg-list" class="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3" x-ref="msgList">
+        <template x-for="m in messages" :key="m.id">
+          <div :class="bubbleWrapperClass(m)">
+            <!-- Vet label trên top -->
+            <template x-if="m.sender_role === 'vet' && !m.is_system_message">
+              <p class="text-[10px] font-bold text-emerald-700 mb-1 ml-1">🩺 BÁC SĨ THÚ Y</p>
+            </template>
+
+            <!-- Bubble -->
+            <div :class="bubbleClass(m)">
+              <p class="text-sm whitespace-pre-wrap break-words" x-text="m.content"></p>
+              <!-- Attachment -->
+              <template x-if="m.attachment_url">
+                <a :href="m.attachment_url" target="_blank" rel="noopener"
+                   class="block mt-2 text-xs underline opacity-80 hover:opacity-100">
+                  📎 Xem đính kèm
+                </a>
+              </template>
+            </div>
+
+            <!-- Timestamp -->
+            <p :class="timestampClass(m)">
+              <span x-text="relTime(m.created_at)" :title="m.created_at"></span>
+            </p>
+          </div>
+        </template>
+
+        <!-- Empty state khi không có messages (rare) -->
+        <template x-if="messages.length === 0">
+          <p class="text-center text-sm text-slate-400 py-12">Chưa có tin nhắn nào</p>
+        </template>
+      </div>
+
+      <!-- Closed banner -->
+      <template x-if="thread.status === 'closed'">
+        <div class="bg-slate-100 border-t border-slate-200 px-4 py-4 text-center shrink-0">
+          <p class="text-sm text-slate-600 mb-2">⚪ Cuộc chat đã đóng</p>
+          <a href="/chat/new" class="inline-block text-sm bg-sky-600 hover:bg-sky-700 text-white font-semibold px-4 py-2 rounded-lg">
+            Tạo cuộc chat mới
+          </a>
+        </div>
+      </template>
+
+      <!-- Sticky input bar -->
+      <template x-if="thread.status !== 'closed' && canSend">
+        <div class="bg-white border-t border-slate-200 px-3 sm:px-4 py-3 shrink-0">
+          <div class="flex gap-2 items-end">
+            <textarea x-model="newMessage" @keydown.enter="onEnter($event)"
+              maxlength="5000" rows="1"
+              placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)"
+              x-ref="msgInput"
+              @input="autoGrow($event.target)"
+              class="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:outline-none text-sm resize-none min-h-[44px] max-h-[120px]"></textarea>
+            <button @click="sendMessage()" :disabled="!canSendNow || sending"
+              class="bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-semibold px-4 py-2 rounded-lg transition shrink-0 self-end h-[44px]">
+              <span x-show="!sending">📤</span>
+              <span x-show="sending" class="text-xs">…</span>
+            </button>
+          </div>
+          <!-- Character count khi gần limit -->
+          <p x-show="newMessage.length > 4500" class="text-xs text-orange-600 mt-1">
+            <span x-text="newMessage.length"></span>/5000 ký tự
+          </p>
+          <p x-show="sendError" class="text-xs text-red-600 mt-1" x-text="sendError"></p>
+        </div>
+      </template>
+
+      <!-- Read-only banner cho vet khác (canRead=true but cannot send) -->
+      <template x-if="thread.status !== 'closed' && !canSend && permission.canRead">
+        <div class="bg-amber-50 border-t border-amber-200 px-4 py-3 text-center shrink-0">
+          <p class="text-xs text-amber-800">
+            <template x-if="thread.vet_user_id && thread.vet_user_id !== currentUserId">
+              <span>👁️ Chế độ xem — bác sĩ khác đang phụ trách</span>
+            </template>
+            <template x-if="!thread.vet_user_id">
+              <span>👁️ Chế độ xem — chưa có bác sĩ phụ trách. Vào /vet/dashboard để claim.</span>
+            </template>
+          </p>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <script is:inline>
+    function chatDetail(initial) {
+      return {
+        thread: initial.thread,
+        messages: initial.messages,
+        permission: initial.permission,
+        currentUserId: initial.currentUserId,
+        threadId: initial.thread.id,
+        newMessage: "",
+        sending: false,
+        sendError: "",
+        pollInterval: null,
+        isVisible: true,
+        _lastMessageId: 0,
+
+        get canSend() {
+          return this.permission.canSendAsOwner || this.permission.canSendAsVet;
+        },
+        get canSendNow() {
+          return this.newMessage.trim().length > 0 && this.thread.status !== "closed";
+        },
+        get sendEndpoint() {
+          // Owner sends via /chat. Vet (handling) sends via /vet.
+          return this.permission.canSendAsVet
+            ? `/api/v1/vet/threads/${this.threadId}/messages`
+            : `/api/v1/chat/threads/${this.threadId}/messages`;
+        },
+
+        init() {
+          this._lastMessageId = this.messages.length > 0
+            ? Math.max(...this.messages.map((m) => m.id))
+            : 0;
+          // Auto-scroll bottom on load
+          this.$nextTick(() => this.scrollBottom());
+          // Polling
+          this.startPolling();
+          // Visibility listener
+          document.addEventListener("visibilitychange", () => {
+            this.isVisible = !document.hidden;
+            if (this.isVisible) {
+              this.loadThread(); // refresh ngay khi quay lại tab
+            }
+          });
+        },
+
+        startPolling() {
+          this.stopPolling();
+          this.pollInterval = setInterval(() => {
+            if (this.isVisible) this.loadThread();
+          }, 5000);
+        },
+        stopPolling() {
+          if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+          }
+        },
+
+        async loadThread() {
+          try {
+            const res = await fetch(`/api/v1/chat/threads/${this.threadId}`);
+            if (!res.ok) return;
+            const j = await res.json();
+            const newMessages = (j.messages || []).slice().reverse(); // newest at bottom
+            const oldLastId = this._lastMessageId;
+            this.thread = j.thread;
+            this.messages = newMessages;
+            this.permission = j.permission || this.permission;
+            this._lastMessageId = newMessages.length > 0
+              ? Math.max(...newMessages.map((m) => m.id))
+              : 0;
+            // Auto-scroll if new message arrived
+            if (this._lastMessageId > oldLastId) {
+              this.$nextTick(() => this.scrollBottom());
+            }
+          } catch (_) {}
+        },
+
+        async sendMessage() {
+          if (!this.canSendNow || this.sending) return;
+          const content = this.newMessage.trim();
+          if (!content) return;
+          this.sending = true;
+          this.sendError = "";
+          try {
+            const res = await fetch(this.sendEndpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.sendError = j.error?.message || "Gửi thất bại";
+              return;
+            }
+            this.newMessage = "";
+            // Reset textarea height
+            if (this.$refs.msgInput) this.$refs.msgInput.style.height = "auto";
+            // Optimistic: thêm message vào local list NGAY (UI feel nhanh)
+            if (j.message) {
+              this.messages.push(j.message);
+              this._lastMessageId = j.message.id;
+              this.$nextTick(() => this.scrollBottom());
+            } else {
+              await this.loadThread();
+            }
+          } catch (err) {
+            this.sendError = "Lỗi kết nối. Thử lại.";
+          } finally {
+            this.sending = false;
+          }
+        },
+
+        onEnter(e) {
+          if (e.shiftKey) return; // newline
+          e.preventDefault();
+          this.sendMessage();
+        },
+
+        autoGrow(el) {
+          el.style.height = "auto";
+          el.style.height = Math.min(el.scrollHeight, 120) + "px";
+        },
+
+        scrollBottom() {
+          const el = this.$refs.msgList;
+          if (el) el.scrollTop = el.scrollHeight;
+        },
+
+        bubbleWrapperClass(m) {
+          if (m.is_system_message || m.sender_role === "system") {
+            return "flex flex-col items-center";
+          }
+          if (m.sender_role === "vet") {
+            return "flex flex-col items-start";
+          }
+          // owner
+          return "flex flex-col items-end";
+        },
+        bubbleClass(m) {
+          if (m.is_system_message || m.sender_role === "system") {
+            return "bg-slate-100 text-slate-700 italic text-sm max-w-[90%] rounded-2xl px-4 py-3 border border-slate-200";
+          }
+          if (m.sender_role === "vet") {
+            return "bg-emerald-100 text-emerald-900 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[80%]";
+          }
+          // owner
+          return "bg-sky-100 text-sky-900 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%]";
+        },
+        timestampClass(m) {
+          if (m.is_system_message || m.sender_role === "system") {
+            return "text-[10px] text-slate-400 mt-1 text-center";
+          }
+          if (m.sender_role === "vet") {
+            return "text-[10px] text-slate-400 mt-1 ml-1";
+          }
+          return "text-[10px] text-slate-400 mt-1 mr-1 self-end";
+        },
+
+        relTime(iso) {
+          if (!iso) return "—";
+          const t = new Date(iso).getTime();
+          if (Number.isNaN(t)) return "—";
+          const diff = Date.now() - t;
+          if (diff < 60_000) return "Vừa xong";
+          if (diff < 3600_000) return Math.floor(diff / 60_000) + " phút trước";
+          if (diff < 86400_000) return Math.floor(diff / 3600_000) + " giờ trước";
+          const d = new Date(iso);
+          return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+        },
+
+        async confirmClose() {
+          if (!confirm("Đóng cuộc chat này? Không thể mở lại.")) return;
+          try {
+            const res = await fetch(`/api/v1/chat/threads/${this.threadId}/close`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              alert(j.error?.message || "Lỗi đóng thread");
+              return;
+            }
+            this.thread = j.thread;
+            this.stopPolling();
+          } catch (_) {
+            alert("Lỗi kết nối");
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

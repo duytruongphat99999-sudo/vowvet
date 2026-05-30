@@ -1,0 +1,215 @@
+---
+/**
+ * Care Plan Consent Modal — A5 Pre-Launch.
+ *
+ * **Why this exists**: Before any user views the Gemini-generated Care Plan,
+ * they must explicitly acknowledge that the plan is AI-assisted guidance —
+ * NOT a substitute for veterinary diagnosis or treatment.
+ *
+ * Defense layer 4 (final): AI prompt guardrails → schema → validator → THIS.
+ *
+ * **Brand-safe** (cumulative landmines from STATE_OF_UNION_AUDIT.md):
+ *   - var(--c-gold) inline (NO text-vv-gold)
+ *   - FeatureIcon SVG (NO emoji chrome)
+ *   - clinic.vet.name via getClinicInfo() (NO hardcoded vet name)
+ *   - Real icon names only: shield, alert-triangle, siren, message-circle, check, info
+ *
+ * **Pattern**: Alpine factory mirroring vaccineLogModal in vaccines.astro
+ * (z-[60], bg-black/55, @keydown.escape.window, rounded-t-3xl sm:rounded-3xl).
+ *
+ * **Mount once** at end of /care-plan page body. Visibility driven by
+ * SSR-passed `:initial-consented="..."` prop — when null, modal is open.
+ *
+ * Props:
+ *   - initialConsented: string | null   — ISO timestamp or null (from SSR)
+ *   - apiBaseUrl: string                — /api/v1 prefix for POST
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+import { getClinicInfo } from "@shared/clinic-info.ts";
+
+interface Props {
+  initialConsented?: string | null;
+  apiBaseUrl?: string;
+}
+const { initialConsented = null, apiBaseUrl = "/api/v1" } = Astro.props;
+
+const clinic = getClinicInfo();
+
+// Current consent version — bump if material copy changes force re-ack
+const CONSENT_VERSION = "v1-2026-05";
+---
+
+<div x-data={`carePlanConsent({
+       initialConsented: ${JSON.stringify(initialConsented)},
+       apiBase: '${apiBaseUrl}',
+       version: '${CONSENT_VERSION}'
+     })`}
+     @keydown.escape.window="onEscape()"
+     x-show="!consented"
+     x-cloak
+     x-transition.opacity.duration.200ms
+     class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/55 print:hidden"
+     style="display: none;"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="consent-modal-title">
+
+  <div x-show="!consented"
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 transform translate-y-8"
+       x-transition:enter-end="opacity-100 transform translate-y-0"
+       class="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[92vh] overflow-y-auto shadow-2xl">
+
+    {/* Header — gold accent strip */}
+    <div class="h-1.5" style="background: linear-gradient(90deg, var(--c-gold) 0%, rgba(217,166,69,0.6) 100%);"></div>
+
+    <div class="p-5 sm:p-7 space-y-5">
+
+      {/* Title block */}
+      <div class="flex items-start gap-3">
+        <div class="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
+             style="background: rgba(217,166,69,0.12); color: var(--c-gold);">
+          <FeatureIcon name="shield" class="w-6 h-6" strokeWidth={1.8} />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] font-bold uppercase tracking-[0.25em]" style="color: var(--c-gold);">
+            VowVet · Đồng ý sử dụng
+          </p>
+          <h2 id="consent-modal-title"
+              class="font-display italic text-xl font-semibold text-mmp-ink mt-1 leading-snug">
+            Trước khi mở Care Plan
+          </h2>
+        </div>
+      </div>
+
+      {/* Body — 3 bullet points with icons */}
+      <div class="space-y-3.5">
+
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 w-7 h-7 rounded-full bg-mmp-cream flex items-center justify-center text-mmp-ink">
+            <FeatureIcon name="info" class="w-4 h-4" strokeWidth={2} />
+          </div>
+          <div class="text-sm text-slate-700 leading-relaxed">
+            <strong class="text-mmp-ink">Care Plan là AI tham khảo.</strong> Hệ thống dùng Gemini phân tích
+            hồ sơ bé + thời tiết + giống loài để gợi ý lịch ăn / vận động / theo dõi —
+            <em>không thay thế khám bác sĩ thú y</em>.
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
+               style="background: rgba(217,166,69,0.14); color: var(--c-gold);">
+            <FeatureIcon name="alert-triangle" class="w-4 h-4" strokeWidth={2} />
+          </div>
+          <div class="text-sm text-slate-700 leading-relaxed">
+            <strong class="text-mmp-ink">Có dấu hiệu lạ ở bé</strong> (bỏ ăn, nôn ói, lừ đừ, sốt, đi đứng khó…) —
+            <strong>đừng dựa vào app</strong>, hãy hỏi {clinic.vet.name} qua Zalo hoặc đến phòng khám.
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 w-7 h-7 rounded-full bg-red-50 flex items-center justify-center text-red-600">
+            <FeatureIcon name="siren" class="w-4 h-4" strokeWidth={2} />
+          </div>
+          <div class="text-sm text-slate-700 leading-relaxed">
+            <strong class="text-mmp-ink">Cấp cứu</strong> (khó thở, co giật, chảy máu nhiều, ngộ độc…) — gọi
+            <a :href={`tel:${clinic.phone_tel_link}`} class="font-bold underline text-red-600 hover:text-red-700">
+              {clinic.phone}
+            </a> ngay, không chờ app phản hồi.
+          </div>
+        </div>
+
+      </div>
+
+      {/* Explicit consent checkbox — required for legal-grade ack */}
+      <label class="flex items-start gap-3 p-3.5 rounded-2xl bg-mmp-cream border border-amber-100/60 cursor-pointer hover:bg-amber-50/60 transition">
+        <input type="checkbox"
+               x-model="acknowledged"
+               :disabled="submitting"
+               class="mt-0.5 w-5 h-5 rounded border-slate-300 focus:ring-2 focus:ring-offset-1"
+               style="accent-color: var(--c-gold); --tw-ring-color: var(--c-gold);" />
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-mmp-ink">Tôi đã hiểu</p>
+          <p class="text-xs text-slate-600 leading-relaxed mt-1">
+            Care Plan là tham khảo AI, không thay khám BS thú y. Khi bé có dấu hiệu lạ,
+            tôi sẽ liên hệ {clinic.vet.name} hoặc đến phòng khám ngay.
+          </p>
+        </div>
+      </label>
+
+      {/* CTAs */}
+      <div class="flex flex-col sm:flex-row gap-2.5 pt-1">
+        <button type="button"
+                @click="accept()"
+                :disabled="!acknowledged || submitting"
+                :class="(!acknowledged || submitting)
+                  ? 'opacity-40 cursor-not-allowed'
+                  : 'hover:brightness-110'"
+                class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm text-white shadow-md transition"
+                style="background: var(--c-gold);">
+          <FeatureIcon name="check" class="w-4 h-4" strokeWidth={2.5} />
+          <span x-show="!submitting && acknowledged">Bắt đầu xem Care Plan</span>
+          <span x-show="!submitting && !acknowledged">Tick "Tôi đã hiểu" để tiếp tục</span>
+          <span x-show="submitting">Đang ghi nhận...</span>
+        </button>
+        <button type="button"
+                @click="decline()"
+                :disabled="submitting"
+                class="sm:w-auto inline-flex items-center justify-center px-5 py-3 rounded-2xl font-medium text-sm text-slate-500 hover:text-mmp-ink hover:bg-slate-50 transition">
+          Để sau
+        </button>
+      </div>
+
+      {/* Error state */}
+      <p x-show="errorMsg" x-text="errorMsg"
+         class="text-xs text-red-600 text-center" style="display: none;"></p>
+
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  // Alpine factory — registered globally so the modal can be mounted anywhere
+  // (currently only /care-plan, but kept reusable for future AI surfaces).
+  window.carePlanConsent = function (cfg) {
+    return {
+      consented: !!cfg.initialConsented, // true if user already acked
+      acknowledged: false,                // checkbox state — must be true to enable CTA
+      submitting: false,
+      errorMsg: "",
+
+      async accept() {
+        if (this.submitting || !this.acknowledged) return;
+        this.submitting = true;
+        this.errorMsg = "";
+        try {
+          const res = await fetch(`${cfg.apiBase}/users/me/care-plan-consent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ version: cfg.version }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          this.consented = true;
+          // Mark in localStorage so other AI surfaces in this tab can react
+          try { localStorage.setItem("vv_care_plan_consented_at", new Date().toISOString()); } catch {}
+        } catch (err) {
+          console.warn("[ConsentModal] accept failed:", err);
+          this.errorMsg = "Không lưu được. Kiểm tra mạng rồi thử lại.";
+        } finally {
+          this.submitting = false;
+        }
+      },
+
+      decline() {
+        // "Để sau" — soft exit: send user back to dashboard, don't persist anything.
+        window.location.href = "/dashboard";
+      },
+
+      onEscape() {
+        // Escape = same as decline (back to dashboard) — modal must not be dismissable in place.
+        if (!this.consented) this.decline();
+      },
+    };
+  };
+</script>

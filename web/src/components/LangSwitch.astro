@@ -1,0 +1,64 @@
+---
+/**
+ * Language switcher VI ⇄ EN. Renders 2 pill buttons in the header.
+ * Clicking either appends ?lang= to the current URL, which middleware reads,
+ * persists in cookie, then re-renders.
+ */
+type Locale = "vi" | "en";
+interface Props {
+  current?: Locale;
+  /** Compact mode = icon-only globe + current code (mobile) */
+  compact?: boolean;
+}
+const { current = "vi", compact = false } = Astro.props;
+
+// Build self-referential URL with lang param swapped
+const url = new URL(Astro.request.url);
+function withLang(locale: Locale): string {
+  const u = new URL(url.toString());
+  u.searchParams.set("lang", locale);
+  return u.pathname + "?" + u.searchParams.toString() + (u.hash || "");
+}
+---
+
+{compact ? (
+  <details class="relative">
+    <summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-mmp-ink hover:bg-slate-100 transition">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span class="uppercase">{current}</span>
+    </summary>
+    <div class="absolute right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-1 z-50 min-w-[110px]">
+      <a href={withLang("vi")} class={`block px-3 py-1.5 text-sm rounded-md ${current === "vi" ? "bg-mmp-cream font-bold text-mmp-ink" : "hover:bg-slate-50 text-slate-700"}`}>
+        Tiếng Việt
+      </a>
+      <a href={withLang("en")} class={`block px-3 py-1.5 text-sm rounded-md ${current === "en" ? "bg-mmp-cream font-bold text-mmp-ink" : "hover:bg-slate-50 text-slate-700"}`}>
+        English
+      </a>
+    </div>
+  </details>
+) : (
+  <div class="inline-flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg" role="group" aria-label="Language switcher">
+    <a
+      href={withLang("vi")}
+      aria-current={current === "vi" ? "true" : undefined}
+      class={`px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-md transition ${
+        current === "vi"
+          ? "bg-white text-mmp-ink shadow-sm"
+          : "text-slate-500 hover:text-mmp-ink"
+      }`}
+    >VI</a>
+    <a
+      href={withLang("en")}
+      aria-current={current === "en" ? "true" : undefined}
+      class={`px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-md transition ${
+        current === "en"
+          ? "bg-white text-mmp-ink shadow-sm"
+          : "text-slate-500 hover:text-mmp-ink"
+      }`}
+    >EN</a>
+  </div>
+)}

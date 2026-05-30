@@ -1,0 +1,1405 @@
+---
+/**
+ * /pets/[id]/pet-score — Mon Min Pet Score (M12).
+ *
+ * Layout: ink-dark hero passport (gauge + identity rows) → recommendations → breakdown → trend → community → Hụi Pet → tier levels.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let scoreData: any = null;
+let levels: any[] = [];
+try {
+  const [sRes, lRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/pet-score`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/score-levels`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (sRes.ok) scoreData = await sRes.json();
+  if (lRes.ok) levels = (await lRes.json()).levels || [];
+} catch (_) {}
+
+if (!scoreData) {
+  return new Response("Score not available", { status: 500 });
+}
+
+const TIER_HEX: Record<string, string> = {
+  bronze:   "#A0826D",
+  silver:   "#9CA3AF",
+  gold:     "#ECB921",
+  platinum: "#3B82F6",
+  diamond:  "#7C3AED",
+};
+const tierHex = TIER_HEX[scoreData.level.id] || "#ECB921";
+
+// Gauge geometry — SMIL stroke-dashoffset, server-computed from score
+const GAUGE_R = 125;
+const GAUGE_C2 = Math.round(2 * Math.PI * GAUGE_R * 100) / 100; // ~785.4
+const gaugeOffset = Math.round(GAUGE_C2 * (1 - scoreData.score / 1000) * 100) / 100;
+const issuedDate = (() => {
+  try {
+    const d = new Date(scoreData.computed_at);
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
+  } catch {
+    return "";
+  }
+})();
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, dob: pet.dob ?? null },
+  score: scoreData,
+  levels,
+  tierHex,
+});
+
+// ── Phase 5: Constellation Star Map — SSR-rendered (avoids Alpine-x-for-in-SVG pitfall) ──
+const STAR_POSITIONS: Record<string, { x: number; y: number }> = {
+  no_chronic_conditions: { x: 60, y: 50 },
+  bcs_optimal: { x: 100, y: 75 },
+  age_modifier: { x: 75, y: 100 },
+  recent_emergency: { x: 45, y: 130 },
+  pain_status: { x: 105, y: 130 },
+  allergies: { x: 70, y: 160 },
+  vaccine_compliance: { x: 240, y: 55 },
+  vet_visit_recent: { x: 270, y: 95 },
+  water_intake: { x: 220, y: 130 },
+  checkin_streak: { x: 240, y: 200 },
+  routine_consistency: { x: 270, y: 235 },
+  mobility: { x: 215, y: 250 },
+  cognitive_status: { x: 255, y: 275 },
+  personality_modifier: { x: 70, y: 220 },
+  pet_hero_bonus: { x: 100, y: 260 },
+};
+function psStarBucket(value: number, max: number): "sm" | "md" | "lg" {
+  if (!max || max === 0) return "sm";
+  const ratio = Math.abs(value) / max;
+  if (ratio < 0.33) return "sm";
+  if (ratio < 0.66) return "md";
+  return "lg";
+}
+function psStarStateClass(v: number, m: number): string {
+  if (v < 0) return "star-penalty";
+  if (v === 0) return "star-neutral";
+  if (m > 0 && v / m > 0.5) return "star-bright";
+  return "star-faint";
+}
+const stars = (scoreData.breakdown?.components || []).map((c: any) => {
+  const pos = STAR_POSITIONS[c.key] || { x: 160, y: 160 };
+  const bucket = psStarBucket(c.current_value, c.max_possible);
+  const r = bucket === "sm" ? 4 : bucket === "md" ? 7 : 10;
+  return {
+    key: c.key,
+    enterExpr: `hoveredComponent = score.breakdown.components.find(s => s.key === '${c.key}')`,
+    x: pos.x,
+    y: pos.y,
+    r,
+    bucket,
+    stateClass: psStarStateClass(c.current_value, c.max_possible),
+    label_vi: c.label_vi,
+    current_value: c.current_value,
+    max_possible: c.max_possible,
+    description: c.description || "",
+    tipX: Math.max(4, Math.min(320 - 184, pos.x - 90)),
+    tipY: Math.max(4, pos.y - 70),
+  };
+});
+---
+
+<Layout title={`Pet Score ${pet.name} · VowVet`} description={`Mon Min Pet Score ${scoreData.score}/1000 - ${scoreData.level.name_vi}`}>
+  <style is:inline>{`
+    @keyframes scoreCount {
+      from { opacity: 0; transform: scale(0.8); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .gauge-arc {
+      transition: stroke-dasharray 1.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+    .score-number {
+      animation: scoreCount 0.8s ease-out forwards;
+    }
+    .bar-fill {
+      transition: width 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { filter: drop-shadow(0 0 0 currentColor); }
+      50%      { filter: drop-shadow(0 0 16px currentColor); }
+    }
+    .pulse-glow-animation { animation: pulse-glow 2s ease-in-out infinite; }
+
+    @keyframes diamond-shimmer {
+      0%, 100% { background-position: 0% 50%; }
+      50%      { background-position: 100% 50%; }
+    }
+    .diamond-text {
+      background: linear-gradient(45deg, #B48608, #ecb921, #f4c842, #B48608);
+      background-size: 300% 300%;
+      animation: diamond-shimmer 3s ease infinite;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    @keyframes confetti-fall {
+      0%   { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+      100% { opacity: 0; transform: translate(var(--dx), 100vh) rotate(720deg); }
+    }
+    .confetti {
+      position: fixed; top: -10px; left: 50%;
+      width: 10px; height: 18px; border-radius: 2px;
+      pointer-events: none; z-index: 60;
+      animation: confetti-fall 3s ease-in forwards;
+    }
+
+    /* ── Constellation v3.1: palette + keyframes + classes (Phase 1) ── */
+    :root {
+      --ps-gold-deep: #B48608;
+      --ps-gold: #ecb921;
+      --ps-gold-light: #f4c842;
+      --ps-cream: #FAF6EC;
+      --ps-cream-soft: #FFFEF9;
+      --ps-ink: #0a0a0a;
+      --ps-ink-soft: #1a1a1a;
+      --ps-slate: #475569;
+      --ps-slate-2: #64748b;
+      --ps-slate-dim: #94a3b8;
+    }
+
+    /* Bar palette — replaces emerald/red/amber (gold / ink / slate) */
+    .ps-fill-pos { background: linear-gradient(90deg, var(--ps-gold-deep), var(--ps-gold)); }
+    .ps-fill-neg { background: var(--ps-ink); }
+    .ps-fill-neu { background: #cbd5e1; }
+    .ps-wrap-pos { background: rgba(236,185,33,0.06); }
+    .ps-wrap-neg { background: #FAFAF7; }
+    .ps-wrap-neu { background: #FAFAF7; }
+
+    @keyframes ringRotate { to { transform: rotate(360deg); } }
+    .gauge-outer { transform-origin: 50% 50%; animation: ringRotate 80s linear infinite; }
+
+    @keyframes dotPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(236,185,33,0.55); }
+      50%      { box-shadow: 0 0 0 10px rgba(236,185,33,0); }
+    }
+    .cur-dot { animation: dotPulse 2s ease-in-out infinite; }
+
+    @keyframes starTwinkle {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.55; }
+    }
+    .star-bright { animation: starTwinkle 2.5s ease-in-out infinite; }
+
+    @keyframes starTwinkleSm {
+      0%, 100% { opacity: 0.55; }
+      50%      { opacity: 0.2; }
+    }
+    .star-faint { animation: starTwinkleSm 3.5s ease-in-out infinite; }
+
+    @keyframes shimmerSweep {
+      0%   { transform: translateX(-120%); }
+      100% { transform: translateX(220%); }
+    }
+    .shimmer-bar { position: relative; overflow: hidden; }
+    .shimmer-bar::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+      transform: translateX(-120%);
+      animation: shimmerSweep 4s ease-in-out infinite;
+    }
+
+    @keyframes badgeFloat {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-4px); }
+    }
+    .badge-float { animation: badgeFloat 3s ease-in-out infinite; }
+
+    @keyframes textGlow {
+      0%, 100% { text-shadow: 0 0 8px rgba(236,185,33,0.25); }
+      50%      { text-shadow: 0 0 22px rgba(236,185,33,0.55); }
+    }
+    .text-glow { animation: textGlow 3s ease-in-out infinite; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .gauge-outer { animation-duration: 240s; }
+      .cur-dot, .star-bright, .star-faint, .badge-float, .text-glow { animation: none !important; }
+      .shimmer-bar::after { animation: none !important; display: none; }
+    }
+
+    [x-cloak] { display: none !important; }
+  `}
+    /* Phase 2 patch: scope monogram + flourish hide for Pet Certificate XL */
+    .ps-cert-hero .hero-vv-monogram { display: none !important; }
+    div.ps-cert-hero h2.font-display::after, .hero-passport.ps-cert-hero h2.font-display::after { display: none !important; content: none !important; }
+
+    /* ── Phase 3: Achievement Strip (horizontal scroll, gold-themed) ── */
+    .ach-scroll { overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+    .ach-scroll::-webkit-scrollbar { display: none; }
+    .ach-scroll-wrapper { position: relative; }
+    .ach-scroll-wrapper::after { content: ""; position: absolute; top: 0; right: -4px; bottom: 8px; width: 32px; background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 100%); pointer-events: none; border-radius: 0 12px 12px 0; }
+    .ach-strip-inner { display: flex; gap: 12px; padding: 4px 4px 4px; min-width: min-content; justify-content: safe center; }
+    .ach-badge {
+      flex: 0 0 110px; width: 110px; scroll-snap-align: start;
+      border-radius: 16px; border: 1px solid rgba(180,134,8,0.18);
+      background: linear-gradient(160deg, #FAF6EC 0%, #ffffff 100%);
+      transition: transform .22s cubic-bezier(.22,.61,.36,1), box-shadow .22s ease, border-color .22s ease;
+      animation: ach-fade-in .5s cubic-bezier(.22,.61,.36,1) backwards;
+    }
+    .ach-badge:hover { transform: translateY(-3px); border-color: #B48608; box-shadow: 0 10px 24px -8px rgba(180,134,8,0.45); }
+    .ach-badge__inner { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; padding: 12px 8px; }
+    .ach-badge__icon {
+      width: 44px; height: 44px; padding: 9px; border-radius: 9999px; color: #0a0a0a;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 2px 6px -2px rgba(180,134,8,0.5);
+      transition: transform .22s cubic-bezier(.22,.61,.36,1);
+      animation: ach-icon-breath 3s ease-in-out infinite;
+    }
+    .ach-badge:hover .ach-badge__icon { transform: scale(1.08) rotate(-3deg); animation-play-state: paused; }
+    .ach-badge__label { font-family: var(--font-sans, 'Inter', system-ui, sans-serif); font-style: italic; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #0a0a0a; line-height: 1.2; }
+    .ach-badge__subtitle { font-size: 10px; font-style: italic; color: rgba(10,10,10,0.55); line-height: 1.2; }
+    @keyframes ach-fade-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes ach-icon-breath {
+      0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 2px 6px -2px rgba(180,134,8,0.5), 0 0 0 0 rgba(236,185,33,0); }
+      50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 12px -2px rgba(180,134,8,0.6), 0 0 0 6px rgba(236,185,33,0.12); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ach-badge, .ach-badge__icon { animation: none !important; transition: none !important; }
+      .ach-badge:hover, .ach-badge:hover .ach-badge__icon { transform: none; }
+    }
+
+    /* ── Phase 4: Recommendations (top 3 việc cần làm) ── */
+    .rec-card {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 14px 14px 14px 16px;
+      background: linear-gradient(160deg, #ffffff 0%, #FAF6EC 100%);
+      border: 1px solid rgba(180,134,8,0.15); border-left: 3px solid #B48608;
+      border-radius: 0 12px 12px 0; text-decoration: none;
+      transition: transform .22s cubic-bezier(.22,.61,.36,1), box-shadow .22s ease, border-color .22s ease;
+      animation: rec-fade-in .4s cubic-bezier(.22,.61,.36,1) backwards;
+    }
+    .rec-card:hover { transform: translateX(2px); border-color: #B48608; box-shadow: 0 8px 22px -8px rgba(180,134,8,0.4); }
+    .rec-card__icon {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 9999px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: #0a0a0a;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 2px 6px -2px rgba(180,134,8,0.5);
+    }
+    .rec-card__content { flex: 1; min-width: 0; }
+    .rec-card__title { font-weight: 700; font-size: 14px; color: #0a0a0a; margin-bottom: 2px; }
+    .rec-card__advice { font-size: 12px; color: rgba(10,10,10,0.65); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .rec-card__points { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+    .rec-card__points > span:first-child { background: linear-gradient(135deg, #ecb921 0%, #B48608 100%); color: #0a0a0a; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 9999px; }
+    .rec-card__points > span:last-child { font-size: 10px; font-style: italic; color: rgba(10,10,10,0.45); }
+    .rec-card__chevron { flex-shrink: 0; align-self: center; width: 16px; height: 16px; color: rgba(10,10,10,0.4); transition: transform .22s cubic-bezier(.22,.61,.36,1), color .22s ease; }
+    .rec-card:hover .rec-card__chevron { transform: translateX(3px); color: #ecb921; }
+    .rec-counter-pill {
+      position: relative; display: inline-block; padding: 4px 12px;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 100%);
+      color: #0a0a0a; font-family: var(--font-mono, ui-monospace);
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+      border-radius: 9999px;
+      box-shadow: 0 4px 12px -2px rgba(236,185,33,0.5), inset 0 1px 0 rgba(255,255,255,0.35);
+      overflow: hidden; white-space: nowrap;
+    }
+    .rec-counter-pill::after {
+      content: ""; position: absolute; top: 0; left: 0; bottom: 0; width: 60%;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
+      transform: translateX(-100%);
+      animation: rec-counter-shimmer 3.5s ease-in-out infinite;
+    }
+    @keyframes rec-counter-shimmer { 0%, 100% { transform: translateX(-100%); } 60% { transform: translateX(220%); } }
+    @media (prefers-reduced-motion: reduce) { .rec-counter-pill::after { animation: none; display: none; } }
+    @keyframes rec-priority-pulse {
+      0%, 100% { border-left-width: 3px; box-shadow: 0 0 0 0 rgba(180,134,8,0); }
+      50% { border-left-width: 4px; box-shadow: -2px 0 12px -4px rgba(180,134,8,0.4); }
+    }
+    .rec-list .rec-card:first-child { animation: rec-priority-pulse 2.4s ease-in-out infinite, rec-fade-in .4s cubic-bezier(.22,.61,.36,1) backwards; }
+    .rec-list .rec-card:first-child:hover { animation: rec-fade-in .4s cubic-bezier(.22,.61,.36,1) backwards; }
+    @keyframes rec-fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) {
+      .rec-card, .rec-card__chevron { animation: none !important; transition: none !important; }
+      .rec-card:hover, .rec-card:hover .rec-card__chevron { transform: none; }
+    }
+
+    /* ── Phase 4.5: gold thread (Hero ↔ Strip ↔ Recommendations visual connection) ── */
+    .achievement-strip, .recommendations-strip { position: relative; overflow: hidden; }
+    .achievement-strip::before, .recommendations-strip::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, #ecb921 30%, #B48608 50%, #ecb921 70%, transparent 100%);
+      background-size: 200% 100%;
+      animation: gold-thread 4s linear infinite;
+      opacity: 0.6;
+    }
+    @keyframes gold-thread { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .achievement-strip::before, .recommendations-strip::before { animation: none; }
+      .ach-badge__icon { animation: none; }
+      .rec-list .rec-card:first-child { animation: rec-fade-in .4s cubic-bezier(.22,.61,.36,1) backwards; }
+    }
+
+    /* ── Phase 4.5.1: Pet Score h1 header accent ── */
+    .ps-header-title {
+      position: relative;
+      font-family: var(--font-display, 'Fraunces', Georgia, serif);
+      font-style: italic; font-weight: 600; font-size: 18px;
+      letter-spacing: -0.01em; color: #0a0a0a; padding-bottom: 4px;
+    }
+    .ps-header-title::after {
+      content: ""; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+      width: 28px; height: 1.5px;
+      background: linear-gradient(90deg, transparent 0%, #B48608 50%, transparent 100%);
+      border-radius: 1px;
+    }
+
+    /* ── Phase 5.1: Galaxy Constellation (palette strict gold) ── */
+    .constellation-section {
+      background: radial-gradient(ellipse at center, #1a1a1a 0%, #0a0a0a 70%, #050505 100%);
+      border: 1px solid rgba(236,185,33,0.25);
+      border-radius: 16px; padding: 20px; margin-bottom: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3); position: relative; overflow: hidden;
+    }
+    .constellation-svg-wrapper { width: 100%; max-width: 420px; margin: 0 auto; aspect-ratio: 1; position: relative; }
+    @media (max-width: 640px) { .constellation-svg-wrapper { max-width: 320px; } }
+    .star-dust circle { fill: rgba(255,255,255,0.7); animation: dust-twinkle 5s ease-in-out infinite; }
+    .star-dust .dust-1  { animation-delay: 0s;   animation-duration: 4s; }
+    .star-dust .dust-2  { animation-delay: 0.4s; animation-duration: 5.5s; }
+    .star-dust .dust-3  { animation-delay: 0.8s; animation-duration: 4.5s; }
+    .star-dust .dust-4  { animation-delay: 1.2s; animation-duration: 6s; }
+    .star-dust .dust-5  { animation-delay: 1.6s; animation-duration: 5s; }
+    .star-dust .dust-6  { animation-delay: 2s;   animation-duration: 7s; }
+    .star-dust .dust-7  { animation-delay: 2.4s; animation-duration: 4s; }
+    .star-dust .dust-8  { animation-delay: 2.8s; animation-duration: 5.5s; }
+    .star-dust .dust-9  { animation-delay: 0.2s; animation-duration: 6.5s; }
+    .star-dust .dust-10 { animation-delay: 0.6s; animation-duration: 4.5s; }
+    .star-dust .dust-11 { animation-delay: 1s;   animation-duration: 5s; }
+    .star-dust .dust-12 { animation-delay: 1.4s; animation-duration: 6s; }
+    .star-dust .dust-13 { animation-delay: 1.8s; animation-duration: 4s; }
+    .star-dust .dust-14 { animation-delay: 2.2s; animation-duration: 7s; }
+    .star-dust .dust-15 { animation-delay: 2.6s; animation-duration: 5.5s; }
+    .star-dust .dust-16 { animation-delay: 3s;   animation-duration: 4.5s; }
+    .star-dust .dust-17 { animation-delay: 3.4s; animation-duration: 6s; }
+    .star-dust .dust-18 { animation-delay: 3.8s; animation-duration: 5s; }
+    .star-dust .dust-19 { animation-delay: 0.3s; animation-duration: 4.5s; }
+    .star-dust .dust-20 { animation-delay: 0.7s; animation-duration: 6.5s; }
+    @keyframes dust-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.85; } }
+    .const-rings { transform-box: fill-box; transform-origin: center; animation: ringRotate 80s linear infinite; }
+    .star-wrapper { cursor: pointer; }
+    .star-dot { transform-box: fill-box; transform-origin: center; transition: transform 0.3s ease, filter 0.3s ease; }
+    .star-bright .star-dot { fill: #ecb921; filter: drop-shadow(0 0 6px rgba(236,185,33,0.75)); animation: star-twinkle 2.5s ease-in-out infinite; }
+    .star-faint .star-dot { fill: rgba(236,185,33,0.4); }
+    .star-penalty .star-dot { fill: rgba(255,255,255,0.25); stroke: #B48608; stroke-width: 1; }
+    .star-neutral .star-dot { fill: rgba(255,255,255,0.2); }
+    .star-wrapper:hover .star-dot { transform: scale(1.4); filter: drop-shadow(0 0 12px rgba(236,185,33,0.95)); }
+    @keyframes star-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+    .star-tooltip { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; overflow: visible; }
+    .star-wrapper:hover .star-tooltip { opacity: 1; pointer-events: auto; }
+    .star-tooltip-inner { background: rgba(10,10,10,0.95); border: 1px solid rgba(236,185,33,0.4); border-radius: 8px; padding: 8px 10px; color: white; font-size: 11px; line-height: 1.3; text-align: left; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+    .star-tooltip-inner strong { display: block; color: #ecb921; font-size: 11px; margin-bottom: 2px; }
+    .star-tooltip-inner span { display: block; font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.7); }
+    .star-tooltip-inner p { font-size: 10px; color: rgba(255,255,255,0.55); margin-top: 4px; font-style: italic; }
+    .ticker-panel { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; padding: 4px; }
+    .ticker-panel.ticker-auto { animation: ticker-fade-in 0.6s ease-out; }
+    .ticker-panel.ticker-hovered { animation: ticker-pop 0.2s ease-out; }
+    .ticker-icon { font-size: 16px; line-height: 1; }
+    .ticker-label { font-family: var(--font-display, 'Fraunces', serif); font-style: italic; font-size: 10px; font-weight: 600; color: #ecb921; line-height: 1.1; display: block; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ticker-value { font-family: var(--font-mono); font-size: 9px; color: rgba(255,255,255,0.75); letter-spacing: 0.05em; }
+    @keyframes ticker-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes ticker-pop { from { opacity: 0.5; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+    .constellation-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 16px; font-size: 10px; color: rgba(255,255,255,0.65); font-style: italic; }
+    .constellation-legend > span { display: inline-flex; align-items: center; gap: 4px; }
+    .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+    .legend-bright { background: #ecb921; box-shadow: 0 0 4px rgba(236,185,33,0.7); }
+    .legend-faint { background: rgba(236,185,33,0.4); }
+    .legend-neutral { background: rgba(255,255,255,0.2); }
+    .legend-penalty { background: rgba(255,255,255,0.25); border: 1px solid #B48608; }
+    @media (prefers-reduced-motion: reduce) {
+      .const-rings, .star-bright .star-dot, .star-dust circle, .ticker-panel { animation: none !important; }
+      .star-wrapper:hover .star-dot { transform: none; }
+    }
+
+    /* === Phase 6: Trend + Community merged === */
+    .trend-community { position: relative; overflow: hidden; }
+    .trend-community::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, #ecb921 30%, #B48608 50%, #ecb921 70%, transparent 100%);
+      background-size: 200% 100%; animation: gold-thread 4s linear infinite; opacity: 0.6;
+    }
+    .trend-counter-pill {
+      position: relative; display: inline-block; padding: 4px 12px;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 100%); color: #0a0a0a;
+      font-family: var(--font-mono, ui-monospace); font-size: 11px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.08em; border-radius: 9999px;
+      box-shadow: 0 4px 12px -2px rgba(236,185,33,0.5), inset 0 1px 0 rgba(255,255,255,0.35);
+      overflow: hidden; white-space: nowrap;
+    }
+    .trend-counter-pill.pill-negative {
+      background: linear-gradient(135deg, #94a3b8 0%, #475569 100%); color: #ffffff;
+      box-shadow: 0 4px 12px -2px rgba(71,85,105,0.3);
+    }
+    .trend-counter-pill::after {
+      content: ""; position: absolute; top: 0; left: 0; bottom: 0; width: 60%;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
+      transform: translateX(-100%); animation: trend-pill-shimmer 4s ease-in-out infinite;
+    }
+    @keyframes trend-pill-shimmer { 0%, 100% { transform: translateX(-100%); } 60% { transform: translateX(220%); } }
+    .trend-chart-wrapper { min-height: 200px; }
+    .trend-delta-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 9999px; font-weight: 700; font-size: 12px; font-family: var(--font-mono); }
+    .trend-delta-badge.delta-up {
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 100%); color: #0a0a0a;
+      box-shadow: 0 2px 6px -1px rgba(236,185,33,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+    .trend-delta-badge.delta-down {
+      background: linear-gradient(135deg, #94a3b8 0%, #475569 100%); color: #ffffff;
+      box-shadow: 0 2px 6px -1px rgba(71,85,105,0.3);
+    }
+    .trend-divider { height: 1px; margin: 20px 0; background: linear-gradient(90deg, transparent 0%, rgba(180,134,8,0.3) 50%, transparent 100%); }
+    .percentile-bar {
+      position: relative; height: 36px; margin-top: 8px;
+      background: linear-gradient(90deg, #FAF6EC 0%, #f5f1eb 50%, #FAF6EC 100%);
+      border: 1px solid rgba(180,134,8,0.18); border-radius: 9999px; overflow: hidden;
+    }
+    .percentile-avg-line { position: absolute; top: 4px; bottom: 4px; width: 1.5px; background: rgba(71,85,105,0.5); z-index: 1; }
+    .percentile-position {
+      position: absolute; top: 4px; bottom: 4px; width: 5%;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 100%); border-radius: 9999px;
+      box-shadow: 0 0 12px rgba(236,185,33,0.7), inset 0 1px 0 rgba(255,255,255,0.4);
+      z-index: 2; transition: transform 0.3s ease, box-shadow 0.3s ease;
+      animation: position-pulse 2.5s ease-in-out infinite;
+    }
+    .percentile-position:hover { transform: scale(1.08); box-shadow: 0 0 18px rgba(236,185,33,0.95); }
+    @keyframes position-pulse { 0%, 100% { box-shadow: 0 0 12px rgba(236,185,33,0.7); } 50% { box-shadow: 0 0 18px rgba(236,185,33,1), 0 0 30px rgba(236,185,33,0.4); } }
+    .leaderboard-cta {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 12px; padding: 8px 12px; border-radius: 12px;
+      border: 1px solid rgba(180,134,8,0.2); background: linear-gradient(160deg, #FAF6EC 0%, #ffffff 100%);
+      font-size: 12px; color: #0a0a0a; text-decoration: none;
+      transition: all 0.22s cubic-bezier(0.22,0.61,0.36,1);
+    }
+    .leaderboard-cta:hover { border-color: #B48608; background: linear-gradient(160deg, #ffffff 0%, #FAF6EC 100%); transform: translateX(2px); box-shadow: 0 4px 12px -3px rgba(180,134,8,0.3); }
+    .leaderboard-cta strong { color: #B48608; }
+    .leaderboard-cta > span:last-child { transition: transform 0.22s ease; }
+    .leaderboard-cta:hover > span:last-child { transform: translateX(3px); }
+    @media (prefers-reduced-motion: reduce) {
+      .trend-community::before, .trend-counter-pill::after, .percentile-position { animation: none !important; }
+      .leaderboard-cta:hover { transform: none; }
+    }
+
+    /* === Phase 7: Hụi Pet teaser === */
+    .hui-pet-section {
+      position: relative;
+      background: radial-gradient(ellipse at center, #1a1a1a 0%, #0a0a0a 70%, #050505 100%);
+      border: 1px solid rgba(236,185,33,0.25);
+      border-radius: 16px; padding: 24px; margin-bottom: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3); overflow: hidden;
+    }
+    .hui-pet-section::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, #ecb921 30%, #B48608 50%, #ecb921 70%, transparent 100%);
+      background-size: 200% 100%; animation: gold-thread 4s linear infinite; opacity: 0.6;
+    }
+    .hui-sparkles { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+    .hui-spark { position: absolute; width: 2px; height: 2px; background: rgba(255,255,255,0.6); border-radius: 50%; animation: hui-spark-twinkle 5s ease-in-out infinite; }
+    .hui-spark:nth-child(1)  { animation-delay: 0s;   animation-duration: 4s; }
+    .hui-spark:nth-child(2)  { animation-delay: 0.6s; animation-duration: 5.5s; }
+    .hui-spark:nth-child(3)  { animation-delay: 1.2s; animation-duration: 4.5s; }
+    .hui-spark:nth-child(4)  { animation-delay: 1.8s; animation-duration: 6s; }
+    .hui-spark:nth-child(5)  { animation-delay: 2.4s; animation-duration: 5s; }
+    .hui-spark:nth-child(6)  { animation-delay: 0.3s; animation-duration: 7s; }
+    .hui-spark:nth-child(7)  { animation-delay: 0.9s; animation-duration: 4.5s; }
+    .hui-spark:nth-child(8)  { animation-delay: 1.5s; animation-duration: 5.5s; }
+    @keyframes hui-spark-twinkle { 0%, 100% { opacity: 0.2; transform: scale(1); } 50% { opacity: 1; transform: scale(1.5); } }
+    .hui-coming-soon-pill {
+      position: relative; display: inline-block; padding: 4px 12px;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 100%); color: #0a0a0a;
+      font-family: var(--font-mono, ui-monospace); font-size: 10px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.1em; border-radius: 9999px;
+      box-shadow: 0 4px 12px -2px rgba(236,185,33,0.5), inset 0 1px 0 rgba(255,255,255,0.35);
+      overflow: hidden; white-space: nowrap; z-index: 1;
+    }
+    .hui-coming-soon-pill::after {
+      content: ""; position: absolute; top: 0; left: 0; bottom: 0; width: 50%;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%);
+      transform: translateX(-100%); animation: hui-pill-shimmer 3.5s ease-in-out infinite;
+    }
+    @keyframes hui-pill-shimmer { 0%, 100% { transform: translateX(-100%); } 60% { transform: translateX(220%); } }
+    .hui-coin-wrapper { position: relative; z-index: 1; display: flex; justify-content: center; margin: 16px 0 12px 0; }
+    .hui-coin {
+      position: relative; width: 80px; height: 80px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #ffd56b 0%, #ecb921 40%, #B48608 100%);
+      display: flex; align-items: center; justify-content: center; font-size: 36px;
+      box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2), 0 0 24px rgba(236,185,33,0.6), 0 8px 20px -4px rgba(180,134,8,0.5);
+      animation: hui-coin-float 4s ease-in-out infinite, hui-coin-glow 3s ease-in-out infinite;
+    }
+    .hui-coin-emoji { display: block; filter: drop-shadow(0 1px 0 rgba(255,255,255,0.3)); }
+    @keyframes hui-coin-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    @keyframes hui-coin-glow {
+      0%, 100% { box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2), 0 0 24px rgba(236,185,33,0.6), 0 8px 20px -4px rgba(180,134,8,0.5); }
+      50% { box-shadow: inset 0 2px 4px rgba(255,255,255,0.5), inset 0 -2px 4px rgba(0,0,0,0.2), 0 0 36px rgba(236,185,33,0.9), 0 12px 28px -4px rgba(180,134,8,0.6); }
+    }
+    .hui-tagline { position: relative; z-index: 1; text-align: center; color: rgba(255,255,255,0.85); font-family: var(--font-display, 'Fraunces', serif); font-style: italic; font-size: 14px; line-height: 1.5; margin: 0 8px 16px 8px; }
+    .hui-tagline strong { color: #ecb921; font-weight: 600; }
+    .hui-discount-teaser { position: relative; z-index: 1; margin-bottom: 16px; }
+    .hui-discount-toggle {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 14px; background: rgba(236,185,33,0.08); border: 1px solid rgba(236,185,33,0.3);
+      border-radius: 12px; color: rgba(255,255,255,0.95); font-size: 12px; cursor: pointer;
+      transition: all 0.22s cubic-bezier(.22,.61,.36,1);
+    }
+    .hui-discount-toggle:hover { background: rgba(236,185,33,0.14); border-color: rgba(236,185,33,0.5); }
+    .hui-discount-text { flex: 1; text-align: left; }
+    .hui-discount-text strong { color: #ecb921; font-weight: 800; }
+    .hui-discount-icon { font-size: 14px; }
+    .hui-discount-arrow { font-size: 10px; color: rgba(236,185,33,0.7); transition: transform 0.22s ease; }
+    .hui-discount-arrow.open { transform: rotate(180deg); }
+    .hui-discount-detail { margin-top: 6px; padding: 8px 12px; background: rgba(0,0,0,0.4); border: 1px solid rgba(236,185,33,0.2); border-radius: 10px; display: flex; flex-direction: column; gap: 4px; }
+    .hui-discount-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; font-size: 11px; color: rgba(255,255,255,0.7); transition: all 0.2s ease; }
+    .hui-discount-row.is-current { background: linear-gradient(90deg, rgba(236,185,33,0.18) 0%, rgba(236,185,33,0.06) 100%); color: #ecb921; font-weight: 700; border: 1px solid rgba(236,185,33,0.4); }
+    .hui-tier-name { font-size: 11px; }
+    .hui-tier-range { font-family: var(--font-mono, ui-monospace); font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.4); font-style: italic; margin-left: 4px; letter-spacing: 0.04em; }
+    .hui-discount-row.is-current .hui-tier-range { color: rgba(236,185,33,0.7); }
+    .hui-tier-discount { font-family: var(--font-mono, ui-monospace); font-weight: 800; letter-spacing: 0.04em; }
+    .hui-discount-row.is-current .hui-tier-discount { color: #ecb921; }
+    .hui-stats-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
+    .hui-stat { background: rgba(236,185,33,0.06); border: 1px solid rgba(236,185,33,0.2); border-radius: 12px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; transition: all 0.22s cubic-bezier(.22,.61,.36,1); }
+    .hui-stat:hover { background: rgba(236,185,33,0.12); border-color: rgba(236,185,33,0.4); transform: translateY(-2px); }
+    .hui-stat-icon { font-size: 18px; line-height: 1; margin-bottom: 2px; }
+    .hui-stat-value { font-family: var(--font-mono, ui-monospace); font-weight: 800; font-size: 15px; color: #ecb921; letter-spacing: 0.02em; }
+    .hui-stat-label { font-size: 10px; font-style: italic; color: rgba(255,255,255,0.55); line-height: 1.2; }
+    .hui-cta {
+      position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 12px 20px; background: linear-gradient(135deg, #ecb921 0%, #B48608 100%);
+      color: #0a0a0a; font-weight: 700; font-size: 14px; border-radius: 12px; text-decoration: none;
+      box-shadow: 0 4px 14px -2px rgba(180,134,8,0.5), inset 0 1px 0 rgba(255,255,255,0.35);
+      transition: all 0.22s cubic-bezier(.22,.61,.36,1);
+    }
+    .hui-cta:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 20px -2px rgba(180,134,8,0.65), inset 0 1px 0 rgba(255,255,255,0.4); }
+    .hui-cta-arrow { display: inline-block; transition: transform 0.22s ease; }
+    .hui-cta:hover .hui-cta-arrow { transform: translateX(4px); }
+    @media (prefers-reduced-motion: reduce) {
+      .hui-pet-section::before, .hui-coming-soon-pill::after, .hui-spark, .hui-coin { animation: none !important; }
+      .hui-stat:hover, .hui-cta:hover { transform: none; }
+    }
+  </style>
+
+  <main class="bg-mmp-cream min-h-screen px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`scorePage(${initialData})`} x-init="onMount()">
+
+      <!-- Celebration overlay (?celebrate=1 or tier-up) -->
+      <div x-show="showCelebration" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" @click="showCelebration = false">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl" @click.stop>
+          <div class="text-4xl mb-3" x-text="score.level.emoji"></div>
+          <h2 :class="score.level.id === 'diamond' ? 'diamond-text' : ''" class="text-2xl font-extrabold mb-2"
+            x-text="`Lên cấp ${score.level.name_vi}!`"></h2>
+          <p class="text-sm text-slate-600 mb-2" x-text="`Pet Score: ${displayScore} điểm`"></p>
+          <p class="text-xs text-slate-500 italic">Chúc mừng bạn đã chăm sóc bé tốt hơn!</p>
+          <button @click="showCelebration = false" class="mt-5 w-full bg-mmp-ink hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition">
+            Tiếp tục
+          </button>
+        </div>
+        <template x-for="i in 30" :key="i">
+          <span class="confetti"
+            :style="`left: ${5 + Math.random() * 90}%; background: ${['#ecb921','#B48608','#f4c842','#FAF6EC','#FFFFFF'][i % 5]}; --dx: ${(Math.random() - 0.5) * 400}px; animation-delay: ${Math.random() * 0.5}s;`"></span>
+        </template>
+      </div>
+
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-4">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-mmp-ink transition">← {pet.name}</a>
+        <h1 class="ps-header-title">Pet Score</h1>
+        <span class="w-8"></span>
+      </header>
+
+      <!-- Hero: INK DARK passport-style (reuse .hero-passport global) -->
+      <div class="hero-passport ps-cert-hero mb-4 rounded-2xl shadow-md">
+        <!-- Atmospheric layers -->
+        <div class="hero-paw-bg no-print" aria-hidden="true"></div>
+        <span class="hero-particle hero-particle--1 no-print" aria-hidden="true"></span>
+        <span class="hero-particle hero-particle--2 no-print" aria-hidden="true"></span>
+        <span class="hero-particle hero-particle--3 no-print" aria-hidden="true"></span>
+        <span class="hero-particle hero-particle--4 no-print" aria-hidden="true"></span>
+        <span class="hero-particle hero-particle--5 no-print" aria-hidden="true"></span>
+
+        <!-- VV monogram crest top-left -->
+        <span class="hero-vv-monogram no-print" aria-hidden="true" style="display:none">
+          <svg viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(236,185,33,0.55)" stroke-width="0.8" stroke-dasharray="2 1.5"/>
+            <circle cx="23" cy="23" r="17" fill="none" stroke="rgba(236,185,33,0.4)" stroke-width="0.5"/>
+            <path d="M 9 12 L 15 30 L 21 12 M 25 12 L 31 30 L 37 12" stroke="rgba(236,185,33,0.95)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <circle cx="23" cy="6" r="1.2" fill="rgba(236,185,33,0.85)"/>
+            <circle cx="23" cy="40" r="1.2" fill="rgba(236,185,33,0.85)"/>
+          </svg>
+        </span>
+
+        <!-- 5 twinkle sparkles -->
+        <span class="hero-spark hero-spark--1 no-print" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" fill="rgba(236,185,33,0.95)"/></svg>
+        </span>
+        <span class="hero-spark hero-spark--2 no-print" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" fill="rgba(236,185,33,0.95)"/></svg>
+        </span>
+        <span class="hero-spark hero-spark--3 no-print" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" fill="rgba(236,185,33,0.95)"/></svg>
+        </span>
+        <span class="hero-spark hero-spark--4 no-print" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" fill="rgba(236,185,33,0.95)"/></svg>
+        </span>
+        <span class="hero-spark hero-spark--5 no-print" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" fill="rgba(236,185,33,0.95)"/></svg>
+        </span>
+
+        <!-- Pet Certificate XL -->
+        <div class="relative">
+          <!-- Header row -->
+          <div class="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-1.5 mb-5">
+            <div class="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-[0.18em]" style="color: rgba(255,255,255,0.55)">
+              <span class="w-3.5 h-3.5 inline-flex shrink-0" style="color: rgba(236,185,33,0.9)" x-html="iconSvg('calendar')"></span>
+              <span>MMP · ID {pet.id}</span>
+              <span style="color: rgba(236,185,33,0.4)">·</span>
+              <span>ISSUED {issuedDate}</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-[11px] italic font-display" style="color: rgba(255,255,255,0.7)">
+              <span class="w-3.5 h-3.5 inline-flex shrink-0" style="color: rgba(236,185,33,0.9)" x-html="iconSvg('sparkle')"></span>
+              <span>— VowVet · Pet Score™ —</span>
+            </div>
+          </div>
+
+          <!-- Gauge 280 -->
+          <div class="relative mx-auto w-[240px] h-[240px] sm:w-[280px] sm:h-[280px]">
+            <!-- decorative rotating dashed ring -->
+            <svg class="gauge-outer absolute inset-0 w-full h-full" viewBox="0 0 280 280" aria-hidden="true">
+              <circle cx="140" cy="140" r="106" fill="none" stroke="rgba(236,185,33,0.28)" stroke-width="1.5" stroke-dasharray="2 8" stroke-linecap="round"/>
+            </svg>
+            <!-- main gauge: track + arc (SMIL reveal) -->
+            <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 280 280" role="img"
+              :aria-label="`Pet Score ${score.score} of 1000, ${score.level.name_vi} tier`">
+              <defs>
+                <linearGradient id="psGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#ecb921"/>
+                  <stop offset="55%" stop-color="#f4c842"/>
+                  <stop offset="100%" stop-color="#B48608"/>
+                </linearGradient>
+              </defs>
+              <circle cx="140" cy="140" r="125" fill="none" stroke="rgba(236,185,33,0.14)" stroke-width="18"/>
+              <circle id="psGaugeArc" cx="140" cy="140" r="125" fill="none"
+                stroke="url(#psGaugeGrad)" stroke-width="18" stroke-linecap="round"
+                stroke-dasharray={GAUGE_C2} stroke-dashoffset={GAUGE_C2}
+                style="filter: drop-shadow(0 0 10px rgba(236,185,33,0.45));">
+                <animate id="psGaugeAnim" attributeName="stroke-dashoffset"
+                  from={GAUGE_C2} to={gaugeOffset} dur="1.8s" begin="indefinite"
+                  fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.25 0.1 0.25 1"/>
+              </circle>
+            </svg>
+            <!-- center score -->
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+              <p class="font-display italic font-bold text-[72px] sm:text-[80px] leading-none tabular-nums text-white text-glow"
+                x-text="displayScore"></p>
+              <p class="text-[10px] uppercase font-mono" style="letter-spacing: 0.35em; color: rgba(255,255,255,0.55)">/ 1000 PTS</p>
+            </div>
+          </div>
+
+          <!-- Subtitle + name -->
+          <div class="text-center mt-5">
+            <p class="text-[10px] uppercase font-mono" style="letter-spacing: 0.3em; color: rgba(255,255,255,0.5)">Certified Health Score</p>
+            <h2 class="font-display italic font-semibold text-[36px] sm:text-[48px] leading-tight text-white mt-2 break-words">Bé {pet.name}</h2>
+          </div>
+
+          <!-- Inline stat row -->
+          <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[13px] mt-3">
+            <span class="inline-flex items-center gap-1.5 font-medium" style="color: #ecb921">
+              <span class="w-4 h-4 inline-flex shrink-0" x-html="iconSvg(tierIconKey())"></span>
+              <span x-text="`${score.level.name_vi} Tier`"></span>
+            </span>
+            <template x-if="percentile">
+              <span class="inline-flex items-center gap-4">
+                <span style="color: rgba(236,185,33,0.35)">·</span>
+                <span style="color: rgba(255,255,255,0.75)" x-text="`Top ${100 - percentile.percentile}% HCM`"></span>
+              </span>
+            </template>
+            <template x-if="trend">
+              <span class="inline-flex items-center gap-4">
+                <span style="color: rgba(236,185,33,0.35)">·</span>
+                <span class="inline-flex items-center gap-1.5 font-medium" style="color: #ecb921">
+                  <span class="w-4 h-4 inline-flex shrink-0" :style="trend.delta_30d < 0 ? 'transform: scaleY(-1)' : ''" x-html="iconSvg('trend-up')"></span>
+                  <span x-text="`${trend.delta_30d >= 0 ? '+' : ''}${trend.delta_30d} / 30d`"></span>
+                </span>
+              </span>
+            </template>
+          </div>
+
+          <!-- Divider -->
+          <div class="mx-auto mt-5 mb-4" style="max-width: 360px; height: 1px; background: rgba(236,185,33,0.25)"></div>
+
+          <!-- Tagline -->
+          <p class="text-center font-display italic text-[14px] px-4" style="color: rgba(255,255,255,0.85)" aria-live="polite">
+            <template x-if="nextTier()">
+              <span x-text="`Còn ${pointsToNextTier()} điểm để chinh phục ${nextTier().name_vi} Tier`"></span>
+            </template>
+            <template x-if="!nextTier()">
+              <span>Đã đạt cấp cao nhất 👑</span>
+            </template>
+          </p>
+
+          <!-- Recalc CTA — gold pill -->
+          <div class="flex justify-center mt-5">
+            <button @click="refresh()" :disabled="refreshing"
+              class="inline-flex items-center gap-2 text-xs uppercase tracking-[0.16em] font-bold italic px-5 py-2.5 rounded-full transition disabled:opacity-50 lift-on-hover"
+              style="background: linear-gradient(135deg, #ecb921, #B48608); color: #0a0a0a; box-shadow: 0 6px 18px -4px rgba(236,185,33,0.5);">
+              <span class="w-4 h-4 inline-flex shrink-0" x-show="!refreshing" x-html="iconSvg('refresh')"></span>
+              <span x-show="!refreshing">Tính lại đánh giá</span>
+              <span x-show="refreshing">Đang tính...</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- [2] Achievement Strip — Phase 3 -->
+      <template x-if="achievements().length > 0">
+        <section class="achievement-strip bg-white rounded-2xl border-2 border-mmp-cream p-5 mb-4 shadow-sm" aria-labelledby="ach-heading">
+          <div class="flex items-center justify-between mb-3">
+            <h2 id="ach-heading" class="font-bold text-mmp-ink flex items-center gap-2">
+              <span class="w-5 h-5 inline-flex shrink-0 text-mmp-gold" x-html="iconSvg('trophy')" aria-hidden="true"></span>
+              <span>Thành tích</span>
+            </h2>
+            <span class="text-[11px] font-mono uppercase tracking-[0.12em] text-slate-500" x-text="`${achievements().length} / 5 cấp bậc`"></span>
+          </div>
+          <div class="ach-scroll-wrapper">
+          <div class="ach-scroll -mx-1">
+            <div class="ach-strip-inner">
+              <template x-for="(badge, idx) in achievements()" :key="badge.key">
+                <div class="ach-badge" :style="`animation-delay: ${idx * 80}ms`">
+                  <div class="ach-badge__inner">
+                    <div class="ach-badge__icon" x-html="iconSvg(badge.icon)" aria-hidden="true"></div>
+                    <p class="ach-badge__label" x-text="badge.label"></p>
+                    <p class="ach-badge__subtitle" x-text="badge.subtitle"></p>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- Recommendations — Phase 4 -->
+      <template x-if="topRecommendations().length > 0">
+        <section class="recommendations-strip bg-white rounded-2xl border-2 border-mmp-cream p-5 mb-4 shadow-sm" aria-labelledby="rec-heading">
+          <div class="flex items-center justify-between mb-3">
+            <h2 id="rec-heading" class="font-bold text-mmp-ink flex items-center gap-2">
+              <span class="w-5 h-5 inline-flex shrink-0 text-mmp-gold" x-html="iconSvg('lightbulb')" aria-hidden="true"></span>
+              <span>Việc cần làm</span>
+            </h2>
+            <span class="rec-counter-pill" x-text="`+${topRecommendations().reduce((s, r) => s + r.potential_points, 0)}đ tiềm năng`"></span>
+          </div>
+          <div class="rec-list space-y-2">
+            <template x-for="(r, idx) in topRecommendations()" :key="r.component_key">
+              <a :href="r.action_url || `/pets/${pet.id}`" class="rec-card" :style="`animation-delay: ${idx * 100}ms`">
+                <div class="rec-card__icon" x-text="r.icon"></div>
+                <div class="rec-card__content">
+                  <p class="rec-card__title" x-text="r.title"></p>
+                  <p class="rec-card__advice" x-text="r.advice"></p>
+                  <div class="rec-card__points">
+                    <span x-text="`+${r.potential_points}đ`"></span>
+                    <span>tiềm năng</span>
+                  </div>
+                </div>
+                <div class="rec-card__chevron" x-html="iconSvg('chevron-right')" aria-hidden="true"></div>
+              </a>
+            </template>
+          </div>
+        </section>
+      </template>
+
+      <!-- Constellation Star Map — Phase 5 (SSR) -->
+      <section class="constellation-section" aria-labelledby="map-heading">
+        <div class="flex items-baseline justify-between mb-3">
+          <h2 id="map-heading" class="font-bold text-white flex items-center gap-2">
+            <span class="w-5 h-5 inline-flex shrink-0 text-mmp-gold" x-html="iconSvg('star')" aria-hidden="true"></span>
+            <span>Constellation — 15 cực của Bé <span x-text="pet.name" class="italic"></span></span>
+          </h2>
+          <span class="text-[10px] italic text-mmp-gold/65">15 thành tố</span>
+        </div>
+        <div class="constellation-svg-wrapper">
+          <svg viewBox="0 0 320 320" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
+            <g class="star-dust">
+              <circle cx="30" cy="40" r="0.8" class="dust-1"/>
+              <circle cx="280" cy="50" r="1" class="dust-2"/>
+              <circle cx="50" cy="290" r="0.7" class="dust-3"/>
+              <circle cx="290" cy="280" r="1.2" class="dust-4"/>
+              <circle cx="150" cy="20" r="0.6" class="dust-5"/>
+              <circle cx="20" cy="150" r="1" class="dust-6"/>
+              <circle cx="300" cy="160" r="0.8" class="dust-7"/>
+              <circle cx="170" cy="300" r="1.1" class="dust-8"/>
+              <circle cx="190" cy="40" r="0.7" class="dust-9"/>
+              <circle cx="40" cy="200" r="0.9" class="dust-10"/>
+              <circle cx="270" cy="190" r="0.8" class="dust-11"/>
+              <circle cx="120" cy="290" r="1" class="dust-12"/>
+              <circle cx="280" cy="120" r="0.7" class="dust-13"/>
+              <circle cx="60" cy="60" r="0.9" class="dust-14"/>
+              <circle cx="220" cy="280" r="0.6" class="dust-15"/>
+              <circle cx="180" cy="200" r="1" class="dust-16"/>
+              <circle cx="100" cy="250" r="0.8" class="dust-17"/>
+              <circle cx="250" cy="100" r="0.7" class="dust-18"/>
+              <circle cx="140" cy="160" r="0.6" class="dust-19"/>
+              <circle cx="200" cy="160" r="0.8" class="dust-20"/>
+            </g>
+            <g class="const-rings">
+              <circle cx="160" cy="160" r="130" fill="none" stroke="rgba(236,185,33,0.18)" stroke-width="0.8" stroke-dasharray="3 5"/>
+              <circle cx="160" cy="160" r="95" fill="none" stroke="rgba(236,185,33,0.12)" stroke-width="0.6" stroke-dasharray="2 4"/>
+            </g>
+            {stars.map((s) => (
+              <g class={`star-wrapper ${s.stateClass} star-size-${s.bucket}`} @mouseenter={s.enterExpr} @mouseleave="hoveredComponent = null">
+                <circle cx={s.x} cy={s.y} r={s.r} class="star-dot" />
+                <foreignObject x={s.tipX} y={s.tipY} width="180" height="84" class="star-tooltip">
+                  <div xmlns="http://www.w3.org/1999/xhtml" class="star-tooltip-inner">
+                    <strong>{s.label_vi}</strong>
+                    <span>{(s.current_value > 0 ? "+" : "") + s.current_value} / {s.max_possible}</span>
+                    {s.description && <p>{s.description}</p>}
+                  </div>
+                </foreignObject>
+              </g>
+            ))}
+            <circle cx="160" cy="160" r="42" fill="rgba(236,185,33,0.08)" stroke="rgba(236,185,33,0.4)" stroke-width="1"/>
+            <foreignObject x="115" y="125" width="90" height="70" style="pointer-events: none;">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="ticker-panel" x-show="displayedComponent" :class="hoveredComponent ? 'ticker-hovered' : 'ticker-auto'">
+                <span class="ticker-icon" x-text="displayedComponent?.icon || '✦'"></span>
+                <span class="ticker-label" x-text="displayedComponent?.label_vi"></span>
+                <span class="ticker-value" x-text="`${displayedComponent?.current_value > 0 ? '+' : ''}${displayedComponent?.current_value} / ${displayedComponent?.max_possible}`"></span>
+              </div>
+            </foreignObject>
+          </svg>
+        </div>
+        <div class="constellation-legend">
+          <span><span class="legend-dot legend-bright"></span>Tốt</span>
+          <span><span class="legend-dot legend-faint"></span>Bình thường</span>
+          <span><span class="legend-dot legend-neutral"></span>Trung tính</span>
+          <span><span class="legend-dot legend-penalty"></span>Cần cải thiện</span>
+        </div>
+      </section>
+
+      <!-- Phase 6: Trend + Community merged -->
+      <section class="trend-community bg-white rounded-2xl border-2 border-mmp-cream p-5 mb-4 shadow-sm" aria-labelledby="trend-heading">
+        <div class="flex items-center justify-between mb-3">
+          <h2 id="trend-heading" class="font-bold text-mmp-ink flex items-center gap-2">
+            <span class="w-5 h-5 inline-flex shrink-0 text-mmp-gold" x-html="iconSvg('trend-up')" aria-hidden="true"></span>
+            <span>30 ngày qua</span>
+          </h2>
+          <span class="trend-counter-pill"
+                :class="trend && trend.delta_30d < 0 ? 'pill-negative' : ''"
+                x-text="trend ? `${trend.delta_30d >= 0 ? '+' : ''}${trend.delta_30d} / 30d` : '...'"></span>
+        </div>
+
+        <div class="trend-chart-wrapper" x-init="loadTrend()">
+          <template x-if="!trendLoaded">
+            <div class="skeleton" style="height: 200px; max-width: 100%;"></div>
+          </template>
+          <template x-if="trendLoaded">
+            <div>
+              <canvas id="trend-chart" class="w-full max-w-full" style="max-height: 200px"></canvas>
+              <div class="flex items-center justify-between text-xs text-slate-600 mt-3 px-1">
+                <div>
+                  <span class="block text-[10px] text-slate-400 uppercase tracking-wide">30 ngày trước</span>
+                  <strong class="text-mmp-ink" x-text="trend?.points?.[0]?.score || 0"></strong>
+                </div>
+                <div class="text-center">
+                  <span class="trend-delta-badge"
+                        :class="(trend?.delta_30d ?? 0) >= 0 ? 'delta-up' : 'delta-down'"
+                        x-text="(trend?.delta_30d ?? 0) >= 0 ? `↑ +${trend?.delta_30d}` : `↓ ${trend?.delta_30d}`">
+                  </span>
+                </div>
+                <div class="text-right">
+                  <span class="block text-[10px] text-slate-400 uppercase tracking-wide">Hôm nay</span>
+                  <strong class="text-mmp-ink" x-text="trend?.current_score ?? score.score"></strong>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="trend-divider"></div>
+
+        <template x-if="percentile">
+          <div>
+            <h3 class="text-sm font-bold text-mmp-ink flex items-center gap-2 mb-2">
+              <span aria-hidden="true">🏙️</span>
+              <span>Trong cộng đồng HCM</span>
+            </h3>
+            <p class="text-sm text-slate-700 mb-2">
+              Bé <strong x-text="pet.name"></strong> ở <strong class="text-mmp-gold" x-text="`TOP ${100 - percentile.percentile}%`"></strong>
+              <span class="text-slate-500 text-xs">của <span x-text="percentile.total_opted_in"></span> pet HCM đã opt-in</span>
+            </p>
+
+            <div class="percentile-bar">
+              <div class="percentile-avg-line" :style="`left: ${(percentile.community_avg/1000)*100}%`"></div>
+              <div class="percentile-position"
+                   :style="`left: ${Math.max(0, ((percentile.pet_score/1000)*100) - 2)}%`"
+                   :title="`${percentile.pet_score} điểm`">
+              </div>
+            </div>
+
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1 px-1">
+              <span>0</span>
+              <span>TB HCM: <strong x-text="percentile.community_avg"></strong></span>
+              <span>1000</span>
+            </div>
+
+            <template x-if="percentile.rank_in_lb">
+              <a href="/leaderboard" class="leaderboard-cta">
+                <span>Bạn hạng <strong x-text="`#${percentile.rank_in_lb}`"></strong> trên leaderboard công khai</span>
+                <span aria-hidden="true">→</span>
+              </a>
+            </template>
+          </div>
+        </template>
+      </section>
+
+      <!-- Phase 7: Hụi Pet teaser -->
+      <section class="hui-pet-section" aria-labelledby="hui-heading">
+        <div class="hui-sparkles" aria-hidden="true">
+          <span class="hui-spark" style="top:15%;left:10%"></span>
+          <span class="hui-spark" style="top:25%;right:15%"></span>
+          <span class="hui-spark" style="top:50%;left:8%"></span>
+          <span class="hui-spark" style="top:65%;right:12%"></span>
+          <span class="hui-spark" style="top:80%;left:30%"></span>
+          <span class="hui-spark" style="top:40%;right:25%"></span>
+          <span class="hui-spark" style="top:70%;right:8%"></span>
+          <span class="hui-spark" style="top:20%;left:45%"></span>
+        </div>
+
+        <div class="flex items-center justify-between mb-2 relative z-10">
+          <h2 id="hui-heading" class="font-bold text-white flex items-center gap-2">
+            <span aria-hidden="true">🎁</span>
+            <span>Hụi Pet</span>
+          </h2>
+          <span class="hui-coming-soon-pill">COMING SOON</span>
+        </div>
+
+        <div class="hui-coin-wrapper">
+          <div class="hui-coin">
+            <span class="hui-coin-emoji" aria-hidden="true">🎲</span>
+          </div>
+        </div>
+
+        <p class="hui-tagline">
+          Cùng cộng đồng tích lũy điểm — biến thành quà cho <strong>bé yêu</strong>
+        </p>
+
+        <div class="hui-discount-teaser" x-data="{open: false}">
+          <button type="button" class="hui-discount-toggle" @click="open = !open" :aria-expanded="open">
+            <span class="hui-discount-icon" aria-hidden="true">💡</span>
+            <span class="hui-discount-text">Pet Score cao = giảm tới <strong>50%</strong> phí Hụi Pet</span>
+            <span class="hui-discount-arrow" :class="open ? 'open' : ''" aria-hidden="true">▼</span>
+          </button>
+          <div class="hui-discount-detail" x-show="open" x-transition>
+            <div class="hui-discount-row" :class="score.level.id === 'diamond' ? 'is-current' : ''">
+              <span class="hui-tier-name">💎 Diamond <span class="hui-tier-range" x-text="`(${(levels.find(l => l.id === 'diamond')?.range || []).join('-')})`"></span></span>
+              <span class="hui-tier-discount">−50%</span>
+            </div>
+            <div class="hui-discount-row" :class="score.level.id === 'platinum' ? 'is-current' : ''">
+              <span class="hui-tier-name">⭐ Platinum <span class="hui-tier-range" x-text="`(${(levels.find(l => l.id === 'platinum')?.range || []).join('-')})`"></span></span>
+              <span class="hui-tier-discount">−35%</span>
+            </div>
+            <div class="hui-discount-row" :class="score.level.id === 'gold' ? 'is-current' : ''">
+              <span class="hui-tier-name">🥇 Gold <span class="hui-tier-range" x-text="`(${(levels.find(l => l.id === 'gold')?.range || []).join('-')})`"></span></span>
+              <span class="hui-tier-discount">−20%</span>
+            </div>
+            <div class="hui-discount-row" :class="score.level.id === 'silver' ? 'is-current' : ''">
+              <span class="hui-tier-name">🥈 Silver <span class="hui-tier-range" x-text="`(${(levels.find(l => l.id === 'silver')?.range || []).join('-')})`"></span></span>
+              <span class="hui-tier-discount">−10%</span>
+            </div>
+            <div class="hui-discount-row" :class="score.level.id === 'bronze' ? 'is-current' : ''">
+              <span class="hui-tier-name">🥉 Bronze <span class="hui-tier-range" x-text="`(${(levels.find(l => l.id === 'bronze')?.range || []).join('-')})`"></span></span>
+              <span class="hui-tier-discount">base</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hui-stats-grid">
+          <div class="hui-stat">
+            <span class="hui-stat-icon" aria-hidden="true">🐾</span>
+            <span class="hui-stat-value">1,234+</span>
+            <span class="hui-stat-label">pet sẵn sàng</span>
+          </div>
+          <div class="hui-stat">
+            <span class="hui-stat-icon" aria-hidden="true">🎁</span>
+            <span class="hui-stat-value">2.5M+</span>
+            <span class="hui-stat-label">điểm quỹ</span>
+          </div>
+          <div class="hui-stat">
+            <span class="hui-stat-icon" aria-hidden="true">⏰</span>
+            <span class="hui-stat-value">01/07</span>
+            <span class="hui-stat-label">khai vận</span>
+          </div>
+        </div>
+
+        <a href="#" class="hui-cta">
+          <span>Đăng ký thông báo trước</span>
+          <span class="hui-cta-arrow" aria-hidden="true">→</span>
+        </a>
+      </section>
+
+      <p class="text-[11px] text-slate-400 text-center italic mt-6">
+        Mon Min Pet Score — gamification chăm sóc dựa trên vaccine, BCS, check-in, vet visit, allergies. Cập nhật mỗi 6h.
+      </p>
+    </div>
+  </main>
+
+  <script is:inline>
+    // ── Pet Score Constellation v3.1: static config (Phase 1) ──
+    const GROUP_DEFS = [
+      { key: "foundational", label: "Sức khỏe nền", icon: "stethoscope", emoji: "🏥", keys: ["no_chronic_conditions", "bcs_optimal", "age_modifier", "recent_emergency", "pain_status", "allergies"] },
+      { key: "preventive", label: "Y tế phòng ngừa", icon: "syringe", emoji: "💉", keys: ["vaccine_compliance", "vet_visit_recent", "water_intake"] },
+      { key: "daily", label: "Hoạt động hằng ngày", icon: "paw", emoji: "🐾", keys: ["checkin_streak", "routine_consistency", "mobility", "cognitive_status"] },
+      { key: "bonus", label: "Bonus", icon: "star", emoji: "🌟", keys: ["personality_modifier", "pet_hero_bonus"] },
+    ];
+
+    const COMPONENT_ICON = {
+      vaccine_compliance: "syringe", vet_visit_recent: "stethoscope", water_intake: "help-circle",
+      no_chronic_conditions: "heart", bcs_optimal: "scale", age_modifier: "sun",
+      recent_emergency: "shield-check", pain_status: "heart", allergies: "leaf",
+      checkin_streak: "calendar", routine_consistency: "refresh", mobility: "paw",
+      cognitive_status: "sparkle", personality_modifier: "star", pet_hero_bonus: "heart",
+    };
+
+    const ICON_PATHS = {
+      calendar: '<rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>',
+      sparkle: '<path d="M12 2L15 8L21 9L17 14L18 21L12 18L6 21L7 14L3 9L9 8Z"/>',
+      medal: '<circle cx="12" cy="8" r="6"/><path d="M15.5 13.5L17 22L12 19L7 22L8.5 13.5"/>',
+      trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+      crown: '<path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/>',
+      "trend-up": '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+      check: '<polyline points="20 6 9 17 4 12"/>',
+      "chevron-down": '<polyline points="6 9 12 15 18 9"/>',
+      "chevron-right": '<polyline points="9 18 15 12 9 6"/>',
+      "chevron-up": '<polyline points="18 15 12 9 6 15"/>',
+      refresh: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+      stethoscope: '<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3h11s1.5 1.5 1.5 4-1.5 4-1.5 4H5"/><path d="M8 11v4a4 4 0 0 0 8 0v-4"/><circle cx="20" cy="10" r="2"/>',
+      syringe: '<path d="m18 2 4 4-13 13H5v-4L18 2z"/><path d="m14 6 4 4"/><path d="m11 9 4 4"/>',
+      paw: '<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>',
+      star: '<path d="M12 2L15 8L21 9L17 14L18 21L12 18L6 21L7 14L3 9L9 8Z"/>',
+      heart: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+      sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+      "shield-check": '<path d="M12 2L3 6v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V6l-9-4z"/><polyline points="9 12 11 14 15 10"/>',
+      leaf: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>',
+      scale: '<path d="M16 16l-4-4-4 4"/><path d="M12 12v9"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>',
+      "help-circle": '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+      "star-filled": '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+      "lightbulb": '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 1 4 12.7c-.4.3-.7.7-.9 1.2L14 18h-4l-1.1-2.1c-.2-.5-.5-.9-.9-1.2A7 7 0 0 1 12 2z"/>',
+    };
+
+    function scorePage(initial) {
+      return {
+        pet: initial.pet,
+        score: initial.score,
+        levels: initial.levels,
+        tierHex: initial.tierHex,
+        refreshing: false,
+        gaugeProgress: 0,
+        displayScore: 0,
+        showCelebration: false,
+        trend: null,
+        trendLoaded: false,
+        percentile: null,
+        age: (() => {
+          const dob = initial.pet && initial.pet.dob;
+          if (!dob) return null;
+          const ms = Date.now() - new Date(dob).getTime();
+          if (Number.isNaN(ms)) return null;
+          const yrs = Math.floor(ms / (365.25 * 24 * 3600 * 1000));
+          return yrs >= 0 ? yrs : null;
+        })(),
+        _loadingTrend: false,
+        tickerIndex: 0,
+        tickerPaused: false,
+        hoveredComponent: null,
+        _tickerTimer: null,
+
+        get displayedComponent() {
+          if (this.hoveredComponent) return this.hoveredComponent;
+          const comps = this.score.breakdown.components || [];
+          if (comps.length === 0) return null;
+          return comps[this.tickerIndex % comps.length];
+        },
+
+        startTicker() {
+          if (typeof window === "undefined") return;
+          const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          if (reduce) { this.tickerIndex = 0; return; }
+          this._tickerTimer = setInterval(() => {
+            if (!this.tickerPaused && !this.hoveredComponent && this.score.breakdown.components) {
+              this.tickerIndex = (this.tickerIndex + 1) % this.score.breakdown.components.length;
+            }
+          }, 3000);
+        },
+
+        onMount() {
+          this.loadTrend(); // populate hero stats (percentile + 30d delta) early
+          this.$nextTick(() => this.startGauge());
+          this.startTicker();
+
+          try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get("celebrate") === "1") {
+              setTimeout(() => { this.showCelebration = true; }, 1500);
+              url.searchParams.delete("celebrate");
+              window.history.replaceState({}, "", url.toString());
+            }
+          } catch (_) {}
+        },
+
+        startGauge() {
+          const C = 2 * Math.PI * 125;
+          const finalOff = C * (1 - this.score.score / 1000);
+          const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          const arc = document.getElementById("psGaugeArc");
+          const anim = document.getElementById("psGaugeAnim");
+          if (reduce) {
+            this.displayScore = this.score.score;
+            if (arc) arc.setAttribute("stroke-dashoffset", String(finalOff));
+            return;
+          }
+          if (anim) {
+            anim.setAttribute("from", String(C));
+            anim.setAttribute("to", String(finalOff));
+            anim.beginElement();
+          }
+          this.animateScore();
+        },
+
+        animateScore() {
+          const target = this.score.score;
+          const duration = 1800;
+          const start = performance.now();
+          const tick = (now) => {
+            const t = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - t, 3);
+            this.displayScore = Math.round(target * eased);
+            if (t < 1) requestAnimationFrame(tick);
+            else this.displayScore = target;
+          };
+          requestAnimationFrame(tick);
+        },
+
+        get sortedComponents() {
+          return [...this.score.breakdown.components].sort((a, b) => b.current_value - a.current_value);
+        },
+
+        barWidth(c) {
+          const range = Math.max(Math.abs(c.max_possible), Math.abs(c.min_possible), 1);
+          return Math.min(100, Math.max(3, (Math.abs(c.current_value) / range) * 100));
+        },
+
+        barFillClass(c) {
+          // Palette strict: positive = gold gradient, penalty = ink, neutral = slate
+          if (c.current_value < 0) return "ps-fill-neg";
+          if (c.current_value === 0) return "ps-fill-neu";
+          return "ps-fill-pos";
+        },
+
+        barWrapClass(c) {
+          if (c.current_value > 0) return "ps-wrap-pos";
+          if (c.current_value < 0) return "ps-wrap-neg";
+          return "ps-wrap-neu";
+        },
+
+        fmtTime(iso) {
+          if (!iso) return "—";
+          try {
+            return new Date(iso).toLocaleString("vi-VN", {
+              hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit",
+            });
+          } catch { return ""; }
+        },
+
+        async loadTrend() {
+          if (this.trendLoaded || this._loadingTrend) return;
+          this._loadingTrend = true;
+          try {
+            const [tRes, pRes] = await Promise.all([
+              fetch(`/api/v1/pets/${this.pet.id}/pet-score/trend?days=30`, { credentials: "include" }),
+              fetch(`/api/v1/pets/${this.pet.id}/pet-score/percentile`, { credentials: "include" }),
+            ]);
+            if (tRes.ok) this.trend = await tRes.json();
+            if (pRes.ok) this.percentile = await pRes.json();
+            this.trendLoaded = true;
+
+            if (this.trend?.points?.length) {
+              if (typeof Chart === "undefined") {
+                await new Promise((resolve, reject) => {
+                  const s = document.createElement("script");
+                  s.src = "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js";
+                  s.onload = resolve;
+                  s.onerror = reject;
+                  document.head.appendChild(s);
+                });
+              }
+              this.$nextTick(() => this.renderChart());
+            }
+          } catch (_) { this.trendLoaded = true; }
+        },
+
+        renderChart() {
+          const canvas = document.getElementById("trend-chart");
+          if (!canvas || typeof Chart === "undefined" || !this.trend?.points) return;
+          const labels = this.trend.points.map(p => p.date.slice(5));
+          const data = this.trend.points.map(p => p.score);
+          new Chart(canvas, {
+            type: "line",
+            data: {
+              labels,
+              datasets: [{
+                label: "Pet Score",
+                data,
+                borderColor: "#ecb921",
+                backgroundColor: "rgba(236,185,33,0.30)",
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderWidth: 2.5,
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                y: {
+                  beginAtZero: false, suggestedMin: 0, suggestedMax: 1000,
+                  ticks: { font: { size: 10 } },
+                },
+                x: {
+                  ticks: { font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 },
+                },
+              },
+            }
+          });
+        },
+
+        async refresh() {
+          this.refreshing = true;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/pet-score/refresh`, {
+              method: "POST",
+              credentials: "include",
+            });
+            if (res.ok) {
+              const fresh = await res.json();
+              this.score = fresh;
+              this.displayScore = 0;
+              this.$nextTick(() => this.startGauge());
+            }
+          } catch (_) {} finally {
+            this.refreshing = false;
+          }
+        },
+
+        // ── Phase 1: grouping · tiers · achievements · icons (client-side only) ──
+        _comp(key) {
+          return (this.score.breakdown.components || []).find((c) => c.key === key) || null;
+        },
+
+        groupedComponents() {
+          const comps = this.score.breakdown.components || [];
+          return GROUP_DEFS.map((g) => {
+            const items = g.keys.map((k) => comps.find((c) => c.key === k)).filter(Boolean);
+            const sum_current = items.reduce((s, c) => s + c.current_value, 0);
+            const sum_max = items.reduce((s, c) => s + Math.max(0, c.max_possible), 0);
+            return { key: g.key, label_group: g.label, icon: g.icon, emoji: g.emoji, components: items, sum_current, sum_max };
+          });
+        },
+
+        groupNet(group) {
+          const sum = group ? group.sum_current : 0;
+          if (sum > 0) return "positive";
+          if (sum < 0) return "negative";
+          return "neutral";
+        },
+
+        nextTier() {
+          const idx = this.levels.findIndex((l) => l.id === this.score.level.id);
+          if (idx === -1 || idx >= this.levels.length - 1) return null;
+          return this.levels[idx + 1];
+        },
+
+        pointsToNextTier() {
+          const next = this.nextTier();
+          return next ? Math.max(0, next.range[0] - this.score.score) : 0;
+        },
+
+        pointsToNextTierLabel() {
+          const next = this.nextTier();
+          return next ? `Còn ${this.pointsToNextTier()} điểm để lên ${next.name_vi}` : "Đã đạt cấp cao nhất";
+        },
+
+        tierIconKey() {
+          return { bronze: "medal-3", silver: "medal-2", gold: "medal-1", platinum: "trophy", diamond: "crown" }[this.score.level.id] || "medal-1";
+        },
+
+        topRecommendations() {
+          return (this.score.recommendations || []).slice(0, 3);
+        },
+
+        achievements() {
+          const out = [];
+          const chronic = this._comp("no_chronic_conditions");
+          if (chronic && chronic.max_possible > 0 && chronic.current_value >= chronic.max_possible)
+            out.push({ key: "khoe_nen", icon: "stethoscope", label: "KHỎE NỀN", subtitle: "Không bệnh mạn" });
+          const hero = this._comp("pet_hero_bonus");
+          if (hero && hero.current_value > 0)
+            out.push({ key: "pet_hero", icon: "heart", label: "PET HERO", subtitle: "Giúp cộng đồng" });
+          if (this.age !== null && this.age >= 1 && this.age <= 8)
+            out.push({ key: "tuoi_vang", icon: "sun", label: "TUỔI VÀNG", subtitle: `${this.age} tuổi sung sức` });
+          const emer = this._comp("recent_emergency");
+          if (emer && emer.current_value === 0)
+            out.push({ key: "an_toan", icon: "shield-check", label: "AN TOÀN", subtitle: "Không cấp cứu" });
+          if (this.trend && typeof this.trend.delta_30d === "number" && this.trend.delta_30d > 0)
+            out.push({ key: "streak_30d", icon: "trend-up", label: "STREAK 30D", subtitle: "Tăng đều" });
+          return out;
+        },
+
+        starState(c) {
+          if (!c) return "faint";
+          if (c.current_value < 0) return "penalty";
+          if (c.current_value > 0) return "bright";
+          return "faint";
+        },
+
+        componentIconKey(key) {
+          return COMPONENT_ICON[key] || "star";
+        },
+
+        iconSvg(name) {
+          const key = String(name || "").startsWith("medal") ? "medal" : name;
+          const paths = ICON_PATHS[key] || "";
+          const filled = name === "star-filled";
+          return '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="' + (filled ? "currentColor" : "none") +
+            '" stroke="' + (filled ? "none" : "currentColor") +
+            '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block">' + paths + "</svg>";
+        },
+      };
+    }
+  </script>
+
+  <!-- Quest hook: fire view_pet_score trigger -->
+  <script is:inline define:vars={{ petId }}>
+    (() => {
+      try {
+        fetch("/api/v1/quests/track/view-pet-score", {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pet_id: petId }),
+        }).catch(() => {});
+      } catch (_) {}
+    })();
+  </script>
+</Layout>

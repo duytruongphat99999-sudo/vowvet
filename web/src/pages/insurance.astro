@@ -1,0 +1,418 @@
+---
+/**
+ * /insurance — PUBLIC waitlist landing for pet insurance partnership.
+ *
+ * Matches homepage premium pattern:
+ *   - Dark ink hero with gold accents + Fraunces italic
+ *   - SVG icons (no sến emojis)
+ *   - Tier discount table using correct Pet Score brackets (0-300/301-500/501-700/701-850/851+)
+ *   - 3 partner cards (Fubon, Igloo, Pet Health Centre)
+ *   - Alpine.js waitlist form with success state
+ *   - Social proof from /insurance/waitlist/count
+ *   - EcosystemNav footer
+ */
+import Layout from "../layouts/Layout.astro";
+import Logo from "../components/Logo.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
+import EcosystemNav from "../components/EcosystemNav.astro";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// Fetch waitlist count for social proof (fail-soft to 0)
+let waitlistCount = 0;
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/insurance/waitlist/count`);
+  if (r.ok) {
+    const j = await r.json();
+    waitlistCount = j.count || 0;
+  }
+} catch (_) {}
+
+// Tier discounts — using ACTUAL VowVet Pet Score brackets from shared/pet-score-formula.ts
+const tiers = [
+  { id: "bronze",   icon: "medal",   name: "Mới bắt đầu", range: "0 – 300",   discount: "Standard",    color: "#a0826d", bg: "bg-amber-50",  border: "border-amber-200" },
+  { id: "silver",   icon: "medal",   name: "Tốt",         range: "301 – 500", discount: "Giảm 5%",     color: "#64748b", bg: "bg-slate-50",  border: "border-slate-200" },
+  { id: "gold",     icon: "trophy",  name: "Rất tốt",     range: "501 – 700", discount: "Giảm 15%",    color: "#ecb921", bg: "bg-amber-50",  border: "border-amber-300", highlight: true },
+  { id: "platinum", icon: "crown",   name: "Xuất sắc",    range: "701 – 850", discount: "Giảm 20%",    color: "#3b82f6", bg: "bg-sky-50",    border: "border-sky-200" },
+  { id: "diamond",  icon: "diamond", name: "Hoàn hảo",    range: "851 – 1000", discount: "Giảm 25%",   color: "#7c3aed", bg: "bg-mmp-cream", border: "border-mmp-cream", highlight: true },
+];
+
+// 3 reasons section
+const reasons = [
+  {
+    icon: "wallet",
+    title: "Chi phí vet ngày càng đắt",
+    desc: "Phẫu thuật chó/mèo trung bình: 5-30 triệu VNĐ. Tai nạn xe: 10-50 triệu. Bệnh mãn tính: 1-5 triệu/tháng. Bảo hiểm cover 60-80%.",
+  },
+  {
+    icon: "alert-triangle",
+    title: "Tai nạn không báo trước",
+    desc: "Parvo, Carre, Dại, viêm tử cung mủ, sỏi bàng quang — đều cần điều trị gấp, không thể chờ đủ tiền hoặc vay mượn.",
+  },
+  {
+    icon: "scale",
+    title: "Trách nhiệm pháp lý",
+    desc: "Pet cắn người, làm hỏng tài sản hàng xóm → chủ chịu trách nhiệm bồi thường. Bảo hiểm trách nhiệm bên thứ ba cover phần này.",
+  },
+];
+
+// 3 partners
+const partners = [
+  { name: "Fubon Insurance", country: "Đài Loan", note: "Tiên phong pet insurance VN", icon: "shield" },
+  { name: "Igloo Insure",    country: "Singapore", note: "B2B API ready",              icon: "shield-check" },
+  { name: "Pet Health Centre", country: "Việt Nam", note: "Vet network rộng",          icon: "stethoscope" },
+];
+
+const pageUrl = "https://vowvet.monminpet.com/insurance";
+---
+
+<Layout
+  title="Bảo hiểm thú cưng · VowVet by Mon Min Pet"
+  description="Bảo hiểm pet đầu tiên tích hợp AI tracking tại Việt Nam. Pet Score cao = phí thấp. Đăng ký waitlist nhận thông báo sớm — Q3-Q4/2026."
+>
+  <Fragment slot="head">
+    <link rel="canonical" href={pageUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:title" content="Bảo hiểm thú cưng · VowVet by Mon Min Pet" />
+    <meta property="og:description" content="Pet Score cao = phí thấp. Đăng ký waitlist nhận thông báo sớm." />
+  </Fragment>
+
+  <main class="bg-white min-h-screen">
+
+    <!-- ─── Top nav (sticky white, matches /articles + homepage) ─── -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-white/95">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <Logo variant="default" href="/" />
+        <div class="flex items-center gap-2 sm:gap-4 text-sm">
+          <a href="/" class="text-slate-600 hover:text-mmp-ink transition hidden sm:inline">← Trang chủ</a>
+          <a href="#waitlist" class="bg-mmp-ink hover:bg-slate-800 text-white font-semibold px-5 py-2 rounded-lg transition">
+            Đăng ký waitlist
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         HERO — dark ink, gold eyebrow, Fraunces italic display
+         ═══════════════════════════════════════════════════════════ -->
+    <header class="bg-mmp-ink text-white relative overflow-hidden">
+      <div class="absolute inset-0 opacity-25 pointer-events-none" aria-hidden="true">
+        <div class="absolute top-0 right-0 w-[600px] h-[600px] rounded-full"
+             style="background: radial-gradient(circle, rgba(236,185,33,0.55) 0%, transparent 70%);"></div>
+        <div class="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full"
+             style="background: radial-gradient(circle, rgba(236,185,33,0.3) 0%, transparent 70%);"></div>
+      </div>
+      <div class="absolute inset-0 opacity-[0.04] pointer-events-none" aria-hidden="true"
+           style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 28px 28px;"></div>
+
+      <div class="relative max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
+        <p class="eyebrow mb-5" style="color: var(--c-gold);">
+          <span class="gold-dot"></span>Sắp ra mắt · Q3-Q4 2026
+        </p>
+        <h1 class="font-display italic text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold leading-[1.1] tracking-tight mb-6">
+          Bảo hiểm thú cưng <br class="hidden sm:block" />
+          <span style="color: var(--c-gold);">đầu tiên tích hợp AI</span>
+        </h1>
+        <p class="text-base sm:text-lg text-white/72 max-w-2xl mx-auto leading-relaxed mb-8">
+          Pet Score cao = giảm phí. Vaccine tracking = đủ điều kiện.
+          VowVet đang đàm phán với <strong class="text-white">Igloo</strong> + <strong class="text-white">Fubon</strong>
+          để mang bảo hiểm chuẩn quốc tế đến chủ nuôi Việt Nam.
+        </p>
+        <a href="#waitlist"
+           class="inline-flex items-center gap-3 px-7 py-3.5 bg-mmp-gold text-mmp-ink hover:scale-[1.02] hover:shadow-lg hover:shadow-mmp-gold/30 font-bold rounded-xl transition group">
+          Đăng ký nhận thông báo
+          <FeatureIcon name="arrow" class="w-4 h-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
+        </a>
+        {waitlistCount > 0 && (
+          <p class="text-sm text-white/60 mt-5 inline-flex items-center gap-1.5">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping bg-emerald-400"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            </span>
+            <strong class="text-white">{waitlistCount.toLocaleString()}</strong> chủ nuôi đã đăng ký waitlist
+          </p>
+        )}
+      </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         WHY — 3 reasons
+         ═══════════════════════════════════════════════════════════ -->
+    <section class="py-16 sm:py-20 bg-white">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6">
+        <p class="eyebrow text-center mb-3" style="color: var(--c-gold);">
+          <span class="gold-dot"></span>Tại sao
+        </p>
+        <h2 class="font-display italic text-3xl sm:text-4xl font-semibold text-mmp-ink text-center mb-12 tracking-tight">
+          Vì sao cần bảo hiểm pet?
+        </h2>
+
+        <div class="space-y-4">
+          {reasons.map((r) => (
+            <div class="flex gap-4 p-5 sm:p-6 bg-mmp-cream rounded-2xl border border-slate-200/60">
+              <div class="flex-shrink-0 inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white shadow-sm text-mmp-ink">
+                <FeatureIcon name={r.icon} class="w-6 h-6" strokeWidth={1.7} />
+              </div>
+              <div class="flex-1 min-w-0">
+                <h3 class="font-bold text-mmp-ink mb-1">{r.title}</h3>
+                <p class="text-sm text-slate-700 leading-relaxed">{r.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         VowVet ADVANTAGE — Pet Score tier discounts
+         ═══════════════════════════════════════════════════════════ -->
+    <section class="py-16 sm:py-20 bg-mmp-cream border-y border-slate-200">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6">
+        <p class="eyebrow text-center mb-3" style="color: var(--c-gold);">
+          <span class="gold-dot"></span>Lợi thế VowVet
+        </p>
+        <h2 class="font-display italic text-3xl sm:text-4xl font-semibold text-mmp-ink text-center mb-3 tracking-tight">
+          Pet Score cao = Phí thấp
+        </h2>
+        <p class="text-center text-slate-600 mb-10 max-w-xl mx-auto leading-relaxed">
+          Bảo hiểm truyền thống tính phí theo breed + tuổi. VowVet tính thêm
+          <strong class="text-mmp-ink">Pet Score</strong> — pet được chăm tốt = rủi ro thấp = phí rẻ hơn.
+        </p>
+
+        <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm">
+          <div class="space-y-2.5">
+            {tiers.map((t) => (
+              <div class:list={[
+                "flex items-center justify-between p-4 rounded-xl border",
+                t.bg, t.border,
+                t.highlight ? "shadow-sm" : "",
+              ]}>
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white shadow-sm" style={`color: ${t.color};`}>
+                    <FeatureIcon name={t.icon} class="w-4 h-4" strokeWidth={1.8} />
+                  </span>
+                  <div class="min-w-0">
+                    <p class="font-bold text-sm uppercase tracking-wider" style={`color: ${t.color};`}>{t.id}</p>
+                    <p class="text-xs text-slate-500 tabular-nums">{t.range} điểm</p>
+                  </div>
+                </div>
+                <span class="text-sm font-bold tabular-nums shrink-0" style={`color: ${t.color};`}>{t.discount}</span>
+              </div>
+            ))}
+          </div>
+          <p class="text-[11px] text-slate-500 mt-4 italic">
+            * Mức discount đang đàm phán với partner. Final rates sẽ thông báo khi launch chính thức Q3-Q4/2026.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         PARTNERS — 3 đối tác đang đàm phán
+         ═══════════════════════════════════════════════════════════ -->
+    <section class="py-16 sm:py-20 bg-white">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6">
+        <p class="eyebrow text-center mb-3" style="color: var(--c-gold);">
+          <span class="gold-dot"></span>Đối tác đang đàm phán
+        </p>
+        <h2 class="font-display italic text-2xl sm:text-3xl font-semibold text-mmp-ink text-center mb-10 tracking-tight">
+          Hợp tác cùng các công ty bảo hiểm uy tín
+        </h2>
+
+        <div class="grid sm:grid-cols-3 gap-4">
+          {partners.map((p) => (
+            <div class="bg-mmp-cream rounded-2xl p-5 sm:p-6 border border-slate-200 text-center">
+              <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white shadow-sm mb-4 text-mmp-ink">
+                <FeatureIcon name={p.icon} class="w-6 h-6" strokeWidth={1.7} />
+              </div>
+              <p class="font-bold text-mmp-ink">{p.name}</p>
+              <p class="text-xs text-slate-600 mt-1">{p.country} · {p.note}</p>
+            </div>
+          ))}
+        </div>
+
+        <!-- Market context -->
+        <div class="mt-10 grid sm:grid-cols-3 gap-3 text-center">
+          <div class="bg-white rounded-xl p-4 border border-slate-100">
+            <p class="text-2xl font-bold text-mmp-ink tabular-nums">$43.9<span class="text-base font-normal" style="color: var(--c-gold);">M</span></p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 mt-1 font-medium">Thị trường VN 2025</p>
+          </div>
+          <div class="bg-white rounded-xl p-4 border border-slate-100">
+            <p class="text-2xl font-bold text-mmp-ink tabular-nums">+10<span class="text-base font-normal" style="color: var(--c-gold);">%</span></p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 mt-1 font-medium">CAGR / năm</p>
+          </div>
+          <div class="bg-white rounded-xl p-4 border border-slate-100">
+            <p class="text-2xl font-bold text-mmp-ink tabular-nums">3</p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 mt-1 font-medium">Đối tác đang đàm phán</p>
+          </div>
+        </div>
+        <p class="text-[10px] text-slate-400 text-center mt-3">Nguồn: IMARC Group 2025 · Vietnam Pet Insurance Market Report</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         WAITLIST FORM — Alpine.js submit + status
+         ═══════════════════════════════════════════════════════════ -->
+    <section id="waitlist" class="py-20 sm:py-24 bg-mmp-ink text-white relative overflow-hidden scroll-mt-20">
+      <div class="absolute inset-0 opacity-20 pointer-events-none" aria-hidden="true">
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full"
+             style="background: radial-gradient(circle, rgba(236,185,33,0.5) 0%, transparent 70%);"></div>
+      </div>
+
+      <div class="relative max-w-xl mx-auto px-4 sm:px-6" x-data="waitlistForm()">
+        <p class="eyebrow text-center mb-3" style="color: var(--c-gold);">
+          <span class="gold-dot"></span>Đăng ký
+        </p>
+        <h2 class="font-display italic text-3xl sm:text-4xl font-semibold mb-3 text-center tracking-tight">
+          Waitlist ưu tiên
+        </h2>
+        <p class="text-white/70 text-center mb-8 leading-relaxed">
+          Thông báo đầu tiên khi bảo hiểm sẵn sàng. <strong class="text-white">Discount sớm</strong> cho 100 user đầu tiên.
+        </p>
+
+        <form @submit.prevent="submit()" class="space-y-4 bg-white/5 backdrop-blur rounded-3xl p-6 sm:p-7 border border-white/10">
+          <!-- Email -->
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-2 text-white/80">Email <span style="color: var(--c-gold);">*</span></label>
+            <input x-model="form.email" type="email" required
+                   class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/20 outline-none text-white placeholder-white/40 transition"
+                   placeholder="ban@gmail.com"/>
+          </div>
+
+          <!-- Phone -->
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-2 text-white/80">SĐT / Zalo <span class="text-white/40 font-normal normal-case">(không bắt buộc)</span></label>
+            <input x-model="form.phone" type="tel"
+                   class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/20 outline-none text-white placeholder-white/40 transition"
+                   placeholder="0779 029 133"/>
+          </div>
+
+          <!-- Pet count + species row -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-semibold uppercase tracking-wider block mb-2 text-white/80">Số pet</label>
+              <input x-model.number="form.pet_count" type="number" min="1" max="20"
+                     class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/20 outline-none text-white tabular-nums transition"/>
+            </div>
+            <div>
+              <label class="text-xs font-semibold uppercase tracking-wider block mb-2 text-white/80">Loài</label>
+              <select x-model="form.pet_species"
+                      class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/20 outline-none text-white transition appearance-none">
+                <option class="text-mmp-ink" value="dog">Chó</option>
+                <option class="text-mmp-ink" value="cat">Mèo</option>
+                <option class="text-mmp-ink" value="both">Cả 2</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Pet age range -->
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-2 text-white/80">Độ tuổi pet</label>
+            <select x-model="form.pet_age_range"
+                    class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/20 outline-none text-white transition appearance-none">
+              <option class="text-mmp-ink" value="puppy">Con non (&lt; 1 tuổi)</option>
+              <option class="text-mmp-ink" value="adult">Trưởng thành (1-7 tuổi)</option>
+              <option class="text-mmp-ink" value="senior">Lớn tuổi (≥ 8 tuổi)</option>
+              <option class="text-mmp-ink" value="mixed">Đa độ tuổi</option>
+            </select>
+          </div>
+
+          <!-- Interest level -->
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-2 text-white/80">Mức độ quan tâm</label>
+            <select x-model="form.interest_level"
+                    class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/20 outline-none text-white transition appearance-none">
+              <option class="text-mmp-ink" value="just_curious">Tò mò</option>
+              <option class="text-mmp-ink" value="comparing">Đang so sánh các option</option>
+              <option class="text-mmp-ink" value="ready_to_buy">Sẵn sàng mua khi có</option>
+            </select>
+          </div>
+
+          <button type="submit" :disabled="submitting"
+                  class="w-full py-4 bg-mmp-gold text-mmp-ink font-bold rounded-xl hover:scale-[1.01] active:scale-[0.99] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2">
+            <span x-show="!submitting">Đăng ký waitlist</span>
+            <span x-show="submitting">Đang gửi…</span>
+          </button>
+
+          <template x-if="message">
+            <div class="rounded-xl p-3 text-sm text-center"
+                 :class="success ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border border-red-500/30 text-red-300'">
+              <p x-text="message"></p>
+            </div>
+          </template>
+        </form>
+
+        <p class="text-[11px] text-white/50 text-center mt-5 max-w-md mx-auto leading-relaxed">
+          Email của bạn chỉ dùng để gửi thông báo bảo hiểm. Không spam, không bán cho bên thứ ba.
+          Có thể hủy đăng ký bất cứ lúc nào.
+        </p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         ECOSYSTEM + FOOTER
+         ═══════════════════════════════════════════════════════════ -->
+    <section class="py-16 bg-white">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <EcosystemNav active="vowvet" />
+      </div>
+    </section>
+
+    <footer class="bg-mmp-ink text-white py-10 px-4 sm:px-6 border-t border-white/5">
+      <div class="max-w-6xl mx-auto text-center">
+        <Logo variant="default" href="/" invertOnDark class="mx-auto" />
+        <p class="text-xs text-white/50 mt-4">
+          © 2026 CTY TNHH Duy Trường Phát · VowVet by Mon Min Pet · <span style="color: var(--c-gold);">WSAVA · AAFCO</span>
+        </p>
+      </div>
+    </footer>
+  </main>
+
+  <script is:inline>
+    function waitlistForm() {
+      return {
+        form: {
+          email: "",
+          phone: "",
+          pet_count: 1,
+          pet_species: "dog",
+          pet_age_range: "adult",
+          interest_level: "comparing",
+        },
+        submitting: false,
+        message: "",
+        success: false,
+        async submit() {
+          this.submitting = true;
+          this.message = "";
+          this.success = false;
+          try {
+            const res = await fetch("/api/v1/insurance/waitlist", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(this.form),
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.success = true;
+              this.message = data.message || "Đã ghi nhận!";
+              if (!data.duplicate) {
+                this.form.email = "";
+                this.form.phone = "";
+              }
+            } else {
+              this.success = false;
+              this.message = data.error?.message || "Có lỗi xảy ra. Thử lại sau.";
+            }
+          } catch (e) {
+            this.success = false;
+            this.message = "Lỗi kết nối. Vui lòng thử lại sau.";
+          } finally {
+            this.submitting = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

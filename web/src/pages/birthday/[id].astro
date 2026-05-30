@@ -1,0 +1,315 @@
+---
+/**
+ * /birthday/[id] — Public Birthday Wall (M11).
+ *
+ * No auth required. Accessible by anyone with the link.
+ * Shows pet info + birthday countdown + wishes from friends.
+ * Visitors can submit a wish (deduplicated by name).
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const petId = Number(Astro.params.id);
+if (!petId || isNaN(petId)) return Astro.redirect("/");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let wallData: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/public/birthday-wall/${petId}`);
+  if (res.ok) wallData = await res.json();
+} catch (_) {}
+
+if (!wallData?.pet) return Astro.redirect("/");
+
+const { pet, birthday, wishes: initialWishes, allowed_emojis } = wallData;
+const petName = pet.name;
+const daysUntil = birthday?.days_until ?? null;
+const isToday = daysUntil === 0;
+
+const title = isToday
+  ? `🎂 Hôm nay sinh nhật ${petName}!`
+  : daysUntil !== null && daysUntil <= 30
+  ? `🎂 Còn ${daysUntil} ngày sinh nhật ${petName}`
+  : `🎂 Birthday Wall · ${petName}`;
+
+const initialData = JSON.stringify({
+  petId,
+  petName: pet.name,
+  petPhotoUrl: pet.photo_url || null,
+  petSpecies: pet.species || null,
+  birthday,
+  wishes: initialWishes || [],
+  allowedEmojis: allowed_emojis || ["🎂", "🎉", "🐾", "❤️", "🎊", "🌟"],
+  isToday,
+  apiBase: "/api/v1/public/birthday-wall/" + petId,
+});
+
+// v136: SEO + Schema.org cho birthday wall public (no-auth).
+const APP_DOMAIN =
+  import.meta.env.APP_DOMAIN ||
+  process.env.APP_DOMAIN ||
+  "https://vowvet.monminpet.com";
+const canonicalUrl = `${APP_DOMAIN}/birthday/${petId}`;
+const description = isToday
+  ? `Hôm nay là sinh nhật ${petName}! Vào để lại lời chúc và lan tỏa yêu thương.`
+  : daysUntil !== null && daysUntil > 0 && daysUntil <= 30
+  ? `Còn ${daysUntil} ngày là đến sinh nhật ${petName} — ghé qua và để lại lời chúc nào!`
+  : `Để lại lời chúc sinh nhật cho bé ${petName} tại đây.`;
+const ogImage = pet.photo_url || `${APP_DOMAIN}/og-image.svg`;
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Event",
+  name: `Sinh nhật ${petName}`,
+  description,
+  eventStatus: "https://schema.org/EventScheduled",
+  eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+  url: canonicalUrl,
+  image: ogImage,
+  inLanguage: "vi-VN",
+  ...(birthday?.next_birthday_date && { startDate: birthday.next_birthday_date }),
+  organizer: {
+    "@type": "Organization",
+    name: "VowVet by Mon Min Pet",
+    url: APP_DOMAIN,
+  },
+  about: {
+    "@type": "Animal",
+    name: petName,
+    image: ogImage,
+    additionalType: "https://schema.org/Pet",
+    ...(pet.species && {
+      animalSpecies:
+        pet.species === "dog"
+          ? "Canis lupus familiaris"
+          : pet.species === "cat"
+          ? "Felis catus"
+          : pet.species,
+    }),
+  },
+};
+---
+
+<Layout title={title} description={description}>
+  <Fragment slot="head">
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={`Sinh nhật ${petName}`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+  </Fragment>
+  <main class="min-h-screen bg-gradient-to-b from-pink-50 via-fuchsia-50 to-violet-50 px-4 py-8 pb-16">
+    <div class="max-w-lg mx-auto" x-data={`birthdayWall(${initialData})`}>
+
+      <!-- Pet hero card -->
+      <div class:list={[
+        "rounded-3xl p-8 text-white text-center shadow-2xl mb-6",
+        isToday
+          ? "bg-gradient-to-br from-pink-500 via-fuchsia-500 to-orange-400"
+          : "bg-gradient-to-br from-pink-400 to-violet-500"
+      ]}>
+        {pet.photo_url ? (
+          <img
+            src={pet.photo_url}
+            alt={petName}
+            class="w-24 h-24 rounded-full object-cover border-4 border-white/80 mx-auto mb-3 shadow-xl"
+            onerror={`this.replaceWith(Object.assign(document.createElement('div'), {className: 'w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3 text-5xl', textContent: '${pet.species === "cat" ? "🐱" : "🐶"}'}))`}
+          />
+        ) : (
+          <div class="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3 text-5xl">
+            {pet.species === "cat" ? "🐱" : "🐶"}
+          </div>
+        )}
+
+        {isToday ? (
+          <div>
+            <p class="text-3xl font-extrabold drop-shadow">🎉 HÔM NAY SINH NHẬT!</p>
+            <p class="text-lg font-semibold mt-1">{petName} tròn {birthday?.age_turning} tuổi</p>
+          </div>
+        ) : daysUntil !== null ? (
+          <div>
+            <p class="text-5xl font-extrabold drop-shadow">{daysUntil}</p>
+            <p class="text-lg font-semibold opacity-90">ngày nữa sinh nhật</p>
+            <p class="text-base font-bold mt-1">{petName}</p>
+            <p class="text-sm opacity-80">Sắp tròn {birthday?.age_turning} tuổi · {birthday?.next_birthday}</p>
+          </div>
+        ) : (
+          <div>
+            <p class="text-2xl font-bold">{petName}</p>
+            <p class="text-sm opacity-80 mt-1">Birthday Wall</p>
+          </div>
+        )}
+
+        <p class="text-xs opacity-70 mt-3">🐾 Mon Min Pet</p>
+      </div>
+
+      <!-- Wish count badge -->
+      <div class="text-center mb-5">
+        <span class="inline-flex items-center gap-1.5 bg-white/80 backdrop-blur rounded-full px-4 py-1.5 text-sm font-semibold text-violet-800 shadow">
+          💌 <span x-text="wishes.length"></span> lời chúc
+        </span>
+      </div>
+
+      <!-- Existing wishes -->
+      <div class="space-y-3 mb-6" x-show="wishes.length > 0">
+        <template x-for="w in wishes" :key="w.created_at">
+          <div class="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3 border border-pink-100">
+            <span class="text-2xl shrink-0 mt-0.5" x-text="w.emoji"></span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-slate-800" x-text="w.name"></p>
+              <p class="text-sm text-slate-600 mt-0.5 leading-relaxed" x-text="w.message"></p>
+              <p class="text-[10px] text-slate-400 mt-1" x-text="fmtTime(w.created_at)"></p>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Empty state -->
+      <div x-show="wishes.length === 0" class="text-center py-6 mb-4">
+        <p class="text-slate-400 text-sm italic">Chưa có lời chúc nào. Hãy là người đầu tiên! 🎉</p>
+      </div>
+
+      <!-- Submit wish form -->
+      <div class="bg-white rounded-3xl border border-violet-100 p-6 shadow-lg" x-show="!submitted">
+        <h2 class="text-base font-bold text-slate-900 mb-4">✍️ Để lại lời chúc cho {petName}</h2>
+
+        <!-- Error banner -->
+        <template x-if="error">
+          <div class="bg-red-50 border border-red-200 rounded-xl px-4 py-2 mb-4">
+            <p class="text-xs text-red-700" x-text="error"></p>
+          </div>
+        </template>
+
+        <!-- Emoji picker -->
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-700 mb-2">Chọn emoji</label>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="e in allowedEmojis" :key="e">
+              <button type="button" @click="selectedEmoji = e"
+                :class="selectedEmoji === e ? 'ring-2 ring-violet-500 bg-violet-100' : 'bg-slate-50 hover:bg-violet-50'"
+                class="text-xl px-2 py-1 rounded-xl transition">
+                <span x-text="e"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Name field -->
+        <div class="mb-3">
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tên của bạn <span class="text-red-500">*</span></label>
+          <input
+            type="text"
+            x-model="form.name"
+            placeholder="Nhập tên bạn..."
+            maxlength="50"
+            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+          />
+        </div>
+
+        <!-- Message field -->
+        <div class="mb-5">
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Lời chúc <span class="text-red-500">*</span></label>
+          <textarea
+            x-model="form.message"
+            placeholder={`Chúc bé ${petName} sinh nhật vui vẻ...`}
+            rows="3"
+            maxlength="200"
+            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none"
+          ></textarea>
+          <p class="text-right text-[10px] text-slate-400 mt-0.5"><span x-text="form.message.length"></span>/200</p>
+        </div>
+
+        <button @click="submitWish()"
+          :disabled="submitting"
+          class="w-full bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600 disabled:opacity-60 text-white font-bold py-3 rounded-2xl text-sm transition shadow-lg">
+          <span x-show="!submitting">💌 Gửi lời chúc</span>
+          <span x-show="submitting">Đang gửi…</span>
+        </button>
+      </div>
+
+      <!-- Success state -->
+      <div x-show="submitted" class="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-lg">
+        <p class="text-5xl mb-3">🎉</p>
+        <h2 class="text-xl font-bold text-emerald-900 mb-2">Đã gửi lời chúc!</h2>
+        <p class="text-sm text-emerald-700">Lời chúc của bạn đã được ghi lại cho bé <strong>{petName}</strong>.</p>
+        <p class="text-xs text-slate-500 mt-3">Bé sẽ thấy khi mở trang sinh nhật 🥰</p>
+      </div>
+
+      <!-- Footer -->
+      <p class="text-center text-xs text-slate-400 mt-8">
+        🐾 <a href="https://vowvet.monminpet.com" class="hover:underline">Mon Min Pet</a> · Birthday Wall
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function birthdayWall(initial) {
+      return {
+        petId: initial.petId,
+        petName: initial.petName,
+        birthday: initial.birthday,
+        wishes: initial.wishes,
+        allowedEmojis: initial.allowedEmojis,
+        apiBase: initial.apiBase,
+        isToday: initial.isToday,
+
+        selectedEmoji: initial.allowedEmojis[0] || "🎂",
+        form: { name: "", message: "" },
+        submitting: false,
+        submitted: false,
+        error: null,
+
+        async submitWish() {
+          this.error = null;
+          const name = this.form.name.trim();
+          const message = this.form.message.trim();
+
+          if (name.length < 2) { this.error = "Tên phải có ít nhất 2 ký tự."; return; }
+          if (message.length < 3) { this.error = "Lời chúc phải có ít nhất 3 ký tự."; return; }
+
+          this.submitting = true;
+          try {
+            const res = await fetch(`${this.apiBase}/wish`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name, message, emoji: this.selectedEmoji }),
+            });
+            if (res.status === 409) { this.error = "Bạn đã gửi lời chúc rồi nhé 😊"; return; }
+            if (!res.ok) {
+              const d = await res.json().catch(() => ({}));
+              this.error = d?.error?.message || "Lỗi gửi lời chúc, thử lại sau.";
+              return;
+            }
+            // Add optimistically to wall
+            this.wishes = [
+              ...this.wishes,
+              { name, message, emoji: this.selectedEmoji, created_at: new Date().toISOString() },
+            ];
+            this.submitted = true;
+          } catch (err) {
+            this.error = "Không thể kết nối server. Thử lại sau.";
+          } finally {
+            this.submitting = false;
+          }
+        },
+
+        fmtTime(iso) {
+          if (!iso) return "";
+          try {
+            return new Date(iso).toLocaleDateString("vi-VN", {
+              day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+            });
+          } catch { return ""; }
+        },
+      };
+    }
+  </script>
+</Layout>

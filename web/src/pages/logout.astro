@@ -1,0 +1,43 @@
+---
+/**
+ * /logout — Atomic server-side logout (M20-auth fix).
+ *
+ * Clears session cookie via Astro response, fires API logout for any cleanup,
+ * then 302 redirects to /login. No client JS, no race condition.
+ *
+ * Used by every logout button across the app — they are simple <a href="/logout">.
+ */
+import { SESSION_COOKIE } from "../../../shared/auth.ts";
+
+// Detect HTTPS (must match how cookie was set so browser actually deletes it).
+const proto = Astro.request.headers.get("x-forwarded-proto") || "";
+const isHttps =
+  proto.split(",")[0].trim().toLowerCase() === "https" ||
+  new URL(Astro.request.url).protocol === "https:";
+
+// Fire-and-forget API call to mirror cookie deletion server-side (logs the logout).
+// Don't await — the cookie removal below is what actually logs the user out from the
+// browser's perspective.
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+fetch(`${API_INTERNAL}/api/v1/auth/logout`, {
+  method: "POST",
+  headers: { cookie: cookieHeader },
+}).catch(() => {});
+
+// Build the deletion Set-Cookie header. Must mirror the original Set-Cookie's
+// path + sameSite + secure flags, otherwise some browsers ignore Max-Age=0 (RFC
+// 6265 — cookie identity = name + domain + path; deletion needs matching scope).
+const secureFlag = isHttps ? "; Secure" : "";
+const setCookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secureFlag}`;
+
+return new Response(null, {
+  status: 302,
+  headers: {
+    Location: "/login?goodbye=1",
+    "Set-Cookie": setCookie,
+    // Cache-Control: ensure browsers don't cache this redirect with stale cookie
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+  },
+});
+---

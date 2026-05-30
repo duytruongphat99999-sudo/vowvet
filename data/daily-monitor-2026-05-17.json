@@ -1,0 +1,43 @@
+{
+  "ts": "2026-05-17T10:38:16.491Z",
+  "users": {
+    "total": 6,
+    "active": 4,
+    "new_7d": 4,
+    "vets": 1
+  },
+  "pets": {
+    "total": 5,
+    "dogs": 3,
+    "cats": 2
+  },
+  "ai_cost": {
+    "today_usd": 0,
+    "all_time_usd": 0,
+    "total_calls": 0
+  },
+  "triage": {
+    "total": 3,
+    "urgent_or_emergency": 3
+  },
+  "chat": {
+    "total": 6,
+    "waiting_vet": 4,
+    "open": 2,
+    "closed": 0,
+    "sla_breaches": 0
+  },
+  "alerts": {
+    "total": 11,
+    "active": 11
+  },
+  "vaccines": {
+    "records": 27,
+    "templates": 11
+  },
+  "health": {
+    "label": "OK",
+    "icon": "🟢",
+    "warnings": []
+  }
+}

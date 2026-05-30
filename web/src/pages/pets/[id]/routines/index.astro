@@ -1,0 +1,1111 @@
+---
+/**
+ * /pets/[id]/routines — Routine Builder dashboard (M19).
+ *
+ * 3 sections: Streak hero · Today's routines (tick UI) · All routines (list).
+ */
+import Layout from "../../../../layouts/Layout.astro";
+import FeatureIcon from "../../../../components/FeatureIcon.astro";
+import { fetchPet } from "../../../../lib/api-client.ts";
+import { formatAge } from "../../../../lib/age.ts";
+import { ROUTINE_BADGES } from "../../../../../../shared/routine-badges.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let routines: any[] = [];
+let todayData: any = { today: [], streak: null, scheduled_count: 0, completed_count: 0, pending_count: 0 };
+let profile: any = {};
+
+try {
+  const [rRes, tRes, pRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/routines`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/routines/today`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/profile`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (rRes.ok) routines = (await rRes.json()).routines || [];
+  if (tRes.ok) todayData = await tRes.json();
+  if (pRes.ok) profile = (await pRes.json()).pet || {};
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: {
+    id: pet.id,
+    name: pet.name,
+    photo_url: (pet as any).photo_url || null,
+    species: typeof pet.species === "object" ? (pet.species as any)?.value : pet.species,
+  },
+  routines,
+  today: todayData.today,
+  streak: todayData.streak,
+  badgesMeta: ROUTINE_BADGES,
+});
+
+// v97: Smart Blueprint Engine — 10 personas, pet-aware matching, 1-tap apply
+// Each blueprint includes full task data for 1-tap POST + Pet Score forecast points
+const BLUEPRINTS: Array<{
+  id: string;
+  label: string;
+  species: "cat" | "dog" | "any";
+  icon: string;
+  matchTags: string[];
+  description: string;
+  chronoHint: string;
+  trigger: string;
+  start_time: string;
+  schedule_type: "daily" | "weekdays" | "weekends";
+  tasks: Array<{ title: string; emoji: string; duration_minutes: number; points: number; category: string }>;
+}> = [
+  {
+    id: "urban_cat", label: "Mèo Đô thị", species: "cat", icon: "home",
+    matchTags: ["cat", "adult", "urban"],
+    description: "Vận động + kiểm soát calo + bổ sung nước",
+    chronoHint: "Hoạt động mạnh lúc bình minh & hoàng hôn",
+    trigger: "Sau khi ngủ trưa → Bật fountain nước",
+    start_time: "07:00", schedule_type: "daily",
+    tasks: [
+      { title: "Chơi 15 phút buổi sáng", emoji: "🎾", duration_minutes: 15, points: 3, category: "play" },
+      { title: "Đổ thêm nước sạch", emoji: "💧", duration_minutes: 2, points: 1, category: "food" },
+      { title: "Chải lông sau ăn", emoji: "🪮", duration_minutes: 5, points: 2, category: "grooming" },
+      { title: "Giờ chơi 5h chiều", emoji: "🌆", duration_minutes: 15, points: 3, category: "play" },
+    ],
+  },
+  {
+    id: "urban_dog", label: "Chó Đô thị", species: "dog", icon: "activity-run",
+    matchTags: ["dog", "adult", "urban"],
+    description: "Dạo + huấn luyện + xã hội hóa hàng ngày",
+    chronoHint: "Dạo sáng + chiều, tránh nắng gắt",
+    trigger: "Sau bữa tối → Dạo + đi vệ sinh",
+    start_time: "06:30", schedule_type: "daily",
+    tasks: [
+      { title: "Dạo sáng 20 phút", emoji: "🌅", duration_minutes: 20, points: 3, category: "exercise" },
+      { title: "Huấn luyện 10 phút", emoji: "🎓", duration_minutes: 10, points: 3, category: "training" },
+      { title: "Gặp pet bạn 1 lần/tuần", emoji: "🐾", duration_minutes: 30, points: 2, category: "play" },
+      { title: "Tắm/chải 2 lần/tuần", emoji: "🛁", duration_minutes: 20, points: 2, category: "grooming" },
+    ],
+  },
+  {
+    id: "joint_cat", label: "Mèo Tai cụp / Khớp", species: "cat", icon: "leaf",
+    matchTags: ["cat", "joint", "sensitive_breed", "tai cụp"],
+    description: "Bài tập nhẹ chống thoái hóa + dưỡng chất khớp",
+    chronoHint: "Vận động nhẹ rải đều, không quá sức",
+    trigger: "Trước khi ngủ → Massage 5ph",
+    start_time: "08:00", schedule_type: "daily",
+    tasks: [
+      { title: "Cho ăn glucosamine sáng", emoji: "💊", duration_minutes: 3, points: 2, category: "health" },
+      { title: "Chơi nhẹ 10 phút chiều", emoji: "🎾", duration_minutes: 10, points: 2, category: "play" },
+      { title: "Massage chân sau 5ph", emoji: "🪮", duration_minutes: 5, points: 2, category: "grooming" },
+      { title: "Quan sát mobility", emoji: "🧠", duration_minutes: 3, points: 1, category: "health" },
+    ],
+  },
+  {
+    id: "recovery_dog", label: "Chó Hồi phục", species: "dog", icon: "shield-check",
+    matchTags: ["dog", "recovery", "post_surgery"],
+    description: "Giấc ngủ + bữa nhỏ y khoa + theo dõi đau",
+    chronoHint: "Bữa nhỏ chia 4-5 lần/ngày, ngủ sâu trưa",
+    trigger: "Sau khi cho ăn → Đo pain score",
+    start_time: "07:30", schedule_type: "daily",
+    tasks: [
+      { title: "Bữa nhỏ mỗi 3h", emoji: "🍴", duration_minutes: 10, points: 2, category: "food" },
+      { title: "Đo CMPS-SF pain", emoji: "📋", duration_minutes: 5, points: 3, category: "health" },
+      { title: "Dạo nhẹ 10 phút", emoji: "🚶", duration_minutes: 10, points: 2, category: "exercise" },
+      { title: "Uống thuốc đúng giờ", emoji: "💊", duration_minutes: 2, points: 2, category: "health" },
+    ],
+  },
+  {
+    id: "senior_pet", label: "Lão hoá – Xương khớp & Thận", species: "any", icon: "heart",
+    matchTags: ["senior", "joint", "kidney"],
+    description: "Khớp + thận + theo dõi nhẹ nhàng cho bé lớn tuổi",
+    chronoHint: "Vận động chia ngắn, nghỉ nhiều hơn",
+    trigger: "Trước bữa ăn → Cho thuốc khớp",
+    start_time: "07:00", schedule_type: "daily",
+    tasks: [
+      { title: "Glucosamine + nước nhiều", emoji: "💊", duration_minutes: 3, points: 2, category: "health" },
+      { title: "Dạo nhẹ chia 2 lần × 8ph", emoji: "🚶", duration_minutes: 16, points: 3, category: "exercise" },
+      { title: "Đo cân định kỳ", emoji: "⚖️", duration_minutes: 3, points: 2, category: "health" },
+      { title: "Massage khớp tối", emoji: "🪮", duration_minutes: 8, points: 2, category: "grooming" },
+    ],
+  },
+  {
+    id: "puppy_socialize", label: "Chó con – Huấn luyện & Xã hội", species: "dog", icon: "paw",
+    matchTags: ["dog", "puppy", "training", "social"],
+    description: "Huấn luyện sớm + xã hội hóa + bữa nhỏ thường xuyên",
+    chronoHint: "5 bữa/ngày, học 5ph mỗi lần",
+    trigger: "Sau bữa ăn → Dạy 1 lệnh mới",
+    start_time: "07:00", schedule_type: "daily",
+    tasks: [
+      { title: "Bữa nhỏ × 5 lần/ngày", emoji: "🍴", duration_minutes: 8, points: 2, category: "food" },
+      { title: "Học lệnh mới 5ph", emoji: "🎓", duration_minutes: 5, points: 3, category: "training" },
+      { title: "Gặp người lạ 1 lần/ngày", emoji: "🐾", duration_minutes: 10, points: 2, category: "play" },
+      { title: "Chơi tay 10 phút", emoji: "🎾", duration_minutes: 10, points: 2, category: "play" },
+    ],
+  },
+  {
+    id: "kitten_socialize", label: "Mèo con – Xã hội hoá", species: "cat", icon: "paw",
+    matchTags: ["cat", "kitten", "social"],
+    description: "Tập làm quen tay người + tiếng động + vệ sinh",
+    chronoHint: "Bữa nhỏ 4 lần/ngày, ôm ấp thường xuyên",
+    trigger: "Sau khi ngủ dậy → Vuốt ve 3ph",
+    start_time: "07:30", schedule_type: "daily",
+    tasks: [
+      { title: "Bữa nhỏ × 4 lần", emoji: "🍴", duration_minutes: 8, points: 2, category: "food" },
+      { title: "Vuốt ve tập làm quen", emoji: "❤️", duration_minutes: 5, points: 2, category: "play" },
+      { title: "Chơi cần câu 10ph", emoji: "🎾", duration_minutes: 10, points: 3, category: "play" },
+      { title: "Tập dùng khay cát", emoji: "🪮", duration_minutes: 3, points: 2, category: "grooming" },
+    ],
+  },
+  {
+    id: "overweight_diet", label: "Giảm cân – Vận động nhẹ", species: "any", icon: "activity",
+    matchTags: ["overweight", "weight_loss", "diet"],
+    description: "Vận động đều đặn + kiểm soát calo + ghi nhật ký cân",
+    chronoHint: "2-3 lần vận động ngắn/ngày",
+    trigger: "Sau khi cân → Ghi nhật ký",
+    start_time: "06:30", schedule_type: "daily",
+    tasks: [
+      { title: "Vận động 15ph sáng", emoji: "🏃", duration_minutes: 15, points: 3, category: "exercise" },
+      { title: "Cân tuần 1 lần", emoji: "⚖️", duration_minutes: 3, points: 2, category: "health" },
+      { title: "Khẩu phần chia nhỏ", emoji: "🍴", duration_minutes: 5, points: 2, category: "food" },
+      { title: "Đi dạo chiều 20ph", emoji: "🚶", duration_minutes: 20, points: 3, category: "exercise" },
+    ],
+  },
+  {
+    id: "brachy_breathing", label: "Hô hấp – Frenchie / Pug / Persian", species: "any", icon: "shield-check",
+    matchTags: ["sensitive_breed", "brachycephalic", "frenchie", "pug", "bulldog", "persian"],
+    description: "Chống nóng + theo dõi thở + vệ sinh nếp da",
+    chronoHint: "Tránh giờ nắng gắt 10h-15h",
+    trigger: "Sau khi vận động → Đo nhịp thở",
+    start_time: "06:00", schedule_type: "daily",
+    tasks: [
+      { title: "Vệ sinh nếp da mặt", emoji: "🪮", duration_minutes: 5, points: 2, category: "grooming" },
+      { title: "Đo nhịp thở nghỉ", emoji: "📋", duration_minutes: 3, points: 3, category: "health" },
+      { title: "Vận động sáng sớm", emoji: "🌅", duration_minutes: 15, points: 3, category: "exercise" },
+      { title: "Đổ nước mát thường", emoji: "💧", duration_minutes: 2, points: 1, category: "food" },
+    ],
+  },
+  {
+    id: "post_vaccine", label: "Sau tiêm – Theo dõi 7 ngày", species: "any", icon: "pill",
+    matchTags: ["post_vaccine", "recovery"],
+    description: "Theo dõi phản ứng + nghỉ ngơi + hạn chế vận động mạnh",
+    chronoHint: "7 ngày đầu sau tiêm",
+    trigger: "Mỗi sáng → Kiểm tra vết tiêm",
+    start_time: "08:00", schedule_type: "daily",
+    tasks: [
+      { title: "Kiểm tra vết tiêm", emoji: "📋", duration_minutes: 3, points: 3, category: "health" },
+      { title: "Đo nhiệt độ", emoji: "🌡️", duration_minutes: 3, points: 2, category: "health" },
+      { title: "Vận động nhẹ 5ph", emoji: "🚶", duration_minutes: 5, points: 1, category: "exercise" },
+      { title: "Quan sát ăn uống", emoji: "🍴", duration_minutes: 5, points: 2, category: "food" },
+    ],
+  },
+];
+
+// v97: Smart matcher — pick top 3 blueprints based on pet profile
+// M15: Map personality type → preferred blueprint IDs (boost score +6 if pet matches)
+const PERSONALITY_BLUEPRINT_AFFINITY: Record<string, string[]> = {
+  explorer:  ["urban_dog", "urban_cat", "puppy_socialize"],
+  athlete:   ["urban_dog", "overweight_diet", "puppy_socialize"],
+  talker:    ["puppy_socialize", "kitten_socialize", "urban_dog"],
+  comedian:  ["puppy_socialize", "kitten_socialize", "urban_dog"],
+  guardian:  ["urban_dog", "puppy_socialize"],
+  diplomat:  ["puppy_socialize", "kitten_socialize", "urban_dog"],
+  foodie:    ["overweight_diet", "urban_cat"],
+  cuddler:   ["kitten_socialize", "urban_cat", "senior_pet"],
+  loner:     ["senior_pet", "urban_cat", "joint_cat"],
+  sleeper:   ["senior_pet", "recovery_dog", "urban_cat"],
+  sensitive: ["joint_cat", "kitten_socialize", "brachy_breathing"],
+  trickster: ["puppy_socialize", "urban_dog"],
+};
+
+function pickSmartBlueprints(p: any, prof: any): typeof BLUEPRINTS {
+  const speciesRaw = String((typeof p.species === "object" ? p.species?.value : p.species) || "").toLowerCase();
+  const isDog = speciesRaw.includes("chó") || speciesRaw === "dog";
+  const isCat = speciesRaw.includes("mèo") || speciesRaw === "cat";
+  const breed = String(p.breed || prof.breed || "").toLowerCase();
+  const dob = p.dob || prof.dob;
+  let ageYears = 0;
+  if (dob) {
+    const d = new Date(dob);
+    if (!isNaN(d.getTime())) ageYears = (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+  }
+  const isPuppy = ageYears > 0 && ageYears < 1;
+  const isSenior = (isDog && ageYears >= 7) || (isCat && ageYears >= 10);
+  const weight = Number(p.weight_kg) || 0;
+  const isOverweight = (prof.body_condition_score || 0) >= 7 || (isCat && weight > 5.5) || (isDog && weight > 35);
+  const isBrachy = ["frenchie", "pug", "bulldog", "persian", "shih"].some((b) => breed.includes(b));
+  const hasJoint = breed.includes("tai cụp") || breed.includes("scottish fold") || breed.includes("munchkin");
+
+  // M15: Read pet personality type → look up preferred blueprints
+  const personalityRaw = (typeof p.personality_type === "object" ? p.personality_type?.value : p.personality_type) || null;
+  const personalityType = personalityRaw ? String(personalityRaw).toLowerCase() : null;
+  const preferredIds = personalityType ? (PERSONALITY_BLUEPRINT_AFFINITY[personalityType] || []) : [];
+
+  const tags = new Set<string>();
+  if (isDog) tags.add("dog");
+  if (isCat) tags.add("cat");
+  if (isPuppy) { tags.add(isDog ? "puppy" : "kitten"); tags.add("training"); tags.add("social"); }
+  if (isSenior) { tags.add("senior"); tags.add("joint"); }
+  if (isOverweight) { tags.add("overweight"); tags.add("weight_loss"); }
+  if (isBrachy) tags.add("brachycephalic");
+  if (hasJoint) tags.add("joint");
+  if (!isPuppy && !isSenior && !isOverweight && !isBrachy && !hasJoint) tags.add("adult");
+
+  // Score each blueprint
+  const scored = BLUEPRINTS.map((bp) => {
+    let score = 0;
+    if (bp.species === "any") score += 1;
+    if (bp.species === "cat" && isCat) score += 4;
+    if (bp.species === "dog" && isDog) score += 4;
+    if (bp.species === "cat" && isDog) score -= 100;
+    if (bp.species === "dog" && isCat) score -= 100;
+    for (const tag of bp.matchTags) {
+      if (tags.has(tag)) score += 5;
+    }
+    // M15 personality affinity boost (+6 nếu type của bé match blueprint preferred list)
+    if (preferredIds.includes(bp.id)) score += 6;
+    return { bp, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.filter((s) => s.score > 0).map((s) => s.bp);
+}
+
+const smartMatches = pickSmartBlueprints(pet, profile);
+// v98: top 4 to fill 2x2 grid cleanly (no empty cell)
+const TOP_BLUEPRINTS = smartMatches.slice(0, 4);
+const REST_BLUEPRINTS = smartMatches.slice(4);
+
+// Pet identity summary for header
+const speciesValue = typeof pet.species === "object" ? (pet.species as any)?.value : pet.species;
+const ageLabel = pet.dob ? formatAge(pet.dob) : null;
+const weightLabel = pet.weight_kg ? `${Number(pet.weight_kg).toFixed(1)}kg` : null;
+const petContextLine = [speciesValue, ageLabel, weightLabel].filter(Boolean).join(" · ");
+
+// Compute Pet Score forecast: sum of task points × 30 days (full streak)
+function forecastPoints(bp: typeof BLUEPRINTS[number]): { perDay: number; monthMilestone: string } {
+  const perDay = bp.tasks.reduce((s, t) => s + (t.points || 0), 0);
+  const milestone = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const dd = String(milestone.getDate()).padStart(2, "0");
+  const mm = String(milestone.getMonth() + 1).padStart(2, "0");
+  return { perDay, monthMilestone: `${dd}/${mm}` };
+}
+---
+
+<script is:inline define:vars={{ BLUEPRINTS_JSON: JSON.stringify(BLUEPRINTS) }}>
+  window.__VOWVET_BLUEPRINTS = JSON.parse(BLUEPRINTS_JSON);
+</script>
+
+<Layout title={`Routine bé ${pet.name} · VowVet`} description="Atomic habits cho pet — streak & badges">
+  <style is:inline>{`
+    @keyframes pop {
+      0% { transform: scale(0.5); opacity: 0; }
+      60% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .badge-pop { animation: pop 0.55s cubic-bezier(0.5, 1.5, 0.6, 1) forwards; }
+
+    @keyframes confettiFall {
+      0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(60vh) rotate(540deg); opacity: 0; }
+    }
+    .confetti-piece {
+      position: fixed; top: 10vh; width: 8px; height: 8px;
+      animation: confettiFall 2.5s ease-out forwards;
+      z-index: 9999; pointer-events: none;
+    }
+
+    .task-check { transition: all 0.2s; }
+    .task-check.checked { background-color: rgba(180, 134, 8, 0.08); }
+    .task-check.checked .task-check__title { color: rgba(10, 10, 10, 0.45); text-decoration: line-through; }
+
+    /* v92: Energy Ring — BIGGER size to fill space better */
+    .energy-ring-big {
+      position: relative !important;
+      display: block !important;
+      width: 260px !important;
+      height: 260px !important;
+      margin: 0 auto !important;
+      flex-shrink: 0 !important;
+    }
+    .energy-ring-big::before {
+      content: "" !important;
+      position: absolute !important;
+      top: -18px !important;
+      right: -18px !important;
+      bottom: -18px !important;
+      left: -18px !important;
+      border-radius: 50% !important;
+      background: radial-gradient(circle, rgba(236, 185, 33, 0.32) 0%, rgba(236, 185, 33, 0) 65%) !important;
+      pointer-events: none !important;
+      z-index: 0 !important;
+      animation: energy-halo-breathe 3.5s ease-in-out infinite;
+    }
+    @keyframes energy-halo-breathe {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50%      { opacity: 1;    transform: scale(1.08); }
+    }
+    .energy-ring-big > .energy-ring-big__svg {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      display: block !important;
+      transform: rotate(-90deg);
+      z-index: 1 !important;
+      pointer-events: none;
+      filter: drop-shadow(0 0 10px rgba(236, 185, 33, 0.5));
+    }
+    .energy-ring-big > .energy-ring-big__inner {
+      position: absolute !important;
+      top: 18px !important;
+      right: 18px !important;
+      bottom: 18px !important;
+      left: 18px !important;
+      border-radius: 50%;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center;
+      padding: 18px;
+      background: radial-gradient(circle at center, rgba(255,255,255,0.04) 0%, transparent 70%);
+      z-index: 2 !important;
+    }
+    @keyframes ring-pulse-full {
+      0%, 100% { filter: drop-shadow(0 0 10px rgba(236, 185, 33, 0.5)); }
+      50%      { filter: drop-shadow(0 0 22px rgba(236, 185, 33, 1)); }
+    }
+    .energy-ring-big--full > .energy-ring-big__svg { animation: ring-pulse-full 2s ease-in-out infinite; }
+    .energy-ring-big--full::before { animation-duration: 1.6s; }
+
+    @media (min-width: 640px) {
+      .energy-ring-big { width: 320px !important; height: 320px !important; }
+      .energy-ring-big::before { top: -22px !important; right: -22px !important; bottom: -22px !important; left: -22px !important; }
+      .energy-ring-big > .energy-ring-big__inner { top: 22px !important; right: 22px !important; bottom: 22px !important; left: 22px !important; padding: 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .energy-ring-big::before { animation: none; opacity: 0.7; transform: none; }
+      .energy-ring-big--full > .energy-ring-big__svg { animation: none; }
+    }
+
+    /* Blueprint persona cards */
+    .blueprint-card {
+      transition: transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.25s ease-out;
+    }
+    .blueprint-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 32px rgba(180, 134, 8, 0.18);
+    }
+
+    /* Streak heatmap dots — gold opacity intensity */
+    .heatmap-dot {
+      width: 14px; height: 14px; border-radius: 4px;
+      background: rgba(180, 134, 8, 0.08);
+      transition: transform 0.2s ease;
+    }
+    .heatmap-dot--l1 { background: rgba(180, 134, 8, 0.25); }
+    .heatmap-dot--l2 { background: rgba(180, 134, 8, 0.5); }
+    .heatmap-dot--l3 { background: rgba(180, 134, 8, 0.75); }
+    .heatmap-dot--l4 { background: #B48608; }
+    .heatmap-dot--today { box-shadow: 0 0 0 2px rgba(236, 185, 33, 0.6), 0 0 8px rgba(236, 185, 33, 0.5); }
+  `}</style>
+
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-3xl mx-auto" x-data={`routinesPage(${initialData})`}>
+
+      <!-- v87: Header — brand-synced back-nav + title + calendar link -->
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm italic text-[var(--c-ink-54)] hover:text-mmp-ink inline-flex items-center gap-1.5 transition">
+          <FeatureIcon name="arrow" class="w-3.5 h-3.5 rotate-180" />
+          <span>{pet.name}</span>
+        </a>
+        <h1 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <FeatureIcon name="flame" class="w-4 h-4" style="color: #B48608;" />
+          <span>Routine & Streak</span>
+        </h1>
+        <a href={`/pets/${pet.id}/routines/calendar`} class="text-xs italic font-semibold text-mmp-ink hover:opacity-70 inline-flex items-center gap-1 transition">
+          <FeatureIcon name="calendar" class="w-3.5 h-3.5" />
+          <span class="hidden sm:inline">Calendar</span>
+        </a>
+      </header>
+
+      <!-- ───── v90: ENERGY HERO — Big centered ring with streak number INSIDE (single focal point) ───── -->
+      <section class="relative rounded-3xl bg-mmp-ink text-white px-5 py-6 sm:px-7 sm:py-8 mb-5 shadow-md overflow-hidden">
+        <div aria-hidden="true" class="absolute inset-0 pointer-events-none opacity-65">
+          <div class="absolute -top-20 -right-20 w-64 h-64 rounded-full" style="background: radial-gradient(circle, rgba(236,185,33,0.45) 0%, transparent 70%);"></div>
+          <div class="absolute -bottom-14 -left-14 w-44 h-44 rounded-full" style="background: radial-gradient(circle, rgba(180,134,8,0.28) 0%, transparent 70%);"></div>
+        </div>
+
+        {/* Header row: small pet identity chip + section title */}
+        <div class="relative flex items-center justify-between gap-3 mb-5">
+          <div class="flex items-center gap-2.5 min-w-0">
+            {pet.photo_url ? (
+              <img src={pet.photo_url} alt={pet.name} loading="eager" decoding="async" class="w-9 h-9 rounded-full object-cover border-2 shrink-0" style="border-color: #B48608;" />
+            ) : (
+              <span class="w-9 h-9 rounded-full inline-flex items-center justify-center font-display italic font-bold text-base shrink-0" style="background: rgba(180,134,8,0.18); color: #ecb921; border: 2px solid #B48608;">{(pet.name || "?").charAt(0).toUpperCase()}</span>
+            )}
+            <div class="min-w-0">
+              <p class="text-[9px] uppercase italic tracking-[0.22em] font-bold leading-tight" style="color: #ecb921;">Routine streak</p>
+              <p class="font-display italic font-semibold text-base text-white truncate leading-tight">Bé {pet.name}</p>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-[9px] uppercase italic tracking-wider text-white/55">Kỷ lục</p>
+            <p class="font-display italic font-bold text-xl tabular-nums leading-none" style="color: #ecb921;" x-text="streak?.longest_streak ?? 0"></p>
+          </div>
+        </div>
+
+        {/* MAIN: Energy Ring centered (v94 — explicit inline dimensions, bulletproof) */}
+        <div class="relative flex justify-center items-center mb-6">
+          <div class="energy-ring-big w-[260px] h-[260px] sm:w-[300px] sm:h-[300px]"
+            :class="todayProgress >= 100 ? 'energy-ring-big--full' : ''"
+            style="position: relative; display: block; flex-shrink: 0;">
+
+            {/* Outer halo glow */}
+            <div aria-hidden="true" style="position: absolute; inset: -16px; border-radius: 50%; background: radial-gradient(circle, rgba(236, 185, 33, 0.32) 0%, rgba(236, 185, 33, 0) 65%); pointer-events: none; z-index: 0; animation: energy-halo-breathe 3.5s ease-in-out infinite;"></div>
+
+            {/* Progress SVG ring */}
+            <svg viewBox="0 0 160 160" aria-hidden="true" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg); z-index: 1; pointer-events: none; display: block;">
+              <circle cx="80" cy="80" r="70" fill="none" stroke="rgba(236, 185, 33, 0.18)" stroke-width="6"/>
+              <circle cx="80" cy="80" r="70" fill="none" stroke="#ecb921" stroke-width="6" stroke-linecap="round"
+                :stroke-dasharray="440"
+                :stroke-dashoffset="440 - (440 * Math.min(100, todayProgress) / 100)"
+                style="transition: stroke-dashoffset 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);"/>
+            </svg>
+
+            {/* Inner content — flex column centered */}
+            <div style="position: absolute; top: 20px; right: 20px; bottom: 20px; left: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; z-index: 2; border-radius: 50%; padding: 8px; box-sizing: border-box;">
+              <p style="color: #ecb921; margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.22em; font-style: italic; line-height: 1;">Streak</p>
+              <p class="font-display tabular-nums" style="color: #ffffff; font-size: 72px; line-height: 0.9; margin: 10px 0 0 0; font-style: italic; font-weight: 700;" x-text="streak?.current_streak ?? 0"></p>
+              <p style="color: rgba(255,255,255,0.75); font-size: 13px; margin: 8px 0 0 0; font-style: italic; line-height: 1.2;">ngày liên tiếp</p>
+              <p style="color: #ecb921; font-size: 11px; margin: 10px 0 0 0; font-style: italic; font-weight: 600; line-height: 1; display: inline-flex; align-items: center; gap: 4px;">
+                <svg style="width: 8px; height: 8px;" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"/></svg>
+                <span x-text="todayProgress + '% hôm nay'"></span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row — 3 columns clean */}
+        <div class="relative grid grid-cols-3 gap-2 mb-3">
+          <div class="rounded-xl py-2.5 text-center" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(236,185,33,0.18);">
+            <p class="text-[9px] uppercase italic tracking-wider text-white/55">Tổng điểm</p>
+            <p class="font-display italic font-bold text-lg tabular-nums mt-0.5" style="color: #ecb921;" x-text="streak?.total_points ?? 0"></p>
+          </div>
+          <div class="rounded-xl py-2.5 text-center" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(236,185,33,0.18);">
+            <p class="text-[9px] uppercase italic tracking-wider text-white/55">Vé ân hạn</p>
+            <p class="font-display italic font-bold text-lg tabular-nums mt-0.5" style="color: #ecb921;" x-text="`${streak?.streak_freezes_available ?? 3}/3`"></p>
+          </div>
+          <div class="rounded-xl py-2.5 text-center" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(236,185,33,0.18);">
+            <p class="text-[9px] uppercase italic tracking-wider text-white/55">Huy hiệu</p>
+            <p class="font-display italic font-bold text-lg tabular-nums mt-0.5" style="color: #ecb921;" x-text="(streak?.badges_earned || []).length"></p>
+          </div>
+        </div>
+
+        {/* Action: Use freeze (only when freezes available) */}
+        <button @click="useFreezeConfirm()" :disabled="!streak || streak.streak_freezes_available <= 0"
+          class="relative w-full rounded-xl flex items-center justify-center gap-2 px-3 py-2.5 text-sm italic font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition mb-2.5"
+          style="background: rgba(236,185,33,0.15); color: #ecb921; border: 1px solid rgba(236,185,33,0.4);">
+          <FeatureIcon name="snowflake" class="w-4 h-4" />
+          <span>Dùng vé ân hạn để giữ streak</span>
+        </button>
+
+        {/* Pet Score callout */}
+        <a href={`/pets/${pet.id}/pet-score`} class="relative rounded-xl flex items-center justify-between gap-2 px-3 py-2.5 text-xs italic hover:opacity-95 transition"
+          style="background: rgba(236,185,33,0.12); border: 1px solid rgba(236,185,33,0.32);">
+          <span class="inline-flex items-center gap-2 text-white/90">
+            <FeatureIcon name="trophy" class="w-4 h-4" style="color: #ecb921;" />
+            <span>Streak cộng <span class="font-bold" style="color: #ecb921;">+điểm Pet Score</span> → đổi quà</span>
+          </span>
+          <FeatureIcon name="arrow" class="w-3 h-3 shrink-0" style="color: #ecb921;" />
+        </a>
+
+        {/* Badges row */}
+        <template x-if="(streak?.badges_earned || []).length > 0">
+          <div class="relative mt-3 flex flex-wrap gap-1.5">
+            <template x-for="bid in streak.badges_earned" :key="bid">
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs italic font-semibold" style="background: rgba(236,185,33,0.15); color: #ecb921; border: 1px solid rgba(236,185,33,0.4);">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+                <span x-text="badgesMeta[bid]?.label_vi || bid"></span>
+              </span>
+            </template>
+          </div>
+        </template>
+      </section>
+
+      <!-- ───── v97: SMART BLUEPRINT ENGINE — pet-aware matching + 1-tap apply ───── -->
+      <section class="mb-6" x-data="{ showMore: false }">
+        <div class="flex items-end justify-between mb-3 gap-2">
+          <div class="min-w-0">
+            <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">Gợi ý cho bé {pet.name}</p>
+            <h2 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink leading-tight">Mẫu Routine thông minh</h2>
+            {petContextLine && (
+              <p class="text-[11px] italic text-[var(--c-ink-54)] mt-0.5 truncate">{petContextLine}</p>
+            )}
+          </div>
+          <span class="shrink-0 inline-flex items-center gap-1 text-[10px] italic uppercase tracking-wider font-bold px-2.5 py-1 rounded-full" style="background: rgba(236, 185, 33, 0.14); color: #B48608; border: 1px solid rgba(180, 134, 8, 0.35);">
+            <FeatureIcon name="sparkles" class="w-3 h-3" />
+            AI matched
+          </span>
+        </div>
+
+        {/* Top 3 smart-matched blueprints */}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {TOP_BLUEPRINTS.map((bp, idx) => {
+            const palette = idx === 0 ? "ink" : "gold";
+            const fc = forecastPoints(bp);
+            const totalMin = bp.tasks.reduce((s, t) => s + t.duration_minutes, 0);
+            return (
+              <article class={`blueprint-card relative rounded-2xl p-4 overflow-hidden ${palette === "ink" ? "bg-mmp-ink text-white" : "bg-white border-2"}`} style={palette === "gold" ? "border-color: rgba(180,134,8,0.4);" : ""}>
+                {palette === "ink" && (
+                  <div aria-hidden="true" class="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.3) 0%, transparent 70%);"></div>
+                )}
+                {idx === 0 && (
+                  <span class="absolute top-2 right-2 inline-flex items-center gap-0.5 text-[9px] uppercase italic tracking-wider font-bold px-1.5 py-0.5 rounded-full z-10" style="background: #ecb921; color: #0a0a0a;">
+                    <FeatureIcon name="sparkles" class="w-2.5 h-2.5" />
+                    Top match
+                  </span>
+                )}
+
+                <div class="relative">
+                  {/* Header */}
+                  <div class="flex items-start gap-3 mb-2">
+                    <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl" style={palette === "ink" ? "background: rgba(236,185,33,0.18); border: 1px solid rgba(236,185,33,0.4); color: #ecb921;" : "background: rgba(180,134,8,0.1); border: 1px solid rgba(180,134,8,0.3); color: #B48608;"}>
+                      <FeatureIcon name={bp.icon} class="w-5 h-5" strokeWidth={1.7} />
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[9px] uppercase italic tracking-[0.18em] font-bold" style={palette === "ink" ? "color: #ecb921;" : "color: #B48608;"}>
+                        {bp.species === "cat" ? "Mèo" : bp.species === "dog" ? "Chó" : "Mọi loài"}
+                      </p>
+                      <h3 class={`font-display italic font-semibold text-base leading-tight ${palette === "ink" ? "text-white" : "text-mmp-ink"}`}>{bp.label}</h3>
+                    </div>
+                  </div>
+                  <p class={`text-xs italic ${palette === "ink" ? "text-white/70" : "text-[var(--c-ink-54)]"}`}>{bp.description}</p>
+
+                  {/* Pet Score Forecast */}
+                  <div class="mt-3 rounded-lg px-2.5 py-2 inline-flex items-center gap-2 w-full" style={palette === "ink" ? "background: rgba(236,185,33,0.12); border: 1px solid rgba(236,185,33,0.32);" : "background: rgba(180,134,8,0.08); border: 1px solid rgba(180,134,8,0.25);"}>
+                    <FeatureIcon name="trophy" class="w-3.5 h-3.5 shrink-0" style={palette === "ink" ? "color: #ecb921;" : "color: #B48608;"} />
+                    <div class="text-[10px] italic leading-tight min-w-0">
+                      <span class="font-bold" style={palette === "ink" ? "color: #ecb921;" : "color: #B48608;"}>+{fc.perDay} điểm/ngày</span>
+                      <span class={palette === "ink" ? "text-white/65" : "text-[var(--c-ink-54)]"}> · cột mốc 30d → {fc.monthMilestone}</span>
+                    </div>
+                  </div>
+
+                  {/* Tasks meta */}
+                  <p class={`text-[10px] italic mt-2 inline-flex items-center gap-1.5 ${palette === "ink" ? "text-white/65" : "text-[var(--c-ink-54)]"}`}>
+                    <FeatureIcon name="clock" class="w-3 h-3" />
+                    <span>{bp.tasks.length} task · {totalMin}ph/ngày</span>
+                    <span class="opacity-50">·</span>
+                    <span>{bp.start_time}</span>
+                  </p>
+
+                  {/* Actions row */}
+                  <div class="mt-3 flex gap-2">
+                    <button type="button"
+                      @click={`quickApply('${bp.id}')`}
+                      :disabled={`applying === '${bp.id}'`}
+                      class={`flex-1 inline-flex items-center justify-center gap-1.5 text-[12px] italic font-bold py-2 rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed ${palette === "ink" ? "text-mmp-ink" : "text-mmp-ink"}`}
+                      style="background: linear-gradient(90deg, #ecb921 0%, #B48608 100%); box-shadow: 0 3px 10px rgba(236,185,33,0.32);">
+                      <FeatureIcon name="check" class="w-3.5 h-3.5" strokeWidth={2.5} />
+                      <span x-show={`applying !== '${bp.id}'`}>Áp dụng ngay</span>
+                      <span x-show={`applying === '${bp.id}'`}>Đang lưu…</span>
+                    </button>
+                    <a href={`/pets/${pet.id}/routines/new?template=${bp.id}`}
+                      class={`inline-flex items-center justify-center gap-1 text-[11px] italic font-semibold px-3 py-2 rounded-lg transition ${palette === "ink" ? "text-white/80 hover:text-white" : "text-[var(--c-ink-54)] hover:text-mmp-ink"}`}
+                      style={palette === "ink" ? "border: 1px solid rgba(255,255,255,0.18);" : "border: 1px solid rgba(180,134,8,0.3);"}>
+                      <FeatureIcon name="edit-pencil" class="w-3 h-3" />
+                      <span>Sửa</span>
+                    </a>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        {/* "Xem thêm" toggle — show remaining blueprints (v98: fixed interpolation) */}
+        {REST_BLUEPRINTS.length > 0 && (
+          <button type="button" @click="showMore = !showMore"
+            class="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-xs italic font-semibold py-2.5 rounded-xl transition"
+            style="background: rgba(180,134,8,0.06); color: #B48608; border: 1px dashed rgba(180,134,8,0.35);">
+            <FeatureIcon name="sparkles" class="w-3.5 h-3.5" />
+            <span x-text={`showMore ? 'Ẩn thư viện' : 'Xem thêm ${REST_BLUEPRINTS.length} mẫu khác'`}></span>
+          </button>
+        )}
+
+        {REST_BLUEPRINTS.length > 0 && (
+          <div x-show="showMore" x-transition class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {REST_BLUEPRINTS.map((bp) => {
+              const fc = forecastPoints(bp);
+              return (
+                <article class="blueprint-card relative rounded-2xl p-4 overflow-hidden bg-white border" style="border-color: rgba(180,134,8,0.25);">
+                  <div class="relative">
+                    <div class="flex items-start gap-3 mb-2">
+                      <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl" style="background: rgba(180,134,8,0.08); border: 1px solid rgba(180,134,8,0.25); color: #B48608;">
+                        <FeatureIcon name={bp.icon} class="w-5 h-5" strokeWidth={1.7} />
+                      </span>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-[9px] uppercase italic tracking-[0.18em] font-bold" style="color: #B48608;">
+                          {bp.species === "cat" ? "Mèo" : bp.species === "dog" ? "Chó" : "Mọi loài"}
+                        </p>
+                        <h3 class="font-display italic font-semibold text-base leading-tight text-mmp-ink">{bp.label}</h3>
+                      </div>
+                    </div>
+                    <p class="text-xs italic text-[var(--c-ink-54)]">{bp.description}</p>
+                    <p class="text-[10px] italic mt-2 text-[var(--c-ink-54)] inline-flex items-center gap-1">
+                      <FeatureIcon name="trophy" class="w-3 h-3" style="color: #B48608;" />
+                      <span class="font-bold" style="color: #B48608;">+{fc.perDay} điểm/ngày</span>
+                    </p>
+                    <div class="mt-2 flex gap-2">
+                      <button type="button"
+                        @click={`quickApply('${bp.id}')`}
+                        :disabled={`applying === '${bp.id}'`}
+                        class="flex-1 inline-flex items-center justify-center gap-1.5 text-[11px] italic font-bold py-1.5 rounded-lg text-mmp-ink transition disabled:opacity-60"
+                        style="background: linear-gradient(90deg, #ecb921 0%, #B48608 100%);">
+                        <FeatureIcon name="check" class="w-3 h-3" strokeWidth={2.5} />
+                        <span x-show={`applying !== '${bp.id}'`}>Áp dụng</span>
+                        <span x-show={`applying === '${bp.id}'`}>…</span>
+                      </button>
+                      <a href={`/pets/${pet.id}/routines/new?template=${bp.id}`}
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--c-ink-54)] hover:text-mmp-ink transition"
+                        style="border: 1px solid rgba(180,134,8,0.25);" title="Tuỳ chỉnh">
+                        <FeatureIcon name="edit-pencil" class="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {/* v99: Tự thiết kế CTA removed — duplicate with "Tạo mới" button in "Tất cả routines" section + "Sửa" on each blueprint card */}
+
+        {/* Apply toast (success) */}
+        <div x-show="applyToast" x-transition class="fixed inset-x-4 top-6 z-50 mx-auto max-w-sm pointer-events-none">
+          <div class="relative rounded-2xl shadow-2xl p-4 bg-mmp-ink text-white overflow-hidden">
+            <div aria-hidden="true" class="absolute -top-8 -right-8 w-28 h-28 rounded-full" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+            <div class="relative flex items-center gap-3">
+              <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl" style="background: rgba(236,185,33,0.2); color: #ecb921; border: 1px solid rgba(236,185,33,0.5);">
+                <FeatureIcon name="check" class="w-5 h-5" strokeWidth={2.5} />
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #ecb921;">Đã áp dụng</p>
+                <p class="font-display italic font-semibold text-base text-white truncate" x-text="applyToast"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───── Today's routines ───── -->
+      <section class="mb-6">
+        <div class="flex items-end justify-between mb-3 gap-2">
+          <div>
+            <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">Hôm nay</p>
+            <h2 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink leading-tight inline-flex items-center gap-2">
+              <FeatureIcon name="clipboard-check" class="w-5 h-5" />
+              <span>Routines hôm nay</span>
+            </h2>
+          </div>
+          <p class="text-[10px] italic text-[var(--c-ink-54)] tabular-nums">
+            <span x-text="completedToday"></span>/<span x-text="today.length"></span> đã xong
+          </p>
+        </div>
+
+        <template x-if="today.length === 0">
+          <div class="bg-white rounded-2xl border-2 border-dashed p-10 text-center" style="border-color: rgba(180,134,8,0.3);">
+            <span class="inline-flex items-center justify-center w-14 h-14 rounded-full mb-3" style="background: rgba(180,134,8,0.08); color: #B48608;">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+            <p class="text-sm italic text-mmp-ink mb-1 font-semibold">Chưa có routine hôm nay</p>
+            <p class="text-xs italic text-[var(--c-ink-54)] mb-4">Chọn 1 mẫu phía trên hoặc tạo mới từ đầu</p>
+            <a :href="`/pets/${pet.id}/routines/new`"
+              class="inline-flex items-center gap-1.5 font-bold italic text-mmp-ink px-5 py-2.5 rounded-xl text-sm hover:opacity-95 transition"
+              style="background: #ecb921; box-shadow: 0 6px 18px rgba(236,185,33,0.32);">
+              <FeatureIcon name="plus" class="w-4 h-4" strokeWidth={2.2} />
+              <span>Tạo routine đầu tiên</span>
+            </a>
+          </div>
+        </template>
+
+        <div class="space-y-3">
+          <template x-for="r in today" :key="r.id">
+            <article class="bg-white rounded-2xl border p-4 shadow-sm transition" style="border-color: rgba(180,134,8,0.25);">
+              <header @click="r._expanded = !r._expanded" class="flex items-center gap-3 cursor-pointer select-none">
+                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-xl" style="background: rgba(180,134,8,0.1); color: #B48608;" x-html="renderIcon(r.icon)"></span>
+                <div class="flex-1 min-w-0">
+                  <h3 class="font-display italic font-semibold text-base text-mmp-ink truncate" x-text="r.name"></h3>
+                  <p class="text-xs italic text-[var(--c-ink-54)] inline-flex items-center gap-1.5 mt-0.5">
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span x-text="r.start_time"></span>
+                    <span class="opacity-50">·</span>
+                    <span x-text="`${r.tasks.length} task`"></span>
+                  </p>
+                </div>
+                <div class="text-right">
+                  <div class="font-display italic font-bold text-xl tabular-nums" style="color: #B48608;">
+                    <span x-text="completedCount(r)"></span>/<span x-text="r.tasks.length"></span>
+                  </div>
+                  <p class="text-[10px] italic text-[var(--c-ink-54)] mt-0.5">
+                    <span x-show="!r._expanded">Mở ▼</span>
+                    <span x-show="r._expanded">Ẩn ▲</span>
+                  </p>
+                </div>
+              </header>
+
+              <div class="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-700"
+                  :style="`background: linear-gradient(90deg, #ecb921 0%, #B48608 100%); width: ${(completedCount(r) / r.tasks.length) * 100}%`"></div>
+              </div>
+
+              <div x-show="r._expanded" x-transition class="mt-3 space-y-1.5">
+                <template x-for="task in r.tasks" :key="task.id">
+                  <label class="task-check flex items-center gap-3 p-2.5 rounded-xl cursor-pointer hover:bg-mmp-cream/40 transition"
+                    :class="isTaskDone(r, task.id) && 'checked'">
+                    <input type="checkbox"
+                      :checked="isTaskDone(r, task.id)"
+                      @change="toggleTask(r, task.id)"
+                      class="w-5 h-5 rounded shrink-0" style="accent-color: #B48608;" />
+                    <span class="text-lg shrink-0" x-text="task.emoji"></span>
+                    <span class="task-check__title flex-1 min-w-0 text-sm italic text-mmp-ink">
+                      <span x-text="task.title"></span>
+                    </span>
+                    <span class="text-[11px] italic font-bold shrink-0 inline-flex items-center gap-0.5 tabular-nums" style="color: #B48608;">
+                      +<span x-text="task.points"></span>
+                      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 8.5 22 9.3 17 14 18.2 21 12 17.8 5.8 21 7 14 2 9.3 9 8.5 12 2"/></svg>
+                    </span>
+                  </label>
+                </template>
+
+                <template x-if="r._saving">
+                  <p class="text-[10px] italic text-[var(--c-ink-54)] text-center mt-2">Đang lưu…</p>
+                </template>
+              </div>
+            </article>
+          </template>
+        </div>
+      </section>
+
+      <!-- ───── All routines ───── -->
+      <section>
+        <div class="flex items-end justify-between mb-3 gap-2">
+          <div>
+            <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">Quản lý</p>
+            <h2 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink leading-tight inline-flex items-center gap-2">
+              <FeatureIcon name="book-open" class="w-5 h-5" />
+              <span>Tất cả routines (<span x-text="routines.length"></span>)</span>
+            </h2>
+          </div>
+          <a :href="`/pets/${pet.id}/routines/new`"
+            class="inline-flex items-center gap-1.5 text-xs italic font-bold text-mmp-ink hover:opacity-95 transition px-3 py-2 rounded-xl"
+            style="background: #ecb921; box-shadow: 0 4px 12px rgba(236,185,33,0.3);">
+            <FeatureIcon name="plus" class="w-3.5 h-3.5" strokeWidth={2.2} />
+            <span>Tạo mới</span>
+          </a>
+        </div>
+
+        <template x-if="routines.length === 0">
+          <p class="text-center text-sm italic text-[var(--c-ink-54)] py-6">Chưa có routine nào</p>
+        </template>
+
+        <div class="space-y-2">
+          <template x-for="r in routines" :key="r.id">
+            <div class="bg-white rounded-xl border p-3 flex items-center gap-3 transition hover:shadow-sm" style="border-color: rgba(180,134,8,0.2);">
+              <span class="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg" style="background: rgba(180,134,8,0.1); color: #B48608;" x-html="renderIcon(r.icon)"></span>
+              <div class="flex-1 min-w-0">
+                <p class="font-display italic font-semibold text-sm text-mmp-ink truncate" x-text="r.name"></p>
+                <p class="text-[11px] italic text-[var(--c-ink-54)] inline-flex items-center gap-1.5 mt-0.5">
+                  <span x-text="scheduleLabel(r.schedule_type)"></span>
+                  <span class="opacity-50">·</span>
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span x-text="r.start_time"></span>
+                  <span class="opacity-50">·</span>
+                  <span x-text="r.tasks.length + ' task'"></span>
+                </p>
+              </div>
+              <a :href="`/pets/${pet.id}/routines/${r.id}/edit`"
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-mmp-ink hover:bg-mmp-cream transition shrink-0" title="Sửa">
+                <FeatureIcon name="edit-pencil" class="w-3.5 h-3.5" />
+              </a>
+              <button @click="confirmDelete(r)"
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--c-ink-54)] hover:text-mmp-ink hover:bg-mmp-cream transition shrink-0" title="Xoá">
+                <FeatureIcon name="trash" class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- Badge unlock toast (overlay) — gold styled -->
+      <template x-if="badgeToast">
+        <div class="fixed inset-x-4 top-6 z-50 mx-auto max-w-sm">
+          <div class="relative rounded-2xl shadow-2xl p-5 text-center badge-pop overflow-hidden bg-mmp-ink text-white">
+            <div aria-hidden="true" class="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.45) 0%, transparent 70%);"></div>
+            <div class="relative">
+              <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold inline-flex items-center gap-1.5" style="color: #ecb921;">
+                <FeatureIcon name="sparkles" class="w-3 h-3" />
+                <span>Mở khoá badge!</span>
+              </p>
+              <span class="inline-flex items-center justify-center w-14 h-14 rounded-full mt-3 mb-1" style="background: rgba(236,185,33,0.18); border: 2px solid rgba(236,185,33,0.55); color: #ecb921;">
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+              </span>
+              <p class="font-display italic font-bold text-xl text-white" x-text="badgesMeta[badgeToast]?.label_vi || badgeToast"></p>
+              <p class="text-xs italic text-white/70 mt-1" x-text="badgesMeta[badgeToast]?.description_vi"></p>
+            </div>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    // v96: Lucide icon registry — render r.icon as SVG, fallback to emoji for legacy data
+    const LUCIDE_ROUTINE_ICONS = {
+      "sun": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
+      "clock": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+      "calendar": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      "flame": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+      "utensils": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>',
+      "bowl": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M2 12h20"/><path d="M4 12a8 8 0 0 1 16 0v3a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M8 8c1 0 2-1 2-3M14 8c1 0 2-1 2-3"/></svg>',
+      "droplet": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+      "pill": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M10.5 20.5a4.5 4.5 0 0 1-6.36-6.36L13.64 4.64a4.5 4.5 0 0 1 6.36 6.36z"/><path d="M8.5 8.5l7 7"/></svg>',
+      "activity": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+      "activity-run": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><circle cx="13" cy="4" r="2"/><path d="M4 22l4-7 3-3-1-5 4 4h3l3 5M11 7l-2 6"/></svg>',
+      "paw": '<svg viewBox="0 0 24 24" fill="currentColor" style="width:100%;height:100%;"><ellipse cx="6.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="17.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="10" cy="6.5" rx="2" ry="2.5"/><ellipse cx="14" cy="6.5" rx="2" ry="2.5"/><path d="M12 12c-3.4 0-6.5 2.9-6.5 6.2 0 1.5 1.2 2.8 2.8 2.8 1 0 1.8-.5 2.8-1 .3-.2.6-.3.9-.3s.6.1.9.3c1 .5 1.8 1 2.8 1 1.6 0 2.8-1.3 2.8-2.8 0-3.3-3.1-6.2-6.5-6.2z"/></svg>',
+      "heart": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+      "shield-check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+      "brain": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0-1 4.5 2.5 2.5 0 0 0 1 4.5A2.5 2.5 0 0 0 7 18.5v.5a2.5 2.5 0 0 0 5 0V4.5A2.5 2.5 0 0 0 9.5 2z"/><path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1 1 4.5 2.5 2.5 0 0 1-1 4.5A2.5 2.5 0 0 1 17 18.5v.5a2.5 2.5 0 0 1-5 0V4.5A2.5 2.5 0 0 1 14.5 2z"/></svg>',
+      "lightbulb": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>',
+      "trophy": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 4H5a2 2 0 0 0-2 2v1a3 3 0 0 0 3 3M17 4h2a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3"/></svg>',
+      "target": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+      "sparkles": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+      "leaf": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.96c1.4 9.3-3.3 16.2-8.2 17.04Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>',
+      "clipboard": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+      "home": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+      "star": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+      "cat": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-.42 7 .57 1.07 1 2.24 1 3.44C21 17.9 16.97 21 12 21s-9-3.1-9-7.56c0-1.25.5-2.4 1-3.44 0 0-1.89-6.42-.5-7 1.39-.58 4.72.23 6.5 2.23A9.04 9.04 0 0 1 12 5Z"/><path d="M8 14v.5"/><path d="M16 14v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75Z"/></svg>',
+      "dog": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;"><path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.703 1.725 1.722 3.656 1 1.261-.472 1.96-1.45 2.344-2.5"/><path d="M14.267 5.172c0-1.39 1.577-2.493 3.5-2.172 2.823.47 4.113 6.006 4 7-.08.703-1.725 1.722-3.656 1-1.261-.472-1.945-1.45-2.328-2.5"/><path d="M8 14v.5"/><path d="M16 14v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75Z"/><path d="M4.5 13.5C4.5 12 5 11 6 11h12c1 0 1.5 1 1.5 2.5l-1 4c-.75 1.5-1.5 2.5-3 2.5h-1.25l-.75-1.5L12 21l-1.5-2.5-.75 1.5H8.5c-1.5 0-2.25-1-3-2.5z"/></svg>',
+    };
+
+    function routinesPage(initial) {
+      return {
+        pet: initial.pet,
+        routines: initial.routines,
+        today: initial.today.map((r) => ({ ...r, _expanded: false, _saving: false })),
+        streak: initial.streak,
+        badgesMeta: initial.badgesMeta,
+        badgeToast: null,
+        saveTimers: {},
+        // v97: Smart Blueprint apply state
+        applying: null,
+        applyToast: null,
+
+        // v97: 1-tap apply blueprint — POST routine + reload to refresh state
+        async quickApply(blueprintId) {
+          if (this.applying) return;
+          const all = window.__VOWVET_BLUEPRINTS || [];
+          const bp = all.find((b) => b.id === blueprintId);
+          if (!bp) return;
+          this.applying = blueprintId;
+          try {
+            const body = {
+              name: bp.label,
+              icon: bp.icon,
+              color: "#B48608",
+              schedule_type: bp.schedule_type || "daily",
+              custom_days: [],
+              start_time: bp.start_time || "08:00",
+              push_reminder: true,
+              tasks: bp.tasks.map((t) => ({
+                id: "t" + Math.random().toString(36).slice(2, 10),
+                title: t.title,
+                emoji: t.emoji,
+                duration_minutes: t.duration_minutes,
+                points: t.points,
+                category: t.category,
+              })),
+            };
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/routines`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+              this.applyToast = "Lỗi: " + (await res.text()).slice(0, 80);
+              setTimeout(() => { this.applyToast = null; }, 4000);
+              return;
+            }
+            this.applyToast = bp.label;
+            this.launchConfetti();
+            // Reload after toast to fetch new routines
+            setTimeout(() => window.location.reload(), 1500);
+          } catch (err) {
+            this.applyToast = "Lỗi kết nối";
+            setTimeout(() => { this.applyToast = null; }, 4000);
+          } finally {
+            // Keep applying state until reload
+          }
+        },
+
+        // v100: Render r.icon — exact match → prefix fuzzy match → emoji fallback
+        // Fuzzy needed because Baserow icon column truncates long Lucide names
+        // (e.g., "activity-run" → "acti", "shield-check" → "shie").
+        renderIcon(name) {
+          if (!name) return '';
+          const key = String(name).trim();
+          // Exact match (full Lucide name OR legacy emoji that happens to be a key)
+          if (LUCIDE_ROUTINE_ICONS[key]) return LUCIDE_ROUTINE_ICONS[key];
+          // Fuzzy prefix match — recover from Baserow truncation
+          const lower = key.toLowerCase();
+          for (const k of Object.keys(LUCIDE_ROUTINE_ICONS)) {
+            if (k.startsWith(lower) || lower.startsWith(k)) {
+              return LUCIDE_ROUTINE_ICONS[k];
+            }
+          }
+          // True legacy: emoji char or unknown — render as text
+          return '<span style="font-size: 1.25rem; line-height: 1;">' + key + '</span>';
+        },
+
+        get completedToday() {
+          return this.today.filter((r) => r.completion && r.completion.tasks_completion_rate >= 50).length;
+        },
+
+        // v87: Today's overall task completion % — drives Energy Ring intensity
+        get todayProgress() {
+          if (!this.today.length) return 0;
+          let done = 0, total = 0;
+          for (const r of this.today) {
+            done += this.completedCount(r);
+            total += r.tasks.length;
+          }
+          return total > 0 ? Math.round((done / total) * 100) : 0;
+        },
+
+        isTaskDone(routine, taskId) {
+          const list = routine.completion?.tasks_completed || [];
+          return list.includes(taskId);
+        },
+
+        completedCount(routine) {
+          return (routine.completion?.tasks_completed || []).length;
+        },
+
+        scheduleLabel(s) {
+          return { daily: "Hàng ngày", weekdays: "T2-T6", weekends: "Cuối tuần", custom: "Tuỳ chỉnh" }[s] || s;
+        },
+
+        toggleTask(routine, taskId) {
+          // Mutate in place
+          if (!routine.completion) {
+            routine.completion = {
+              tasks_completed: [],
+              tasks_total: routine.tasks.length,
+              tasks_completion_rate: 0,
+            };
+          }
+          const list = routine.completion.tasks_completed;
+          const idx = list.indexOf(taskId);
+          if (idx >= 0) list.splice(idx, 1);
+          else list.push(taskId);
+
+          // Debounced save per routine
+          clearTimeout(this.saveTimers[routine.id]);
+          routine._saving = true;
+          this.saveTimers[routine.id] = setTimeout(() => this.saveCompletion(routine), 600);
+        },
+
+        async saveCompletion(routine) {
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/routines/${routine.id}/complete`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ completed_task_ids: routine.completion.tasks_completed }),
+            });
+            if (!res.ok) {
+              console.warn("save fail", await res.text());
+              return;
+            }
+            const data = await res.json();
+            // Update local completion + streak
+            routine.completion = data.completion;
+            this.streak = data.streak;
+            // Badges
+            if (data.badgesUnlocked && data.badgesUnlocked.length > 0) {
+              this.showBadge(data.badgesUnlocked[0]);
+              if (data.badgesUnlocked.length > 1) {
+                setTimeout(() => this.showBadge(data.badgesUnlocked[1]), 3000);
+              }
+            }
+          } catch (err) {
+            console.error("save error", err);
+          } finally {
+            routine._saving = false;
+          }
+        },
+
+        showBadge(badgeId) {
+          this.badgeToast = badgeId;
+          this.launchConfetti();
+          setTimeout(() => { this.badgeToast = null; }, 3500);
+        },
+
+        launchConfetti() {
+          const colors = ["#f59e0b", "#ec4899", "#8b5cf6", "#10b981", "#3b82f6", "#f43f5e"];
+          for (let i = 0; i < 40; i++) {
+            const el = document.createElement("div");
+            el.className = "confetti-piece";
+            el.style.left = Math.random() * 100 + "vw";
+            el.style.background = colors[Math.floor(Math.random() * colors.length)];
+            el.style.borderRadius = Math.random() > 0.5 ? "50%" : "0";
+            el.style.animationDuration = (1.8 + Math.random() * 1.2) + "s";
+            el.style.animationDelay = Math.random() * 0.5 + "s";
+            document.body.appendChild(el);
+            el.addEventListener("animationend", () => el.remove());
+          }
+        },
+
+        async useFreezeConfirm() {
+          if (!this.streak || this.streak.streak_freezes_available <= 0) return;
+          if (!confirm(`Dùng 1 ngày phép? Còn lại ${this.streak.streak_freezes_available - 1}/3 trong tháng. Streak sẽ +1 ngày.`)) return;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/routines/streak/use-freeze`, {
+              method: "POST",
+              credentials: "include",
+            });
+            if (res.ok) {
+              const j = await res.json();
+              this.streak = j.streak;
+            } else {
+              alert("Hết ngày phép tháng này");
+            }
+          } catch (_) {}
+        },
+
+        async confirmDelete(routine) {
+          if (!confirm(`Xoá routine "${routine.name}"? (Soft delete — có thể khôi phục từ admin)`)) return;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/routines/${routine.id}`, {
+              method: "DELETE",
+              credentials: "include",
+            });
+            if (res.ok) {
+              this.routines = this.routines.filter((r) => r.id !== routine.id);
+              this.today = this.today.filter((r) => r.id !== routine.id);
+            }
+          } catch (_) {}
+        },
+      };
+    }
+  </script>
+</Layout>

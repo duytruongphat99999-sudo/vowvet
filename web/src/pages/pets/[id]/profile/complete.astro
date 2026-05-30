@@ -1,0 +1,13 @@
+---
+/**
+ * v61: Page deprecated — merged into /pets/[id].
+ * Permanent redirect 301 to single unified Pet Profile dashboard.
+ *
+ * Old URL `/pets/[id]/profile/complete` → `/pets/[id]` (same content embedded).
+ * Backward compat for bookmarks + cross-file links from food-brands, pets/new, photos.
+ *
+ * If you need the v59 dashboard source, see git history before v61.
+ */
+const petId = Astro.params.id;
+return Astro.redirect(`/pets/${petId}`, 301);
+---

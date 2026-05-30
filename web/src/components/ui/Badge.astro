@@ -1,0 +1,63 @@
+---
+/**
+ * Badge — small status / category pill.
+ *
+ * Variants:
+ *   - neutral : slate (default)
+ *   - ink     : black fill (premium / VIP)
+ *   - gold    : gold fill (highlight / featured)
+ *   - info    : cream + ink text (informational)
+ *   - success : emerald (healthy / done)
+ *   - warning : amber (caution)
+ *   - danger  : red (urgent)
+ *
+ * Sizes: sm (text-[10px]), md (text-xs — default)
+ *
+ * Usage:
+ *   <Badge>3 quests</Badge>
+ *   <Badge variant="gold" size="sm">VIP</Badge>
+ *   <Badge variant="success">Đã tiêm</Badge>
+ */
+interface Props {
+  variant?: "neutral" | "ink" | "gold" | "info" | "success" | "warning" | "danger";
+  size?: "sm" | "md";
+  dot?: boolean;
+  class?: string;
+}
+const { variant = "neutral", size = "md", dot = false, class: extraClass = "" } = Astro.props;
+
+const VARIANTS: Record<string, string> = {
+  neutral: "bg-slate-100 text-slate-700 border border-slate-200",
+  ink:     "bg-mmp-ink text-white border border-mmp-ink",
+  gold:    "bg-[#ecb921] text-mmp-ink border border-[#ecb921]",
+  info:    "bg-mmp-cream text-mmp-ink border border-amber-100",
+  success: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  warning: "bg-amber-50 text-amber-700 border border-amber-200",
+  danger:  "bg-red-50 text-red-700 border border-red-200",
+};
+const DOT_COLOR: Record<string, string> = {
+  neutral: "bg-slate-400",
+  ink:     "bg-white",
+  gold:    "bg-mmp-ink",
+  info:    "bg-[#ecb921]",
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+  danger:  "bg-red-500",
+};
+const SIZES: Record<string, string> = {
+  sm: "text-[10px] px-2 py-0.5 gap-1",
+  md: "text-xs px-2.5 py-1 gap-1.5",
+};
+
+const cls = [
+  "inline-flex items-center font-semibold rounded-full",
+  VARIANTS[variant],
+  SIZES[size],
+  extraClass,
+].filter(Boolean).join(" ");
+---
+
+<span class={cls}>
+  {dot && <span class={`inline-block w-1.5 h-1.5 rounded-full ${DOT_COLOR[variant]}`} aria-hidden="true"></span>}
+  <slot />
+</span>

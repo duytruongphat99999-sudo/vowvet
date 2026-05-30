@@ -1,0 +1,170 @@
+---
+/**
+ * /personality/[petSlug] — Public personality result (M15).
+ * No auth required. Renders the personality card for a pet via public slug.
+ */
+import Layout from "../../layouts/Layout.astro";
+import { PERSONALITY_TYPES, ALL_TYPE_IDS } from "@shared/personality-types.ts";
+
+const petSlug = String(Astro.params.petSlug || "").toLowerCase();
+if (!petSlug || !/^[a-z0-9-]+$/.test(petSlug)) return Astro.redirect("/");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let pet: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/public/p/${petSlug}`);
+  if (res.ok) {
+    const j = await res.json();
+    pet = j.pet;
+  }
+} catch (_) {}
+
+if (!pet) return Astro.redirect("/");
+
+const typeId = pet.personality_type as keyof typeof PERSONALITY_TYPES | null;
+const secondaryId = pet.personality_secondary_type as keyof typeof PERSONALITY_TYPES | null;
+const hasResult = !!typeId && ALL_TYPE_IDS.includes(typeId as any);
+
+const typeMeta = hasResult ? PERSONALITY_TYPES[typeId!] : null;
+const secondaryMeta = secondaryId && ALL_TYPE_IDS.includes(secondaryId as any) ? PERSONALITY_TYPES[secondaryId] : null;
+
+const APP_DOMAIN = import.meta.env.APP_DOMAIN || process.env.APP_DOMAIN || "https://vowvet.monminpet.com";
+const fullUrl = `${APP_DOMAIN}/personality/${petSlug}`;
+
+// Compatibility types
+const compatibles = (typeMeta?.compatible_types || []).map((id) => PERSONALITY_TYPES[id]).filter(Boolean);
+---
+
+<Layout
+  title={hasResult ? `${typeMeta!.emoji} ${pet.name} là ${typeMeta!.name_vi}` : `Tính cách ${pet.name}`}
+  description={hasResult ? typeMeta!.tagline_vi : "Khám phá personality type cho thú cưng của bạn"}
+>
+  <main class="min-h-screen bg-mmp-cream via-mmp-cream to-amber-50 px-4 py-8 pb-16">
+    <div class="max-w-lg mx-auto">
+
+      <!-- Brand header -->
+      <header class="text-center mb-6">
+        <p class="text-xs text-slate-500 uppercase tracking-wider">🐾 Mon Min Pet</p>
+        <h1 class="text-lg font-bold text-slate-900 mt-1">Personality Quiz</h1>
+      </header>
+
+      {!hasResult ? (
+        <div class="bg-white rounded-3xl p-8 text-center shadow-lg">
+          <p class="text-6xl mb-4">🎭</p>
+          <h2 class="text-xl font-bold text-slate-900 mb-2">Bé {pet.name} chưa làm quiz</h2>
+          <p class="text-sm text-slate-600 mb-6">Hãy yêu cầu chủ bé làm quiz để khám phá tính cách!</p>
+          <a href="/" class="inline-block bg-mmp-ink hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-2xl text-sm">
+            Test cho bé của bạn →
+          </a>
+        </div>
+      ) : (
+        <div>
+          <!-- Result card -->
+          <div class:list={[
+            "rounded-3xl p-6 sm:p-8 text-white shadow-2xl",
+            "bg-gradient-to-br",
+            typeMeta!.color_gradient
+          ]}>
+            {pet.photo_url && (
+              <img src={pet.photo_url} alt={pet.name} class="w-20 h-20 rounded-full object-cover border-4 border-white/70 mx-auto mb-4 shadow-lg" />
+            )}
+
+            <div class="text-center mb-5">
+              <div class="text-7xl mb-2">{typeMeta!.emoji}</div>
+              <h1 class="text-2xl sm:text-3xl font-extrabold drop-shadow">{typeMeta!.name_vi}</h1>
+              <p class="text-sm opacity-95 mt-2 italic">{typeMeta!.tagline_vi}</p>
+              <p class="text-xs opacity-80 mt-3">Tính cách của bé <strong>{pet.name}</strong></p>
+            </div>
+
+            <!-- Strengths -->
+            <div class="bg-white/15 backdrop-blur rounded-2xl p-4 mb-4">
+              <p class="text-xs font-bold opacity-80 mb-2">💪 Điểm mạnh</p>
+              <ul class="text-sm space-y-1">
+                {typeMeta!.strengths.map((s) => (
+                  <li class="flex items-start gap-2"><span>•</span><span>{s}</span></li>
+                ))}
+              </ul>
+            </div>
+
+            <!-- Needs -->
+            <div class="bg-white/15 backdrop-blur rounded-2xl p-4 mb-4">
+              <p class="text-xs font-bold opacity-80 mb-2">🎯 Bé cần</p>
+              <ul class="text-sm space-y-1">
+                {typeMeta!.needs.map((n) => (
+                  <li class="flex items-start gap-2"><span>•</span><span>{n}</span></li>
+                ))}
+              </ul>
+            </div>
+
+            <!-- Description -->
+            <p class="text-sm leading-relaxed text-center px-2 mb-4">{typeMeta!.description_vi}</p>
+
+            <!-- Best lifestyle -->
+            <div class="bg-white/15 backdrop-blur rounded-2xl p-3 mb-4 text-center">
+              <p class="text-[11px] opacity-80">Phù hợp với lifestyle:</p>
+              <p class="text-sm font-medium mt-1">{typeMeta!.best_for_lifestyle}</p>
+            </div>
+
+            <!-- Secondary -->
+            {secondaryMeta && (
+              <div class="bg-white/15 backdrop-blur rounded-2xl p-3 mb-4 text-center">
+                <p class="text-[11px] opacity-80">Cũng có nét của:</p>
+                <p class="text-base font-bold mt-1">{secondaryMeta.emoji} {secondaryMeta.name_vi}</p>
+              </div>
+            )}
+
+            <!-- Compatibles -->
+            {compatibles.length > 0 && (
+              <div>
+                <p class="text-xs opacity-80 mb-2 text-center">🤝 Playdate hợp với:</p>
+                <div class="flex flex-wrap gap-2 justify-center">
+                  {compatibles.map((c) => (
+                    <span class="bg-white/30 backdrop-blur rounded-full px-3 py-1 text-xs font-medium">
+                      {c.emoji} {c.name_vi}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p class="text-[10px] opacity-60 text-center mt-5">🐾 Mon Min Pet — Personality Quiz</p>
+          </div>
+
+          <!-- CTA -->
+          <div class="bg-white rounded-2xl p-5 mt-5 shadow-md text-center">
+            <p class="text-sm font-semibold text-slate-800 mb-2">Bạn cũng nuôi pet?</p>
+            <p class="text-xs text-slate-600 mb-3">Khám phá personality type cho bé của bạn — miễn phí, 3 phút</p>
+            <a href="/" class="inline-block bg-mmp-ink hover:opacity-95 text-white font-bold px-6 py-3 rounded-xl text-sm shadow-lg">
+              Test cho bé tôi 🎭
+            </a>
+          </div>
+
+          <!-- Share -->
+          <div class="text-center mt-5">
+            <p class="text-xs text-slate-500 mb-2">Chia sẻ trang này:</p>
+            <div class="flex gap-2 justify-center">
+              <a
+                href={`https://zalo.me/share/url?url=${encodeURIComponent(fullUrl)}&title=${encodeURIComponent(`🎭 Bé ${pet.name} là ${typeMeta!.emoji} ${typeMeta!.name_vi}!`)}`}
+                target="_blank"
+                class="bg-mmp-ink hover:bg-mmp-ink text-white text-xs font-semibold px-3 py-2 rounded-lg">
+                💬 Zalo
+              </a>
+              <a
+                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`}
+                target="_blank"
+                class="bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs font-semibold px-3 py-2 rounded-lg">
+                👍 Facebook
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p class="text-center text-xs text-slate-400 mt-8">
+        🐾 <a href="https://vowvet.monminpet.com" class="hover:underline">Mon Min Pet</a>
+      </p>
+
+    </div>
+  </main>
+</Layout>

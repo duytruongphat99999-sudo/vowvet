@@ -1,0 +1,196 @@
+---
+/**
+ * PhotoGallery — 6 type-specific slots + 1 general multi (max 10).
+ *
+ * Props:
+ *   - petId: number — owner pet
+ *
+ * Behavior (client-side Alpine):
+ *   - Fetch /api/v1/pets/:id/photos on init
+ *   - Each type slot: drag-drop + click to upload, replace existing
+ *   - General multi: list grid + add button
+ *   - Image compress reuse window.compressImage
+ *   - Delete with confirm
+ *
+ * Consumer wraps trong Alpine context: <PhotoGallery petId={pet.id} />
+ */
+interface Props {
+  petId: number;
+}
+const { petId } = Astro.props;
+---
+
+<div
+  class="space-y-6"
+  x-data={`photoGallery(${petId})`}
+  x-init="loadPhotos()"
+>
+  <!-- 6 type-specific slots in grid -->
+  <div>
+    <h4 class="text-sm font-medium text-slate-700 mb-3">Ảnh phân loại (mỗi loại 1 ảnh, upload mới sẽ thay)</h4>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <template x-for="t in TYPE_SLOTS" :key="t.key">
+        <div class="space-y-1">
+          <label class="block aspect-square bg-slate-50 border-2 border-dashed border-slate-200 hover:border-sky-300 rounded-xl overflow-hidden cursor-pointer relative group">
+            <template x-if="getPhoto(t.key)">
+              <img :src="getPhoto(t.key).photo_url" :alt="t.label" class="w-full h-full object-cover" />
+            </template>
+            <template x-if="!getPhoto(t.key)">
+              <div class="flex flex-col items-center justify-center h-full text-slate-400 p-3">
+                <span class="text-3xl" x-text="t.emoji"></span>
+                <span class="text-xs mt-1 text-center font-medium" x-text="t.label"></span>
+                <span class="text-xs text-slate-300 mt-1">Bấm để chọn</span>
+              </div>
+            </template>
+            <template x-if="getPhoto(t.key) && getPhoto(t.key).is_primary">
+              <span class="absolute top-1 left-1 text-xs font-semibold bg-amber-400 text-white px-2 py-0.5 rounded-full">⭐ Primary</span>
+            </template>
+            <template x-if="getPhoto(t.key)">
+              <button
+                type="button"
+                @click.prevent="deletePhoto(getPhoto(t.key).id)"
+                class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition"
+              >Xoá</button>
+            </template>
+            <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="uploadSlot(t.key, $event)" />
+          </label>
+          <p class="text-xs text-slate-500 text-center" x-text="t.label"></p>
+          <p x-show="t.hint" class="text-xs text-slate-400 text-center italic" x-text="t.hint"></p>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- General multi -->
+  <div>
+    <div class="flex items-center justify-between mb-3">
+      <h4 class="text-sm font-medium text-slate-700">Ảnh khác <span class="text-xs text-slate-400" x-text="`(${generalPhotos.length}/10)`"></span></h4>
+      <label class="text-xs text-sky-600 hover:text-sky-700 cursor-pointer font-medium"
+        :class="generalPhotos.length >= 10 ? 'opacity-50 cursor-not-allowed' : ''">
+        + Thêm ảnh
+        <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="uploadGeneral($event)" :disabled="generalPhotos.length >= 10" />
+      </label>
+    </div>
+    <template x-if="generalPhotos.length === 0">
+      <p class="text-xs text-slate-400 italic">Chưa có ảnh nào.</p>
+    </template>
+    <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+      <template x-for="p in generalPhotos" :key="p.id">
+        <div class="aspect-square bg-slate-50 rounded-lg overflow-hidden relative group">
+          <a :href="p.photo_url" target="_blank">
+            <img :src="p.photo_url" :alt="p.caption || 'pet'" class="w-full h-full object-cover" />
+          </a>
+          <button
+            type="button"
+            @click.prevent="deletePhoto(p.id)"
+            class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition"
+          >×</button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="flex items-center gap-3 text-xs">
+    <p x-show="uploading" class="text-slate-500">
+      <span class="inline-block w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full animate-spin align-middle"></span>
+      Đang tải lên…
+    </p>
+    <p x-show="error" class="text-red-600" x-text="error"></p>
+  </div>
+</div>
+
+<script is:inline>
+  function photoGallery(petId) {
+    return {
+      petId,
+      photos: [],
+      uploading: false,
+      error: "",
+      TYPE_SLOTS: [
+        { key: "face", label: "Chính diện", emoji: "📸" },
+        { key: "profile", label: "Nghiêng", emoji: "🐾" },
+        { key: "full_body", label: "Toàn thân", emoji: "🐕" },
+        { key: "marks", label: "Đặc điểm", emoji: "🎯" },
+        { key: "eye_close_up", label: "Mắt zoom", emoji: "👁️" },
+        { key: "nose_print", label: "Vân mũi", emoji: "👃", hint: "Cho biometric tương lai" },
+      ],
+
+      get generalPhotos() {
+        return this.photos.filter(p => p.photo_type === "general");
+      },
+
+      getPhoto(type) {
+        return this.photos.find(p => p.photo_type === type);
+      },
+
+      async loadPhotos() {
+        try {
+          const res = await fetch(`/api/v1/pets/${this.petId}/photos`);
+          if (res.ok) {
+            const j = await res.json();
+            this.photos = j.photos || [];
+          }
+        } catch (_) {}
+      },
+
+      async uploadSlot(type, ev) {
+        const file = ev.target.files?.[0];
+        if (!file) return;
+        await this.upload(file, type);
+        ev.target.value = "";
+      },
+      async uploadGeneral(ev) {
+        const file = ev.target.files?.[0];
+        if (!file) return;
+        if (this.generalPhotos.length >= 10) {
+          this.error = "Đã đạt giới hạn 10 ảnh khác";
+          return;
+        }
+        await this.upload(file, "general");
+        ev.target.value = "";
+      },
+
+      async upload(file, type) {
+        this.error = "";
+        this.uploading = true;
+        try {
+          const compressed = await (window.compressImage ? window.compressImage(file) : file);
+          const form = new FormData();
+          form.append("photo", compressed);
+          form.append("type", type);
+          const res = await fetch(`/api/v1/pets/${this.petId}/photos`, { method: "POST", body: form });
+          const j = await res.json();
+          if (!res.ok) {
+            this.error = j.error?.message || "Upload thất bại";
+            return;
+          }
+          await this.loadPhotos();
+          // Notify parent (wizard) để recalc completion display
+          window.dispatchEvent(new CustomEvent("vowvet:profile-updated", { detail: { completion_pct: j.completion_pct } }));
+        } catch (err) {
+          this.error = "Lỗi kết nối";
+        } finally {
+          this.uploading = false;
+        }
+      },
+
+      async deletePhoto(photoId) {
+        if (!confirm("Xoá ảnh này?")) return;
+        this.error = "";
+        try {
+          const res = await fetch(`/api/v1/pets/${this.petId}/photos/${photoId}`, { method: "DELETE" });
+          const j = await res.json();
+          if (!res.ok) {
+            this.error = j.error?.message || "Không xoá được";
+            return;
+          }
+          await this.loadPhotos();
+          window.dispatchEvent(new CustomEvent("vowvet:profile-updated", { detail: { completion_pct: j.completion_pct } }));
+        } catch (err) {
+          this.error = "Lỗi kết nối";
+        }
+      },
+    };
+  }
+</script>

@@ -1,0 +1,587 @@
+---
+/**
+ * /pets/[id]/bills — Vet Bill Tracker (M16).
+ *
+ * 3 tabs: Upload mới | Lịch sử | Thống kê năm
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let bills: any[] = [];
+let summary: any = null;
+try {
+  const [bRes, sRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/bills`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/bills/summary`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (bRes.ok) bills = (await bRes.json()).bills || [];
+  if (sRes.ok) summary = await sRes.json();
+} catch (_) {}
+
+const currentYear = new Date().getFullYear();
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, species: pet.species },
+  bills,
+  summary: summary || { total_year: 0, total_month: 0, by_category: {}, monthly_trend: [], bill_count: 0 },
+});
+---
+
+<Layout title={`Hoá đơn ${pet.name} · VowVet`} description={`Theo dõi chi phí thú y cho bé ${pet.name}`}>
+  <main class="min-h-screen bg-slate-50 px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`billsPage(${initialData})`} x-init="init()">
+
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-4 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900">💊 Hoá đơn vet</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <!-- Summary cards -->
+      <section class="grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+          <p class="text-xs text-slate-500 mb-1">Năm {currentYear}</p>
+          <p class="text-2xl font-extrabold text-slate-900" x-text="fmtVnd(summary.total_year)"></p>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+          <p class="text-xs text-slate-500 mb-1">Tháng này</p>
+          <p class="text-2xl font-extrabold text-sky-600" x-text="fmtVnd(summary.total_month)"></p>
+        </div>
+      </section>
+
+      <!-- Tab bar -->
+      <nav class="flex gap-1 bg-white rounded-xl border border-slate-100 p-1 mb-4 shadow-sm">
+        {(["upload", "history", "stats"] as const).map((t) => (
+          <button
+            @click={`activeTab = '${t}'`}
+            :class={`activeTab === '${t}' ? 'bg-sky-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'`}
+            class="flex-1 py-2 text-sm font-semibold rounded-lg transition"
+          >
+            {t === "upload" ? "📷 Upload" : t === "history" ? "📋 Lịch sử" : "📊 Thống kê"}
+          </button>
+        ))}
+      </nav>
+
+      <!-- ══════════════════════════════════════════════════════
+           TAB: UPLOAD
+      ══════════════════════════════════════════════════════ -->
+      <div x-show="activeTab === 'upload'" x-cloak>
+
+        <!-- Upload zone -->
+        <div x-show="!form.photo_url" class="mb-4">
+          <label
+            class="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-slate-300 hover:border-sky-400 rounded-2xl p-8 cursor-pointer bg-white transition"
+            :class="uploading ? 'opacity-60 pointer-events-none' : ''">
+            <span class="text-5xl select-none">📸</span>
+            <p class="font-semibold text-slate-700">Chụp hoặc chọn ảnh hoá đơn</p>
+            <p class="text-xs text-slate-400">JPEG · PNG · WebP · tối đa 10MB</p>
+            <input type="file" accept="image/*" class="hidden" @change="onPhotoChange($event)" :disabled="uploading" />
+          </label>
+          <template x-if="uploading">
+            <div class="mt-3 flex items-center gap-2 text-sky-600 text-sm font-medium">
+              <div class="w-4 h-4 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin"></div>
+              Đang upload và phân tích hoá đơn...
+            </div>
+          </template>
+          <template x-if="uploadError">
+            <p class="mt-2 text-red-600 text-sm" x-text="uploadError"></p>
+          </template>
+        </div>
+
+        <!-- Form pre-filled sau OCR -->
+        <template x-if="form.photo_url">
+          <div class="space-y-3">
+            <!-- Ảnh preview + reset -->
+            <div class="bg-white rounded-2xl border border-slate-100 p-4 flex items-start gap-3 shadow-sm">
+              <img :src="form.photo_url" alt="Hoá đơn" class="w-20 h-20 object-cover rounded-xl flex-shrink-0 border border-slate-100" />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    :class="ocrConfidenceBadgeClass(form.ocr_confidence)">
+                    AI đọc <span x-text="form.ocr_confidence"></span>%
+                  </span>
+                  <template x-if="form.ocr_confidence >= 75">
+                    <span class="text-xs text-green-600 font-medium">✓ Kiểm tra nhanh</span>
+                  </template>
+                  <template x-if="form.ocr_confidence > 0 && form.ocr_confidence < 75">
+                    <span class="text-xs text-orange-600 font-medium">⚠️ Kiểm tra kỹ</span>
+                  </template>
+                  <template x-if="form.ocr_confidence === 0">
+                    <span class="text-xs text-red-500 font-medium">Điền tay</span>
+                  </template>
+                </div>
+                <button @click="resetForm()" class="text-xs text-slate-400 hover:text-red-500 transition">
+                  × Đổi ảnh
+                </button>
+              </div>
+            </div>
+
+            <!-- Fields -->
+            <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Ngày khám *</label>
+                <input type="date" x-model="form.bill_date" :max="today()"
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-300 focus:border-sky-400 outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Phòng khám</label>
+                <input type="text" x-model="form.clinic_name" placeholder="Tên phòng khám"
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-300 focus:border-sky-400 outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Danh mục</label>
+                <select x-model="form.category"
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-300 focus:border-sky-400 outline-none bg-white">
+                  <option value="vaccine">💉 Vaccine</option>
+                  <option value="kham_benh">🩺 Khám bệnh</option>
+                  <option value="phau_thuat">🏥 Phẫu thuật</option>
+                  <option value="thuoc">💊 Thuốc</option>
+                  <option value="grooming">✂️ Grooming</option>
+                  <option value="xet_nghiem">🔬 Xét nghiệm</option>
+                  <option value="other">📋 Khác</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Tổng tiền (VNĐ)</label>
+                <input type="number" x-model.number="form.total_amount" min="0" step="1000"
+                  placeholder="0"
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-300 focus:border-sky-400 outline-none" />
+                <p x-show="form.total_amount" class="text-xs text-slate-500 mt-1"
+                  x-text="fmtVnd(form.total_amount)"></p>
+              </div>
+
+              <!-- Items table (from OCR) -->
+              <template x-if="form.items && form.items.length > 0">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Chi tiết dịch vụ</label>
+                  <div class="border border-slate-200 rounded-lg overflow-hidden text-xs">
+                    <table class="w-full">
+                      <thead class="bg-slate-50 text-slate-500">
+                        <tr>
+                          <th class="px-2 py-1.5 text-left">Tên</th>
+                          <th class="px-2 py-1.5 text-right">SL</th>
+                          <th class="px-2 py-1.5 text-right">Đơn giá</th>
+                          <th class="px-2 py-1.5 text-right">Thành tiền</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="(item, idx) in form.items" :key="idx">
+                          <tr class="border-t border-slate-100">
+                            <td class="px-2 py-1.5" x-text="item.name"></td>
+                            <td class="px-2 py-1.5 text-right" x-text="item.qty"></td>
+                            <td class="px-2 py-1.5 text-right" x-text="fmtVnd(item.unit_price)"></td>
+                            <td class="px-2 py-1.5 text-right font-medium" x-text="fmtVnd(item.total)"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </template>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Ghi chú</label>
+                <textarea x-model="form.notes" rows="2" placeholder="Thêm ghi chú..."
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-300 focus:border-sky-400 outline-none resize-none"></textarea>
+              </div>
+
+              <!-- Save -->
+              <template x-if="saveError">
+                <p class="text-red-600 text-sm" x-text="saveError"></p>
+              </template>
+              <button @click="saveBill()" :disabled="saving || !form.bill_date"
+                class="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl transition">
+                <span x-show="!saving">💾 Lưu hoá đơn</span>
+                <span x-show="saving">Đang lưu...</span>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Empty state upload tab -->
+        <template x-if="!form.photo_url && !uploading">
+          <div class="text-center py-8 text-slate-400 text-sm">
+            <p>Chụp ảnh hoá đơn thú y để AI tự động điền thông tin</p>
+          </div>
+        </template>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           TAB: LỊCH SỬ
+      ══════════════════════════════════════════════════════ -->
+      <div x-show="activeTab === 'history'" x-cloak>
+        <template x-if="bills.length === 0">
+          <div class="text-center py-16 text-slate-400">
+            <p class="text-5xl mb-3">📋</p>
+            <p class="font-medium">Chưa có hoá đơn nào</p>
+            <p class="text-sm mt-1">Upload ảnh hoá đơn đầu tiên →</p>
+          </div>
+        </template>
+
+        <template x-if="bills.length > 0">
+          <div class="space-y-3">
+            <!-- Filter -->
+            <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              <button @click="filterCat = ''"
+                :class="filterCat === '' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'"
+                class="flex-shrink-0 text-xs px-3 py-1.5 rounded-full font-medium transition">Tất cả</button>
+              <template x-for="cat in availableCategories" :key="cat.value">
+                <button @click="filterCat = cat.value"
+                  :class="filterCat === cat.value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'"
+                  class="flex-shrink-0 text-xs px-3 py-1.5 rounded-full font-medium transition"
+                  x-text="cat.label">
+                </button>
+              </template>
+            </div>
+
+            <!-- Bill cards -->
+            <template x-for="bill in filteredBills" :key="bill.id">
+              <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                <div class="flex items-start gap-3">
+                  <template x-if="bill.photo_url">
+                    <img :src="bill.photo_url" alt="Hoá đơn" class="w-14 h-14 object-cover rounded-xl flex-shrink-0 border border-slate-100 cursor-pointer"
+                      @click="openPhoto(bill.photo_url)" />
+                  </template>
+                  <template x-if="!bill.photo_url">
+                    <div class="w-14 h-14 bg-slate-100 rounded-xl flex-shrink-0 flex items-center justify-center text-2xl">
+                      💊
+                    </div>
+                  </template>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                        :class="categoryBadgeClass(bill.category)"
+                        x-text="categoryLabel(bill.category)"></span>
+                      <span class="text-xs text-slate-400" x-text="bill.bill_date"></span>
+                    </div>
+                    <p class="font-bold text-slate-900 mt-1" x-text="fmtVnd(bill.total_amount || 0)"></p>
+                    <p class="text-xs text-slate-500 mt-0.5 truncate" x-text="bill.clinic_name || 'Không rõ phòng khám'"></p>
+                    <template x-if="bill.total_amount && bill.total_amount >= 500000">
+                      <p class="text-xs text-sky-600 mt-1 font-medium">💡 Hụi Pet có thể hỗ trợ khoản này →</p>
+                    </template>
+                  </div>
+                </div>
+                <template x-if="bill.notes">
+                  <p class="mt-2 text-xs text-slate-500 border-t border-slate-50 pt-2" x-text="bill.notes"></p>
+                </template>
+                <div class="flex justify-end mt-2">
+                  <button @click="deleteBill(bill.id)"
+                    class="text-xs text-red-400 hover:text-red-600 transition px-2 py-1">
+                    🗑 Xóa
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           TAB: THỐNG KÊ
+      ══════════════════════════════════════════════════════ -->
+      <div x-show="activeTab === 'stats'" x-cloak>
+        <template x-if="summary.bill_count === 0">
+          <div class="text-center py-16 text-slate-400">
+            <p class="text-5xl mb-3">📊</p>
+            <p class="font-medium">Chưa có dữ liệu để thống kê</p>
+          </div>
+        </template>
+
+        <template x-if="summary.bill_count > 0">
+          <div class="space-y-4">
+            <!-- Category breakdown -->
+            <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+              <h2 class="text-sm font-semibold text-slate-900 mb-3">📦 Chi tiêu theo danh mục (năm {currentYear})</h2>
+              <div class="space-y-2">
+                <template x-for="[cat, amt] in sortedCategories" :key="cat">
+                  <div>
+                    <div class="flex justify-between items-baseline text-sm mb-0.5">
+                      <span x-text="categoryLabel(cat)" class="text-slate-700"></span>
+                      <span x-text="fmtVnd(amt)" class="font-semibold text-slate-900"></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5">
+                      <div class="h-1.5 rounded-full bg-sky-500"
+                        :style="`width: ${maxCategoryAmt ? Math.round(amt / maxCategoryAmt * 100) : 0}%`"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Monthly trend (6 tháng) -->
+            <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+              <h2 class="text-sm font-semibold text-slate-900 mb-3">📈 Xu hướng 6 tháng gần nhất</h2>
+              <template x-if="summary.monthly_trend.length === 0">
+                <p class="text-xs text-slate-400">Chưa đủ dữ liệu</p>
+              </template>
+              <div class="space-y-2">
+                <template x-for="m in summary.monthly_trend" :key="m.month">
+                  <div>
+                    <div class="flex justify-between items-baseline text-xs mb-0.5">
+                      <span class="text-slate-500" x-text="fmtMonth(m.month)"></span>
+                      <span class="font-semibold text-slate-800" x-text="fmtVnd(m.total)"></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5">
+                      <div class="h-1.5 rounded-full bg-emerald-500"
+                        :style="`width: ${maxMonthlyAmt ? Math.round(m.total / maxMonthlyAmt * 100) : 0}%`"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Year-end summary -->
+            <div class="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-2xl border border-sky-100 p-5">
+              <h2 class="text-sm font-semibold text-slate-900 mb-2">📑 Tổng kết năm {currentYear}</h2>
+              <p class="text-slate-600 text-sm">
+                Bạn đã chi <span class="font-bold text-sky-700" x-text="fmtVnd(summary.total_year)"></span>
+                cho <span class="font-bold" x-text="summary.bill_count"></span> lần khám/điều trị cho bé {pet.name}.
+              </p>
+              <template x-if="summary.most_expensive_category">
+                <p class="text-xs text-slate-500 mt-1">
+                  Danh mục tốn nhiều nhất: <span class="font-medium" x-text="categoryLabel(summary.most_expensive_category)"></span>
+                </p>
+              </template>
+              <div class="mt-3 p-3 bg-white rounded-xl border border-sky-200">
+                <p class="text-xs text-sky-700 font-semibold">💡 Hụi Pet (sắp ra mắt)</p>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Ước tính tiết kiệm <span class="font-bold text-sky-600"
+                    x-text="fmtVnd(Math.round(summary.total_year * 0.7))"></span> nếu dùng Hụi Pet.
+                </p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Photo lightbox -->
+  <div x-data="{ open: false, src: '' }" @open-photo.window="open = true; src = $event.detail"
+    x-show="open" x-cloak @click="open = false"
+    class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+    <img :src="src" class="max-w-full max-h-full rounded-2xl object-contain" @click.stop />
+  </div>
+
+  <script is:inline>
+    const CATEGORY_LABELS = {
+      vaccine: "💉 Vaccine",
+      kham_benh: "🩺 Khám bệnh",
+      phau_thuat: "🏥 Phẫu thuật",
+      thuoc: "💊 Thuốc",
+      grooming: "✂️ Grooming",
+      xet_nghiem: "🔬 Xét nghiệm",
+      other: "📋 Khác",
+    };
+
+    const CATEGORY_BADGE_CLASSES = {
+      vaccine: "bg-green-100 text-green-700",
+      kham_benh: "bg-mmp-cream text-mmp-ink",
+      phau_thuat: "bg-red-100 text-red-700",
+      thuoc: "bg-orange-100 text-amber-700",
+      grooming: "bg-mmp-cream text-mmp-ink",
+      xet_nghiem: "bg-mmp-cream text-mmp-ink",
+      other: "bg-slate-100 text-slate-600",
+    };
+
+    function billsPage(initial) {
+      return {
+        pet: initial.pet,
+        bills: initial.bills,
+        summary: initial.summary,
+        activeTab: "upload",
+        filterCat: "",
+
+        // Upload/OCR state
+        uploading: false,
+        uploadError: "",
+        saving: false,
+        saveError: "",
+
+        // Form
+        form: {
+          bill_date: "",
+          clinic_name: "",
+          total_amount: null,
+          category: "other",
+          items: [],
+          photo_key: null,
+          photo_url: null,
+          ocr_confidence: 0,
+          notes: "",
+          verified: false,
+        },
+
+        init() {
+          // Switch to history tab if there are already bills
+          if (this.bills.length > 0) this.activeTab = "history";
+        },
+
+        today() {
+          return new Date().toISOString().slice(0, 10);
+        },
+
+        resetForm() {
+          this.form = {
+            bill_date: "", clinic_name: "", total_amount: null,
+            category: "other", items: [], photo_key: null, photo_url: null,
+            ocr_confidence: 0, notes: "", verified: false,
+          };
+          this.uploadError = "";
+          this.saveError = "";
+        },
+
+        async onPhotoChange(event) {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          this.uploading = true;
+          this.uploadError = "";
+          try {
+            const fd = new FormData();
+            fd.append("photo", file);
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/bills/upload`, {
+              method: "POST",
+              body: fd,
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.uploadError = j.error?.message || "Upload thất bại";
+              return;
+            }
+            this.form.photo_key = j.photo_key;
+            this.form.photo_url = j.photo_url;
+            this.form.ocr_confidence = j.ocr.confidence;
+            // Pre-fill from OCR
+            if (j.ocr.clinic_name) this.form.clinic_name = j.ocr.clinic_name;
+            if (j.ocr.bill_date) this.form.bill_date = j.ocr.bill_date;
+            if (j.ocr.total_amount) this.form.total_amount = j.ocr.total_amount;
+            if (j.ocr.category) this.form.category = j.ocr.category;
+            if (Array.isArray(j.ocr.items)) this.form.items = j.ocr.items;
+            // Default date to today if OCR missed it
+            if (!this.form.bill_date) this.form.bill_date = this.today();
+            // Auto-mark verified if confidence high
+            if (j.ocr.confidence >= 75) this.form.verified = true;
+          } catch (err) {
+            this.uploadError = "Lỗi kết nối";
+          } finally {
+            this.uploading = false;
+          }
+        },
+
+        async saveBill() {
+          if (!this.form.bill_date) return;
+          this.saving = true;
+          this.saveError = "";
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/bills`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(this.form),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.saveError = j.error?.message || "Lỗi lưu hoá đơn";
+              return;
+            }
+            // Add to list and switch to history
+            this.bills.unshift(j.bill);
+            this.summary.bill_count++;
+            this.summary.total_year += j.bill.total_amount || 0;
+            this.summary.total_month += j.bill.total_amount || 0;
+            this.resetForm();
+            this.activeTab = "history";
+          } catch (_) {
+            this.saveError = "Lỗi kết nối";
+          } finally {
+            this.saving = false;
+          }
+        },
+
+        async deleteBill(billId) {
+          if (!confirm("Xóa hoá đơn này?")) return;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/bills/${billId}`, { method: "DELETE" });
+            if (res.ok) {
+              const deleted = this.bills.find((b) => b.id === billId);
+              this.bills = this.bills.filter((b) => b.id !== billId);
+              if (deleted) {
+                this.summary.bill_count--;
+                this.summary.total_year -= deleted.total_amount || 0;
+                this.summary.total_month -= deleted.total_amount || 0;
+              }
+            }
+          } catch (_) {}
+        },
+
+        openPhoto(src) {
+          window.dispatchEvent(new CustomEvent("open-photo", { detail: src }));
+        },
+
+        // Filters
+        get availableCategories() {
+          const seen = new Set(this.bills.map((b) => b.category).filter(Boolean));
+          return [...seen].map((v) => ({ value: v, label: CATEGORY_LABELS[v] || v }));
+        },
+
+        get filteredBills() {
+          if (!this.filterCat) return this.bills;
+          return this.bills.filter((b) => b.category === this.filterCat);
+        },
+
+        // Stats
+        get sortedCategories() {
+          return Object.entries(this.summary.by_category || {})
+            .sort((a, b) => b[1] - a[1]);
+        },
+
+        get maxCategoryAmt() {
+          const vals = Object.values(this.summary.by_category || {}) as number[];
+          return vals.length ? Math.max(...vals) : 0;
+        },
+
+        get maxMonthlyAmt() {
+          const vals = (this.summary.monthly_trend || []).map((m) => m.total) as number[];
+          return vals.length ? Math.max(...vals) : 0;
+        },
+
+        // Formatters
+        fmtVnd(n) {
+          if (!n && n !== 0) return "—";
+          return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
+        },
+
+        fmtMonth(m) {
+          const [y, mo] = m.split("-");
+          return `T${mo}/${y}`;
+        },
+
+        categoryLabel(cat) {
+          return CATEGORY_LABELS[cat] || cat || "Khác";
+        },
+
+        categoryBadgeClass(cat) {
+          return CATEGORY_BADGE_CLASSES[cat] || "bg-slate-100 text-slate-600";
+        },
+
+        ocrConfidenceBadgeClass(pct) {
+          if (pct >= 75) return "bg-green-100 text-green-700";
+          if (pct >= 50) return "bg-orange-100 text-amber-700";
+          return "bg-red-100 text-red-600";
+        },
+      };
+    }
+  </script>
+</Layout>

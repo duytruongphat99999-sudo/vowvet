@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Mon Min Pet brand-aligned favicon: ink square + gold "V" monogram -->
+  <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
+  <text x="50%" y="50%" text-anchor="middle" dy=".34em"
+        fill="#ecb921"
+        font-family="Georgia, ui-serif, serif"
+        font-size="42"
+        font-style="italic"
+        font-weight="600">V</text>
+  <!-- Gold accent dot bottom-right (matches Mon Min Pet gold-dot motif) -->
+  <circle cx="52" cy="52" r="3" fill="#ecb921"/>
+</svg>

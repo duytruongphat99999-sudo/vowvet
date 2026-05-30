@@ -1,0 +1,1037 @@
+---
+/**
+ * /pets/[id]/routines/new — Routine builder (M19).
+ *
+ * 3-step builder: pick template → customize → tasks editor.
+ * Used by both /new (blank) and /[id]/edit (pre-filled).
+ */
+import Layout from "../../../../layouts/Layout.astro";
+import FeatureIcon from "../../../../components/FeatureIcon.astro";
+import { fetchPet } from "../../../../lib/api-client.ts";
+import { formatAge } from "../../../../lib/age.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+// v101: Fetch profile for smart matching
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+let profile: any = {};
+try {
+  const pRes = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/profile`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (pRes.ok) profile = (await pRes.json()).pet || {};
+} catch (_) {}
+
+// v101: Full BLUEPRINTS array (10 personas) — match routines/index.astro shape
+type BlueprintTask = { id: string; title: string; emoji: string; duration_minutes: number; points: number; category: string };
+type Blueprint = {
+  id: string;
+  label: string;
+  species: "cat" | "dog" | "any";
+  icon: string;
+  matchTags: string[];
+  description: string;
+  chronoHint: string;
+  trigger: string;
+  start_time: string;
+  schedule_type: "daily" | "weekdays" | "weekends";
+  tasks: BlueprintTask[];
+};
+
+const BLUEPRINTS: Blueprint[] = [
+  {
+    id: "urban_cat", label: "Mèo Đô thị", species: "cat", icon: "home",
+    matchTags: ["cat", "adult", "urban"],
+    description: "Vận động + kiểm soát calo + bổ sung nước",
+    chronoHint: "Hoạt động mạnh lúc bình minh & hoàng hôn",
+    trigger: "Sau khi ngủ trưa → Bật fountain nước",
+    start_time: "07:00", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Chơi 15 phút buổi sáng", emoji: "🎾", duration_minutes: 15, points: 3, category: "play" },
+      { id: "t2", title: "Đổ thêm nước sạch", emoji: "💧", duration_minutes: 2, points: 1, category: "food" },
+      { id: "t3", title: "Chải lông sau ăn", emoji: "🪮", duration_minutes: 5, points: 2, category: "grooming" },
+      { id: "t4", title: "Giờ chơi 5h chiều", emoji: "🌆", duration_minutes: 15, points: 3, category: "play" },
+    ],
+  },
+  {
+    id: "urban_dog", label: "Chó Đô thị", species: "dog", icon: "activity-run",
+    matchTags: ["dog", "adult", "urban"],
+    description: "Dạo + huấn luyện + xã hội hóa hàng ngày",
+    chronoHint: "Dạo sáng + chiều, tránh nắng gắt",
+    trigger: "Sau bữa tối → Dạo + đi vệ sinh",
+    start_time: "06:30", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Dạo sáng 20 phút", emoji: "🌅", duration_minutes: 20, points: 3, category: "exercise" },
+      { id: "t2", title: "Huấn luyện 10 phút", emoji: "🎓", duration_minutes: 10, points: 3, category: "training" },
+      { id: "t3", title: "Gặp pet bạn 1 lần/tuần", emoji: "🐾", duration_minutes: 30, points: 2, category: "play" },
+      { id: "t4", title: "Tắm/chải 2 lần/tuần", emoji: "🛁", duration_minutes: 20, points: 2, category: "grooming" },
+    ],
+  },
+  {
+    id: "joint_cat", label: "Mèo Tai cụp / Khớp", species: "cat", icon: "leaf",
+    matchTags: ["cat", "joint", "sensitive_breed"],
+    description: "Bài tập nhẹ chống thoái hóa + dưỡng chất khớp",
+    chronoHint: "Vận động nhẹ rải đều, không quá sức",
+    trigger: "Trước khi ngủ → Massage 5ph",
+    start_time: "08:00", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Cho ăn glucosamine sáng", emoji: "💊", duration_minutes: 3, points: 2, category: "health" },
+      { id: "t2", title: "Chơi nhẹ 10 phút chiều", emoji: "🎾", duration_minutes: 10, points: 2, category: "play" },
+      { id: "t3", title: "Massage chân sau 5ph", emoji: "🪮", duration_minutes: 5, points: 2, category: "grooming" },
+      { id: "t4", title: "Quan sát mobility", emoji: "🧠", duration_minutes: 3, points: 1, category: "health" },
+    ],
+  },
+  {
+    id: "recovery_dog", label: "Chó Hồi phục", species: "dog", icon: "shield-check",
+    matchTags: ["dog", "recovery", "post_surgery"],
+    description: "Giấc ngủ + bữa nhỏ y khoa + theo dõi đau",
+    chronoHint: "Bữa nhỏ chia 4-5 lần/ngày, ngủ sâu trưa",
+    trigger: "Sau khi cho ăn → Đo pain score",
+    start_time: "07:30", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Bữa nhỏ mỗi 3h", emoji: "🍴", duration_minutes: 10, points: 2, category: "food" },
+      { id: "t2", title: "Đo CMPS-SF pain", emoji: "📋", duration_minutes: 5, points: 3, category: "health" },
+      { id: "t3", title: "Dạo nhẹ 10 phút", emoji: "🚶", duration_minutes: 10, points: 2, category: "exercise" },
+      { id: "t4", title: "Uống thuốc đúng giờ", emoji: "💊", duration_minutes: 2, points: 2, category: "health" },
+    ],
+  },
+  {
+    id: "senior_pet", label: "Lão hoá – Xương khớp & Thận", species: "any", icon: "heart",
+    matchTags: ["senior", "joint", "kidney"],
+    description: "Khớp + thận + theo dõi nhẹ nhàng cho bé lớn tuổi",
+    chronoHint: "Vận động chia ngắn, nghỉ nhiều hơn",
+    trigger: "Trước bữa ăn → Cho thuốc khớp",
+    start_time: "07:00", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Glucosamine + nước nhiều", emoji: "💊", duration_minutes: 3, points: 2, category: "health" },
+      { id: "t2", title: "Dạo nhẹ chia 2 lần × 8ph", emoji: "🚶", duration_minutes: 16, points: 3, category: "exercise" },
+      { id: "t3", title: "Đo cân định kỳ", emoji: "⚖️", duration_minutes: 3, points: 2, category: "health" },
+      { id: "t4", title: "Massage khớp tối", emoji: "🪮", duration_minutes: 8, points: 2, category: "grooming" },
+    ],
+  },
+  {
+    id: "puppy_socialize", label: "Chó con – Huấn luyện & Xã hội", species: "dog", icon: "paw",
+    matchTags: ["dog", "puppy", "training", "social"],
+    description: "Huấn luyện sớm + xã hội hóa + bữa nhỏ thường xuyên",
+    chronoHint: "5 bữa/ngày, học 5ph mỗi lần",
+    trigger: "Sau bữa ăn → Dạy 1 lệnh mới",
+    start_time: "07:00", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Bữa nhỏ × 5 lần/ngày", emoji: "🍴", duration_minutes: 8, points: 2, category: "food" },
+      { id: "t2", title: "Học lệnh mới 5ph", emoji: "🎓", duration_minutes: 5, points: 3, category: "training" },
+      { id: "t3", title: "Gặp người lạ 1 lần/ngày", emoji: "🐾", duration_minutes: 10, points: 2, category: "play" },
+      { id: "t4", title: "Chơi tay 10 phút", emoji: "🎾", duration_minutes: 10, points: 2, category: "play" },
+    ],
+  },
+  {
+    id: "kitten_socialize", label: "Mèo con – Xã hội hoá", species: "cat", icon: "paw",
+    matchTags: ["cat", "kitten", "social"],
+    description: "Tập làm quen tay người + tiếng động + vệ sinh",
+    chronoHint: "Bữa nhỏ 4 lần/ngày, ôm ấp thường xuyên",
+    trigger: "Sau khi ngủ dậy → Vuốt ve 3ph",
+    start_time: "07:30", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Bữa nhỏ × 4 lần", emoji: "🍴", duration_minutes: 8, points: 2, category: "food" },
+      { id: "t2", title: "Vuốt ve tập làm quen", emoji: "❤️", duration_minutes: 5, points: 2, category: "play" },
+      { id: "t3", title: "Chơi cần câu 10ph", emoji: "🎾", duration_minutes: 10, points: 3, category: "play" },
+      { id: "t4", title: "Tập dùng khay cát", emoji: "🪮", duration_minutes: 3, points: 2, category: "grooming" },
+    ],
+  },
+  {
+    id: "overweight_diet", label: "Giảm cân – Vận động nhẹ", species: "any", icon: "activity",
+    matchTags: ["overweight", "weight_loss", "diet"],
+    description: "Vận động đều đặn + kiểm soát calo + ghi nhật ký cân",
+    chronoHint: "2-3 lần vận động ngắn/ngày",
+    trigger: "Sau khi cân → Ghi nhật ký",
+    start_time: "06:30", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Vận động 15ph sáng", emoji: "🏃", duration_minutes: 15, points: 3, category: "exercise" },
+      { id: "t2", title: "Cân tuần 1 lần", emoji: "⚖️", duration_minutes: 3, points: 2, category: "health" },
+      { id: "t3", title: "Khẩu phần chia nhỏ", emoji: "🍴", duration_minutes: 5, points: 2, category: "food" },
+      { id: "t4", title: "Đi dạo chiều 20ph", emoji: "🚶", duration_minutes: 20, points: 3, category: "exercise" },
+    ],
+  },
+  {
+    id: "brachy_breathing", label: "Hô hấp – Frenchie / Pug / Persian", species: "any", icon: "shield-check",
+    matchTags: ["sensitive_breed", "brachycephalic"],
+    description: "Chống nóng + theo dõi thở + vệ sinh nếp da",
+    chronoHint: "Tránh giờ nắng gắt 10h-15h",
+    trigger: "Sau khi vận động → Đo nhịp thở",
+    start_time: "06:00", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Vệ sinh nếp da mặt", emoji: "🪮", duration_minutes: 5, points: 2, category: "grooming" },
+      { id: "t2", title: "Đo nhịp thở nghỉ", emoji: "📋", duration_minutes: 3, points: 3, category: "health" },
+      { id: "t3", title: "Vận động sáng sớm", emoji: "🌅", duration_minutes: 15, points: 3, category: "exercise" },
+      { id: "t4", title: "Đổ nước mát thường", emoji: "💧", duration_minutes: 2, points: 1, category: "food" },
+    ],
+  },
+  {
+    id: "post_vaccine", label: "Sau tiêm – Theo dõi 7 ngày", species: "any", icon: "pill",
+    matchTags: ["post_vaccine", "recovery"],
+    description: "Theo dõi phản ứng + nghỉ ngơi + hạn chế vận động mạnh",
+    chronoHint: "7 ngày đầu sau tiêm",
+    trigger: "Mỗi sáng → Kiểm tra vết tiêm",
+    start_time: "08:00", schedule_type: "daily",
+    tasks: [
+      { id: "t1", title: "Kiểm tra vết tiêm", emoji: "📋", duration_minutes: 3, points: 3, category: "health" },
+      { id: "t2", title: "Đo nhiệt độ", emoji: "🌡️", duration_minutes: 3, points: 2, category: "health" },
+      { id: "t3", title: "Vận động nhẹ 5ph", emoji: "🚶", duration_minutes: 5, points: 1, category: "exercise" },
+      { id: "t4", title: "Quan sát ăn uống", emoji: "🍴", duration_minutes: 5, points: 2, category: "food" },
+    ],
+  },
+];
+
+// v101: Smart matcher (same logic as routines/index.astro)
+function pickSmartBlueprints(p: any, prof: any): Blueprint[] {
+  const speciesRaw = String((typeof p.species === "object" ? p.species?.value : p.species) || "").toLowerCase();
+  const isDog = speciesRaw.includes("chó") || speciesRaw === "dog";
+  const isCat = speciesRaw.includes("mèo") || speciesRaw === "cat";
+  const breed = String(p.breed || prof.breed || "").toLowerCase();
+  const dob = p.dob || prof.dob;
+  let ageYears = 0;
+  if (dob) {
+    const d = new Date(dob);
+    if (!isNaN(d.getTime())) ageYears = (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+  }
+  const isPuppy = ageYears > 0 && ageYears < 1;
+  const isSenior = (isDog && ageYears >= 7) || (isCat && ageYears >= 10);
+  const weight = Number(p.weight_kg) || 0;
+  const isOverweight = (prof.body_condition_score || 0) >= 7 || (isCat && weight > 5.5) || (isDog && weight > 35);
+  const isBrachy = ["frenchie", "pug", "bulldog", "persian", "shih"].some((b) => breed.includes(b));
+  const hasJoint = breed.includes("tai cụp") || breed.includes("scottish fold") || breed.includes("munchkin");
+
+  const tags = new Set<string>();
+  if (isDog) tags.add("dog");
+  if (isCat) tags.add("cat");
+  if (isPuppy) { tags.add(isDog ? "puppy" : "kitten"); tags.add("training"); tags.add("social"); }
+  if (isSenior) { tags.add("senior"); tags.add("joint"); }
+  if (isOverweight) { tags.add("overweight"); tags.add("weight_loss"); }
+  if (isBrachy) tags.add("brachycephalic");
+  if (hasJoint) tags.add("joint");
+  if (!isPuppy && !isSenior && !isOverweight && !isBrachy && !hasJoint) tags.add("adult");
+
+  const scored = BLUEPRINTS.map((bp) => {
+    let score = 0;
+    if (bp.species === "any") score += 1;
+    if (bp.species === "cat" && isCat) score += 4;
+    if (bp.species === "dog" && isDog) score += 4;
+    if (bp.species === "cat" && isDog) score -= 100;
+    if (bp.species === "dog" && isCat) score -= 100;
+    for (const tag of bp.matchTags) {
+      if (tags.has(tag)) score += 5;
+    }
+    return { bp, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.filter((s) => s.score > 0).map((s) => s.bp);
+}
+
+const smartMatches = pickSmartBlueprints(pet, profile);
+const TOP_BLUEPRINTS = smartMatches.slice(0, 4);
+const REST_BLUEPRINTS = smartMatches.slice(4);
+
+// Pet identity summary
+const speciesValue = typeof pet.species === "object" ? (pet.species as any)?.value : pet.species;
+const ageLabel = pet.dob ? formatAge(pet.dob) : null;
+const weightLabel = pet.weight_kg ? `${Number(pet.weight_kg).toFixed(1)}kg` : null;
+const petContextLine = [speciesValue, ageLabel, weightLabel].filter(Boolean).join(" · ");
+
+function forecastPerDay(bp: Blueprint): number {
+  return bp.tasks.reduce((s, t) => s + (t.points || 0), 0);
+}
+
+// Read URL ?template= for direct prefill (existing functionality from v95)
+const urlTemplate = Astro.url.searchParams.get("template");
+const prefillBlueprint = urlTemplate ? BLUEPRINTS.find((b) => b.id === urlTemplate) || null : null;
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name },
+  editingRoutine: null,
+  prefillBlueprint,
+  blueprintId: prefillBlueprint ? urlTemplate : null,
+});
+---
+
+<script is:inline define:vars={{ BLUEPRINTS_JSON: JSON.stringify(BLUEPRINTS) }}>
+  window.__VOWVET_BLUEPRINTS = JSON.parse(BLUEPRINTS_JSON);
+</script>
+
+<Layout title={`Tạo routine · ${pet.name}`} description="Routine builder 3 bước">
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`routineBuilder(${initialData})`}>
+
+      <!-- v93: Brand-synced header -->
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}/routines`} class="text-sm italic text-[var(--c-ink-54)] hover:text-mmp-ink inline-flex items-center gap-1.5 transition">
+          <FeatureIcon name="arrow" class="w-3.5 h-3.5 rotate-180" />
+          <span>Routines</span>
+        </a>
+        <h1 class="font-display italic text-lg font-semibold text-mmp-ink inline-flex items-center gap-2">
+          <span x-show="step === 1" class="inline-flex items-center gap-2">
+            <FeatureIcon name="clipboard" class="w-4 h-4" style="color: #B48608;" />
+            <span>Chọn mẫu</span>
+          </span>
+          <span x-show="step === 2" class="inline-flex items-center gap-2">
+            <FeatureIcon name="settings" class="w-4 h-4" style="color: #B48608;" />
+            <span>Tuỳ chỉnh</span>
+          </span>
+          <span x-show="step === 3" class="inline-flex items-center gap-2">
+            <FeatureIcon name="check-square" class="w-4 h-4" style="color: #B48608;" />
+            <span>Tasks</span>
+          </span>
+        </h1>
+        <span class="text-[10px] italic uppercase tracking-[0.2em] font-bold" style="color: #B48608;">Bước <span x-text="step"></span>/3</span>
+      </header>
+
+      <!-- Progress bar gold gradient -->
+      <div class="h-1.5 rounded-full overflow-hidden mb-6" style="background: rgba(180, 134, 8, 0.1);">
+        <div class="h-full rounded-full transition-all duration-700"
+          :style="`width: ${(step / 3) * 100}%; background: linear-gradient(90deg, #ecb921 0%, #B48608 100%);`"></div>
+      </div>
+
+      <!-- ───── v101: Step 1 — Smart Blueprint Engine (same as /routines page) ───── -->
+      <div x-show="step === 1" x-data="{ showMore: false }">
+
+        {/* Pet context header */}
+        <div class="mb-4 flex items-end justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #B48608;">Gợi ý cho bé {pet.name}</p>
+            <h2 class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink leading-tight">Mẫu Routine thông minh</h2>
+            {petContextLine && (
+              <p class="text-[11px] italic text-[var(--c-ink-54)] mt-0.5 truncate">{petContextLine}</p>
+            )}
+          </div>
+          <span class="shrink-0 inline-flex items-center gap-1 text-[10px] italic uppercase tracking-wider font-bold px-2.5 py-1 rounded-full" style="background: rgba(236, 185, 33, 0.14); color: #B48608; border: 1px solid rgba(180, 134, 8, 0.35);">
+            <FeatureIcon name="sparkles" class="w-3 h-3" />
+            AI matched
+          </span>
+        </div>
+
+        {/* Top 4 smart-matched cards */}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {TOP_BLUEPRINTS.map((bp, idx) => {
+            const palette = idx === 0 ? "ink" : "gold";
+            const perDay = forecastPerDay(bp);
+            const totalMin = bp.tasks.reduce((s, t) => s + t.duration_minutes, 0);
+            return (
+              <button type="button" @click={`pickBlueprint('${bp.id}')`}
+                class={`blueprint-card relative rounded-2xl p-4 text-left overflow-hidden transition active:scale-[0.98] ${palette === "ink" ? "bg-mmp-ink text-white" : "bg-white border-2"}`}
+                style={palette === "gold" ? "border-color: rgba(180,134,8,0.4);" : ""}>
+                {palette === "ink" && (
+                  <div aria-hidden="true" class="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.3) 0%, transparent 70%);"></div>
+                )}
+                {idx === 0 && (
+                  <span class="absolute top-2 right-2 inline-flex items-center gap-0.5 text-[9px] uppercase italic tracking-wider font-bold px-1.5 py-0.5 rounded-full z-10" style="background: #ecb921; color: #0a0a0a;">
+                    <FeatureIcon name="sparkles" class="w-2.5 h-2.5" />
+                    Top
+                  </span>
+                )}
+
+                <div class="relative">
+                  <div class="flex items-start gap-3 mb-2">
+                    <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl" style={palette === "ink" ? "background: rgba(236,185,33,0.18); border: 1px solid rgba(236,185,33,0.4); color: #ecb921;" : "background: rgba(180,134,8,0.1); border: 1px solid rgba(180,134,8,0.3); color: #B48608;"}>
+                      <FeatureIcon name={bp.icon} class="w-5 h-5" strokeWidth={1.7} />
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[9px] uppercase italic tracking-[0.18em] font-bold" style={palette === "ink" ? "color: #ecb921;" : "color: #B48608;"}>
+                        {bp.species === "cat" ? "Mèo" : bp.species === "dog" ? "Chó" : "Mọi loài"}
+                      </p>
+                      <h3 class={`font-display italic font-semibold text-base leading-tight ${palette === "ink" ? "text-white" : "text-mmp-ink"}`}>{bp.label}</h3>
+                    </div>
+                  </div>
+                  <p class={`text-xs italic ${palette === "ink" ? "text-white/70" : "text-[var(--c-ink-54)]"}`}>{bp.description}</p>
+
+                  {/* Pet Score forecast */}
+                  <div class="mt-3 rounded-lg px-2.5 py-2 inline-flex items-center gap-2 w-full" style={palette === "ink" ? "background: rgba(236,185,33,0.12); border: 1px solid rgba(236,185,33,0.32);" : "background: rgba(180,134,8,0.08); border: 1px solid rgba(180,134,8,0.25);"}>
+                    <FeatureIcon name="trophy" class="w-3.5 h-3.5 shrink-0" style={palette === "ink" ? "color: #ecb921;" : "color: #B48608;"} />
+                    <div class="text-[10px] italic leading-tight min-w-0">
+                      <span class="font-bold" style={palette === "ink" ? "color: #ecb921;" : "color: #B48608;"}>+{perDay} điểm/ngày</span>
+                      <span class={palette === "ink" ? "text-white/65" : "text-[var(--c-ink-54)]"}> · Pet Score</span>
+                    </div>
+                  </div>
+
+                  <p class={`text-[10px] italic mt-2 inline-flex items-center gap-1.5 ${palette === "ink" ? "text-white/65" : "text-[var(--c-ink-54)]"}`}>
+                    <FeatureIcon name="clock" class="w-3 h-3" />
+                    <span>{bp.tasks.length} task · {totalMin}ph/ngày</span>
+                    <span class="opacity-50">·</span>
+                    <span>{bp.start_time}</span>
+                  </p>
+
+                  <div class={`mt-3 inline-flex items-center gap-1 text-[11px] italic font-bold`} style={palette === "ink" ? "color: #ecb921;" : "color: #B48608;"}>
+                    <span>Chọn mẫu này</span>
+                    <FeatureIcon name="arrow" class="w-3 h-3" />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Library expand */}
+        {REST_BLUEPRINTS.length > 0 && (
+          <button type="button" @click="showMore = !showMore"
+            class="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-xs italic font-semibold py-2.5 rounded-xl transition"
+            style="background: rgba(180,134,8,0.06); color: #B48608; border: 1px dashed rgba(180,134,8,0.35);">
+            <FeatureIcon name="sparkles" class="w-3.5 h-3.5" />
+            <span x-text={`showMore ? 'Ẩn thư viện' : 'Xem thêm ${REST_BLUEPRINTS.length} mẫu khác'`}></span>
+          </button>
+        )}
+
+        {REST_BLUEPRINTS.length > 0 && (
+          <div x-show="showMore" x-transition class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {REST_BLUEPRINTS.map((bp) => {
+              const perDay = forecastPerDay(bp);
+              return (
+                <button type="button" @click={`pickBlueprint('${bp.id}')`}
+                  class="blueprint-card relative rounded-2xl p-4 text-left overflow-hidden bg-white border transition active:scale-[0.98]"
+                  style="border-color: rgba(180,134,8,0.25);">
+                  <div class="flex items-start gap-3 mb-2">
+                    <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl" style="background: rgba(180,134,8,0.08); border: 1px solid rgba(180,134,8,0.25); color: #B48608;">
+                      <FeatureIcon name={bp.icon} class="w-5 h-5" strokeWidth={1.7} />
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[9px] uppercase italic tracking-[0.18em] font-bold" style="color: #B48608;">
+                        {bp.species === "cat" ? "Mèo" : bp.species === "dog" ? "Chó" : "Mọi loài"}
+                      </p>
+                      <h3 class="font-display italic font-semibold text-base leading-tight text-mmp-ink">{bp.label}</h3>
+                    </div>
+                  </div>
+                  <p class="text-xs italic text-[var(--c-ink-54)]">{bp.description}</p>
+                  <p class="text-[10px] italic mt-2 inline-flex items-center gap-1.5 text-[var(--c-ink-54)]">
+                    <FeatureIcon name="trophy" class="w-3 h-3" style="color: #B48608;" />
+                    <span class="font-bold" style="color: #B48608;">+{perDay} điểm/ngày</span>
+                  </p>
+                  <div class="mt-2 inline-flex items-center gap-1 text-[11px] italic font-bold" style="color: #B48608;">
+                    <span>Chọn mẫu này</span>
+                    <FeatureIcon name="arrow" class="w-3 h-3" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Blank custom option */}
+        <button type="button" @click="pickTemplate(null)"
+          class="mt-3 block w-full rounded-2xl p-4 text-center transition hover:bg-mmp-cream/40 border-2 border-dashed"
+          style="border-color: rgba(180,134,8,0.32);">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl mb-2" style="background: rgba(180,134,8,0.08); color: #B48608;">
+            <FeatureIcon name="plus" class="w-5 h-5" strokeWidth={1.8} />
+          </span>
+          <p class="font-display italic font-semibold text-sm text-mmp-ink">Bắt đầu trống</p>
+          <p class="text-[11px] italic mt-0.5" style="color: var(--c-ink-54);">Tự build từ đầu — không dùng mẫu</p>
+        </button>
+      </div>
+
+      <!-- ───── Step 2: customize (v95 polish + blueprint banner) ───── -->
+      <div x-show="step === 2" x-transition:enter="step-fade-in" class="space-y-3.5">
+
+        {/* v96: Blueprint applied banner — Lucide icon via x-html */}
+        <template x-if="blueprintApplied">
+          <div class="relative rounded-2xl overflow-hidden p-4 bg-mmp-ink text-white">
+            <div aria-hidden="true" class="absolute -top-8 -right-8 w-32 h-32 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+            <div class="relative flex items-center gap-3">
+              <span class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl" style="background: rgba(236,185,33,0.18); border: 1px solid rgba(236,185,33,0.45); color: #ecb921;" x-html="iconSvgs[blueprintApplied.icon] || ''"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #ecb921;">Mẫu đã áp dụng</p>
+                <p class="font-display italic font-semibold text-base text-white truncate" x-text="blueprintApplied.name"></p>
+              </div>
+              <button @click="resetBlueprint()" type="button" class="shrink-0 text-[10px] italic uppercase tracking-wider font-semibold px-2.5 py-1.5 rounded-lg transition" style="background: rgba(236,185,33,0.15); color: #ecb921; border: 1px solid rgba(236,185,33,0.4);">
+                Xoá mẫu
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <div class="form-card bg-white rounded-2xl border p-5" style="border-color: rgba(180, 134, 8, 0.25);">
+          <label class="block text-[10px] uppercase italic tracking-[0.2em] font-bold mb-2" style="color: #B48608;">Tên routine *</label>
+          <input type="text" x-model="form.name" maxlength="80"
+            placeholder="VD: Routine sáng, Đi dạo cuối tuần…"
+            class="w-full border rounded-xl px-4 py-2.5 text-sm italic text-mmp-ink focus:outline-none focus:ring-2"
+            style="border-color: rgba(10, 10, 10, 0.15); --tw-ring-color: rgba(180, 134, 8, 0.5);" />
+        </div>
+
+        <div class="bg-white rounded-2xl border p-5" style="border-color: rgba(180, 134, 8, 0.25);">
+          <label class="block text-[10px] uppercase italic tracking-[0.2em] font-bold mb-3" style="color: #B48608;">Icon</label>
+          <div class="grid grid-cols-6 sm:grid-cols-8 gap-2">
+            <template x-for="e in iconOptions" :key="e">
+              <button type="button" @click="form.icon = e"
+                :class="form.icon === e ? 'is-selected' : ''"
+                class="routine-icon-btn w-11 h-11 rounded-xl transition flex items-center justify-center"
+                :title="e">
+                <span class="inline-flex items-center justify-center" x-html="iconSvgs[e]"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border p-5" style="border-color: rgba(180, 134, 8, 0.25);">
+          <label class="block text-[10px] uppercase italic tracking-[0.2em] font-bold mb-3" style="color: #B48608;">Tông màu</label>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="c in colorOptions" :key="c">
+              <button type="button" @click="form.color = c"
+                :style="`background-color: ${c}`"
+                :class="form.color === c ? 'ring-4 ring-offset-2 ring-offset-white' : ''"
+                style="--tw-ring-color: #B48608;"
+                class="w-10 h-10 rounded-full transition shadow-sm"></button>
+            </template>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border p-5" style="border-color: rgba(180, 134, 8, 0.25);">
+          <label class="block text-[10px] uppercase italic tracking-[0.2em] font-bold mb-3" style="color: #B48608;">Lịch chạy</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <template x-for="s in scheduleOptions" :key="s.value">
+              <button type="button" @click="form.schedule_type = s.value"
+                :class="form.schedule_type === s.value ? 'is-active' : ''"
+                class="schedule-pill border-2 rounded-xl px-3 py-2 text-xs italic font-semibold transition">
+                <span x-text="s.label"></span>
+              </button>
+            </template>
+          </div>
+
+          <template x-if="form.schedule_type === 'custom'">
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              <template x-for="d in weekdayKeys" :key="d.key">
+                <button type="button" @click="toggleCustomDay(d.key)"
+                  :class="form.custom_days.includes(d.key) ? 'is-active' : ''"
+                  class="weekday-pill w-12 h-9 rounded-lg text-xs italic font-bold transition"
+                  x-text="d.label"></button>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <div class="bg-white rounded-2xl border p-5" style="border-color: rgba(180, 134, 8, 0.25);">
+          <label class="block text-[10px] uppercase italic tracking-[0.2em] font-bold mb-3" style="color: #B48608;">Giờ bắt đầu</label>
+          <input type="time" x-model="form.start_time"
+            class="w-full max-w-[180px] border rounded-xl px-3 py-2 text-sm italic text-mmp-ink focus:outline-none focus:ring-2"
+            style="border-color: rgba(10, 10, 10, 0.15); --tw-ring-color: rgba(180, 134, 8, 0.5);" />
+        </div>
+
+        <label class="bg-white rounded-2xl border p-4 flex items-center justify-between cursor-pointer hover:bg-mmp-cream/30 transition" style="border-color: rgba(180, 134, 8, 0.25);">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-xl" style="background: rgba(180, 134, 8, 0.1); border: 1px solid rgba(180, 134, 8, 0.3); color: #B48608;">
+              <FeatureIcon name="bell" class="w-4 h-4" strokeWidth={1.8} />
+            </span>
+            <div class="min-w-0">
+              <p class="text-sm italic font-semibold text-mmp-ink">Push reminder 15 phút trước</p>
+              <p class="text-xs italic mt-0.5" style="color: var(--c-ink-54);">Báo trên điện thoại trước khi đến giờ routine</p>
+            </div>
+          </div>
+          <input type="checkbox" x-model="form.push_reminder" class="w-5 h-5 shrink-0" style="accent-color: #B48608;" />
+        </label>
+      </div>
+
+      <!-- ───── Step 3: tasks (v96 + Pet Score visibility) ───── -->
+      <div x-show="step === 3" class="space-y-3">
+
+        {/* v96: Pet Score loop callout — make value transparent */}
+        <a href={`/pets/${pet.id}/pet-score`} class="block rounded-2xl overflow-hidden relative bg-mmp-ink text-white p-4 hover:opacity-95 transition no-print">
+          <div aria-hidden="true" class="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+          <div class="relative flex items-center gap-3">
+            <span class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl" style="background: rgba(236,185,33,0.18); border: 1px solid rgba(236,185,33,0.45); color: #ecb921;">
+              <FeatureIcon name="trophy" class="w-5 h-5" strokeWidth={1.7} />
+            </span>
+            <div class="flex-1 min-w-0">
+              <p class="text-[10px] uppercase italic tracking-[0.22em] font-bold" style="color: #ecb921;">Mỗi task → cộng điểm</p>
+              <p class="text-sm italic text-white/85 mt-0.5 leading-snug">
+                Hoàn thành <span class="font-bold" style="color: #ecb921;">+ điểm streak</span> → đẩy <span class="font-bold" style="color: #ecb921;">Pet Score</span> → đổi quà & voucher
+              </p>
+            </div>
+            <FeatureIcon name="arrow" class="w-3.5 h-3.5 shrink-0" style="color: #ecb921;" />
+          </div>
+        </a>
+
+        <div class="rounded-xl p-3.5 text-xs italic text-mmp-ink inline-flex items-start gap-2.5" style="background: rgba(180, 134, 8, 0.08); border: 1px solid rgba(180, 134, 8, 0.3);">
+          <FeatureIcon name="lightbulb" class="w-4 h-4 shrink-0 mt-0.5" style="color: #B48608;" />
+          <span>Thêm các công việc cần làm trong routine này. Mỗi task có thời gian + điểm thưởng.</span>
+        </div>
+
+        <template x-for="(task, idx) in form.tasks" :key="task.id">
+          <div class="bg-white rounded-2xl border p-4" style="border-color: rgba(180, 134, 8, 0.25);">
+            <div class="flex items-start gap-3 mb-3">
+              <span class="text-2xl shrink-0" x-text="task.emoji"></span>
+              <input type="text" x-model="task.title" maxlength="100" placeholder="Tên task…"
+                class="flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm italic text-mmp-ink focus:outline-none focus:ring-2"
+                style="border-color: rgba(10, 10, 10, 0.15); --tw-ring-color: rgba(180, 134, 8, 0.5);" />
+              <button @click="removeTask(idx)" class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--c-ink-54)] hover:text-mmp-ink hover:bg-mmp-cream transition" title="Xoá task">
+                <FeatureIcon name="trash" class="w-4 h-4" />
+              </button>
+            </div>
+
+            <!-- Emoji picker per task -->
+            <div class="mb-3 flex flex-wrap gap-1">
+              <template x-for="e in taskEmojiOptions" :key="e">
+                <button type="button" @click="task.emoji = e"
+                  :class="task.emoji === e ? 'is-selected' : ''"
+                  class="routine-icon-btn text-base w-8 h-8 rounded-md transition flex items-center justify-center">
+                  <span x-text="e"></span>
+                </button>
+              </template>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mt-2">
+              <div>
+                <label class="block text-[10px] uppercase italic font-bold tracking-wider mb-1" style="color: #B48608;">Phút</label>
+                <input type="number" min="1" max="180" x-model.number="task.duration_minutes"
+                  class="w-full border rounded-lg px-2 py-1.5 text-xs text-mmp-ink focus:outline-none focus:ring-2"
+                  style="border-color: rgba(10, 10, 10, 0.15); --tw-ring-color: rgba(180, 134, 8, 0.5);" />
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase italic font-bold tracking-wider mb-1" style="color: #B48608;">Điểm</label>
+                <select x-model.number="task.points"
+                  class="w-full border rounded-lg px-2 py-1.5 text-xs text-mmp-ink focus:outline-none focus:ring-2"
+                  style="border-color: rgba(10, 10, 10, 0.15); --tw-ring-color: rgba(180, 134, 8, 0.5);">
+                  <option :value="1">1 điểm</option>
+                  <option :value="2">2 điểm</option>
+                  <option :value="3">3 điểm</option>
+                  <option :value="4">4 điểm</option>
+                  <option :value="5">5 điểm</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase italic font-bold tracking-wider mb-1" style="color: #B48608;">Loại</label>
+                <select x-model="task.category"
+                  class="w-full border rounded-lg px-2 py-1.5 text-xs text-mmp-ink focus:outline-none focus:ring-2"
+                  style="border-color: rgba(10, 10, 10, 0.15); --tw-ring-color: rgba(180, 134, 8, 0.5);">
+                  <option value="food">🍴 Ăn uống</option>
+                  <option value="exercise">🏃 Vận động</option>
+                  <option value="grooming">🛁 Vệ sinh</option>
+                  <option value="health">💊 Sức khoẻ</option>
+                  <option value="training">🎓 Huấn luyện</option>
+                  <option value="play">🎾 Vui chơi</option>
+                  <option value="other">📌 Khác</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <button @click="addTask()"
+          class="w-full bg-white border-2 border-dashed rounded-2xl p-4 text-sm italic font-semibold transition inline-flex items-center justify-center gap-1.5 hover:bg-mmp-cream/40"
+          style="border-color: rgba(180, 134, 8, 0.4); color: #B48608;">
+          <FeatureIcon name="plus" class="w-4 h-4" strokeWidth={2.2} />
+          <span>Thêm task</span>
+        </button>
+
+        <template x-if="error">
+          <p class="text-xs italic rounded-xl p-3 inline-flex items-start gap-2" style="color: #B48608; background: rgba(180, 134, 8, 0.08); border: 1px solid rgba(180, 134, 8, 0.35);">
+            <FeatureIcon name="alert-triangle" class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span x-text="error"></span>
+          </p>
+        </template>
+      </div>
+
+      <!-- Footer actions (v93 brand sync) -->
+      <div class="flex gap-2 mt-6">
+        <button @click="prevStep()" x-show="step > 1"
+          class="flex-1 font-semibold italic py-3 rounded-xl text-sm transition inline-flex items-center justify-center gap-1.5"
+          style="background: rgba(10, 10, 10, 0.04); color: var(--c-ink-72); border: 1px solid rgba(10, 10, 10, 0.1);">
+          <FeatureIcon name="arrow" class="w-3.5 h-3.5 rotate-180" />
+          <span>Quay lại</span>
+        </button>
+        <button @click="nextStep()" x-show="step < 3"
+          :disabled="!canNext"
+          class="flex-[2] bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold italic py-3 rounded-xl text-sm shadow-md inline-flex items-center justify-center gap-1.5">
+          <span>Tiếp theo</span>
+          <FeatureIcon name="arrow" class="w-3.5 h-3.5" />
+        </button>
+        <button @click="save()" x-show="step === 3"
+          :disabled="!canSave || saving"
+          class="flex-[2] disabled:opacity-50 disabled:cursor-not-allowed font-bold italic py-3 rounded-xl text-sm shadow-md text-mmp-ink hover:opacity-95 transition inline-flex items-center justify-center gap-1.5"
+          style="background: linear-gradient(90deg, #ecb921 0%, #B48608 100%);">
+          <span x-show="!saving" class="inline-flex items-center gap-1.5">
+            <FeatureIcon name="check" class="w-4 h-4" strokeWidth={2.5} />
+            <span>Lưu routine</span>
+          </span>
+          <span x-show="saving">Đang lưu…</span>
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <style is:inline>{`
+    /* v93+v95: Routine builder polish — brand sync + WOW effects */
+
+    /* Step fade-in animation */
+    @keyframes step-fade-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    [x-show]:not([style*="display: none"]) {
+      animation: step-fade-in 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+
+    /* Form card hover lift */
+    .form-card {
+      transition: transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.25s ease-out;
+    }
+    .form-card:focus-within {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(180, 134, 8, 0.14);
+    }
+    .form-card input:focus,
+    .form-card select:focus {
+      box-shadow: 0 0 0 3px rgba(236, 185, 33, 0.25);
+    }
+
+    /* Template picker — hover lift + stagger glow */
+    button[class*="template"]:not([disabled]),
+    button[class*="border-dashed"]:not([disabled]):not(.weekday-pill):not(.schedule-pill) {
+      transition: transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.25s ease-out, border-color 0.25s;
+    }
+    button[class*="template"]:not([disabled]):hover,
+    button[class*="border-dashed"]:not([disabled]):not(.weekday-pill):not(.schedule-pill):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(180, 134, 8, 0.18);
+      border-color: #B48608 !important;
+    }
+
+    /* v96: Icon picker — Lucide SVG icons in gold tint, scale + glow on selected */
+    .routine-icon-btn {
+      background: rgba(180, 134, 8, 0.06);
+      border: 1px solid transparent;
+      color: #B48608;
+      transition: transform 0.2s, background 0.2s, box-shadow 0.25s ease-out, color 0.2s;
+    }
+    .routine-icon-btn:hover {
+      background: rgba(180, 134, 8, 0.14);
+      transform: scale(1.06);
+      color: #8b6914;
+    }
+    .routine-icon-btn.is-selected {
+      background: rgba(236, 185, 33, 0.22);
+      border-color: #B48608;
+      box-shadow: 0 0 0 2px rgba(236, 185, 33, 0.35), 0 4px 10px rgba(236, 185, 33, 0.25);
+      transform: scale(1.08);
+      color: #0a0a0a;
+    }
+    .routine-icon-btn svg {
+      display: block;
+    }
+
+    /* Schedule pill */
+    .schedule-pill {
+      background: #ffffff;
+      border-color: rgba(10, 10, 10, 0.12);
+      color: var(--c-ink-72);
+      transition: all 0.2s ease;
+    }
+    .schedule-pill:hover {
+      border-color: rgba(180, 134, 8, 0.4);
+      background: rgba(180, 134, 8, 0.04);
+    }
+    .schedule-pill.is-active {
+      background: rgba(236, 185, 33, 0.14);
+      border-color: #B48608;
+      color: var(--c-ink);
+      box-shadow: 0 4px 12px rgba(236, 185, 33, 0.2);
+    }
+
+    /* Weekday pill */
+    .weekday-pill {
+      background: rgba(10, 10, 10, 0.04);
+      color: var(--c-ink-54);
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }
+    .weekday-pill:hover {
+      background: rgba(180, 134, 8, 0.08);
+      transform: scale(1.04);
+    }
+    .weekday-pill.is-active {
+      background: #0a0a0a;
+      color: #ecb921;
+      border-color: #B48608;
+      box-shadow: 0 4px 10px rgba(10, 10, 10, 0.2);
+    }
+
+    /* Color picker swatch hover */
+    button[style*="background-color:"]:not([class*="bg-"]) {
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button[style*="background-color:"]:not([class*="bg-"]):hover {
+      transform: scale(1.12);
+    }
+
+    /* Save button gold shimmer sweep */
+    button[style*="linear-gradient(90deg, #ecb921"] {
+      position: relative;
+      overflow: hidden;
+    }
+    button[style*="linear-gradient(90deg, #ecb921"]:not([disabled])::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.42) 50%, transparent 65%);
+      background-size: 220% 100%;
+      background-position: 220% 0;
+      animation: save-shimmer 3.4s ease-in-out 1.5s infinite;
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    @keyframes save-shimmer {
+      0%, 40%   { background-position: 220% 0; }
+      70%       { background-position: -120% 0; }
+      100%      { background-position: -120% 0; }
+    }
+
+    /* Progress bar shimmer */
+    .h-1\\.5 > div[style*="linear-gradient"] {
+      position: relative;
+      overflow: hidden;
+    }
+    .h-1\\.5 > div[style*="linear-gradient"]::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.6) 50%, transparent 100%);
+      animation: progress-shimmer 2.4s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes progress-shimmer {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      [x-show],
+      .routine-icon-btn,
+      .weekday-pill,
+      .schedule-pill,
+      button[style*="linear-gradient(90deg, #ecb921"]::after,
+      .h-1\\.5 > div[style*="linear-gradient"]::after { animation: none !important; transition: none !important; transform: none !important; }
+    }
+  `}</style>
+
+  <script is:inline>
+    function genId() { return "t" + Math.random().toString(36).slice(2, 10); }
+
+    function routineBuilder(initial) {
+      // v95: Pre-fill from URL ?template= blueprint
+      const blueprint = initial.prefillBlueprint;
+      const initialStep = blueprint ? 2 : 1;
+      const initialForm = blueprint
+        ? {
+            name: blueprint.label || blueprint.name,
+            icon: blueprint.icon,
+            color: "#B48608",
+            schedule_type: blueprint.schedule_type,
+            custom_days: [],
+            start_time: blueprint.start_time,
+            push_reminder: true,
+            tasks: blueprint.tasks.map((t) => ({ ...t, id: genId() })),
+          }
+        : {
+            name: "",
+            icon: "clipboard",
+            color: "#B48608",
+            schedule_type: "daily",
+            custom_days: [],
+            start_time: "08:00",
+            push_reminder: true,
+            tasks: [],
+          };
+
+      return {
+        pet: initial.pet,
+        editingRoutine: initial.editingRoutine,
+        blueprintApplied: blueprint ? { id: initial.blueprintId, name: blueprint.label || blueprint.name, icon: blueprint.icon } : null,
+        step: initialStep,
+        saving: false,
+        savedSuccess: false,
+        error: null,
+
+        form: initialForm,
+
+        // v96: Lucide icon names (replacing emoji) — 24 brand-consistent SVG icons
+        iconOptions: [
+          "sun", "clock", "calendar", "flame",
+          "utensils", "bowl", "droplet", "pill",
+          "activity", "activity-run", "paw", "heart",
+          "shield-check", "brain", "lightbulb", "trophy",
+          "target", "sparkles", "leaf", "clipboard",
+          "home", "star", "cat", "dog",
+        ],
+        // v96: SVG strings for each Lucide icon — rendered via x-html
+        iconSvgs: {
+          "sun": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
+          "clock": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+          "calendar": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+          "flame": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+          "utensils": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>',
+          "bowl": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M2 12h20"/><path d="M4 12a8 8 0 0 1 16 0v3a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M8 8c1 0 2-1 2-3M14 8c1 0 2-1 2-3"/></svg>',
+          "droplet": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+          "pill": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M10.5 20.5a4.5 4.5 0 0 1-6.36-6.36L13.64 4.64a4.5 4.5 0 0 1 6.36 6.36z"/><path d="M8.5 8.5l7 7"/></svg>',
+          "activity": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+          "activity-run": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><circle cx="13" cy="4" r="2"/><path d="M4 22l4-7 3-3-1-5 4 4h3l3 5M11 7l-2 6"/></svg>',
+          "paw": '<svg viewBox="0 0 24 24" fill="currentColor" style="width:24px;height:24px;"><ellipse cx="6.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="17.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="10" cy="6.5" rx="2" ry="2.5"/><ellipse cx="14" cy="6.5" rx="2" ry="2.5"/><path d="M12 12c-3.4 0-6.5 2.9-6.5 6.2 0 1.5 1.2 2.8 2.8 2.8 1 0 1.8-.5 2.8-1 .3-.2.6-.3.9-.3s.6.1.9.3c1 .5 1.8 1 2.8 1 1.6 0 2.8-1.3 2.8-2.8 0-3.3-3.1-6.2-6.5-6.2z"/></svg>',
+          "heart": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+          "shield-check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+          "brain": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0-1 4.5 2.5 2.5 0 0 0 1 4.5A2.5 2.5 0 0 0 7 18.5v.5a2.5 2.5 0 0 0 5 0V4.5A2.5 2.5 0 0 0 9.5 2z"/><path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1 1 4.5 2.5 2.5 0 0 1-1 4.5A2.5 2.5 0 0 1 17 18.5v.5a2.5 2.5 0 0 1-5 0V4.5A2.5 2.5 0 0 1 14.5 2z"/></svg>',
+          "lightbulb": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>',
+          "trophy": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 4H5a2 2 0 0 0-2 2v1a3 3 0 0 0 3 3M17 4h2a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3"/></svg>',
+          "target": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+          "sparkles": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+          "leaf": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.96c1.4 9.3-3.3 16.2-8.2 17.04Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>',
+          "clipboard": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+          "home": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+          "star": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+          "cat": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-.42 7 .57 1.07 1 2.24 1 3.44C21 17.9 16.97 21 12 21s-9-3.1-9-7.56c0-1.25.5-2.4 1-3.44 0 0-1.89-6.42-.5-7 1.39-.58 4.72.23 6.5 2.23A9.04 9.04 0 0 1 12 5Z"/><path d="M8 14v.5"/><path d="M16 14v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75Z"/></svg>',
+          "dog": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.703 1.725 1.722 3.656 1 1.261-.472 1.96-1.45 2.344-2.5"/><path d="M14.267 5.172c0-1.39 1.577-2.493 3.5-2.172 2.823.47 4.113 6.006 4 7-.08.703-1.725 1.722-3.656 1-1.261-.472-1.945-1.45-2.328-2.5"/><path d="M8 14v.5"/><path d="M16 14v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75Z"/><path d="M4.5 13.5C4.5 12 5 11 6 11h12c1 0 1.5 1 1.5 2.5l-1 4c-.75 1.5-1.5 2.5-3 2.5h-1.25l-.75-1.5L12 21l-1.5-2.5-.75 1.5H8.5c-1.5 0-2.25-1-3-2.5z"/></svg>',
+        },
+        // v93: gold-leaning palette + neutrals (still allow personalization but lean brand)
+        colorOptions: ["#B48608","#ecb921","#0a0a0a","#5a4a2a","#8b6914","#d4a615","#a16207","#713f12","#3f3f46","#78716c","#404040","#1f2937"],
+        scheduleOptions: [
+          { value: "daily", label: "Hàng ngày" },
+          { value: "weekdays", label: "T2-T6" },
+          { value: "weekends", label: "T7-CN" },
+          { value: "custom", label: "Tuỳ chỉnh" },
+        ],
+        weekdayKeys: [
+          { key: "mon", label: "T2" }, { key: "tue", label: "T3" }, { key: "wed", label: "T4" },
+          { key: "thu", label: "T5" }, { key: "fri", label: "T6" }, { key: "sat", label: "T7" },
+          { key: "sun", label: "CN" },
+        ],
+        taskEmojiOptions: ["🍴","💧","🚶","🏃","🎾","🦷","🛁","🪮","💊","🧠","🎓","🎁","🎮","🎯","📚","🧘","🏋️","💤","🌅","🌙","💩","✂️","👂","📌"],
+
+        get canNext() {
+          if (this.step === 2) return this.form.name.trim().length >= 2;
+          return true;
+        },
+
+        get canSave() {
+          if (!this.form.name.trim()) return false;
+          if (this.form.tasks.length === 0) return false;
+          if (this.form.tasks.some((t) => !t.title.trim())) return false;
+          return true;
+        },
+
+        scheduleLabel(v) {
+          return ({ daily: "Hàng ngày", weekdays: "T2-T6", weekends: "Cuối tuần", custom: "Tuỳ chỉnh" })[v] || v;
+        },
+
+        totalDuration(tasks) {
+          return tasks.reduce((s, t) => s + (t.duration_minutes || 0), 0);
+        },
+
+        pickTemplate(t) {
+          if (t) {
+            this.form.name = t.name;
+            this.form.icon = t.icon;
+            this.form.color = t.color;
+            this.form.schedule_type = t.schedule_type;
+            this.form.start_time = t.start_time;
+            // Re-id tasks so they don't collide if user adds more
+            this.form.tasks = t.tasks.map((task) => ({ ...task, id: genId() }));
+          } else {
+            this.form.tasks = [];
+          }
+          this.blueprintApplied = null;
+          this.step = 2;
+        },
+
+        // v101: Pick blueprint by ID from window registry (smart match selector)
+        pickBlueprint(bpId) {
+          const all = window.__VOWVET_BLUEPRINTS || [];
+          const bp = all.find((b) => b.id === bpId);
+          if (!bp) return;
+          this.form.name = bp.label;
+          this.form.icon = bp.icon;
+          this.form.color = "#B48608";
+          this.form.schedule_type = bp.schedule_type;
+          this.form.start_time = bp.start_time;
+          this.form.tasks = bp.tasks.map((task) => ({ ...task, id: genId() }));
+          this.blueprintApplied = { id: bp.id, name: bp.label, icon: bp.icon };
+          this.step = 2;
+        },
+
+        // v95: Reset blueprint and let user start fresh
+        resetBlueprint() {
+          this.blueprintApplied = null;
+          this.form = {
+            name: "",
+            icon: "clipboard",
+            color: "#B48608",
+            schedule_type: "daily",
+            custom_days: [],
+            start_time: "08:00",
+            push_reminder: true,
+            tasks: [],
+          };
+          this.step = 1;
+          // Clean URL
+          if (typeof window !== "undefined" && window.history) {
+            window.history.replaceState({}, "", window.location.pathname);
+          }
+        },
+
+        toggleCustomDay(key) {
+          const idx = this.form.custom_days.indexOf(key);
+          if (idx >= 0) this.form.custom_days.splice(idx, 1);
+          else this.form.custom_days.push(key);
+        },
+
+        addTask() {
+          this.form.tasks.push({
+            id: genId(),
+            title: "",
+            emoji: "📌",
+            duration_minutes: 10,
+            points: 1,
+            category: "other",
+          });
+        },
+
+        removeTask(idx) {
+          this.form.tasks.splice(idx, 1);
+        },
+
+        nextStep() { if (this.canNext && this.step < 3) this.step++; },
+        prevStep() { if (this.step > 1) this.step--; },
+
+        async save() {
+          this.error = null;
+          if (!this.canSave) {
+            this.error = "Tên + ít nhất 1 task có tiêu đề.";
+            return;
+          }
+          this.saving = true;
+          try {
+            const url = this.editingRoutine
+              ? `/api/v1/pets/${this.pet.id}/routines/${this.editingRoutine.id}`
+              : `/api/v1/pets/${this.pet.id}/routines`;
+            const method = this.editingRoutine ? "PUT" : "POST";
+            const res = await fetch(url, {
+              method,
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(this.form),
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              this.error = j?.error?.message || "Lỗi lưu routine.";
+              return;
+            }
+            window.location.href = `/pets/${this.pet.id}/routines`;
+          } catch (err) {
+            this.error = "Không kết nối server.";
+          } finally {
+            this.saving = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

@@ -1,0 +1,451 @@
+---
+/**
+ * /pets/[id]/bcs — Body Condition Score AI Vision (M22).
+ *
+ * Tabs:
+ *   - Đánh giá (capture): upload 2 ảnh (side + top) → AI analyse
+ *   - Lịch sử: list assessments with thumbnails
+ *   - Xu hướng: SVG line chart of BCS scores over time
+ *
+ * Vet review badge khi needs_vet_review=true.
+ * Mock fallback message khi is_mock=true.
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let assessments: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/bcs/history`, { headers: { cookie: cookieHeader } });
+  if (res.ok) assessments = (await res.json()).assessments || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, species: pet.species?.value || pet.species || "" },
+  assessments,
+});
+---
+
+<Layout title={`BCS · ${pet.name}`} description="Đánh giá điểm thể trạng (BCS) bằng AI">
+  <main class="min-h-screen bg-gradient-to-b from-mmp-cream to-white px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`bcsPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg font-bold text-slate-900">⚖️ BCS AI Vision</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <!-- Tab switcher -->
+      <div class="flex bg-white rounded-2xl p-1 mb-4 shadow-sm border border-slate-100">
+        <button @click="tab = 'assess'" :class="tab === 'assess' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600'"
+          class="flex-1 py-2 rounded-xl text-sm font-bold transition">📸 Đánh giá</button>
+        <button @click="tab = 'history'" :class="tab === 'history' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600'"
+          class="flex-1 py-2 rounded-xl text-sm font-bold transition">📋 Lịch sử (<span x-text="assessments.length"></span>)</button>
+        <button @click="tab = 'trend'" :class="tab === 'trend' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600'"
+          class="flex-1 py-2 rounded-xl text-sm font-bold transition">📈 Xu hướng</button>
+      </div>
+
+      <!-- ============================================
+           Tab: ASSESS
+           ============================================ -->
+      <div x-show="tab === 'assess'">
+        <!-- Latest summary card -->
+        <template x-if="latest">
+          <div class="mb-4 p-4 rounded-2xl text-white shadow-lg"
+            :class="latestCategoryColor">
+            <p class="text-xs opacity-90 uppercase tracking-wider">Lần đánh giá gần nhất</p>
+            <div class="flex items-end gap-4 mt-1">
+              <p class="text-6xl font-extrabold leading-none" x-text="latest.bcs_score"></p>
+              <div>
+                <p class="text-xl font-bold capitalize" x-text="categoryLabel(latest.bcs_category)"></p>
+                <p class="text-xs opacity-90" x-text="`${fmtDate(latest.assessed_at)} · ${latest.ai_confidence}% confidence`"></p>
+              </div>
+            </div>
+            <template x-if="latest.needs_vet_review">
+              <p class="text-xs bg-white/25 rounded-lg px-2 py-1 mt-2 inline-block">⚠️ Cần vet review</p>
+            </template>
+            <template x-if="latest.is_mock">
+              <p class="text-xs bg-white/25 rounded-lg px-2 py-1 mt-2 inline-block">🤖 AI chưa khả dụng — đánh giá mock</p>
+            </template>
+          </div>
+        </template>
+
+        <!-- Capture form -->
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+          <h2 class="text-base font-bold text-slate-900 mb-1">📸 Chụp 2 ảnh để AI phân tích</h2>
+          <p class="text-xs text-slate-500 mb-4">Bé đứng thẳng, đủ sáng. AI sẽ chấm BCS theo thang WSAVA 1-9.</p>
+
+          <!-- Side photo -->
+          <div class="mb-4">
+            <label class="text-xs font-bold text-slate-700 uppercase">Ảnh nhìn nghiêng (side)</label>
+            <p class="text-[11px] text-slate-500 mb-2">Đứng nghiêng, thấy toàn thân từ mũi đến đuôi.</p>
+            <div class="relative">
+              <input type="file" accept="image/jpeg,image/png,image/webp" @change="onSideChange($event)"
+                class="hidden" id="bcs-side" />
+              <label for="bcs-side"
+                class="block border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition"
+                :class="sidePreview ? 'border-mmp-cream bg-mmp-cream' : 'border-slate-300 hover:border-mmp-cream'">
+                <template x-if="!sidePreview">
+                  <div>
+                    <p class="text-2xl">📷</p>
+                    <p class="text-xs text-slate-600 mt-1">Tap để chọn ảnh nghiêng</p>
+                  </div>
+                </template>
+                <template x-if="sidePreview">
+                  <img :src="sidePreview" alt="side preview" class="max-h-40 mx-auto rounded-lg" />
+                </template>
+              </label>
+            </div>
+          </div>
+
+          <!-- Top photo -->
+          <div class="mb-4">
+            <label class="text-xs font-bold text-slate-700 uppercase">Ảnh nhìn trên (top)</label>
+            <p class="text-[11px] text-slate-500 mb-2">Nhìn thẳng từ trên xuống, thấy lưng + eo.</p>
+            <div class="relative">
+              <input type="file" accept="image/jpeg,image/png,image/webp" @change="onTopChange($event)"
+                class="hidden" id="bcs-top" />
+              <label for="bcs-top"
+                class="block border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition"
+                :class="topPreview ? 'border-mmp-cream bg-mmp-cream' : 'border-slate-300 hover:border-mmp-cream'">
+                <template x-if="!topPreview">
+                  <div>
+                    <p class="text-2xl">🦴</p>
+                    <p class="text-xs text-slate-600 mt-1">Tap để chọn ảnh nhìn trên</p>
+                  </div>
+                </template>
+                <template x-if="topPreview">
+                  <img :src="topPreview" alt="top preview" class="max-h-40 mx-auto rounded-lg" />
+                </template>
+              </label>
+            </div>
+          </div>
+
+          <template x-if="error">
+            <p class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 mb-3" x-text="error"></p>
+          </template>
+
+          <button @click="submit()" :disabled="!canSubmit || analyzing"
+            class="w-full bg-gradient-to-r from-mmp-cream to-white hover:opacity-90 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm shadow-lg">
+            <span x-show="!analyzing">🪄 Phân tích AI</span>
+            <span x-show="analyzing">⏳ AI đang phân tích... (15-30s)</span>
+          </button>
+        </div>
+
+        <!-- BCS scale legend -->
+        <div class="mt-4 bg-white rounded-2xl border border-slate-100 p-4 text-xs text-slate-600">
+          <p class="font-bold text-slate-900 mb-2">Thang BCS WSAVA 1-9</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div class="bg-red-50 text-red-800 rounded-lg p-2 text-center">
+              <p class="font-bold">1-3</p><p class="text-[10px]">Gầy</p>
+            </div>
+            <div class="bg-emerald-50 text-emerald-800 rounded-lg p-2 text-center">
+              <p class="font-bold">4-5</p><p class="text-[10px]">Lý tưởng</p>
+            </div>
+            <div class="bg-amber-50 text-amber-800 rounded-lg p-2 text-center">
+              <p class="font-bold">6-7</p><p class="text-[10px]">Thừa cân</p>
+            </div>
+            <div class="bg-rose-50 text-rose-800 rounded-lg p-2 text-center">
+              <p class="font-bold">8-9</p><p class="text-[10px]">Béo phì</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================
+           Tab: HISTORY
+           ============================================ -->
+      <div x-show="tab === 'history'" x-cloak>
+        <template x-if="assessments.length === 0">
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
+            <p class="text-3xl mb-2">📭</p>
+            <p class="text-sm text-slate-600">Chưa có đánh giá nào. Chuyển sang tab "Đánh giá" để bắt đầu.</p>
+          </div>
+        </template>
+
+        <div class="space-y-3">
+          <template x-for="a in assessments" :key="a.id">
+            <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+              <div class="flex gap-3 items-start">
+                <div class="flex gap-1">
+                  <img :src="a.side_photo_url" alt="side" class="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                  <img :src="a.top_photo_url" alt="top" class="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="text-2xl font-extrabold" x-text="a.bcs_score"></span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold capitalize"
+                      :class="categoryBadgeClass(a.bcs_category)" x-text="categoryLabel(a.bcs_category)"></span>
+                    <template x-if="a.vet_override_score">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">
+                        Vet: <span x-text="a.vet_override_score"></span>
+                      </span>
+                    </template>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mb-1" x-text="`${fmtDate(a.assessed_at)} · ${a.ai_confidence}% confidence`"></p>
+                  <p class="text-xs text-slate-700 line-clamp-2" x-text="a.ai_analysis"></p>
+                  <template x-if="a.recommended_action">
+                    <p class="text-xs text-emerald-700 mt-1 font-semibold line-clamp-2" x-text="`💡 ${a.recommended_action}`"></p>
+                  </template>
+                  <div class="flex items-center gap-2 mt-2">
+                    <template x-if="a.needs_vet_review && !a.vet_reviewed">
+                      <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">⚠️ Cần vet review</span>
+                    </template>
+                    <template x-if="a.is_mock">
+                      <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">🤖 Mock</span>
+                    </template>
+                    <button @click="del(a.id)" class="ml-auto text-[10px] text-red-500 hover:text-red-700 underline">Xoá</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ============================================
+           Tab: TREND
+           ============================================ -->
+      <div x-show="tab === 'trend'" x-cloak>
+        <template x-if="assessments.length < 2">
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
+            <p class="text-3xl mb-2">📈</p>
+            <p class="text-sm text-slate-600">Cần ít nhất 2 lần đánh giá để xem xu hướng.</p>
+          </div>
+        </template>
+
+        <template x-if="assessments.length >= 2">
+          <div class="bg-white rounded-2xl border border-slate-100 p-4">
+            <h2 class="text-sm font-bold text-slate-900 mb-3">Xu hướng BCS theo thời gian</h2>
+            <!-- SVG trend chart -->
+            <svg viewBox="0 0 320 160" class="w-full h-44">
+              <!-- Ideal band (BCS 4-5) -->
+              <rect x="0" y="40" width="320" height="20" class="fill-emerald-50" />
+              <text x="6" y="54" class="text-[8px] fill-emerald-700 font-bold">Lý tưởng (4-5)</text>
+
+              <!-- Y axis labels -->
+              <template x-for="s in [1, 3, 5, 7, 9]" :key="s">
+                <g>
+                  <text :x="2" :y="160 - ((s - 1) / 8) * 140 + 3" class="text-[8px] fill-slate-400" x-text="s"></text>
+                  <line x1="14" :y1="160 - ((s - 1) / 8) * 140" x2="320" :y2="160 - ((s - 1) / 8) * 140"
+                    stroke="rgba(0,0,0,0.05)" stroke-width="0.5"></line>
+                </g>
+              </template>
+
+              <!-- Polyline -->
+              <polyline :points="trendPoints" fill="none" stroke="#9333ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+
+              <!-- Dots -->
+              <template x-for="(p, i) in trendDots" :key="i">
+                <g>
+                  <circle :cx="p.x" :cy="p.y" r="3.5" class="fill-purple-600" />
+                  <text :x="p.x" :y="p.y - 6" text-anchor="middle" class="text-[8px] fill-slate-700 font-bold" x-text="p.score"></text>
+                </g>
+              </template>
+            </svg>
+            <div class="flex items-center justify-between text-[10px] text-slate-500 mt-2">
+              <span x-text="fmtDate(assessments[assessments.length - 1].assessed_at)"></span>
+              <span class="font-semibold">→ Mới nhất</span>
+              <span x-text="fmtDate(assessments[0].assessed_at)"></span>
+            </div>
+
+            <!-- Insight -->
+            <div class="mt-4 p-3 bg-mmp-cream rounded-xl text-xs text-mmp-ink">
+              <p class="font-bold mb-1">💡 Phân tích nhanh</p>
+              <p x-text="trendInsight"></p>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <p class="text-[11px] text-slate-400 text-center italic mt-6">
+        🤖 AI tham khảo, không thay thế bác sĩ thú y. Khi BCS extreme (≤2 hoặc ≥7) hệ thống tự đánh dấu cần vet review.
+      </p>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function bcsPage(initial) {
+      return {
+        pet: initial.pet,
+        assessments: initial.assessments,
+        tab: 'assess',
+        sideFile: null,
+        topFile: null,
+        sidePreview: null,
+        topPreview: null,
+        analyzing: false,
+        error: "",
+
+        get latest() {
+          return this.assessments[0] || null;
+        },
+
+        get canSubmit() {
+          return !!this.sideFile && !!this.topFile && !this.analyzing;
+        },
+
+        get latestCategoryColor() {
+          if (!this.latest) return "bg-slate-500";
+          const c = this.latest.bcs_category;
+          if (c === "ideal") return "bg-gradient-to-br from-emerald-500 to-green-600";
+          if (c === "underweight") return "bg-gradient-to-br from-red-500 to-rose-600";
+          if (c === "overweight") return "bg-gradient-to-br from-amber-500 to-orange-600";
+          return "bg-gradient-to-br from-rose-600 to-red-700";
+        },
+
+        categoryLabel(c) {
+          if (c === "ideal") return "Lý tưởng";
+          if (c === "underweight") return "Thiếu cân";
+          if (c === "overweight") return "Thừa cân";
+          if (c === "obese") return "Béo phì";
+          return c;
+        },
+
+        categoryBadgeClass(c) {
+          if (c === "ideal") return "bg-emerald-100 text-emerald-700";
+          if (c === "underweight") return "bg-red-100 text-red-700";
+          if (c === "overweight") return "bg-amber-100 text-amber-700";
+          return "bg-rose-100 text-rose-700";
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "—";
+          try {
+            return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+          } catch { return iso.slice(0, 10); }
+        },
+
+        onSideChange(e) {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          if (f.size > 8 * 1024 * 1024) { this.error = "Ảnh nghiêng > 8MB."; return; }
+          this.sideFile = f;
+          this.sidePreview = URL.createObjectURL(f);
+          this.error = "";
+        },
+
+        onTopChange(e) {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          if (f.size > 8 * 1024 * 1024) { this.error = "Ảnh nhìn trên > 8MB."; return; }
+          this.topFile = f;
+          this.topPreview = URL.createObjectURL(f);
+          this.error = "";
+        },
+
+        async submit() {
+          if (!this.canSubmit) return;
+          this.error = "";
+          this.analyzing = true;
+          try {
+            const fd = new FormData();
+            fd.append("side_photo", this.sideFile);
+            fd.append("top_photo", this.topFile);
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/bcs/assess`, {
+              method: "POST",
+              credentials: "include",
+              body: fd,
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.error = j?.error?.message || "Lỗi phân tích";
+              return;
+            }
+            this.assessments = [j.assessment, ...this.assessments];
+            // Reset form
+            this.sideFile = null;
+            this.topFile = null;
+            this.sidePreview = null;
+            this.topPreview = null;
+          } catch (_) {
+            this.error = "Lỗi kết nối.";
+          } finally {
+            this.analyzing = false;
+          }
+        },
+
+        async del(id) {
+          if (!confirm("Xoá đánh giá này?")) return;
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/bcs/${id}`, {
+              method: "DELETE",
+              credentials: "include",
+            });
+            if (res.ok) {
+              this.assessments = this.assessments.filter((a) => a.id !== id);
+            }
+          } catch (_) {}
+        },
+
+        // ========== Trend chart ==========
+        get _trendSorted() {
+          // Oldest → newest, left to right
+          return [...this.assessments].sort((a, b) => a.assessed_at.localeCompare(b.assessed_at));
+        },
+
+        _xy(idx, total, score) {
+          const W = 320, H = 160, PAD = 14;
+          const x = total <= 1 ? W / 2 : PAD + (idx / (total - 1)) * (W - PAD - 4);
+          const y = H - ((score - 1) / 8) * (H - 20);
+          return { x, y };
+        },
+
+        get trendPoints() {
+          const arr = this._trendSorted;
+          return arr.map((a, i) => {
+            const p = this._xy(i, arr.length, a.bcs_score);
+            return `${p.x},${p.y}`;
+          }).join(" ");
+        },
+
+        get trendDots() {
+          const arr = this._trendSorted;
+          return arr.map((a, i) => {
+            const p = this._xy(i, arr.length, a.bcs_score);
+            return { x: p.x, y: p.y, score: a.bcs_score };
+          });
+        },
+
+        get trendInsight() {
+          const arr = this._trendSorted;
+          if (arr.length < 2) return "—";
+          const first = arr[0].bcs_score;
+          const last = arr[arr.length - 1].bcs_score;
+          const delta = last - first;
+          const direction = delta > 0 ? "tăng" : delta < 0 ? "giảm" : "không đổi";
+          if (delta === 0) {
+            if (last >= 4 && last <= 5) return `BCS giữ ổn định ở mức lý tưởng (${last}/9). Tuyệt vời!`;
+            return `BCS giữ ở mức ${last}/9 — chưa thay đổi.`;
+          }
+          if (last >= 4 && last <= 5) {
+            return `BCS ${direction} ${Math.abs(delta)} điểm về mức lý tưởng (${last}/9). 👏`;
+          }
+          if (last >= 7) {
+            return `⚠️ BCS đã ${direction} lên ${last}/9 — thừa cân. Cân nhắc giảm khẩu phần + tăng vận động.`;
+          }
+          if (last <= 3) {
+            return `⚠️ BCS xuống còn ${last}/9 — thiếu cân. Cần khám vet để tìm nguyên nhân.`;
+          }
+          return `BCS ${direction} ${Math.abs(delta)} điểm so với lần đầu. Hiện ${last}/9.`;
+        },
+      };
+    }
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</Layout>

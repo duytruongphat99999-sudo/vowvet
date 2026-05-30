@@ -1,0 +1,90 @@
+---
+/**
+ * Logo lockup: VowVet by Mon Min Pet
+ *
+ * The logo asset (logo-mmp.png) is dark — a black paw silhouette. On dark
+ * backgrounds it disappears, so when `invertOnDark` is true (or variant
+ * is "inverted"), the image is wrapped in a light circular backdrop that
+ * makes the logo pop.
+ *
+ * variants:
+ *   - "compact"  — icon only (mobile-tight nav)
+ *   - "default"  — icon + "VowVet" + small "by Mon Min Pet" (most page headers)
+ *   - "full"     — icon + "VowVet" + larger "by Mon Min Pet" (footers, hero)
+ *   - "hero"     — XL icon + h1-size title + visible subtitle (landings)
+ *   - "inverted" — light text on dark bg (white text, light logo backdrop)
+ */
+interface Props {
+  variant?: "compact" | "default" | "full" | "hero" | "inverted";
+  href?: string | null;
+  invertOnDark?: boolean;
+  class?: string;
+}
+const {
+  variant = "default",
+  href = "/",
+  invertOnDark = false,
+  class: extra = "",
+} = Astro.props;
+
+// Size scale — single source of truth
+const sizes = {
+  compact: { logo: "h-10 w-10", title: "text-base",  subtitle: "" },
+  default: { logo: "h-12 w-12", title: "text-xl",    subtitle: "text-[10px]" },
+  full:    { logo: "h-14 w-14", title: "text-2xl",   subtitle: "text-xs"     },
+  hero:    { logo: "h-20 w-20", title: "text-3xl",   subtitle: "text-sm"     },
+  inverted:{ logo: "h-12 w-12", title: "text-xl",    subtitle: "text-[10px]" },
+} as const;
+const s = sizes[variant];
+
+const isInverted = variant === "inverted" || invertOnDark;
+const titleColor = isInverted ? "text-white" : "text-mmp-ink";
+const subtitleColor = isInverted ? "text-white/70" : "text-slate-500";
+
+const wrapperClasses = `inline-flex items-center gap-3 ${extra}`;
+const Tag = href ? "a" : "div";
+const showSubtitle = variant === "default" || variant === "full" || variant === "hero" || variant === "inverted";
+
+// Backdrop padding sized to keep logo prominent inside the disc
+const backdropPad = variant === "hero" ? "p-2" : variant === "full" ? "p-1.5" : "p-1";
+---
+
+<Tag
+  {...href ? { href } : {}}
+  class={wrapperClasses}
+  aria-label="VowVet by Mon Min Pet"
+>
+  {isInverted ? (
+    <span class:list={["flex-shrink-0 inline-flex items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-white/30", s.logo, backdropPad]}>
+      <img
+        src="/logo-mmp.png"
+        alt="Mon Min Pet"
+        width="80"
+        height="80"
+        class="w-full h-full object-contain"
+        loading="eager"
+        decoding="async"
+      />
+    </span>
+  ) : (
+    <img
+      src="/logo-mmp.png"
+      alt="Mon Min Pet"
+      width="80"
+      height="80"
+      class={`${s.logo} flex-shrink-0 object-contain`}
+      loading="eager"
+      decoding="async"
+    />
+  )}
+  {variant !== "compact" && (
+    <div class="flex flex-col leading-tight">
+      <span class={`font-bold ${s.title} ${titleColor} tracking-tight`}>VowVet</span>
+      {showSubtitle && s.subtitle && (
+        <span class={`${s.subtitle} ${subtitleColor} uppercase tracking-widest font-medium mt-0.5`}>
+          by Mon Min Pet
+        </span>
+      )}
+    </div>
+  )}
+</Tag>

@@ -1,0 +1,93 @@
+---
+/**
+ * Card — base surface container with Mon Min Pet brand styling.
+ *
+ * Variants:
+ *   - default : white bg, slate-100 border, soft shadow (most common)
+ *   - cream   : mmp-cream bg, amber-100 border (subtle highlight)
+ *   - ink     : mmp-ink bg, white text (announcement / premium)
+ *   - gold    : white bg, gold border + ring (featured / VIP)
+ *   - bordered: white bg, ink border (form sections)
+ *
+ * Padding: none | sm (p-3) | md (p-5 — default) | lg (p-7)
+ *
+ * Optional header slot + footer slot.
+ *
+ * Usage:
+ *   <Card><p>Body content</p></Card>
+ *
+ *   <Card variant="gold" padding="lg">
+ *     <Fragment slot="header"><h3>Featured</h3></Fragment>
+ *     <p>...</p>
+ *   </Card>
+ */
+interface Props {
+  variant?: "default" | "cream" | "ink" | "gold" | "bordered";
+  padding?: "none" | "sm" | "md" | "lg";
+  rounded?: "lg" | "xl" | "2xl" | "3xl";
+  href?: string;
+  class?: string;
+}
+const {
+  variant = "default",
+  padding = "md",
+  rounded = "2xl",
+  href,
+  class: extraClass = "",
+} = Astro.props;
+
+const VARIANTS: Record<string, string> = {
+  default:  "bg-white border border-slate-100 shadow-sm",
+  cream:    "bg-mmp-cream border border-amber-100",
+  ink:      "bg-mmp-ink text-white border border-mmp-ink",
+  gold:     "bg-white border-2 border-[#ecb921] shadow-sm",
+  bordered: "bg-white border border-mmp-ink",
+};
+const PAD: Record<string, string> = {
+  none: "",
+  sm:   "p-3",
+  md:   "p-5",
+  lg:   "p-7",
+};
+const ROUND: Record<string, string> = {
+  lg:  "rounded-lg",
+  xl:  "rounded-xl",
+  "2xl": "rounded-2xl",
+  "3xl": "rounded-3xl",
+};
+
+const hoverCls = href ? "hover:shadow-md transition-shadow cursor-pointer" : "";
+const cls = [VARIANTS[variant], PAD[padding], ROUND[rounded], hoverCls, extraClass]
+  .filter(Boolean)
+  .join(" ");
+---
+
+{href ? (
+  <a href={href} class={cls}>
+    {Astro.slots.has("header") && (
+      <header class="mb-3 pb-3 border-b border-current/10">
+        <slot name="header" />
+      </header>
+    )}
+    <slot />
+    {Astro.slots.has("footer") && (
+      <footer class="mt-3 pt-3 border-t border-current/10">
+        <slot name="footer" />
+      </footer>
+    )}
+  </a>
+) : (
+  <div class={cls}>
+    {Astro.slots.has("header") && (
+      <header class="mb-3 pb-3 border-b border-current/10">
+        <slot name="header" />
+      </header>
+    )}
+    <slot />
+    {Astro.slots.has("footer") && (
+      <footer class="mt-3 pt-3 border-t border-current/10">
+        <slot name="footer" />
+      </footer>
+    )}
+  </div>
+)}

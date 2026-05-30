@@ -1,0 +1,55 @@
+---
+/**
+ * ZONE 2 — Urgency bar (conditional). Map emoji hint from backend → SVG icon.
+ */
+import FeatureIcon from "../FeatureIcon.astro";
+
+interface UrgentAlert {
+  severity: "critical" | "urgent";
+  icon: string;            // emoji from API (🚨/💉/🌡️/⏰)
+  title: string;
+  message: string;
+  cta_link: string;
+  cta_label: string;
+}
+interface Props {
+  alerts: UrgentAlert[];
+}
+const { alerts } = Astro.props;
+const top = alerts?.[0];
+
+// Map backend emoji hint → SVG icon name
+function emojiToIcon(emoji: string): string {
+  if (emoji.includes("🚨") || emoji.includes("⚠")) return "alert-triangle";
+  if (emoji.includes("💉")) return "syringe";
+  if (emoji.includes("🌡")) return "thermometer";
+  if (emoji.includes("⏰") || emoji.includes("⏱")) return "clock";
+  if (emoji.includes("🎁")) return "gift";
+  return "alert-triangle";
+}
+const iconName = top ? emojiToIcon(top.icon) : "alert-triangle";
+---
+
+{top && (
+  <a
+    href={top.cta_link}
+    class:list={[
+      "relative flex items-center gap-3 p-4 rounded-2xl text-white transition active:scale-[0.99]",
+      top.severity === "critical"
+        ? "bg-red-600 hover:bg-red-700 animate-pulse-urgent-critical"
+        : "bg-amber-500 hover:bg-amber-600 animate-pulse-urgent-urgent",
+    ]}
+  >
+    <span class="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/15 backdrop-blur ring-1 ring-white/20">
+      <FeatureIcon name={iconName} class="w-5 h-5" strokeWidth={1.8} />
+    </span>
+    <div class="flex-1 min-w-0">
+      <p class="font-bold text-sm leading-tight">{top.title}</p>
+      <p class="text-xs opacity-90 mt-0.5 line-clamp-1">{top.message}</p>
+    </div>
+    <span class="text-sm font-bold flex-shrink-0 whitespace-nowrap inline-flex items-center gap-1">
+      {top.cta_label}
+      <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2.2} />
+    </span>
+  </a>
+)}

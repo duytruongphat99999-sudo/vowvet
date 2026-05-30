@@ -1,0 +1,349 @@
+---
+/**
+ * /vet/dashboard — Vet only (M9.2).
+ *
+ * Server-side check is_vet=true → redirect / nếu không phải vet.
+ * 3 tabs: queue (FIFO waiting_vet) / mine (open) / closed (history).
+ * Poll queue every 10s.
+ */
+import Layout from "../../layouts/Layout.astro";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// Server-side vet check qua /me/settings (returns auth.method + has_google + ...)
+// We need to verify is_vet — query users/me/settings doesn't expose is_vet,
+// so we hit /vet/threads/queue and check 403/200.
+let isVet = false;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/vet/threads/queue?limit=1`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.status === 200) isVet = true;
+  if (res.status === 401) return Astro.redirect("/login");
+} catch (_) {}
+
+if (!isVet) {
+  // Polite redirect non-vet users
+  return Astro.redirect("/dashboard?error=not_vet");
+}
+
+// SSR pre-fetch initial queue + my stats
+let initialQueue: any[] = [];
+let myStats: any = null;
+try {
+  const [qRes, sRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/vet/threads/queue?limit=50`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/vet/my-stats`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (qRes.ok) initialQueue = (await qRes.json()).threads || [];
+  if (sRes.ok) myStats = await sRes.json();
+} catch (_) {}
+
+const initialData = JSON.stringify({ initialQueue, myStats });
+---
+
+<Layout title="Vet Dashboard · VowVet" description="Quản lý case telehealth Mon Min Clinic">
+  <main class="min-h-screen bg-slate-50 px-4 sm:px-6 py-6">
+    <div class="max-w-4xl mx-auto" x-data={`vetDashboard(${initialData})`}>
+
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700">← Dashboard</a>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900">🩺 Vet Dashboard</h1>
+        <span class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full font-semibold">
+          DVM
+        </span>
+      </header>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 mb-4 bg-white rounded-xl p-1 border border-slate-100">
+        <button @click="switchTab('queue')"
+          :class="activeTab === 'queue' ? 'bg-amber-100 text-amber-900' : 'text-slate-600 hover:bg-slate-50'"
+          class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-1.5">
+          <span>🟡 Cần phụ trách</span>
+          <span x-show="queue.length > 0"
+            class="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+            x-text="queue.length"></span>
+        </button>
+        <button @click="switchTab('mine')"
+          :class="activeTab === 'mine' ? 'bg-emerald-100 text-emerald-900' : 'text-slate-600 hover:bg-slate-50'"
+          class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">
+          <span>🟢 Đang xử lý</span>
+          <span x-show="mine.length > 0" class="ml-1 text-xs opacity-75">(<span x-text="mine.length"></span>)</span>
+        </button>
+        <button @click="switchTab('closed')"
+          :class="activeTab === 'closed' ? 'bg-slate-200 text-slate-900' : 'text-slate-600 hover:bg-slate-50'"
+          class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">
+          ⚪ Đã đóng
+        </button>
+        <button @click="switchTab('stats')"
+          :class="activeTab === 'stats' ? 'bg-sky-100 text-sky-900' : 'text-slate-600 hover:bg-slate-50'"
+          class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">
+          📊 My stats
+        </button>
+      </div>
+
+      <!-- Tab: Queue -->
+      <section x-show="activeTab === 'queue'">
+        <template x-if="loading">
+          <p class="text-center text-sm text-slate-400 py-8">Đang tải…</p>
+        </template>
+
+        <template x-if="!loading && queue.length === 0">
+          <div class="bg-white rounded-2xl border border-slate-100 p-10 text-center">
+            <p class="text-5xl mb-3">✅</p>
+            <p class="font-semibold text-slate-900 mb-1">Không có case chờ</p>
+            <p class="text-sm text-slate-500">Tất cả case đã được phụ trách</p>
+          </div>
+        </template>
+
+        <div x-show="!loading && queue.length > 0" class="space-y-2">
+          <template x-for="t in queue" :key="t.id">
+            <article class="bg-white rounded-2xl border border-slate-100 p-4">
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap mb-1">
+                    <h3 class="font-semibold text-slate-900" x-text="t.subject"></h3>
+                    <template x-if="t.escalated_from_triage_session_id">
+                      <span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        🚨 TRIAGE
+                      </span>
+                    </template>
+                  </div>
+                  <p class="text-xs text-slate-500 line-clamp-2" x-text="t.last_message_preview"></p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-2 mt-3">
+                <span class="text-xs text-slate-400" x-text="`Chờ ${waitTime(t.created_at)}`"></span>
+                <button @click="claim(t.id)" :disabled="claimingId === t.id"
+                  class="bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-semibold px-4 py-2 rounded-lg text-sm transition">
+                  <span x-show="claimingId !== t.id">🩺 Phụ trách</span>
+                  <span x-show="claimingId === t.id">…</span>
+                </button>
+              </div>
+            </article>
+          </template>
+        </div>
+      </section>
+
+      <!-- Tab: Mine -->
+      <section x-show="activeTab === 'mine'">
+        <template x-if="loading">
+          <p class="text-center text-sm text-slate-400 py-8">Đang tải…</p>
+        </template>
+
+        <template x-if="!loading && mine.length === 0">
+          <div class="bg-white rounded-2xl border border-slate-100 p-10 text-center">
+            <p class="text-5xl mb-3">📋</p>
+            <p class="font-semibold text-slate-900 mb-1">Chưa có case đang xử lý</p>
+            <p class="text-sm text-slate-500">Phụ trách 1 case từ Queue để bắt đầu</p>
+          </div>
+        </template>
+
+        <div x-show="!loading && mine.length > 0" class="space-y-2">
+          <template x-for="t in mine" :key="t.id">
+            <a :href="`/chat/${t.id}`"
+              class="block bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md hover:border-emerald-200 transition">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <h3 class="font-semibold text-slate-900 mb-1" x-text="t.subject"></h3>
+                  <p class="text-xs text-slate-500 line-clamp-2" x-text="t.last_message_preview"></p>
+                </div>
+                <template x-if="t.unread_count_vet > 0">
+                  <span class="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                    <span x-text="t.unread_count_vet"></span> mới
+                  </span>
+                </template>
+              </div>
+              <p class="text-xs text-slate-400 mt-2" x-text="relTime(t.last_message_at)"></p>
+            </a>
+          </template>
+        </div>
+      </section>
+
+      <!-- Tab: My Stats (M10) -->
+      <section x-show="activeTab === 'stats'">
+        <template x-if="!myStats">
+          <p class="text-center text-sm text-slate-400 py-8">Đang tải stats…</p>
+        </template>
+
+        <template x-if="myStats?.stats">
+          <div class="space-y-3">
+            <!-- Header info -->
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+              <p class="text-xs text-emerald-700 uppercase font-semibold">Bác sĩ</p>
+              <p class="font-bold text-emerald-900" x-text="myStats.vet?.name || 'DVM'"></p>
+              <p class="text-xs text-emerald-700 mt-0.5" x-text="myStats.vet?.credentials"></p>
+            </div>
+
+            <!-- Counter grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="bg-white rounded-2xl border border-slate-100 p-3 text-center">
+                <p class="text-[10px] text-slate-500 uppercase">Tổng case</p>
+                <p class="text-2xl font-bold text-slate-900" x-text="myStats.stats.total_threads_handled"></p>
+              </div>
+              <div class="bg-white rounded-2xl border border-emerald-100 p-3 text-center">
+                <p class="text-[10px] text-emerald-700 uppercase">Đang mở</p>
+                <p class="text-2xl font-bold text-emerald-700" x-text="myStats.stats.open_count"></p>
+              </div>
+              <div class="bg-white rounded-2xl border border-slate-100 p-3 text-center">
+                <p class="text-[10px] text-slate-500 uppercase">Đã đóng</p>
+                <p class="text-2xl font-bold text-slate-700" x-text="myStats.stats.closed_count"></p>
+              </div>
+              <div class="bg-white rounded-2xl border border-sky-100 p-3 text-center">
+                <p class="text-[10px] text-sky-700 uppercase">7 ngày qua</p>
+                <p class="text-2xl font-bold text-sky-700" x-text="myStats.stats.threads_last_7_days"></p>
+              </div>
+            </div>
+
+            <!-- Performance metrics -->
+            <div class="bg-white rounded-2xl border border-slate-100 p-4">
+              <h3 class="text-sm font-semibold text-slate-700 mb-3">⏱️ Performance</h3>
+              <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                  <span class="text-slate-600">Thời gian phản hồi trung bình</span>
+                  <span class="font-mono font-bold" :class="(myStats.stats.avg_response_time_minutes ?? 999) <= 30 ? 'text-emerald-700' : (myStats.stats.avg_response_time_minutes ?? 999) <= 120 ? 'text-amber-700' : 'text-red-700'">
+                    <span x-text="myStats.stats.avg_response_time_minutes !== null ? myStats.stats.avg_response_time_minutes + ' phút' : '—'"></span>
+                  </span>
+                </div>
+                <div class="flex justify-between text-sm">
+                  <span class="text-slate-600">Tin nhắn trung bình / case</span>
+                  <span class="font-mono font-bold text-slate-900" x-text="myStats.stats.avg_messages_per_thread ?? '—'"></span>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-3">
+                * Tính trên 20 case gần nhất. Thời gian phản hồi = từ owner gửi tin đầu → vet reply đầu.
+              </p>
+            </div>
+
+            <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-900">
+              <p class="font-semibold mb-1">🎯 SLA target</p>
+              <p>Mục tiêu phản hồi trong 2 giờ (giờ làm việc). Case &lt;30 phút = excellent.</p>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- Tab: Closed -->
+      <section x-show="activeTab === 'closed'">
+        <template x-if="loading">
+          <p class="text-center text-sm text-slate-400 py-8">Đang tải…</p>
+        </template>
+
+        <template x-if="!loading && closed.length === 0">
+          <div class="bg-white rounded-2xl border border-slate-100 p-10 text-center">
+            <p class="text-5xl mb-3">📁</p>
+            <p class="font-semibold text-slate-900">Chưa có case đã đóng</p>
+          </div>
+        </template>
+
+        <div x-show="!loading && closed.length > 0" class="space-y-2">
+          <template x-for="t in closed" :key="t.id">
+            <a :href="`/chat/${t.id}`"
+              class="block bg-white rounded-2xl border border-slate-100 p-3 hover:bg-slate-50 transition">
+              <h3 class="font-medium text-slate-700 text-sm" x-text="t.subject"></h3>
+              <p class="text-xs text-slate-400" x-text="`Đóng: ${relTime(t.last_message_at)}`"></p>
+            </a>
+          </template>
+        </div>
+      </section>
+
+      <p class="text-xs text-slate-400 text-center mt-6">
+        Auto-refresh mỗi 10 giây. Click vào case để mở chat.
+      </p>
+    </div>
+  </main>
+
+  <script is:inline>
+    function vetDashboard(initial) {
+      return {
+        activeTab: "queue",
+        queue: initial.initialQueue,
+        mine: [],
+        closed: [],
+        myStats: initial.myStats,
+        loading: false,
+        claimingId: null,
+        pollInterval: null,
+
+        init() {
+          this.startPolling();
+        },
+
+        startPolling() {
+          this.pollInterval = setInterval(() => this.loadTab(this.activeTab), 10000);
+        },
+
+        async switchTab(tab) {
+          this.activeTab = tab;
+          await this.loadTab(tab);
+        },
+
+        async loadTab(tab) {
+          this.loading = true;
+          try {
+            if (tab === "queue") {
+              const res = await fetch("/api/v1/vet/threads/queue?limit=50");
+              if (res.ok) this.queue = (await res.json()).threads || [];
+            } else if (tab === "mine") {
+              const res = await fetch("/api/v1/vet/threads/mine?status=open&limit=50");
+              if (res.ok) this.mine = (await res.json()).threads || [];
+            } else if (tab === "closed") {
+              const res = await fetch("/api/v1/vet/threads/mine?status=closed&limit=50");
+              if (res.ok) this.closed = (await res.json()).threads || [];
+            } else if (tab === "stats") {
+              const res = await fetch("/api/v1/vet/my-stats");
+              if (res.ok) this.myStats = await res.json();
+            }
+          } catch (_) {} finally {
+            this.loading = false;
+          }
+        },
+
+        async claim(threadId) {
+          if (!confirm("Phụ trách case này? Owner sẽ được thông báo.")) return;
+          this.claimingId = threadId;
+          try {
+            const res = await fetch(`/api/v1/vet/threads/${threadId}/claim`, {
+              method: "POST",
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              alert(j.error?.message || "Lỗi nhận case");
+              this.claimingId = null;
+              return;
+            }
+            window.location.href = `/chat/${threadId}`;
+          } catch (_) {
+            alert("Lỗi kết nối");
+            this.claimingId = null;
+          }
+        },
+
+        relTime(iso) {
+          if (!iso) return "—";
+          const t = new Date(iso).getTime();
+          if (Number.isNaN(t)) return "—";
+          const diff = Date.now() - t;
+          if (diff < 60_000) return "Vừa xong";
+          if (diff < 3600_000) return Math.floor(diff / 60_000) + " phút trước";
+          if (diff < 86400_000) return Math.floor(diff / 3600_000) + " giờ trước";
+          return Math.floor(diff / 86400_000) + " ngày trước";
+        },
+        waitTime(iso) {
+          if (!iso) return "—";
+          const t = new Date(iso).getTime();
+          const diff = Date.now() - t;
+          if (diff < 60_000) return "<1 phút";
+          if (diff < 3600_000) return Math.floor(diff / 60_000) + " phút";
+          if (diff < 86400_000) return Math.floor(diff / 3600_000) + " giờ";
+          return Math.floor(diff / 86400_000) + " ngày";
+        },
+      };
+    }
+  </script>
+</Layout>

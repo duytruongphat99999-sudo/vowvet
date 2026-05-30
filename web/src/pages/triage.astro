@@ -1,0 +1,268 @@
+---
+/**
+ * /triage — Decision-tree triage landing (M31).
+ *
+ * PUBLIC. Visitor walks through the tree without an account → no saving.
+ * Logged-in users see a "Save to a pet" CTA at the result and can jump to
+ * /triage/[petId] for persistence + history.
+ */
+import Layout from "../layouts/Layout.astro";
+import { getZaloLink } from "../../../shared/contact-info.ts";
+
+const user = Astro.locals.user;
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let root: any = null;
+let pets: any[] = [];
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/triage-tree/node/root`);
+  if (r.ok) root = (await r.json()).node;
+} catch (_) {}
+
+if (user) {
+  try {
+    const r = await fetch(`${API_INTERNAL}/api/v1/pets`, { headers: { cookie: cookieHeader } });
+    if (r.ok) pets = (await r.json()).pets || [];
+  } catch (_) {}
+}
+
+const initialData = JSON.stringify({
+  initialNode: root,
+  isLoggedIn: !!user,
+  pets,
+  zaloUrl: getZaloLink(),
+});
+---
+
+<Layout title="🚑 Triage · VowVet" description="Phân loại mức khẩn cấp cho bé — quyết định nhanh đi vet hay theo dõi">
+  <main class="min-h-screen bg-gradient-to-b from-slate-50 to-white px-4 py-6 pb-16">
+    <div class="max-w-xl mx-auto" x-data={`triagePage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/emergency" class="text-sm text-slate-500 hover:text-slate-700">← Cấp cứu</a>
+        <h1 class="text-lg font-bold text-slate-900">🚑 Triage</h1>
+        <a href="/faq" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">📚 FAQ</a>
+      </header>
+
+      <!-- Progress bar -->
+      <div class="mb-5">
+        <div class="flex items-center gap-3 text-xs text-slate-500 mb-1">
+          <span x-text="result ? 'Hoàn tất' : `Câu ${step + 1}`"></span>
+          <div class="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+            <div class="h-full bg-mmp-cream rounded-full transition-all"
+              :style="`width: ${progressPct}%`"></div>
+          </div>
+          <span x-text="result ? '✓' : ''"></span>
+        </div>
+      </div>
+
+      <!-- Active question -->
+      <div x-show="!result" x-cloak>
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+          <h2 class="text-xl font-bold text-slate-900 mb-1" x-text="currentNode?.question"></h2>
+          <p x-show="currentNode?.helper" class="text-xs text-slate-500 mb-4" x-text="currentNode?.helper"></p>
+
+          <div class="space-y-2 mt-4">
+            <template x-for="opt in currentNode?.options || []" :key="opt.label">
+              <button @click="answer(opt)" :disabled="loading"
+                class="w-full p-4 rounded-xl bg-white border-2 border-slate-200 hover:border-mmp-ink hover:bg-mmp-cream transition active:scale-[0.99] text-left flex items-center gap-3 disabled:opacity-50">
+                <span class="text-2xl shrink-0" x-text="opt.emoji || '·'"></span>
+                <span class="font-medium text-slate-900 flex-1" x-text="opt.label"></span>
+                <span class="text-slate-300 text-xl">›</span>
+              </button>
+            </template>
+          </div>
+
+          <button x-show="step > 0" @click="goBack()" class="mt-4 text-xs text-slate-500 underline">
+            ← Câu trước
+          </button>
+        </div>
+
+        <p class="text-[11px] text-slate-400 text-center italic mt-4 leading-relaxed">
+          Triage chỉ hỗ trợ phân loại — không thay thế chẩn đoán của vet.<br />
+          Khi nghi ngờ, luôn gọi <a href="tel:+84779029133" class="font-bold text-mmp-ink">0779 029 133</a>.
+        </p>
+      </div>
+
+      <!-- Result -->
+      <div x-show="result" x-cloak>
+        <div :class="tierClasses" class="p-6 rounded-3xl shadow-xl text-center mb-4 border-2">
+          <div class="text-6xl mb-2" x-text="tierMeta?.emoji"></div>
+          <h2 class="text-xl font-extrabold uppercase tracking-wide" x-text="tierMeta?.label_vi"></h2>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+          <h3 class="text-sm font-bold text-slate-700 uppercase mb-2">💡 Khuyến nghị</h3>
+          <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-line" x-text="result?.recommendation"></p>
+        </div>
+
+        <!-- Emergency CTA -->
+        <template x-if="result?.tier === 'emergency' || result?.tier === 'urgent'">
+          <div class="space-y-2 mb-4">
+            <a href="tel:+84779029133" class="block bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl text-center text-lg shadow-lg">
+              📞 Gọi 0779 029 133 ngay
+            </a>
+            <a :href="zaloUrl" target="_blank" rel="noopener"
+              class="block bg-mmp-ink hover:bg-mmp-ink text-white font-bold py-3 rounded-xl text-center">
+              💬 Chat Zalo VowVet
+            </a>
+          </div>
+        </template>
+
+        <!-- Save session (logged-in only) -->
+        <template x-if="isLoggedIn && pets.length > 0 && !saved">
+          <div class="bg-mmp-cream border border-mmp-cream rounded-2xl p-4 mb-3">
+            <p class="text-sm font-bold text-mmp-ink mb-2">💾 Lưu kết quả cho bé của bạn?</p>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="pet in pets" :key="pet.id">
+                <button @click="saveTo(pet.id)" :disabled="savingPetId === pet.id"
+                  class="text-xs bg-white border border-mmp-cream hover:bg-mmp-cream text-mmp-ink font-bold px-3 py-1.5 rounded-lg disabled:opacity-50">
+                  <span x-show="savingPetId !== pet.id" x-text="pet.name"></span>
+                  <span x-show="savingPetId === pet.id">Đang lưu...</span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="saved">
+          <p class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3">
+            ✓ Đã lưu session vào lịch sử của bé.
+          </p>
+        </template>
+
+        <template x-if="!isLoggedIn">
+          <p class="text-xs text-slate-500 italic mb-3 text-center">
+            <a href="/login" class="text-mmp-ink underline font-semibold">Đăng nhập</a> để lưu kết quả + tham khảo Pet Score, Vaccines, Voice Diary.
+          </p>
+        </template>
+
+        <button @click="reset()" class="block w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-sm mb-2">
+          🔁 Đánh giá lại
+        </button>
+        <a href="/dashboard" x-show="isLoggedIn" class="block w-full bg-mmp-ink hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-sm text-center">
+          Về Dashboard
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function triagePage(initial) {
+      return {
+        currentNode: initial.initialNode,
+        step: 0,
+        history: [],
+        answers: [],
+        result: null,
+        loading: false,
+        saved: false,
+        savingPetId: 0,
+        isLoggedIn: initial.isLoggedIn,
+        pets: initial.pets,
+        zaloUrl: initial.zaloUrl,
+
+        get progressPct() {
+          if (this.result) return 100;
+          // Soft heuristic — assume 3 questions per branch
+          return Math.min(95, (this.step + 1) * 25);
+        },
+
+        get tierMeta() {
+          if (!this.result) return null;
+          const map = {
+            emergency: { emoji: "🚨", label_vi: "Cấp cứu — đi vet NGAY" },
+            urgent: { emoji: "⚠️", label_vi: "Khẩn — khám trong 12-24h" },
+            non_urgent: { emoji: "👁️", label_vi: "Theo dõi tại nhà" },
+            wellness: { emoji: "✅", label_vi: "Bé ổn" },
+          };
+          return map[this.result.tier];
+        },
+
+        get tierClasses() {
+          const t = this.result?.tier;
+          if (t === "emergency") return "bg-red-50 border-red-400 text-red-900";
+          if (t === "urgent") return "bg-amber-50 border-orange-400 text-orange-900";
+          if (t === "non_urgent") return "bg-amber-50 border-amber-400 text-amber-900";
+          if (t === "wellness") return "bg-emerald-50 border-emerald-400 text-emerald-900";
+          return "bg-slate-50 border-slate-300 text-slate-900";
+        },
+
+        async answer(opt) {
+          this.answers.push({
+            nodeId: this.currentNode.id,
+            question: this.currentNode.question,
+            answer: opt.label,
+          });
+          this.history.push(this.currentNode);
+          this.step++;
+
+          if (opt.tier) {
+            this.result = { tier: opt.tier, recommendation: opt.recommendation || "" };
+            return;
+          }
+          if (!opt.next) return;
+          this.loading = true;
+          try {
+            const res = await fetch(`/api/v1/triage-tree/node/${opt.next}`);
+            if (res.ok) {
+              const j = await res.json();
+              this.currentNode = j.node;
+            }
+          } catch (_) {}
+          finally { this.loading = false; }
+        },
+
+        goBack() {
+          if (this.history.length === 0) return;
+          this.currentNode = this.history.pop();
+          this.answers.pop();
+          this.step = Math.max(0, this.step - 1);
+        },
+
+        async saveTo(petId) {
+          if (!this.result) return;
+          this.savingPetId = petId;
+          try {
+            const res = await fetch('/api/v1/triage-tree/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                petId,
+                primarySymptom: this.answers[0]?.answer || "",
+                answers: this.answers,
+                finalTier: this.result.tier,
+                finalRecommendation: this.result.recommendation,
+              }),
+            });
+            if (res.ok) {
+              this.saved = true;
+            } else {
+              alert((await res.json())?.error?.message || "Lỗi lưu");
+            }
+          } catch (_) {
+            alert("Lỗi kết nối.");
+          } finally {
+            this.savingPetId = 0;
+          }
+        },
+
+        reset() {
+          this.currentNode = initial.initialNode;
+          this.step = 0;
+          this.history = [];
+          this.answers = [];
+          this.result = null;
+          this.saved = false;
+        },
+      };
+    }
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</Layout>

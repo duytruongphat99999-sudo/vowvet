@@ -1,0 +1,200 @@
+---
+/**
+ * /pets/[id]/pain — Glasgow CMPS-SF pain assessment (M23).
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+import { PAIN_QUESTIONS, PAIN_LABELS } from "@shared/pain-glasgow.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let history: any[] = [];
+let latest: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/pain`, { headers: { cookie: cookieHeader } });
+  if (res.ok) {
+    const j = await res.json();
+    history = j.assessments || [];
+    latest = history[0] || null;
+  }
+} catch (_) {}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name },
+  history, latest,
+  questions: PAIN_QUESTIONS,
+  labels: PAIN_LABELS,
+});
+---
+
+<Layout title={`Đánh giá đau · ${pet.name}`} description="Glasgow CMPS-SF — vet-validated pain assessment">
+  <main class="min-h-screen bg-gradient-to-b from-rose-50 to-orange-50 px-4 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`painPage(${initialData})`}>
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
+        <h1 class="text-lg font-bold text-slate-900">🩺 Đánh giá đau</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <template x-if="latest && view === 'home'">
+        <div class="rounded-2xl p-5 shadow-md text-white mb-4"
+          :class="colorClass(latest.pain_level)">
+          <div class="flex items-start gap-3">
+            <span class="text-4xl" x-text="labels[latest.pain_level]?.emoji"></span>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs uppercase opacity-90">Lần gần nhất</p>
+              <p class="text-xl font-extrabold" x-text="`${latest.total_score}/24 · ${labels[latest.pain_level]?.label}`"></p>
+              <p class="text-xs opacity-90 mt-1" x-text="labels[latest.pain_level]?.description"></p>
+              <p class="text-[11px] opacity-75 mt-2" x-text="fmtDate(latest.assessed_at)"></p>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="view === 'home'">
+        <div>
+          <button @click="start()"
+            class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-orange-500 hover:opacity-95 text-white font-bold shadow-lg mb-4">
+            🩺 <span x-text="latest ? 'Đánh giá lại' : 'Bắt đầu đánh giá đau'"></span>
+          </button>
+          <p class="text-xs text-slate-500 text-center mt-2">
+            ⓘ Glasgow Composite Measure Pain Scale - Short Form (CMPS-SF) — vet-validated chuẩn quốc tế
+          </p>
+        </div>
+      </template>
+
+      <template x-if="view === 'quiz'">
+        <div>
+          <div class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 sticky top-2 z-10 backdrop-blur">
+            <div class="flex items-center gap-3 mb-2">
+              <button @click="back()" :disabled="qIndex === 0" class="text-xs text-slate-500 disabled:opacity-30">← Trước</button>
+              <span class="text-xs font-medium text-slate-700">Câu <span x-text="qIndex + 1"></span>/<span x-text="questions.length"></span></span>
+              <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-rose-500 transition-all" :style="`width: ${((qIndex + 1) / questions.length) * 100}%`"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-7 shadow-md">
+            <h2 class="text-base sm:text-lg font-bold text-slate-900 mb-5" x-text="currentQuestion?.question_vi"></h2>
+            <div class="space-y-2">
+              <template x-for="opt in currentQuestion?.options || []" :key="opt.score">
+                <button @click="choose(opt.score)"
+                  :class="answers[currentQuestion?.id] === opt.score ? 'border-rose-500 bg-rose-50 ring-2 ring-rose-200' : 'border-slate-200 hover:border-rose-300'"
+                  class="w-full text-left border-2 rounded-xl p-3 transition active:scale-[0.98]">
+                  <div class="flex items-center gap-3">
+                    <span class="w-7 h-7 shrink-0 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-sm font-bold" x-text="opt.score"></span>
+                    <span class="text-sm" x-text="opt.label_vi"></span>
+                  </div>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="view === 'loading'">
+        <div class="bg-white rounded-3xl p-12 text-center"><p class="text-6xl mb-3 animate-pulse">🩺</p><p class="font-bold">Đang tính điểm...</p></div>
+      </template>
+
+      <template x-if="view === 'result' && submittedResult">
+        <div>
+          <div class="rounded-3xl p-6 text-white shadow-2xl mb-4" :class="colorClass(submittedResult.pain_level)">
+            <p class="text-7xl text-center mb-3" x-text="labels[submittedResult.pain_level]?.emoji"></p>
+            <p class="text-center text-sm opacity-90 uppercase">Pain Score</p>
+            <p class="text-center text-5xl font-extrabold mt-1" x-text="`${submittedResult.total_score}/24`"></p>
+            <p class="text-center text-xl font-bold mt-2" x-text="labels[submittedResult.pain_level]?.label"></p>
+            <p class="text-center text-sm opacity-95 mt-3 px-2" x-text="labels[submittedResult.pain_level]?.description"></p>
+          </div>
+          <template x-if="submittedResult.needs_vet">
+            <a :href="`/chat`" class="block w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-center mb-2 shadow-lg">
+              💬 Chat với vet ngay
+            </a>
+          </template>
+          <button @click="view = 'home'; reload()" class="w-full py-3 rounded-xl bg-slate-100 text-slate-700 font-bold">Xong</button>
+        </div>
+      </template>
+
+      <template x-if="error">
+        <p class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 mt-3" x-text="error"></p>
+      </template>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function painPage(initial) {
+      return {
+        pet: initial.pet,
+        history: initial.history,
+        latest: initial.latest,
+        questions: initial.questions,
+        labels: initial.labels,
+        view: "home",
+        qIndex: 0,
+        answers: {},
+        submittedResult: null,
+        error: "",
+
+        get currentQuestion() { return this.questions[this.qIndex]; },
+
+        colorClass(level) {
+          if (level === "none") return "bg-gradient-to-br from-emerald-500 to-slate-800";
+          if (level === "mild") return "bg-gradient-to-br from-amber-500 to-yellow-600";
+          if (level === "moderate") return "bg-gradient-to-br from-orange-500 to-red-500";
+          if (level === "severe") return "bg-gradient-to-br from-red-600 to-rose-700";
+          return "bg-slate-500";
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "—";
+          try { return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+          catch { return iso; }
+        },
+
+        start() { this.qIndex = 0; this.answers = {}; this.view = "quiz"; this.error = ""; },
+        back() { if (this.qIndex > 0) this.qIndex--; },
+
+        choose(score) {
+          this.answers[this.currentQuestion.id] = Number(score);
+          if (this.qIndex < this.questions.length - 1) this.qIndex++;
+          else this.submit();
+        },
+
+        async submit() {
+          this.view = "loading";
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/pain`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ answers: this.answers }),
+            });
+            if (!res.ok) {
+              this.error = "Lỗi lưu"; this.view = "quiz"; return;
+            }
+            this.submittedResult = await res.json();
+            this.view = "result";
+          } catch (_) { this.error = "Lỗi kết nối"; this.view = "quiz"; }
+        },
+
+        async reload() {
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/pain`, { credentials: "include" });
+            if (res.ok) { const j = await res.json(); this.history = j.assessments || []; this.latest = this.history[0] || null; }
+          } catch (_) {}
+        },
+      };
+    }
+  </script>
+</Layout>

@@ -1,0 +1,276 @@
+---
+/**
+ * /places/checkin?placeId=X[&petId=Y] — Check-in flow (M26).
+ * Auth required.
+ */
+import Layout from "../../layouts/Layout.astro";
+import { fetchMe } from "../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const url = new URL(Astro.request.url);
+const placeId = Number(url.searchParams.get("placeId"));
+const presetPetId = Number(url.searchParams.get("petId")) || null;
+if (!placeId) return Astro.redirect("/map");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let place: any = null;
+let pets: any[] = [];
+try {
+  const [pRes, meRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/places/${placeId}`),
+    fetch(`${API_INTERNAL}/api/v1/auth/me`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (pRes.ok) place = await pRes.json();
+  if (meRes.ok) pets = (await meRes.json()).pets || [];
+} catch (_) {}
+
+if (!place) return Astro.redirect("/map");
+
+const initialData = JSON.stringify({ place, pets, presetPetId });
+---
+
+<Layout title={`Check-in ${place.name} · VowVet`} description={`Check-in tại ${place.name}`}>
+  <main class="min-h-screen bg-slate-50 px-4 py-6 pb-16" x-data={`checkinPage(${initialData})`}>
+    <div class="max-w-md mx-auto">
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a :href="`/places/${place.id}`" class="text-sm text-slate-500 hover:text-slate-700">← Trở lại</a>
+        <h1 class="text-base font-bold text-slate-900">📍 Check-in</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+        <p class="text-xs text-slate-500 uppercase tracking-wider">Đang check-in tại</p>
+        <p class="text-xl font-extrabold text-slate-900 mt-1" x-text="place.name"></p>
+        <p class="text-xs text-slate-500 mt-1" x-text="place.address"></p>
+      </div>
+
+      <!-- No pets -->
+      <template x-if="pets.length === 0">
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
+          <p class="text-4xl mb-2">🐾</p>
+          <p class="font-semibold text-amber-900 mb-3">Bạn chưa có bé nào</p>
+          <a href="/pets/new" class="inline-block bg-amber-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm">+ Thêm bé</a>
+        </div>
+      </template>
+
+      <!-- Pick pet -->
+      <template x-if="pets.length > 0">
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+          <p class="text-sm font-semibold text-slate-700 mb-3">Chọn bé đi check-in</p>
+          <div class="space-y-2">
+            <template x-for="pet in pets" :key="pet.id">
+              <button @click="form.petId = pet.id"
+                :class="form.petId === pet.id ? 'border-mmp-ink bg-mmp-cream ring-2 ring-mmp-gold' : 'border-slate-200 hover:border-mmp-cream'"
+                class="w-full text-left border-2 rounded-xl p-3 transition flex items-center gap-3">
+                <template x-if="pet.photo_url">
+                  <img :src="pet.photo_url" class="w-10 h-10 rounded-full object-cover" />
+                </template>
+                <template x-if="!pet.photo_url">
+                  <span class="w-10 h-10 rounded-full bg-mmp-cream flex items-center justify-center text-xl">
+                    <span x-text="pet.species === 'Mèo' ? '🐱' : '🐶'"></span>
+                  </span>
+                </template>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-slate-900" x-text="pet.name"></p>
+                  <p class="text-xs text-slate-500" x-text="`${pet.species} · ${pet.breed || ''}`"></p>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Rating -->
+      <template x-if="pets.length > 0">
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+          <p class="text-sm font-semibold text-slate-700 mb-2">Đánh giá địa điểm</p>
+          <div class="flex gap-1 mb-2">
+            <template x-for="i in 5" :key="i">
+              <button type="button" @click="form.rating = i"
+                class="text-4xl transition active:scale-90">
+                <span :class="i <= form.rating ? 'text-amber-500' : 'text-slate-300'" x-text="i <= form.rating ? '★' : '☆'"></span>
+              </button>
+            </template>
+          </div>
+          <p class="text-xs text-slate-500" x-text="ratingLabel"></p>
+        </div>
+      </template>
+
+      <!-- Review -->
+      <template x-if="pets.length > 0">
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+          <p class="text-sm font-semibold text-slate-700 mb-2">Chia sẻ (tuỳ chọn)</p>
+          <textarea x-model="form.review" rows="3" maxlength="500"
+            placeholder="Bé thích chỗ này không? Có nước/bóng mát/không gian off-leash?"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-mmp-gold"></textarea>
+        </div>
+      </template>
+
+      <!-- Photos (optional, max 3) -->
+      <template x-if="pets.length > 0">
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+          <p class="text-sm font-semibold text-slate-700 mb-1">📸 Ảnh check-in (tuỳ chọn)</p>
+          <p class="text-[11px] text-slate-500 mb-2">Tối đa 3 ảnh · JPG/PNG/WebP · max 5MB/ảnh</p>
+
+          <label class="block w-full p-4 rounded-xl border-2 border-dashed border-mmp-cream hover:border-mmp-ink bg-mmp-cream hover:bg-mmp-cream cursor-pointer transition text-center"
+            x-show="previews.length < 3">
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple
+              @change="handleFiles($event)" class="hidden" />
+            <div class="text-xl">📸</div>
+            <p class="text-xs font-medium text-mmp-ink mt-1">Bấm để chọn ảnh</p>
+            <p class="text-[10px] text-slate-500 mt-0.5"><span x-text="previews.length"></span>/3 ảnh</p>
+          </label>
+
+          <div x-show="previews.length > 0" class="grid grid-cols-3 gap-2 mt-2">
+            <template x-for="(p, idx) in previews" :key="idx">
+              <div class="relative">
+                <img :src="p.dataUrl" alt="" class="w-full aspect-square object-cover rounded-lg border border-slate-200" />
+                <button type="button" @click="removePhoto(idx)"
+                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow">✕</button>
+                <div x-show="p.uploading" class="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                  <span class="text-white text-[9px] font-bold">⏳</span>
+                </div>
+                <div x-show="p.uploaded" class="absolute bottom-0.5 right-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center">✓</div>
+              </div>
+            </template>
+          </div>
+
+          <p x-show="photoError" x-text="photoError" class="text-xs text-red-600 mt-2"></p>
+        </div>
+      </template>
+
+      <template x-if="error">
+        <p class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 mb-3" x-text="error"></p>
+      </template>
+
+      <template x-if="pets.length > 0">
+        <button @click="submit()" :disabled="saving || !form.petId"
+          class="w-full py-3.5 rounded-2xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 text-white font-bold shadow-lg">
+          <span x-show="!saving">📍 Check-in</span>
+          <span x-show="saving">Đang lưu...</span>
+        </button>
+      </template>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function checkinPage(initial) {
+      return {
+        place: initial.place,
+        pets: initial.pets,
+        form: {
+          petId: initial.presetPetId || (initial.pets[0]?.id ?? null),
+          rating: 5,
+          review: "",
+        },
+        previews: [],
+        photoError: "",
+        saving: false,
+        error: "",
+
+        fileToDataUrl(file) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        },
+
+        async handleFiles(event) {
+          this.photoError = "";
+          const files = Array.from(event.target.files || []);
+          if (this.previews.length + files.length > 3) {
+            this.photoError = "Tối đa 3 ảnh";
+            event.target.value = "";
+            return;
+          }
+          for (const file of files) {
+            if (file.size > 5 * 1024 * 1024) {
+              this.photoError = `Ảnh "${file.name}" vượt 5MB`;
+              continue;
+            }
+            if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+              this.photoError = `Ảnh "${file.name}" không phải JPG/PNG/WebP`;
+              continue;
+            }
+            const dataUrl = await this.fileToDataUrl(file);
+            const preview = { dataUrl, file, uploading: true, uploaded: false, url: null };
+            this.previews.push(preview);
+
+            try {
+              const fd = new FormData();
+              fd.append("file", file);
+              const res = await fetch("/api/v1/places/upload-image", {
+                method: "POST",
+                credentials: "include",
+                body: fd,
+              });
+              if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                throw new Error(j?.error?.message || `Upload ${res.status}`);
+              }
+              const j = await res.json();
+              preview.url = j.url;
+              preview.uploading = false;
+              preview.uploaded = true;
+            } catch (err) {
+              this.photoError = `Upload "${file.name}" thất bại: ${err.message}`;
+              this.previews = this.previews.filter((p) => p !== preview);
+            }
+          }
+          event.target.value = "";
+        },
+
+        removePhoto(idx) {
+          this.previews.splice(idx, 1);
+        },
+
+        get ratingLabel() {
+          return ["Chọn sao", "Tệ", "Tạm được", "Bình thường", "Tốt", "Tuyệt vời"][this.form.rating] || "";
+        },
+
+        async submit() {
+          if (!this.form.petId) { this.error = "Chọn bé trước"; return; }
+          if (this.previews.some((p) => p.uploading)) {
+            this.error = "Đợi ảnh upload xong rồi submit";
+            return;
+          }
+          this.error = "";
+          this.saving = true;
+          const uploadedPhotos = this.previews.filter((p) => p.uploaded && p.url).map((p) => p.url);
+          try {
+            const res = await fetch(`/api/v1/places/${this.place.id}/checkin`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                pet_id: this.form.petId,
+                rating: this.form.rating,
+                review: this.form.review || undefined,
+                photo_urls: uploadedPhotos,
+              }),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+              this.error = j?.error?.message || "Lỗi check-in";
+              return;
+            }
+            alert(`✓ Đã check-in tại ${this.place.name}!`);
+            window.location.href = `/places/${this.place.id}`;
+          } catch (err) {
+            this.error = "Lỗi kết nối server.";
+          } finally {
+            this.saving = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>

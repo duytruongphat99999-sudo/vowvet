@@ -1,0 +1,592 @@
+---
+/**
+ * /pets/[id]/diary — Voice Diary (M14).
+ *
+ * 3 tabs:
+ *  1) Ghi hôm nay — Web Speech API mic or textarea → submit to /diary
+ *  2) Nhật ký     — timeline by month
+ *  3) Yearbook    — full year + mood stats + print
+ */
+import Layout from "../../../layouts/Layout.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+// Referer-aware back: respect where user came from (dashboard / quest hub / pet profile)
+const referer = Astro.request.headers.get("referer") || "";
+const backHref = referer.includes("/dashboard") ? "/dashboard"
+              : referer.includes("/quests")    ? `/pets/${pet.id}/quests`
+              : `/pets/${pet.id}`;
+const backLabel = referer.includes("/dashboard") ? "Dashboard"
+               : referer.includes("/quests")    ? "Nhiệm vụ"
+               : pet.name;
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+// Server-side: fetch today entry + this month entries + yearbook (current year)
+const now = new Date();
+const curYear = now.getFullYear();
+const curMonth = now.getMonth() + 1;
+
+let todayEntry: any = null;
+let monthEntries: any[] = [];
+let yearbook: any = { year: curYear, total_entries: 0, by_mood: {}, months: [] };
+
+try {
+  const [tRes, mRes, yRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/diary/today`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/diary?year=${curYear}&month=${curMonth}`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/diary/yearbook/${curYear}`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (tRes.ok) {
+    const j = await tRes.json();
+    todayEntry = j.entry;
+  }
+  if (mRes.ok) {
+    monthEntries = (await mRes.json()).entries || [];
+  }
+  if (yRes.ok) yearbook = await yRes.json();
+} catch (_) {}
+
+const defaultTab = todayEntry ? "history" : "record";
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, photo_url: pet.photo_url, species: pet.species },
+  todayEntry,
+  monthEntries,
+  yearbook,
+  defaultTab,
+  curYear,
+  curMonth,
+});
+---
+
+<Layout
+  title={`Nhật ký bé ${pet.name} · VowVet`}
+  description="Voice diary — bé kể chuyện về ngày hôm nay"
+>
+  <style is:inline>{`
+    @keyframes pulseRed {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50%      { box-shadow: 0 0 0 18px rgba(239, 68, 68, 0); }
+    }
+    .recording-pulse { animation: pulseRed 1.4s ease-out infinite; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .diary-paragraph { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; }
+
+    @media print {
+      nav, header, .no-print, .tab-bar, .yearbook-controls, button { display: none !important; }
+      body { background: white !important; }
+      .yearbook-entry { page-break-inside: avoid; }
+      .yearbook-month { page-break-before: always; }
+      .yearbook-month:first-child { page-break-before: auto; }
+      .yearbook-cover { page-break-after: always; }
+      h3, h2 { font-family: Georgia, serif; }
+    }
+  `}</style>
+
+  <main class="min-h-screen bg-mmp-cream via-mmp-cream to-amber-50 px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`diaryPage(${initialData})`} x-init="onMount()">
+
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-5 gap-3 no-print">
+        <a href={backHref} class="text-sm text-slate-500 hover:text-mmp-ink">← {backLabel}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900">📔 Nhật ký bé</h1>
+        <span class="w-12"></span>
+      </header>
+
+      <!-- Tab bar -->
+      <div class="bg-white/70 backdrop-blur rounded-2xl p-1 flex gap-1 mb-5 shadow-sm tab-bar no-print">
+        <button @click="tab = 'record'"
+          :class="tab === 'record' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600 hover:bg-white'"
+          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">
+          🎙️ Ghi hôm nay
+        </button>
+        <button @click="tab = 'history'"
+          :class="tab === 'history' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600 hover:bg-white'"
+          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">
+          📜 Nhật ký
+        </button>
+        <button @click="tab = 'yearbook'"
+          :class="tab === 'yearbook' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600 hover:bg-white'"
+          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">
+          📖 Yearbook
+        </button>
+      </div>
+
+      <!-- ───── Tab 1: Record ───── -->
+      <div x-show="tab === 'record'">
+
+        <!-- Already has today's entry -->
+        <template x-if="todayEntry">
+          <div class="bg-gradient-to-br from-emerald-50 to-slate-800 border-2 border-emerald-200 rounded-2xl p-6 text-center">
+            <p class="text-5xl mb-2" x-text="moodEmoji[todayEntry.mood_detected] || '📔'"></p>
+            <h2 class="text-lg font-bold text-emerald-900 mb-1">Đã có nhật ký hôm nay ✓</h2>
+            <p class="text-sm text-emerald-700 mb-4" x-text="todayEntry.pet_diary_title"></p>
+            <div class="flex gap-2 justify-center">
+              <a :href="`/pets/${pet.id}/diary/${todayEntry.id}`"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
+                Xem nhật ký →
+              </a>
+              <button @click="tab = 'history'"
+                class="bg-white border border-emerald-300 text-emerald-800 text-sm font-semibold px-4 py-2 rounded-xl">
+                Lịch sử
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- No entry yet → record/type UI -->
+        <template x-if="!todayEntry">
+          <div>
+
+            <!-- mode: idle -->
+            <div x-show="mode === 'idle'" class="bg-white rounded-3xl border border-slate-100 p-6 sm:p-10 shadow-md text-center">
+              <p class="text-base text-slate-700 mb-2">📔 Kể về ngày hôm nay của bé</p>
+              <p class="text-2xl font-bold text-slate-900 mb-6" x-text="pet.name"></p>
+
+              <template x-if="speechSupported">
+                <div>
+                  <button @click="startRecording()"
+                    class="w-32 h-32 rounded-full bg-mmp-ink hover:opacity-90 active:scale-95 transition-all shadow-2xl text-white text-6xl mb-4">
+                    🎤
+                  </button>
+                  <p class="text-sm font-semibold text-slate-700 mb-1">Bấm để bắt đầu kể</p>
+                  <p class="text-xs text-slate-500">Tiếng Việt · 30-60 giây là đủ</p>
+                  <p class="text-xs text-mmp-ink mt-3">— hoặc —</p>
+                </div>
+              </template>
+
+              <button @click="mode = 'typing'"
+                class="mt-3 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-5 py-2.5 rounded-xl">
+                💬 Gõ trực tiếp
+              </button>
+
+              <template x-if="!speechSupported">
+                <p class="text-xs text-amber-700 mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  ⚠️ Trình duyệt không hỗ trợ ghi âm. Vui lòng dùng Chrome/Edge hoặc gõ tay.
+                </p>
+              </template>
+            </div>
+
+            <!-- mode: recording -->
+            <div x-show="mode === 'recording'" class="bg-white rounded-3xl border border-slate-100 p-6 sm:p-10 shadow-md text-center">
+              <button @click="stopRecording()"
+                class="w-32 h-32 rounded-full bg-red-500 hover:bg-red-600 active:scale-95 transition-all text-white text-6xl mb-4 recording-pulse">
+                ⏹️
+              </button>
+              <p class="text-2xl font-mono font-bold text-red-600 mb-2" x-text="formatTimer(timer)"></p>
+              <p class="text-xs text-slate-500 mb-4">Bấm để dừng</p>
+              <div class="bg-slate-50 rounded-xl p-4 text-left max-h-48 overflow-y-auto">
+                <p class="text-sm text-slate-600 italic" x-text="transcript || '...đang lắng nghe...'"></p>
+              </div>
+            </div>
+
+            <!-- mode: typing or reviewing -->
+            <div x-show="mode === 'typing' || mode === 'reviewing'" class="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6">
+              <h2 class="text-base font-semibold text-slate-900 mb-3">📝 Câu chuyện hôm nay</h2>
+              <textarea x-model="transcript"
+                :placeholder="`Hôm nay bé ${pet.name} đi dạo... ăn... chơi với...`"
+                rows="6"
+                maxlength="3000"
+                class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-mmp-gold resize-none"></textarea>
+              <p class="text-xs text-slate-500 mt-2">
+                <span x-text="wordCount(transcript) + ' từ'"></span>
+                <span x-show="duration > 0"> · <span x-text="`${duration}s ghi`"></span></span>
+                <span x-show="wordCount(transcript) < 5" class="text-amber-600"> · cần ít nhất 5 từ</span>
+              </p>
+
+              <template x-if="error">
+                <div class="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700" x-text="error"></div>
+              </template>
+
+              <div class="flex gap-2 mt-4">
+                <button @click="reset()"
+                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">
+                  🔄 Bắt đầu lại
+                </button>
+                <button @click="submit()"
+                  :disabled="wordCount(transcript) < 5"
+                  class="flex-[2] bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm shadow-lg">
+                  ✨ Tạo nhật ký của bé
+                </button>
+              </div>
+            </div>
+
+            <!-- mode: saving -->
+            <div x-show="mode === 'saving'" class="bg-white rounded-3xl border border-slate-100 p-10 text-center">
+              <p class="text-6xl mb-4 animate-bounce">🐾</p>
+              <p class="text-lg font-semibold text-slate-700" x-text="`Bé ${pet.name} đang kể chuyện...`"></p>
+              <p class="text-xs text-slate-500 mt-2">AI đang viết nhật ký theo góc nhìn của bé</p>
+            </div>
+
+            <!-- mode: done -->
+            <div x-show="mode === 'done' && resultEntry" class="space-y-4">
+              <div class="bg-gradient-to-br from-amber-50 to-rose-50 border-2 border-amber-200 rounded-3xl p-6 shadow-lg">
+                <div class="flex items-center gap-3 mb-3">
+                  <span class="text-4xl" x-text="resultEntry && moodEmoji[resultEntry.mood_detected] || '🐾'"></span>
+                  <div class="flex-1">
+                    <p class="text-xs text-amber-700 font-medium">Nhật ký của bé</p>
+                    <h2 class="text-lg font-bold text-amber-900" x-text="resultEntry?.pet_diary_title"></h2>
+                  </div>
+                </div>
+                <template x-for="(p, idx) in (resultEntry?.pet_diary || '').split('\\n\\n')" :key="idx">
+                  <p class="text-sm text-slate-800 leading-relaxed mb-3 diary-paragraph"
+                    :style="`animation-delay: ${idx * 200}ms; font-family: Georgia, serif`"
+                    x-text="p"></p>
+                </template>
+              </div>
+              <div class="flex gap-2">
+                <button @click="reset()"
+                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">
+                  🔄 Tạo lại
+                </button>
+                <a :href="`/pets/${pet.id}/diary/${resultEntry?.id}`"
+                  class="flex-[2] bg-mmp-ink hover:bg-slate-800 text-white text-center font-bold py-2.5 rounded-xl text-sm">
+                  ✅ Xem chi tiết →
+                </a>
+              </div>
+            </div>
+
+          </div>
+        </template>
+
+      </div>
+
+      <!-- ───── Tab 2: History ───── -->
+      <div x-show="tab === 'history'">
+        <div class="bg-white rounded-2xl border border-slate-100 p-5">
+          <div class="flex items-center justify-between mb-4 gap-3">
+            <h2 class="text-base font-semibold text-slate-900">📜 Tháng <span x-text="curMonth"></span>/<span x-text="curYear"></span></h2>
+            <div class="flex gap-1">
+              <select x-model="filterMonth" @change="reloadMonth()"
+                class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                <template x-for="m in 12" :key="m">
+                  <option :value="m" x-text="`Tháng ${m}`" :selected="m === curMonth"></option>
+                </template>
+              </select>
+              <select x-model="filterYear" @change="reloadMonth()"
+                class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                <template x-for="y in years" :key="y">
+                  <option :value="y" x-text="y"></option>
+                </template>
+              </select>
+            </div>
+          </div>
+
+          <template x-if="monthEntries.length === 0">
+            <div class="text-center py-10">
+              <p class="text-5xl mb-3">📭</p>
+              <p class="text-sm text-slate-500 italic">Chưa có nhật ký nào tháng này</p>
+              <button @click="tab = 'record'" class="mt-4 text-xs text-mmp-ink hover:underline font-medium">
+                🎙️ Ghi nhật ký hôm nay →
+              </button>
+            </div>
+          </template>
+
+          <div class="space-y-3">
+            <template x-for="e in monthEntries" :key="e.id">
+              <a :href="`/pets/${pet.id}/diary/${e.id}`"
+                class="block bg-gradient-to-r from-slate-50 to-white border border-slate-100 rounded-xl p-4 hover:shadow-md hover:border-mmp-cream transition">
+                <div class="flex items-center gap-3 mb-2">
+                  <span class="text-2xl shrink-0" x-text="moodEmoji[e.mood_detected] || '📔'"></span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-bold text-sm text-slate-900 truncate" x-text="e.pet_diary_title"></p>
+                    <p class="text-[11px] text-slate-500" x-text="fmtDate(e.entry_date)"></p>
+                  </div>
+                  <span class="text-slate-400 text-xs">→</span>
+                </div>
+                <p class="text-xs text-slate-600 line-clamp-2 italic" style="font-family: Georgia, serif" x-text="(e.pet_diary || '').slice(0, 180) + '…'"></p>
+              </a>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───── Tab 3: Yearbook ───── -->
+      <div x-show="tab === 'yearbook'">
+
+        <!-- Year picker (no-print) -->
+        <div class="flex items-center justify-between mb-4 yearbook-controls no-print">
+          <select x-model="yearbookYear" @change="reloadYearbook()"
+            class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+            <template x-for="y in years" :key="y">
+              <option :value="y" x-text="`Năm ${y}`"></option>
+            </template>
+          </select>
+          <button @click="printYearbook()"
+            class="text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-xl shadow">
+            🖨️ In Yearbook
+          </button>
+        </div>
+
+        <!-- Cover -->
+        <div class="yearbook-cover bg-gradient-to-br from-amber-100 via-rose-100 to-white rounded-3xl p-8 text-center shadow-xl mb-6">
+          {pet.photo_url ? (
+            <img src={pet.photo_url} alt={pet.name} class="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-white shadow-lg" />
+          ) : (
+            <div class="w-32 h-32 rounded-full bg-white flex items-center justify-center text-6xl mx-auto mb-4 shadow-lg">
+              {pet.species === "cat" ? "🐱" : "🐶"}
+            </div>
+          )}
+          <p class="text-sm font-medium text-slate-700 mb-1">Cuốn Nhật Ký Bé</p>
+          <h1 class="text-3xl font-extrabold text-slate-900 mb-1" style="font-family: Georgia, serif" x-text="pet.name"></h1>
+          <p class="text-xl font-bold text-mmp-ink" x-text="yearbookYear"></p>
+          <p class="text-xs text-slate-500 mt-3 italic">— Mon Min Pet —</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 gap-3 mb-6">
+          <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
+            <p class="text-3xl mb-1">📔</p>
+            <p class="text-2xl font-extrabold text-slate-900" x-text="yearbook.total_entries"></p>
+            <p class="text-xs text-slate-500">ngày được ghi</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
+            <p class="text-3xl mb-1">😊</p>
+            <p class="text-2xl font-extrabold text-emerald-600" x-text="yearbook.by_mood?.happy || 0"></p>
+            <p class="text-xs text-slate-500">ngày vui</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
+            <p class="text-3xl mb-1">😄</p>
+            <p class="text-2xl font-extrabold text-amber-600" x-text="yearbook.by_mood?.funny || 0"></p>
+            <p class="text-xs text-slate-500">ngày thú vị</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
+            <p class="text-3xl mb-1">🎉</p>
+            <p class="text-2xl font-extrabold text-rose-600" x-text="yearbook.by_mood?.exciting || 0"></p>
+            <p class="text-xs text-slate-500">ngày đặc biệt</p>
+          </div>
+        </div>
+
+        <!-- Months -->
+        <template x-if="yearbook.months?.length === 0">
+          <p class="text-center py-10 text-sm text-slate-500 italic">Chưa có nhật ký nào trong năm này</p>
+        </template>
+
+        <template x-for="m in yearbook.months" :key="m.month">
+          <section class="yearbook-month mb-6">
+            <h3 class="text-xl font-bold text-slate-800 mb-3" style="font-family: Georgia, serif" x-text="`${m.month_label} / ${yearbookYear}`"></h3>
+            <div class="space-y-3">
+              <template x-for="e in m.entries" :key="e.id">
+                <article class="yearbook-entry bg-white rounded-xl p-4 border border-slate-100">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xl shrink-0" x-text="moodEmoji[e.mood_detected] || '📔'"></span>
+                    <h4 class="font-bold text-sm text-slate-900 flex-1 truncate" x-text="e.pet_diary_title"></h4>
+                    <span class="text-[11px] text-slate-400" x-text="fmtDateShort(e.entry_date)"></span>
+                  </div>
+                  <p class="text-xs text-slate-700 leading-relaxed line-clamp-3 italic" style="font-family: Georgia, serif" x-text="(e.pet_diary || '').slice(0, 200) + '…'"></p>
+                </article>
+              </template>
+            </div>
+          </section>
+        </template>
+
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function diaryPage(initial) {
+      return {
+        pet: initial.pet,
+        todayEntry: initial.todayEntry,
+        monthEntries: initial.monthEntries,
+        yearbook: initial.yearbook,
+        curYear: initial.curYear,
+        curMonth: initial.curMonth,
+        filterYear: initial.curYear,
+        filterMonth: initial.curMonth,
+        yearbookYear: initial.curYear,
+
+        tab: initial.defaultTab,
+        mode: "idle",
+        recognition: null,
+        speechSupported: false,
+        transcript: "",
+        duration: 0,
+        timer: 0,
+        timerInterval: null,
+        startTime: 0,
+        resultEntry: null,
+        error: null,
+
+        moodEmoji: { happy: "😊", sad: "😢", funny: "😄", exciting: "🎉", ordinary: "🐾" },
+
+        get years() {
+          const y = this.curYear;
+          return [y, y - 1, y - 2];
+        },
+
+        onMount() {
+          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (SR) {
+            this.speechSupported = true;
+            try {
+              this.recognition = new SR();
+              this.recognition.lang = "vi-VN";
+              this.recognition.continuous = true;
+              this.recognition.interimResults = true;
+              this.recognition.onresult = (e) => {
+                let t = "";
+                for (let i = 0; i < e.results.length; i++) {
+                  t += e.results[i][0].transcript + " ";
+                }
+                this.transcript = t.trim();
+              };
+              this.recognition.onerror = (e) => {
+                console.warn("STT error:", e.error);
+                if (this.mode === "recording") this.stopRecording();
+              };
+              this.recognition.onend = () => {
+                if (this.mode === "recording") {
+                  // Restart automatically (Vietnamese STT often stops after short silences)
+                  try { this.recognition.start(); } catch (_) {}
+                }
+              };
+            } catch (_) {
+              this.speechSupported = false;
+            }
+          }
+        },
+
+        startRecording() {
+          this.transcript = "";
+          this.duration = 0;
+          this.timer = 0;
+          this.startTime = Date.now();
+          this.mode = "recording";
+          this.timerInterval = setInterval(() => {
+            this.timer = Math.floor((Date.now() - this.startTime) / 1000);
+          }, 250);
+          try {
+            this.recognition && this.recognition.start();
+          } catch (_) {}
+        },
+
+        stopRecording() {
+          if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+          }
+          this.duration = Math.max(0, Math.floor((Date.now() - this.startTime) / 1000));
+          try {
+            if (this.recognition) {
+              this.recognition.onend = null; // prevent auto-restart
+              this.recognition.stop();
+            }
+          } catch (_) {}
+          this.mode = "reviewing";
+        },
+
+        formatTimer(s) {
+          const m = Math.floor(s / 60);
+          const sec = s % 60;
+          return `${m}:${String(sec).padStart(2, "0")}`;
+        },
+
+        wordCount(t) {
+          return (t || "").trim().split(/\s+/).filter(Boolean).length;
+        },
+
+        async submit() {
+          this.error = null;
+          if (this.wordCount(this.transcript) < 5) {
+            this.error = "Cần ít nhất 5 từ.";
+            return;
+          }
+          this.mode = "saving";
+          try {
+            const today = new Date();
+            const dateStr = today.toISOString().slice(0, 10);
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/diary`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                entry_date: dateStr,
+                owner_transcript: this.transcript,
+                duration_seconds: this.duration || null,
+              }),
+            });
+            if (res.status === 409) {
+              const j = await res.json();
+              this.error = j?.error?.message || "Đã có nhật ký hôm nay.";
+              this.mode = "reviewing";
+              return;
+            }
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              this.error = j?.error?.message || "Lỗi tạo nhật ký.";
+              this.mode = "reviewing";
+              return;
+            }
+            this.resultEntry = await res.json();
+            this.todayEntry = this.resultEntry;
+            this.mode = "done";
+          } catch (err) {
+            this.error = "Không thể kết nối server. Thử lại sau.";
+            this.mode = "reviewing";
+          }
+        },
+
+        reset() {
+          this.transcript = "";
+          this.duration = 0;
+          this.timer = 0;
+          this.error = null;
+          this.resultEntry = null;
+          this.mode = "idle";
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "";
+          try {
+            return new Date(iso + "T00:00:00").toLocaleDateString("vi-VN", {
+              weekday: "short", day: "2-digit", month: "2-digit", year: "numeric",
+            });
+          } catch { return iso; }
+        },
+
+        fmtDateShort(iso) {
+          if (!iso) return "";
+          return iso.slice(8, 10) + "/" + iso.slice(5, 7);
+        },
+
+        async reloadMonth() {
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/diary?year=${this.filterYear}&month=${this.filterMonth}`, { credentials: "include" });
+            if (res.ok) {
+              const j = await res.json();
+              this.monthEntries = j.entries || [];
+              this.curYear = Number(this.filterYear);
+              this.curMonth = Number(this.filterMonth);
+            }
+          } catch (_) {}
+        },
+
+        async reloadYearbook() {
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/diary/yearbook/${this.yearbookYear}`, { credentials: "include" });
+            if (res.ok) this.yearbook = await res.json();
+          } catch (_) {}
+        },
+
+        printYearbook() {
+          window.print();
+        },
+      };
+    }
+  </script>
+</Layout>

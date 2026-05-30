@@ -1,0 +1,44 @@
+{
+  "name": "VowVet by Mon Min Pet",
+  "short_name": "VowVet",
+  "description": "Người bạn đồng hành sức khỏe cho thú cưng — AI + WSAVA + AAFCO",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafafa",
+  "theme_color": "#0a0a0a",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "/logo-mmp.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["health", "lifestyle", "medical"],
+  "shortcuts": [
+    {
+      "name": "Cấp cứu",
+      "short_name": "Cấp cứu",
+      "description": "Hotline + sơ cứu pet",
+      "url": "/emergency",
+      "icons": [{ "src": "/logo-mmp.png", "sizes": "any" }]
+    },
+    {
+      "name": "Chat bác sĩ",
+      "short_name": "Chat",
+      "description": "Tin nhắn với bác sĩ thú y",
+      "url": "/chat",
+      "icons": [{ "src": "/logo-mmp.png", "sizes": "any" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

@@ -1,0 +1,3531 @@
+---
+/**
+ * /pets/[id]/personality — Pet Personality Atelier (M15 + Hybrid Engine v106).
+ *
+ * KIẾN TRÚC LAI (Hybrid Personality Engine):
+ *   • CORE — 20 câu hỏi 1 lần đầu → xác định 1 trong 12 types (k_factor 0.7-1.6)
+ *   • STATE — Daily Mood tick (3 cảm xúc/ngày) + Quarterly micro-quiz (3 câu/90 ngày)
+ *
+ * GIÁ TRỊ:
+ *   PetScore = (sum action points) × k_personality
+ *   Mỗi type unlock 1 psychological badge + 30-day Action Plan
+ *
+ * UX:
+ *   • Atelier hero brand-synced (gold ink + cream)
+ *   • Lucide icons (paw/sparkles/target/brain/heart) thay emoji chrome
+ *   • Quiz cards: ink border + gold accent + cream tap state
+ *   • Result card: ink portrait + gold k_factor badge + radar màu vàng
+ *   • Daily Mood: 3 button (Vui/Lo âu/Lừ đừ) — gắn vào behavioral state
+ *   • Quarterly Refresh: hiện sau 90 ngày, 3 câu nhanh detect behavior shift
+ */
+import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
+import { fetchPet } from "../../../lib/api-client.ts";
+import QRCode from "qrcode";
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const petId = Number(Astro.params.id);
+const { pet, status } = await fetchPet(petId, cookieHeader);
+if (status === 401) return Astro.redirect("/login");
+if (status === 404 || !pet) return Astro.redirect("/dashboard");
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+const APP_DOMAIN =
+  import.meta.env.APP_DOMAIN ||
+  process.env.APP_DOMAIN ||
+  "https://vowvet.monminpet.com";
+
+let questions: any[] = [];
+let allTypes: any[] = [];
+let existingResult: any = null;
+
+try {
+  const [qRes, tRes, pRes] = await Promise.all([
+    fetch(`${API_INTERNAL}/api/v1/personality/questions`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/personality/types`, { headers: { cookie: cookieHeader } }),
+    fetch(`${API_INTERNAL}/api/v1/pets/${petId}/personality`, { headers: { cookie: cookieHeader } }),
+  ]);
+  if (qRes.ok) questions = (await qRes.json()).questions || [];
+  if (tRes.ok) allTypes = (await tRes.json()).types || [];
+  if (pRes.ok) {
+    const p = await pRes.json();
+    if (p.completed) existingResult = p;
+  }
+} catch (_) {}
+
+// v140 — SSR QR for Wow Card (Task #8). Encode personality public page URL
+// (Task #9 sẽ tạo trang /personality-card/[slug]). Pet thiếu public_slug → fallback home.
+const personalityCardUrl = pet.public_slug
+  ? `${APP_DOMAIN}/personality-card/${pet.public_slug}`
+  : `${APP_DOMAIN}/?ref=wowcard`;
+let qrDataUrl = "";
+try {
+  qrDataUrl = await QRCode.toDataURL(personalityCardUrl, {
+    width: 240,
+    margin: 1,
+    errorCorrectionLevel: "M",
+    color: { dark: "#0a0a0a", light: "#FFFFFF" },
+  });
+} catch (_) {
+  // Silent — wow card sẽ ẩn QR nếu generate fail
+}
+
+const initialData = JSON.stringify({
+  pet: { id: pet.id, name: pet.name, photo_url: pet.photo_url, species: pet.species, public_slug: pet.public_slug || null },
+  questions,
+  allTypes,
+  existingResult,
+  qrDataUrl,
+  personalityCardUrl,
+});
+
+// v136: SEO data — title/description đổi theo trạng thái (chưa làm vs đã có result)
+const canonicalUrl = `${APP_DOMAIN}/pets/${petId}/personality`;
+const speciesViLabel = pet.species === "dog" ? "chó" : pet.species === "cat" ? "mèo" : "thú cưng";
+const seoTitle = existingResult?.type
+  ? `${pet.name} — ${existingResult.type} · Tính cách thú cưng · VowVet`
+  : `Tính cách ${pet.name} · 12 personality types · VowVet`;
+const seoDescription = existingResult?.description
+  ? String(existingResult.description).replace(/\s+/g, " ").trim().slice(0, 200)
+  : `Khám phá tính cách của ${pet.name} — quiz 20 câu hỏi xác định 1 trong 12 personality types, kèm chỉ số k-factor và kế hoạch chăm sóc 30 ngày dành riêng cho ${speciesViLabel} của bạn.`;
+const ogImage = pet.photo_url || `${APP_DOMAIN}/og-image.svg`;
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  url: canonicalUrl,
+  name: seoTitle,
+  description: seoDescription,
+  inLanguage: "vi-VN",
+  isPartOf: {
+    "@type": "WebSite",
+    name: "VowVet by Mon Min Pet",
+    url: APP_DOMAIN,
+  },
+  primaryImageOfPage: {
+    "@type": "ImageObject",
+    url: ogImage,
+  },
+  about: {
+    "@type": pet.species === "dog" ? "Animal" : pet.species === "cat" ? "Animal" : "Animal",
+    name: pet.name,
+    image: ogImage,
+    additionalType: "https://schema.org/Pet",
+    ...(pet.species && {
+      animalSpecies: pet.species === "dog" ? "Canis lupus familiaris" : pet.species === "cat" ? "Felis catus" : pet.species,
+    }),
+    ...(existingResult?.type && {
+      description: `Personality type: ${existingResult.type}`,
+    }),
+  },
+};
+---
+
+<Layout title={seoTitle} description={seoDescription}>
+  <Fragment slot="head">
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={seoTitle} />
+    <meta property="og:description" content={seoDescription} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={`${pet.name} — tính cách thú cưng`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={seoTitle} />
+    <meta name="twitter:description" content={seoDescription} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+  </Fragment>
+  <style is:inline>{`
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes fadeInScale {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes goldShine {
+      0%, 100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.04); filter: brightness(1.15); }
+    }
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(180,134,8,0.25); }
+      50% { box-shadow: 0 0 0 14px rgba(180,134,8,0); }
+    }
+    @keyframes typeReveal {
+      0% { opacity: 0; transform: translateY(20px) scale(0.92); }
+      60% { opacity: 1; transform: translateY(-4px) scale(1.02); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .question-enter { animation: slideInRight 0.32s ease-out forwards; }
+    .result-card-enter { animation: fadeInScale 0.6s ease-out forwards; }
+    .type-reveal { animation: typeReveal 0.85s cubic-bezier(.2,.9,.3,1.1) forwards; }
+    .k-badge { animation: goldShine 2.4s ease-in-out infinite; }
+    .pulse-ring { animation: pulseRing 2.2s ease-out infinite; }
+    .atelier-bg {
+      background:
+        radial-gradient(800px 380px at 12% -10%, rgba(180,134,8,0.10), transparent 55%),
+        radial-gradient(700px 340px at 95% 8%, rgba(180,134,8,0.07), transparent 55%),
+        linear-gradient(180deg, #fff 0%, #FAF6EC 100%);
+    }
+    /* DEEP gold (#B48608) — primary accent on light bg */
+    .text-gold-deep { color: #B48608 !important; }
+    .bg-gold-deep { background-color: #B48608 !important; }
+    .border-gold-deep { border-color: #B48608 !important; }
+    .gold-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(180,134,8,0.55), transparent);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       APPROVED CERTIFICATE CARD — paper feel + visual diagrams
+       Tất cả data → gauge / quadrant / timeline / network graph
+       ═══════════════════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════════════════
+       PROFILE BANNER + AVATAR OVERLAP (LinkedIn-style depth)
+       Dark banner with massive serif type name → photo overlaps
+       bottom edge → K-factor as separate hero stat circle.
+       3D depth via stacked shadows + parallax layers.
+       ═══════════════════════════════════════════════════════ */
+
+    /* OUTER hero shell — holds banner + overlap photo + caption */
+    .pp-shell {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    /* Layer 1: dark ink banner with type name as massive watermark */
+    .pp-banner {
+      position: relative;
+      background:
+        radial-gradient(120% 100% at 50% 100%, rgba(236,185,33,0.22) 0%, transparent 65%),
+        linear-gradient(160deg, #0a0a0a 0%, #1a1612 55%, #251a08 100%);
+      border-radius: 24px;
+      padding: 22px 22px 56px;
+      overflow: hidden;
+      box-shadow: 0 22px 50px -20px rgba(0,0,0,0.5), 0 8px 22px -8px rgba(180,134,8,0.32);
+    }
+    /* Watermark: huge type name in serif-display, slightly offset */
+    .pp-watermark {
+      font-size: clamp(38px, 9vw, 56px);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 0.92;
+      background: linear-gradient(180deg, #ecb921 0%, #B48608 70%, #8B6705 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 6px 24px rgba(236,185,33,0.25);
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.15));
+    }
+    .pp-banner-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .pp-tag {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: #ecb921;
+    }
+
+    /* Pet avatar — inside banner bottom-left */
+    .pp-avatar-wrap {
+      position: relative;
+      width: 88px; height: 88px;
+      flex-shrink: 0;
+    }
+    .pp-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      box-shadow:
+        0 0 0 3px #ecb921,
+        0 0 0 5px rgba(180,134,8,0.35),
+        0 10px 22px -6px rgba(236,185,33,0.5);
+    }
+    .pp-avatar-crest {
+      position: absolute;
+      bottom: -2px; right: -2px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 70%);
+      color: #0a0a0a;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 0 2.5px #0a0a0a, 0 4px 10px rgba(0,0,0,0.4);
+    }
+    .pp-meta-name {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+      font-weight: 800;
+    }
+    .pp-meta-group {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: #ecb921;
+      margin-top: 2px;
+    }
+    .pp-meta-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,0.55);
+      margin-top: 4px;
+    }
+
+    /* ═══ K-FACTOR HERO STAT — the BIG focal circle ═══ */
+    .pp-k-hero {
+      position: relative;
+      background: #fff;
+      border-radius: 22px;
+      padding: 18px 20px;
+      box-shadow:
+        0 16px 36px -16px rgba(180,134,8,0.30),
+        0 4px 12px -4px rgba(0,0,0,0.08),
+        inset 0 0 0 1px rgba(180,134,8,0.22);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .pp-k-disc {
+      position: relative;
+      width: 96px; height: 96px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 30%, #ffd95a 0%, #ecb921 35%, #B48608 75%, #8B6705 100%);
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #0a0a0a;
+      box-shadow:
+        inset 0 -6px 14px rgba(0,0,0,0.18),
+        inset 0 6px 14px rgba(255,255,255,0.5),
+        0 8px 22px -6px rgba(180,134,8,0.55),
+        0 0 0 4px #fff,
+        0 0 0 5.5px #B48608;
+    }
+    .pp-k-disc::before {
+      /* Ring of dots circling — orbital decoration */
+      content: "";
+      position: absolute;
+      inset: -14px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 0%, #B48608 1.5px, transparent 2px),
+        radial-gradient(circle at 100% 50%, #B48608 1.5px, transparent 2px),
+        radial-gradient(circle at 50% 100%, #B48608 1.5px, transparent 2px),
+        radial-gradient(circle at 0% 50%, #B48608 1.5px, transparent 2px);
+      animation: ppOrbit 18s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes ppOrbit { to { transform: rotate(360deg); } }
+    .pp-k-value {
+      font-size: 26px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    .pp-k-mini {
+      font-size: 8px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-weight: 800;
+      margin-top: 3px;
+      color: rgba(10,10,10,0.65);
+    }
+    .pp-k-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .pp-k-info-label {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: #B48608;
+    }
+    .pp-k-info-name {
+      font-size: 17px;
+      font-weight: 900;
+      color: #0a0a0a;
+      margin-top: 2px;
+      letter-spacing: -0.01em;
+    }
+    .pp-k-info-sub {
+      font-size: 11px;
+      color: rgba(10,10,10,0.62);
+      margin-top: 4px;
+    }
+
+    /* Smaller secondary stats — 3 horizontal tiles below k-hero */
+    .pp-tile {
+      background: #fff;
+      border: 1px solid rgba(180,134,8,0.18);
+      border-radius: 14px;
+      padding: 10px 12px;
+      transition: all .18s ease;
+    }
+    .pp-tile:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(180,134,8,0.18); }
+    .pp-tile-label {
+      font-size: 9px;
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: #B48608;
+    }
+    .pp-tile-value {
+      font-size: 13px;
+      font-weight: 800;
+      color: #0a0a0a;
+      margin-top: 2px;
+      line-height: 1.2;
+    }
+    .pp-tile-sub {
+      font-size: 10px;
+      color: rgba(10,10,10,0.55);
+      margin-top: 1px;
+    }
+
+    /* Light section card */
+    .pv-card {
+      background: #fff;
+      border: 1px solid rgba(180,134,8,0.18);
+      border-radius: 18px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 22px -12px rgba(180,134,8,0.18);
+    }
+    .pv-card-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #B48608;
+      margin-bottom: 10px;
+    }
+    .pv-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px 5px 5px;
+      border-radius: 999px;
+      background: #FAF6EC;
+      border: 1px solid rgba(180,134,8,0.4);
+      color: #0a0a0a;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .pv-chip-icon {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ecb921 0%, #B48608 70%);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .quiz-opt {
+      transition: all .18s ease;
+    }
+    .quiz-opt:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(180,134,8,0.18);
+    }
+    .mood-pill {
+      transition: all .18s ease;
+      color: #0a0a0a;
+    }
+    .mood-pill:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(180,134,8,0.18);
+    }
+    .mood-pill:active {
+      transform: scale(0.96);
+    }
+    .mood-pill.active {
+      background: linear-gradient(135deg, #ecb921, #B48608) !important;
+      color: #fff !important;
+      border-color: #B48608 !important;
+      box-shadow: 0 8px 24px rgba(180,134,8,0.55), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+      transform: translateY(-2px) scale(1.03);
+      animation: moodPop 0.45s cubic-bezier(.2,.9,.3,1.3);
+    }
+    .mood-pill.active p,
+    .mood-pill.active svg { color: #fff !important; stroke: #fff !important; }
+    @keyframes moodPop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.15); }
+      100% { transform: translateY(-2px) scale(1.03); }
+    }
+
+    /* Drop cap on description first letter */
+    .desc-text::first-letter {
+      float: left;
+      font-size: 44px;
+      line-height: 0.9;
+      font-weight: 900;
+      color: #B48608;
+      padding: 6px 10px 0 0;
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       TECH AI ANIMATIONS — Page-wide motion VISIBLE + PERSISTENT
+       ═══════════════════════════════════════════════════════ */
+
+    /* Scan line — MORE VISIBLE: wider, brighter, faster */
+    @keyframes aiScan {
+      0%   { transform: translateX(-110%); }
+      100% { transform: translateX(210%); }
+    }
+    .ai-scan {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: 24px;
+    }
+    .ai-scan::before {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 35%;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(236,185,33,0.18) 30%,
+        rgba(236,185,33,0.55) 50%,
+        rgba(236,185,33,0.18) 70%,
+        transparent 100%);
+      animation: aiScan 4s linear infinite;
+      filter: blur(2px);
+    }
+
+    /* Gold particles — bigger, brighter, slower drift */
+    @keyframes aiFloat {
+      0%   { transform: translate(0, 0) scale(1); opacity: 0.6; }
+      50%  { transform: translate(12px, -20px) scale(1.4); opacity: 1; }
+      100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+    }
+    .ai-particle {
+      position: absolute;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #ecb921;
+      box-shadow: 0 0 12px rgba(236,185,33,0.95), 0 0 24px rgba(236,185,33,0.5);
+      pointer-events: none;
+      animation: aiFloat 5s ease-in-out infinite;
+    }
+
+    /* LIVE indicator — pulsing dot saying "AI online" */
+    @keyframes liveDot {
+      0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(236,185,33,0.7); }
+      50%      { transform: scale(1.1); opacity: 0.9; box-shadow: 0 0 0 6px rgba(236,185,33,0); }
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ecb921;
+      box-shadow: 0 0 8px rgba(236,185,33,0.8);
+      display: inline-block;
+      animation: liveDot 1.4s ease-in-out infinite;
+    }
+
+    /* K-factor disc gentle rotation hint */
+    @keyframes discWobble {
+      0%, 100% { transform: rotate(0deg); }
+      50%      { transform: rotate(2deg); }
+    }
+    .k-badge { animation: discWobble 3s ease-in-out infinite; }
+
+    /* ═══════════════════════════════════════════════════════
+       BIG SURPRISE EFFECTS — Phải-Thấy-Liền
+       ═══════════════════════════════════════════════════════ */
+
+    /* 3D tilt on hero card — perspective + mouse follow */
+    .tilt-3d {
+      transform-style: preserve-3d;
+      transition: transform .15s ease-out;
+      perspective: 1000px;
+    }
+    .tilt-3d.tilting { transition: transform .05s ease-out; }
+
+    /* Type name shimmer scan — gold sweep across letters */
+    @keyframes nameShine {
+      0%   { background-position: -150% 0; }
+      40%  { background-position: 150% 0; }
+      100% { background-position: 150% 0; }
+    }
+    .name-shine {
+      background: linear-gradient(90deg,
+        #fff 0%,
+        #fff 40%,
+        #ecb921 50%,
+        #fff 60%,
+        #fff 100%);
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      animation: nameShine 4s ease-in-out infinite;
+    }
+
+    /* Confetti pieces falling */
+    @keyframes confettiFall {
+      0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(80vh) rotate(720deg); opacity: 0; }
+    }
+    .confetti-piece {
+      position: fixed;
+      top: 0;
+      width: 10px; height: 14px;
+      pointer-events: none;
+      z-index: 9999;
+      animation: confettiFall 2.2s cubic-bezier(.2,.6,.4,1) forwards;
+    }
+
+    /* Pet photo zoom + glow on hover */
+    .pet-photo-zoom {
+      transition: all .4s cubic-bezier(.2,.9,.3,1.2);
+      cursor: pointer;
+    }
+    .pet-photo-zoom:hover {
+      transform: scale(1.08) rotate(-2deg);
+      filter: brightness(1.05);
+    }
+
+    /* HUGE k-factor counter — visible big number with shimmer + scale on mount */
+    @keyframes kPulseBig {
+      0%   { transform: scale(0.3); opacity: 0; }
+      60%  { transform: scale(1.25); opacity: 1; }
+      80%  { transform: scale(0.95); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .k-pulse-mount { animation: kPulseBig 1.2s cubic-bezier(.2,.9,.3,1.4) both; }
+
+    /* Radar polygon reveal expand */
+    @keyframes radarReveal {
+      0%   { transform-origin: 160px 140px; transform: scale(0.1); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    /* v136: .dim6-poly duplicate removed — full declaration at line ~1062 (v135 block) takes over */
+    @keyframes dotPulse {
+      0%, 100% { r: 4; opacity: 1; }
+      50%      { r: 5.5; opacity: 0.7; }
+    }
+    .radar-dot { animation: dotPulse 2.2s ease-in-out infinite; transform-origin: center; }
+
+    /* Number count-up shimmer */
+    @keyframes numShimmer {
+      0%   { background-position: -100% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .num-glow {
+      background: linear-gradient(90deg, #ecb921 0%, #fff 40%, #ecb921 60%, #ecb921 100%);
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: numShimmer 3s linear infinite;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       JOURNEY V3 — SUBWAY MAP (Tuyến Atelier)
+       Horizontal track + 4 stations + pet "train" moving + ETA card
+       ═══════════════════════════════════════════════════════ */
+    .jt-card {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(165deg, #fff 0%, #FFFCF3 100%);
+    }
+    /* Top edge shimmer ribbon */
+    .jt-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #B48608, #ecb921, #B48608, transparent);
+      background-size: 200% 100%;
+      animation: jtShimmer 3s linear infinite;
+      z-index: 1;
+    }
+    @keyframes jtShimmer {
+      0%   { background-position: -100% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* v139 — Growth Journey: Vellum Editorial Timeline (pure Tailwind, không cần custom CSS).
+       Vertical gold thread + 4 vellum cards với watermark Fraunces 7xl mờ.
+       Active card full color + scale 1.02 trên hover; còn lại opacity-40 grayscale. */
+
+
+    /* ═══════════════════════════════════════════════════════
+       RADAR 6D — AI SCANNER VIEW (light + corner brackets + scan beams)
+       ═══════════════════════════════════════════════════════ */
+    .ai-scanner-card {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(165deg, #FFFCF3 0%, #ffffff 60%, #FAF6EC 100%);
+      color: #0a0a0a;
+      border: 1px solid rgba(180,134,8,0.30) !important;
+    }
+
+    /* Top-left and top-right corner L-brackets */
+    .ai-corner {
+      position: absolute;
+      width: 22px; height: 22px;
+      border: 1.8px solid #B48608;
+      opacity: 0.9;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .ai-corner.tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+    .ai-corner.tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
+    .ai-corner.bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; }
+    .ai-corner.br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
+
+    /* Edge tick marks */
+    .ai-tick {
+      position: absolute;
+      background: #B48608;
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .ai-tick.horiz { width: 10px; height: 1.2px; }
+    .ai-tick.vert  { width: 1.2px; height: 10px; }
+
+    /* ★ v135: ICONIC ROTATING RADAR SWEEP — classic radar conical beam, 360° */
+    @keyframes radarSweepRotate {
+      0%   { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    .radar-sweep {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 2;
+      background: conic-gradient(from 0deg,
+        rgba(236,185,33,0) 0deg,
+        rgba(236,185,33,0) 280deg,
+        rgba(236,185,33,0.18) 320deg,
+        rgba(236,185,33,0.55) 350deg,
+        #ecb921 360deg);
+      mask: radial-gradient(circle, transparent 0%, transparent 8%, #000 14%, #000 60%, transparent 78%);
+      -webkit-mask: radial-gradient(circle, transparent 0%, transparent 8%, #000 14%, #000 60%, transparent 78%);
+      transform: translate(-50%, -50%);
+      animation: radarSweepRotate 3.6s linear infinite;
+      filter: blur(0.5px);
+      opacity: 0.85;
+    }
+
+    /* ★ v135: BRIGHTER + THICKER scan beams */
+    @keyframes aiScanBeamH {
+      0%   { transform: translateY(-110px); opacity: 0; }
+      10%  { opacity: 1; }
+      50%  { transform: translateY(110px); opacity: 1; }
+      60%  { opacity: 0; }
+      100% { transform: translateY(-110px); opacity: 0; }
+    }
+    .ai-scan-h {
+      position: absolute;
+      left: 6%; right: 6%;
+      top: 50%;
+      height: 3px;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(236,185,33,0.85) 20%,
+        #ffd86a 50%,
+        rgba(236,185,33,0.85) 80%,
+        transparent);
+      box-shadow: 0 0 18px #ffd86a, 0 0 36px rgba(236,185,33,0.7);
+      filter: blur(0.6px);
+      pointer-events: none;
+      animation: aiScanBeamH 3s ease-in-out infinite;
+      z-index: 3;
+    }
+    @keyframes aiScanBeamV {
+      0%   { transform: translateX(-140px); opacity: 0; }
+      15%  { opacity: 1; }
+      50%  { transform: translateX(140px); opacity: 1; }
+      65%  { opacity: 0; }
+      100% { transform: translateX(-140px); opacity: 0; }
+    }
+    .ai-scan-v {
+      position: absolute;
+      top: 6%; bottom: 6%;
+      left: 50%;
+      width: 2.6px;
+      background: linear-gradient(180deg,
+        transparent,
+        rgba(236,185,33,0.85) 20%,
+        #ffd86a 50%,
+        rgba(236,185,33,0.85) 80%,
+        transparent);
+      box-shadow: 0 0 18px #ffd86a, 0 0 36px rgba(236,185,33,0.7);
+      filter: blur(0.6px);
+      pointer-events: none;
+      animation: aiScanBeamV 4s ease-in-out infinite 0.5s;
+      z-index: 3;
+    }
+
+    /* ★ v135: THICKER + LARGER pulse rings */
+    @keyframes aiPulseRing {
+      0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+      80%  { opacity: 0.15; }
+      100% { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
+    }
+    .ai-pulse-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 110px; height: 110px;
+      border-radius: 50%;
+      border: 2.2px solid #ecb921;
+      box-shadow: 0 0 20px rgba(236,185,33,0.55), inset 0 0 12px rgba(236,185,33,0.35);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: aiPulseRing 2.4s ease-out infinite;
+      z-index: 2;
+    }
+    .ai-pulse-ring.delay-1 { animation-delay: 0.8s; }
+    .ai-pulse-ring.delay-2 { animation-delay: 1.6s; }
+
+    /* ★ v135: BIGGER + BRIGHTER neurons */
+    .neuron {
+      position: absolute;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ecb921;
+      box-shadow: 0 0 14px #ecb921, 0 0 26px #B48608, 0 0 40px rgba(236,185,33,0.45);
+      pointer-events: none;
+      z-index: 3;
+    }
+    @keyframes neuronFly1 {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+      25%      { transform: translate(60px, -40px) scale(1.4); opacity: 1; }
+      50%      { transform: translate(20px, -80px) scale(0.7); opacity: 0.6; }
+      75%      { transform: translate(-50px, -30px) scale(1.3); opacity: 1; }
+    }
+    @keyframes neuronFly2 {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
+      33%      { transform: translate(-70px, 30px) scale(0.6); opacity: 0.4; }
+      66%      { transform: translate(40px, 60px) scale(1.5); opacity: 1; }
+    }
+    @keyframes neuronFly3 {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+      40%      { transform: translate(50px, 70px) scale(1.2); opacity: 1; }
+      80%      { transform: translate(-30px, -40px) scale(0.9); opacity: 0.7; }
+    }
+
+    /* ★ v135: Polygon — strong breathing + color pulse */
+    .dim6-poly {
+      fill: rgba(180,134,8,0.30);
+      stroke: #B48608;
+      stroke-width: 3;
+      filter: drop-shadow(0 0 14px rgba(236,185,33,0.6));
+      transform-origin: 160px 140px;
+      animation: radarReveal 1.2s cubic-bezier(.2,.9,.3,1.2) 0.4s both,
+                 polyBreath 2.8s ease-in-out 1.6s infinite;
+    }
+    @keyframes polyBreath {
+      0%, 100% {
+        transform: scale(1) rotate(0deg);
+        fill: rgba(180,134,8,0.30);
+        stroke-width: 3;
+        filter: drop-shadow(0 0 14px rgba(236,185,33,0.6));
+      }
+      33% {
+        transform: scale(1.07) rotate(3deg);
+        fill: rgba(236,185,33,0.55);
+        stroke-width: 4;
+        filter: drop-shadow(0 0 28px rgba(236,185,33,0.95));
+      }
+      66% {
+        transform: scale(0.94) rotate(-3deg);
+        fill: rgba(180,134,8,0.38);
+        stroke-width: 3.4;
+        filter: drop-shadow(0 0 20px rgba(180,134,8,0.8));
+      }
+    }
+
+    /* Radar vertex dots — gold-deep with glow on light bg */
+    .radar-dot-galaxy {
+      transform-origin: center;
+      filter: drop-shadow(0 0 3px rgba(180,134,8,0.7));
+    }
+    @keyframes radarDotGalaxyPulse {
+      0%, 100% { r: 4; opacity: 1; }
+      50%      { r: 6; opacity: 0.7; }
+    }
+    .radar-dot-galaxy { animation: radarDotGalaxyPulse 2s ease-in-out infinite; }
+
+    /* ★ v135: Synapse arcs — brighter, faster dash flow */
+    @keyframes synapseFlow {
+      0%, 100% { stroke-dashoffset: 0; opacity: 0.65; }
+      50%      { stroke-dashoffset: -28; opacity: 1; }
+    }
+    .synapse {
+      stroke: #ecb921;
+      stroke-width: 1.6;
+      stroke-dasharray: 5 5;
+      opacity: 0.8;
+      fill: none;
+      filter: drop-shadow(0 0 4px rgba(236,185,33,0.7));
+      animation: synapseFlow 2s ease-in-out infinite;
+    }
+    /* Quiz option SELECTED — gold-deep ring on white card */
+    .quiz-opt.selected {
+      border-color: #B48608 !important;
+      background: #FAF6EC !important;
+      box-shadow: 0 0 0 3px rgba(180,134,8,0.22), 0 8px 18px rgba(180,134,8,0.18);
+    }
+  `}</style>
+
+  <main class="atelier-bg min-h-screen px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`personalityPage(${initialData})`} x-init="onMount()">
+
+      <!-- ───── Header ───── -->
+      <header class="flex items-center justify-between mb-6 gap-3">
+        <a href={`/pets/${pet.id}`} class="text-sm text-mmp-ink/70 hover:text-mmp-ink font-medium inline-flex items-center gap-1">
+          ← <span>{pet.name}</span>
+        </a>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-9 h-9 rounded-full bg-mmp-cream text-gold-deep">
+            <FeatureIcon name="brain" class="w-5 h-5" />
+          </span>
+          <h1 class="text-base sm:text-lg font-extrabold text-mmp-ink tracking-tight">Personality Atelier</h1>
+        </div>
+        <button x-show="(step === 'result' || step === 'existing')" @click="confirmReset()"
+          class="text-xs font-medium text-mmp-ink/70 hover:text-gold-deep inline-flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          Làm lại
+        </button>
+        <span x-show="step !== 'result' && step !== 'existing'" class="w-12"></span>
+      </header>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!--  STEP: existing (đã có kết quả — show portrait + tools)   -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <div x-show="step === 'existing'" class="ai-enter">
+
+        <!-- ═════ 1. HERO + WOW LAYERS — gold blobs + scan line + particles + watermark + date ═════ -->
+        <section id="result-card-existing" class="relative rounded-3xl bg-mmp-ink text-white overflow-hidden mb-4 shadow-md result-card-enter">
+          <!-- Radial gold blobs (background atmosphere) -->
+          <div aria-hidden="true" class="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+          <div aria-hidden="true" class="absolute -bottom-12 -left-12 w-40 h-40 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(180,134,8,0.28) 0%, transparent 70%);"></div>
+
+          <!-- Tech-AI scan line slowly moving across -->
+          <div aria-hidden="true" class="ai-scan"></div>
+
+          <!-- Floating gold particles (decorative ambience) -->
+          <div aria-hidden="true" class="ai-particle" style="top:18%;left:12%;"></div>
+          <div aria-hidden="true" class="ai-particle" style="top:32%;left:78%;animation-delay:.6s;"></div>
+          <div aria-hidden="true" class="ai-particle" style="top:62%;left:22%;animation-delay:1.3s;"></div>
+          <div aria-hidden="true" class="ai-particle" style="top:78%;left:88%;animation-delay:2.0s;"></div>
+          <div aria-hidden="true" class="ai-particle" style="top:46%;left:54%;animation-delay:2.8s;"></div>
+
+          <!-- HUGE type icon watermark — fills right side with identity -->
+          <div aria-hidden="true" class="absolute -top-4 -right-2 pointer-events-none"
+            style="width:180px;height:180px;color:#ecb921;opacity:0.12;transform:rotate(-12deg)"
+            x-html="typeIcon(activeTypeId, 'w-full h-full')"></div>
+
+          <!-- Top-right date + type number stamp -->
+          <div class="absolute top-4 right-4 text-right z-10">
+            <p class="text-[9px] uppercase tracking-[0.22em] font-extrabold" style="color:#ecb921">№ <span x-text="String(pet.id).padStart(3,'0')"></span></p>
+            <p class="text-[9px] tracking-widest mt-0.5" style="color:rgba(255,255,255,0.45)" x-text="certDate"></p>
+          </div>
+
+          <div class="relative p-5 sm:p-6 z-[1]">
+            <div class="flex items-center gap-4 mb-4">
+              {/* Pet photo — clean, just gold ring */}
+              {pet.photo_url ? (
+                <img src={pet.photo_url} alt={pet.name} class="w-[88px] h-[88px] rounded-full object-cover shrink-0 pet-photo-zoom" style="box-shadow:0 0 0 3px #ecb921, 0 0 0 5px rgba(180,134,8,0.3), 0 8px 18px -4px rgba(236,185,33,0.5);" />
+              ) : (
+                <div class="w-[88px] h-[88px] rounded-full bg-mmp-ink flex items-center justify-center shrink-0" style="box-shadow:0 0 0 3px #ecb921, 0 0 0 5px rgba(180,134,8,0.3);">
+                  <FeatureIcon name={pet.species === "cat" ? "cat" : "dog"} class="w-10 h-10" style="color:#ecb921" />
+                </div>
+              )}
+
+              <div class="flex-1 min-w-0">
+                <p class="text-[10px] uppercase tracking-[0.22em] font-bold" style="color:#ecb921">Tính cách của bé</p>
+                <h2 class="text-xl sm:text-2xl font-black tracking-tight mt-1 leading-tight name-shine" x-text="`${pet.name} · ${existingResult?.type_meta?.name_vi || ''}`"></h2>
+                <div class="flex items-center gap-2 mt-2">
+                  <span aria-hidden="true" class="block w-5 h-[1.5px] shrink-0" style="background:linear-gradient(90deg, transparent, #ecb921)"></span>
+                  <p class="text-[13px] italic tracking-wide font-medium" style="color:rgba(255,255,255,0.88)" x-text="existingResult?.type_meta?.tagline_vi"></p>
+                </div>
+
+                <!-- MEANINGFUL meta: SECONDARY TYPE (dữ liệu thật từ quiz) -->
+                <template x-if="existingResult?.secondary_meta">
+                  <div class="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full font-medium mt-2.5"
+                    style="background:rgba(236,185,33,0.12);color:rgba(255,255,255,0.85);border:1px solid rgba(236,185,33,0.28)">
+                    <span class="text-white/55 uppercase tracking-wider text-[9px] font-bold">Phụ:</span>
+                    <span class="inline-flex items-center justify-center w-3.5 h-3.5" style="color:#ecb921" x-html="typeIcon(existingResult.secondary_meta.id, 'w-3 h-3')"></span>
+                    <span x-text="existingResult.secondary_meta.name_vi"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            {/* 3 stat pills — ×k-factor / Group / Badge */}
+            <div class="grid grid-cols-3 gap-2">
+              <div class="rounded-xl py-2.5 px-3 text-center transition hover:-translate-y-0.5"
+                style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.25);">
+                <p class="text-[9px] uppercase tracking-wider text-white/55 font-bold">Pet Score</p>
+                <p class="font-black text-lg tabular-nums mt-0.5 num-glow k-pulse-mount">×<span x-text="kFactor.toFixed(2)"></span></p>
+              </div>
+              <div class="rounded-xl py-2.5 px-3 text-center transition hover:-translate-y-0.5"
+                style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.25);">
+                <p class="text-[9px] uppercase tracking-wider text-white/55 font-bold">Nhóm</p>
+                <p class="font-black text-sm mt-0.5 truncate" style="color:#ecb921" x-text="kMeta.group"></p>
+              </div>
+              <div class="rounded-xl py-2.5 px-3 text-center transition hover:-translate-y-0.5"
+                style="background: rgba(255,255,255,0.06); border: 1px solid rgba(236,185,33,0.25);">
+                <p class="text-[9px] uppercase tracking-wider text-white/55 font-bold">Badge</p>
+                <p class="font-black text-xs mt-0.5 truncate leading-tight" style="color:#ecb921" x-text="badgeName"></p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Mô tả — Editorial pull-quote: drop cap + flourish dividers + paw watermark -->
+        <section class="relative bg-white rounded-3xl border border-mmp-cream p-6 sm:p-8 shadow-sm mb-3 overflow-hidden">
+          {/* Faded paw watermark in bg */}
+          <svg aria-hidden="true" class="absolute -bottom-4 -right-4 pointer-events-none" width="160" height="160" viewBox="0 0 24 24" style="color:#ecb921;opacity:0.06" fill="currentColor">
+            <ellipse cx="6.5" cy="11" rx="2.2" ry="2.8"/>
+            <ellipse cx="17.5" cy="11" rx="2.2" ry="2.8"/>
+            <ellipse cx="10" cy="6.5" rx="2" ry="2.5"/>
+            <ellipse cx="14" cy="6.5" rx="2" ry="2.5"/>
+            <path d="M12 12c-3.4 0-6.5 2.9-6.5 6.2 0 1.5 1.2 2.8 2.8 2.8 1 0 1.8-.5 2.8-1 .3-.2.6-.3.9-.3s.6.1.9.3c1 .5 1.8 1 2.8 1 1.6 0 2.8-1.3 2.8-2.8 0-3.3-3.1-6.2-6.5-6.2z"/>
+          </svg>
+
+          {/* Giant gold opening quote mark */}
+          <svg aria-hidden="true" class="absolute top-4 left-5" width="42" height="32" viewBox="0 0 48 36" style="color:#ecb921;opacity:0.55">
+            <path fill="currentColor" d="M14 36V20H2c0-8 5-14 12-16v6c-3 1-5 4-5 8h5v18H14zm26 0V20H28c0-8 5-14 12-16v6c-3 1-5 4-5 8h5v18H40z"/>
+          </svg>
+
+          <div class="relative pt-2">
+            <p class="text-[10px] uppercase tracking-[0.28em] text-gold-deep font-extrabold text-center mb-2">Hồ sơ tính cách</p>
+
+            {/* Top flourish — gold filigree divider */}
+            <div class="flex items-center justify-center gap-2 mb-4">
+              <span class="block w-12 h-px" style="background:linear-gradient(90deg, transparent, #B48608)"></span>
+              <svg width="16" height="10" viewBox="0 0 16 10" style="color:#B48608">
+                <path fill="currentColor" d="M8 0 L10 4 L8 5 L6 4 Z M8 5 L10 6 L8 10 L6 6 Z"/>
+              </svg>
+              <span class="block w-12 h-px" style="background:linear-gradient(90deg, #B48608, transparent)"></span>
+            </div>
+
+            {/* Description with drop cap on first letter */}
+            <p class="desc-text text-[15px] leading-relaxed text-mmp-ink/85 max-w-md mx-auto text-center px-2"
+              x-text="existingResult?.type_meta?.description_vi"></p>
+
+            {/* Bottom flourish */}
+            <div class="flex items-center justify-center gap-2 mt-4">
+              <span class="block w-12 h-px" style="background:linear-gradient(90deg, transparent, #B48608)"></span>
+              <svg width="16" height="10" viewBox="0 0 16 10" style="color:#B48608">
+                <path fill="currentColor" d="M8 0 L10 4 L8 5 L6 4 Z M8 5 L10 6 L8 10 L6 6 Z"/>
+              </svg>
+              <span class="block w-12 h-px" style="background:linear-gradient(90deg, #B48608, transparent)"></span>
+            </div>
+
+            {/* Signed by pet name (cursive flourish) */}
+            <p class="text-center text-[11px] italic mt-3 text-mmp-ink/55" x-text="`— Hồ sơ của bé ${pet.name}`"></p>
+          </div>
+        </section>
+
+        <!-- 2.5. RADAR 6D — AI SCANNER (light bg + corner brackets + scan beams + neurons) -->
+        <section class="ai-scanner-card rounded-3xl border p-5 sm:p-6 shadow-md mb-3">
+          <!-- 4 corner L-brackets -->
+          <span class="ai-corner tl"></span>
+          <span class="ai-corner tr"></span>
+          <span class="ai-corner bl"></span>
+          <span class="ai-corner br"></span>
+
+          <!-- Edge tick marks -->
+          <span class="ai-tick horiz" style="top:10px; left:40px"></span>
+          <span class="ai-tick horiz" style="top:10px; right:40px"></span>
+          <span class="ai-tick vert"  style="top:40px; left:10px"></span>
+          <span class="ai-tick vert"  style="top:40px; right:10px"></span>
+          <span class="ai-tick vert"  style="bottom:40px; left:10px"></span>
+          <span class="ai-tick vert"  style="bottom:40px; right:10px"></span>
+          <span class="ai-tick horiz" style="bottom:10px; left:40px"></span>
+          <span class="ai-tick horiz" style="bottom:10px; right:40px"></span>
+
+          <div class="relative flex items-center gap-2 mb-3" style="z-index:5">
+            <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl text-white"
+              style="background:linear-gradient(135deg, #ecb921, #B48608)">
+              <FeatureIcon name="radar" class="w-4 h-4" />
+            </span>
+            <div class="flex-1">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-gold-deep font-extrabold">Bản đồ 6 chiều · AI Scanner</p>
+              <p class="text-[10px] text-mmp-ink/60 mt-0.5">Quét hành vi bé theo 6 trục realtime</p>
+            </div>
+            <span class="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gold-deep font-extrabold">
+              <span class="live-dot" style="width:6px;height:6px"></span>
+              Scanning
+            </span>
+          </div>
+
+          <!-- Neuron particles — 8 dots orbiting -->
+          <div aria-hidden="true" class="neuron" style="top:22%; left:12%;  animation: neuronFly1 6s ease-in-out infinite;"></div>
+          <div aria-hidden="true" class="neuron" style="top:28%; right:9%;  animation: neuronFly2 7s ease-in-out infinite;"></div>
+          <div aria-hidden="true" class="neuron" style="top:58%; left:6%;   animation: neuronFly3 5.5s ease-in-out infinite;"></div>
+          <div aria-hidden="true" class="neuron" style="top:65%; right:10%; animation: neuronFly1 8s ease-in-out infinite reverse;"></div>
+          <div aria-hidden="true" class="neuron" style="bottom:14%; left:25%; animation: neuronFly2 6.5s ease-in-out infinite;"></div>
+          <div aria-hidden="true" class="neuron" style="top:46%; left:44%;  animation: neuronFly3 9s ease-in-out infinite reverse;"></div>
+          <div aria-hidden="true" class="neuron" style="bottom:20%; right:25%; animation: neuronFly1 7.5s ease-in-out infinite;"></div>
+          <div aria-hidden="true" class="neuron" style="top:10%; right:30%; animation: neuronFly2 5s ease-in-out infinite reverse;"></div>
+
+          <!-- Scan beams: horizontal + vertical (gold blur) -->
+          <div aria-hidden="true" class="ai-scan-h"></div>
+          <div aria-hidden="true" class="ai-scan-v"></div>
+
+          <!-- 3 expanding pulse rings from center -->
+          <div aria-hidden="true" class="ai-pulse-ring"></div>
+          <div aria-hidden="true" class="ai-pulse-ring delay-1"></div>
+          <div aria-hidden="true" class="ai-pulse-ring delay-2"></div>
+
+          <!-- ★ v135: ICONIC rotating radar sweep beam (360° continuous) -->
+          <div aria-hidden="true" class="radar-sweep"></div>
+
+          <div class="relative grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-center" style="z-index:2">
+            <!-- v143 — LIVING RADAR (real SVG elements via x-effect + createElementNS).
+                 ✓ Real <circle>/<line>/<text> trong DOM (devtools inspect được từng element)
+                 ✓ Reactive: x-effect tracks dim6Dots/dim6Labels, rebuild khi result thay đổi
+                 ✓ Không <template> trong SVG → no importNode error
+                 ✓ Không <circle x-for> (Alpine không support — chỉ <template> support được x-for)
+                 ✓ IntersectionObserver: hiệu ứng chỉ chạy khi card scroll vào view -->
+            <div class="radar-living"
+                 :class="radarVisible ? 'is-visible' : ''"
+                 x-init="setupRadarObserver($el)">
+              <svg viewBox="0 0 320 280"
+                   class="w-full max-w-[380px] mx-auto block radar-svg"
+                   x-effect="renderRadar6dSvg($el)"
+                   aria-label="Radar 6 chiều tính cách">
+                <!-- defs cho gradient của wedge -->
+                <defs>
+                  <radialGradient id="radar6dSweepGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                    <stop offset="0%" stop-color="#ecb921" stop-opacity="0"/>
+                    <stop offset="80%" stop-color="#ecb921" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#ecb921" stop-opacity="0.55"/>
+                  </radialGradient>
+                </defs>
+                <!-- Các phần tử sẽ được x-effect append vào đây -->
+              </svg>
+            </div>
+
+            <!-- Top 3 dominant traits — light pill (v141: dùng getter để khỏi inline arrow fn) -->
+            <div class="grid grid-cols-3 sm:grid-cols-1 gap-2 sm:min-w-[130px]">
+              <template x-for="(lab, i) in topDim6Labels" :key="i">
+                <div class="text-center sm:text-left p-2.5 rounded-lg bg-mmp-cream border border-gold-deep">
+                  <p class="text-[9px] uppercase tracking-wider text-gold-deep font-extrabold" x-text="lab.label"></p>
+                  <p class="text-lg font-black mt-0.5 text-mmp-ink" x-text="`${lab.score}%`"></p>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- v144 — RADAR ANIMATIONS (chạy unconditional, KHÔNG gate .is-visible nữa).
+               Lý do bỏ .is-visible: IO không fire khi section ban đầu bị display:none
+               bởi x-show parent → animations không bao giờ chạy → user thấy tĩnh.
+               Lý do tách animation shorthand: Safari mobile parse calc() trong shorthand
+               không reliable → drop animation. Tách animation-name/duration/delay riêng. -->
+          <style is:inline>{`
+            /* HEX RINGS — fade-in nhẹ stagger */
+            .radar-living .radar-svg .radar-hex {
+              animation: rl_fadeIn 0.45s ease-out backwards;
+              animation-delay: calc(var(--i, 0) * 0.08s);
+            }
+
+            /* AXIS LINES — stroke draw từ center ra ngoài, stagger theo i */
+            .radar-living .radar-svg .radar-axis {
+              stroke-dasharray: 110;
+              stroke-dashoffset: 110;
+              animation: rl_strokeDraw 0.55s cubic-bezier(.2,.9,.3,1) forwards;
+              animation-delay: calc(0.3s + var(--i, 0) * 0.08s);
+            }
+
+            /* SYNAPSE arcs — fade-in + dash flow (2 anim, tách shorthand cho Safari) */
+            .radar-living .radar-svg .synapse {
+              animation-name: rl_fadeIn, rl_synapsePulse;
+              animation-duration: 0.4s, 2s;
+              animation-timing-function: ease-out, ease-in-out;
+              animation-fill-mode: backwards, none;
+              animation-iteration-count: 1, infinite;
+              animation-delay: calc(0.9s + var(--i, 0) * 0.1s), calc(1.5s + var(--i, 0) * 0.25s);
+            }
+
+            /* POLYGON — reveal scale-pop xong vào BREATHING vĩnh viễn */
+            .radar-living .radar-svg .dim6-poly {
+              transform-origin: 160px 140px;
+              animation-name: rl_polyReveal, rl_breathe;
+              animation-duration: 0.9s, 4s;
+              animation-timing-function: cubic-bezier(.2,.9,.3,1.2), ease-in-out;
+              animation-fill-mode: forwards, none;
+              animation-iteration-count: 1, infinite;
+              animation-delay: 1.2s, 2.2s;
+            }
+
+            /* VERTEX DOTS — pop-in stagger rồi PULSE forever */
+            .radar-living .radar-svg .radar-dot-galaxy {
+              transform-origin: center;
+              transform-box: fill-box;
+              filter: drop-shadow(0 0 3px rgba(180,134,8,0.7));
+              animation-name: rl_dotPop, rl_dotPulse;
+              animation-duration: 0.5s, 2s;
+              animation-timing-function: cubic-bezier(.2,1.6,.3,1), ease-in-out;
+              animation-fill-mode: forwards, none;
+              animation-iteration-count: 1, infinite;
+              animation-delay: calc(1.6s + var(--i, 0) * 0.2s), calc(3.5s + var(--i, 0) * 0.2s);
+            }
+
+            /* LABEL groups — reveal theo angle sweep (start opacity 0, vào 1 stagger 0.5s) */
+            .radar-living .radar-svg .radar-label {
+              transform-origin: center;
+              opacity: 0;
+              animation: rl_labelReveal 0.4s cubic-bezier(.2,.9,.3,1.2) forwards;
+              animation-delay: calc(0.4s + var(--i, 0) * 0.5s);
+            }
+
+            /* SWEEP WEDGE — quay 360° vĩnh viễn (rõ nhất animation user thấy được) */
+            .radar-living .radar-svg .radar-wedge {
+              transform-origin: 160px 140px;
+              transform-box: fill-box;
+              opacity: 0.55;
+              mix-blend-mode: multiply;
+              animation: rl_scanRotate 3.6s linear infinite;
+            }
+
+            /* ═══ KEYFRAMES (rl_ prefix = radar-living, namespace riêng) ═══ */
+            @keyframes rl_fadeIn {
+              from { opacity: 0; }
+              to   { opacity: 1; }
+            }
+            @keyframes rl_strokeDraw {
+              from { stroke-dashoffset: 110; opacity: 0.4; }
+              to   { stroke-dashoffset: 0;   opacity: 1; }
+            }
+            @keyframes rl_synapsePulse {
+              0%, 100% { stroke-dashoffset: 0;   opacity: 0.65; }
+              50%      { stroke-dashoffset: -28; opacity: 1; }
+            }
+            @keyframes rl_polyReveal {
+              0%   { opacity: 0; transform: scale(0.15) rotate(-12deg); }
+              60%  { opacity: 1; transform: scale(1.08) rotate(4deg); }
+              100% { opacity: 1; transform: scale(1) rotate(0deg); }
+            }
+            @keyframes rl_breathe {
+              0%, 100% {
+                transform: scale(1) rotate(0deg);
+                fill: rgba(180,134,8,0.30);
+                stroke-width: 3;
+                filter: drop-shadow(0 0 14px rgba(236,185,33,0.6));
+              }
+              33% {
+                transform: scale(1.07) rotate(3deg);
+                fill: rgba(236,185,33,0.55);
+                stroke-width: 4;
+                filter: drop-shadow(0 0 28px rgba(236,185,33,0.95));
+              }
+              66% {
+                transform: scale(0.94) rotate(-3deg);
+                fill: rgba(180,134,8,0.38);
+                stroke-width: 3.4;
+                filter: drop-shadow(0 0 20px rgba(180,134,8,0.8));
+              }
+            }
+            @keyframes rl_dotPop {
+              0%   { opacity: 0; transform: scale(0); }
+              70%  { opacity: 1; transform: scale(1.6); }
+              100% { opacity: 1; transform: scale(1); }
+            }
+            @keyframes rl_dotPulse {
+              0%, 100% { r: 4; opacity: 1; }
+              50%      { r: 6; opacity: 0.75; }
+            }
+            @keyframes rl_labelReveal {
+              from { opacity: 0; transform: scale(0.5); }
+              to   { opacity: 1; transform: scale(1); }
+            }
+            @keyframes rl_scanRotate {
+              from { transform: rotate(-90deg); }
+              to   { transform: rotate(270deg); }
+            }
+
+            /* prefers-reduced-motion — show ngay, không animate */
+            @media (prefers-reduced-motion: reduce) {
+              .radar-living .radar-svg .radar-hex,
+              .radar-living .radar-svg .radar-axis,
+              .radar-living .radar-svg .synapse,
+              .radar-living .radar-svg .radar-label,
+              .radar-living .radar-svg .radar-dot-galaxy,
+              .radar-living .radar-svg .dim6-poly { opacity: 1; animation: none; stroke-dashoffset: 0; }
+              .radar-living .radar-svg .radar-wedge { display: none; }
+            }
+          `}</style>
+        </section>
+
+        <!-- 3. Điểm mạnh + Bé cần — header + diễn giải + items + action hint -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <!-- Card 1: Điểm mạnh — "phát huy" -->
+          <section class="bg-white rounded-3xl border border-mmp-cream p-5 shadow-sm flex flex-col">
+            <div class="mb-3">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl text-white shrink-0"
+                  style="background:linear-gradient(135deg, #ecb921, #B48608)">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-11"/></svg>
+                </span>
+                <div class="flex-1">
+                  <p class="text-[11px] uppercase tracking-[0.18em] text-gold-deep font-extrabold">Điểm mạnh tự nhiên</p>
+                  <p class="text-[10px] text-mmp-ink/60 mt-0.5">Bản chất sẵn có — hãy <b class="text-mmp-ink">PHÁT HUY</b> hằng ngày</p>
+                </div>
+              </div>
+            </div>
+            <ol class="text-sm space-y-2 text-mmp-ink flex-1">
+              <template x-for="(s, i) in (existingResult?.type_meta?.strengths || [])" :key="i">
+                <li class="flex items-start gap-2.5 px-2.5 py-1.5 rounded-xl"
+                  style="background:linear-gradient(90deg, rgba(236,185,33,0.07), transparent 60%)">
+                  <span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-extrabold shrink-0 mt-0.5"
+                    style="background:#B48608;color:#fff" x-text="i + 1"></span>
+                  <span x-text="s"></span>
+                </li>
+              </template>
+            </ol>
+            <!-- Action hint -->
+            <a href={`/pets/${pet.id}/routines`}
+              class="mt-3 pt-3 border-t border-mmp-cream group flex items-center gap-2 text-[11px] font-extrabold text-gold-deep hover:text-mmp-ink transition">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              <span>Lên Routine khai thác →</span>
+            </a>
+          </section>
+
+          <!-- Card 2: Bé cần — "đảm bảo" -->
+          <section class="bg-white rounded-3xl border border-mmp-cream p-5 shadow-sm flex flex-col">
+            <div class="mb-3">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl text-white shrink-0"
+                  style="background:linear-gradient(135deg, #ecb921, #B48608)">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                </span>
+                <div class="flex-1">
+                  <p class="text-[11px] uppercase tracking-[0.18em] text-gold-deep font-extrabold">Bé cần từ chủ</p>
+                  <p class="text-[10px] text-mmp-ink/60 mt-0.5">Thiếu các điều này → bé stress. <b class="text-mmp-ink">PHẢI ĐẢM BẢO</b>.</p>
+                </div>
+              </div>
+            </div>
+            <ol class="text-sm space-y-2 text-mmp-ink flex-1">
+              <template x-for="(n, i) in (existingResult?.type_meta?.needs || [])" :key="i">
+                <li class="flex items-start gap-2.5 px-2.5 py-1.5 rounded-xl"
+                  style="background:linear-gradient(90deg, rgba(236,185,33,0.07), transparent 60%)">
+                  <span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-extrabold shrink-0 mt-0.5"
+                    style="background:#B48608;color:#fff" x-text="i + 1"></span>
+                  <span x-text="n"></span>
+                </li>
+              </template>
+            </ol>
+            <!-- Action hint -->
+            <a href={`/pets/${pet.id}/routines/new`}
+              class="mt-3 pt-3 border-t border-mmp-cream group flex items-center gap-2 text-[11px] font-extrabold text-gold-deep hover:text-mmp-ink transition">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              <span>Tạo Routine đảm bảo →</span>
+            </a>
+          </section>
+        </div>
+
+        <!-- 4. Playdate compat (nếu có) -->
+        <template x-if="existingResult?.type_meta?.compatible_types?.length">
+          <section class="bg-white rounded-3xl border border-mmp-cream p-5 sm:p-6 shadow-sm mb-3">
+            <p class="text-[10px] uppercase tracking-[0.22em] text-gold-deep font-bold mb-3">Playdate hợp với</p>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="cid in existingResult.type_meta.compatible_types" :key="cid">
+                <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-mmp-cream border border-gold-deep text-sm font-medium text-mmp-ink">
+                  <span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-white" style="background:#B48608" x-html="typeIcon(cid, 'w-3 h-3')"></span>
+                  <span x-text="getTypeMeta(cid)?.name_vi"></span>
+                </span>
+              </template>
+            </div>
+          </section>
+        </template>
+
+        <!-- Secondary type giờ hiển thị compact trong hero — không cần section riêng -->
+
+        <!-- 4.5 — AI BEHAVIORAL INSIGHT "Ngày mai của bé" -->
+        <template x-if="behaviorInsight">
+          <section class="mt-4 relative overflow-hidden rounded-3xl shadow-md mb-3"
+            style="background:linear-gradient(140deg, #0a0a0a 0%, #1a1612 60%, #251a08 100%);color:#fff">
+            <!-- Radial gold blob -->
+            <div aria-hidden="true" class="absolute -top-12 -right-12 w-44 h-44 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.35) 0%, transparent 70%);"></div>
+
+            <div class="relative p-5 sm:p-6">
+              <div class="flex items-start gap-3">
+                <span class="inline-flex items-center justify-center w-11 h-11 rounded-2xl shrink-0"
+                  style="background:linear-gradient(135deg, #ecb921, #B48608);color:#0a0a0a"
+                  x-html="typeIcon(activeTypeId, 'w-6 h-6')"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[10px] uppercase tracking-[0.22em] font-extrabold" style="color:#ecb921">
+                    Dự báo · ngày mai của bé {pet.name}
+                  </p>
+                  <h3 class="text-base font-black mt-1">Bé sẽ <b x-text="behaviorInsight.time">07:00</b>:</h3>
+                  <p class="text-sm leading-relaxed mt-1.5" style="color:rgba(255,255,255,0.85)" x-text="behaviorInsight.tip"></p>
+                </div>
+              </div>
+              <p class="text-[10px] tracking-wider uppercase font-bold mt-3 pt-3 border-t" style="color:rgba(236,185,33,0.7);border-color:rgba(236,185,33,0.2)">
+                AI suy luận từ personality type + 12 dữ liệu hành vi
+              </p>
+            </div>
+          </section>
+        </template>
+
+        <!-- 4. DAILY MOOD — Real 7-day history + auto-suggest + toast confirm -->
+        <section class="mt-4 bg-white rounded-3xl border border-mmp-cream p-5 sm:p-6 shadow-md relative overflow-hidden">
+          <div class="flex items-center justify-between mb-3 gap-2">
+            <div>
+              <h3 class="text-sm font-extrabold text-mmp-ink flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-white"
+                  style="background:linear-gradient(135deg, #ecb921, #B48608)">
+                  <FeatureIcon name="heart" class="w-4 h-4" />
+                </span>
+                Tâm trạng hôm nay
+              </h3>
+              <p class="text-[11px] text-mmp-ink/65 mt-1">Lưu tự động vào lịch sử 7 ngày · Bấm để ghi</p>
+            </div>
+            <template x-if="moodTodayValue">
+              <span class="text-[10px] uppercase tracking-[0.18em] font-extrabold flex items-center gap-1 shrink-0 px-2 py-1 rounded-full"
+                style="background:rgba(180,134,8,0.12);color:#B48608">
+                <FeatureIcon name="check" class="w-3 h-3" /> Đã ghi
+              </span>
+            </template>
+          </div>
+
+          <!-- AUTO SUGGEST — gợi ý từ personality group khi chưa có chọn -->
+          <template x-if="suggestedMood">
+            <div class="mb-3 p-2.5 rounded-xl border flex items-start gap-2"
+              style="background:rgba(180,134,8,0.06);border-color:rgba(180,134,8,0.25)">
+              <FeatureIcon name="lightbulb" class="w-4 h-4 shrink-0 mt-0.5 text-gold-deep" />
+              <div class="flex-1 min-w-0">
+                <p class="text-[11px] text-mmp-ink">
+                  <span class="font-bold">Gợi ý hệ thống:</span>
+                  <span x-text="suggestedMood.mood === 'happy' ? 'Vui vẻ' : suggestedMood.mood === 'anxious' ? 'Lo âu' : 'Lừ đừ'" class="text-gold-deep font-extrabold"></span>
+                  <span class="text-mmp-ink/65" x-text="`· ${suggestedMood.reason}`"></span>
+                </p>
+              </div>
+              <button @click="setMood(suggestedMood.mood)"
+                class="text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-full bg-gold-deep text-white shrink-0 hover:opacity-90">
+                Áp dụng
+              </button>
+            </div>
+          </template>
+
+          <!-- 7-DAY HISTORY STRIP — dùng dữ liệu thật từ moodHistory -->
+          <div class="flex items-end justify-between gap-1.5 mb-4 px-1">
+            <template x-for="day in last7Days" :key="day.key">
+              <div class="flex-1 flex flex-col items-center gap-1.5">
+                <div class="relative w-full h-9 rounded-lg flex items-center justify-center transition-all"
+                  :class="day.mood ? '' : (day.isToday ? 'bg-mmp-cream border-2 border-dashed border-gold-deep' : 'bg-mmp-cream/60')"
+                  :style="day.mood ? `background:${moodColor(day.mood)};box-shadow:0 4px 10px rgba(180,134,8,0.25)` : ''">
+                  <template x-if="day.mood === 'happy'">
+                    <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                  </template>
+                  <template x-if="day.mood === 'anxious'">
+                    <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 15s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                  </template>
+                  <template x-if="day.mood === 'lethargic'">
+                    <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                  </template>
+                  <template x-if="!day.mood && day.isToday">
+                    <span class="text-[10px] text-gold-deep font-extrabold">?</span>
+                  </template>
+                </div>
+                <span class="text-[9px] font-bold whitespace-nowrap"
+                  :class="day.isToday ? 'text-gold-deep' : 'text-mmp-ink/40'"
+                  x-text="day.dayLabel"></span>
+              </div>
+            </template>
+          </div>
+
+          <!-- 3 mood buttons — bigger + gradient active state + bounce -->
+          <div class="grid grid-cols-3 gap-2.5">
+            <button @click="setMood('happy')" :class="moodTodayValue === 'happy' ? 'mood-pill active' : 'mood-pill'"
+              type="button"
+              class="relative rounded-2xl border-2 border-mmp-ink/12 bg-white py-4 px-2 text-center text-mmp-ink cursor-pointer">
+              <FeatureIcon name="mood-happy" class="w-8 h-8 mx-auto mb-1.5" />
+              <p class="text-xs font-extrabold">Vui vẻ</p>
+            </button>
+            <button @click="setMood('anxious')" :class="moodTodayValue === 'anxious' ? 'mood-pill active' : 'mood-pill'"
+              type="button"
+              class="relative rounded-2xl border-2 border-mmp-ink/12 bg-white py-4 px-2 text-center text-mmp-ink cursor-pointer">
+              <FeatureIcon name="mood-needy" class="w-8 h-8 mx-auto mb-1.5" />
+              <p class="text-xs font-extrabold">Lo âu</p>
+            </button>
+            <button @click="setMood('lethargic')" :class="moodTodayValue === 'lethargic' ? 'mood-pill active' : 'mood-pill'"
+              type="button"
+              class="relative rounded-2xl border-2 border-mmp-ink/12 bg-white py-4 px-2 text-center text-mmp-ink cursor-pointer">
+              <FeatureIcon name="mood-sleeping" class="w-8 h-8 mx-auto mb-1.5" />
+              <p class="text-xs font-extrabold">Lừ đừ</p>
+            </button>
+          </div>
+
+          <!-- Toast moved outside section — now globally fixed bottom-center -->
+
+          <!-- M15.4 — MOOD × ROUTINE Smart Suggestion (chỉ hiện khi đã tick mood hôm nay) -->
+          <template x-if="moodRoutineSuggestion">
+            <div class="mt-4 p-3.5 rounded-2xl border-2"
+              style="background:linear-gradient(135deg, rgba(236,185,33,0.10), rgba(180,134,8,0.06)); border-color:#B48608">
+              <div class="flex items-start gap-3">
+                <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl shrink-0"
+                  style="background:linear-gradient(135deg, #ecb921, #B48608);color:#0a0a0a">
+                  <FeatureIcon name="lightbulb" class="w-5 h-5" />
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[10px] uppercase tracking-[0.18em] font-extrabold text-gold-deep">
+                    Gợi ý hôm nay
+                  </p>
+                  <p class="text-sm font-extrabold text-mmp-ink mt-0.5">
+                    <span x-text="moodRoutineSuggestion.label"></span>
+                    <span class="ml-1 text-[11px] inline-flex items-center px-2 py-0.5 rounded-full text-white font-bold align-middle" style="background:#B48608">
+                      +<span x-text="moodRoutineSuggestion.bonusPts"></span>đ
+                    </span>
+                  </p>
+                  <p class="text-[12px] text-mmp-ink/75 leading-relaxed mt-1.5" x-text="moodRoutineSuggestion.detail"></p>
+                  <a :href="`/pets/${pet.id}/routines`"
+                    class="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-extrabold text-gold-deep hover:text-mmp-ink transition">
+                    <FeatureIcon name="arrow" class="w-3.5 h-3.5" />
+                    <span>Áp dụng vào routine →</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <p class="text-[11px] text-mmp-ink/70 mt-3 flex items-start gap-1.5">
+            <FeatureIcon name="info" class="w-3.5 h-3.5 shrink-0 mt-0.5 text-gold-deep" />
+            <span><b class="text-mmp-ink">3 ngày liền</b> chọn "Lo âu" hoặc "Lừ đừ" → micro-quiz xuất hiện để rà <b>behavior shift</b>.</span>
+          </p>
+        </section>
+
+        <!-- 4. QUARTERLY REFRESH — chỉ hiện khi >= 90 ngày -->
+        <template x-if="quarterlyDue">
+          <section class="mt-4 rounded-3xl p-5 sm:p-6 shadow-md pulse-ring relative overflow-hidden bg-mmp-cream border-2 border-gold-deep">
+            <div class="flex items-start gap-3">
+              <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gold-deep text-white shrink-0 shadow">
+                <FeatureIcon name="sparkles" class="w-6 h-6" />
+              </span>
+              <div class="flex-1">
+                <h3 class="text-base font-extrabold text-mmp-ink">Đến lúc tinh chỉnh tính cách</h3>
+                <p class="text-xs text-mmp-ink/80 mt-1" x-text="`Bé ${pet.name} đã ${daysSinceQuiz} ngày từ lần khảo sát trước — 3 câu nhanh trong 30 giây để mình rà behavior shift.`"></p>
+                <button class="mt-3 inline-flex items-center gap-2 bg-mmp-ink hover:opacity-90 text-white text-xs font-bold px-4 py-2 rounded-xl shadow"
+                  @click="alert('Tính năng Quarterly Micro-Quiz sẽ ra mắt cùng M28. Hiện tại bạn có thể làm lại đầy đủ 20 câu nếu thấy bé thay đổi rõ rệt.')">
+                  Làm micro-quiz 30s
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- 5. v139 — Growth Journey Vellum Timeline (luxury editorial, pure Tailwind).
+             Gold thread vertical + 4 vellum cards. Watermark numerals Fraunces 7xl.
+             Chỉ active card full color + scale 1.02 hover; done/locked đều opacity-40 grayscale. -->
+        <section class="relative max-w-2xl mx-auto py-10 px-6 mt-4" aria-label="Lộ trình phát triển 4 bước cho bé">
+
+          <!-- Gold thread — vertical axis connecting the 4 dots -->
+          <div
+            class="absolute left-8 top-12 bottom-12 w-0.5 bg-gradient-to-b from-[#B48608] to-transparent pointer-events-none"
+            aria-hidden="true"
+          ></div>
+
+          <!-- 4 steps -->
+          <template x-for="(step, i) in journeySteps" :key="step.id">
+            <div
+              class="relative pl-12 pb-12 transition-all duration-500"
+              :class="(!step.done && step.id === journeyActiveStep.id) ? '' : 'opacity-40 grayscale'"
+            >
+              <!-- Gold dot on the thread -->
+              <span
+                class="absolute left-[26px] top-8 w-4 h-4 rounded-full bg-[#B48608] border-4 border-white shadow-sm z-10"
+                aria-hidden="true"
+              ></span>
+
+              <!-- Vellum card -->
+              <div
+                class="relative bg-white/50 backdrop-blur-sm border border-slate-200 rounded-2xl p-6 shadow-sm transition-all duration-500 hover:shadow-lg hover:-translate-y-1 overflow-hidden"
+                :class="(!step.done && step.id === journeyActiveStep.id) ? 'hover:scale-[1.02]' : ''"
+              >
+                <!-- Watermark numeral — huge faded Fraunces italic -->
+                <span
+                  class="absolute -left-3 top-2 text-7xl font-display italic font-semibold leading-none select-none pointer-events-none"
+                  style="color: rgba(180, 134, 8, 0.10);"
+                  x-text="`0${step.num}`"
+                  aria-hidden="true"
+                >01</span>
+
+                <!-- Content layer (above watermark) -->
+                <div class="relative">
+                  <h4
+                    class="text-2xl font-display font-semibold text-[#0a0a0a] leading-tight"
+                    x-text="step.title"
+                  >Lên lịch trình</h4>
+                  <p
+                    class="text-sm italic text-slate-500 mt-2 leading-relaxed max-w-md"
+                    x-text="step.lead"
+                  >Mô tả 1 câu Fraunces italic.</p>
+
+                  <!-- State row: done tick / locked label / ready CTA -->
+                  <div class="mt-5 flex items-center justify-between gap-4 min-h-[40px]">
+                    <!-- Done state -->
+                    <template x-if="step.done">
+                      <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#B48608]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M5 12l5 5 9-11"/>
+                        </svg>
+                        Đã hoàn tất
+                      </span>
+                    </template>
+
+                    <!-- Locked state (gated bởi prerequisite hoặc petScore=0 cho step 4) -->
+                    <template x-if="!step.done && step.id !== journeyActiveStep.id">
+                      <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <rect x="4" y="11" width="16" height="10" rx="2"/>
+                          <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                        </svg>
+                        <span x-text="step.id === 'share' && isStepGated('share') ? 'Cần Pet Score > 0' : 'Chờ tới lượt'">Chờ tới lượt</span>
+                      </span>
+                    </template>
+
+                    <!-- Ready: ghost CTA, right-aligned.
+                         v140 — Step 1/2/3 navigate; step 4 (share) mở Wow Card modal.
+                         Marking đã do journeyAutoSync() lo, không mark thủ công khi click. -->
+                    <template x-if="!step.done && step.id === journeyActiveStep.id">
+                      <button
+                        class="ml-auto inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.06em] text-[#0a0a0a] border border-[#0a0a0a] rounded-full px-5 py-2.5 transition-all duration-200 hover:bg-[#0a0a0a] hover:text-[#ecb921] hover:gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B48608]"
+                        :aria-label="`${step.id === 'share' ? 'Khoe thẻ ngay' : 'Khởi hành'}: ${step.title}`"
+                        @click="step.id === 'share' ? openWowCard() : (step.href ? (window.location.href = step.href) : shareZalo())"
+                      >
+                        <span x-text="step.id === 'share' ? 'Khoe ngay' : 'Khởi hành'">Khởi hành</span>
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Trọn lộ trình — completion seal (only when all 4 done) -->
+          <template x-if="journeyAllDone">
+            <div class="relative pl-12 pt-2">
+              <span
+                class="absolute left-[24px] top-3 w-5 h-5 rounded-full bg-gradient-to-br from-[#ecb921] to-[#B48608] border-[3px] border-white shadow-md z-10"
+                aria-hidden="true"
+              ></span>
+              <div class="bg-gradient-to-br from-[#FAF6EC] to-white border border-[#B48608]/30 rounded-2xl p-8 text-center shadow-sm">
+                <p class="text-[11px] uppercase tracking-[0.28em] font-bold text-[#B48608]">· Trọn lộ trình ·</p>
+                <h4 class="font-display italic text-2xl font-semibold text-[#0a0a0a] mt-3">Bốn nhánh đã hoàn tất</h4>
+                <p class="text-sm italic text-slate-500 mt-3 max-w-md mx-auto leading-relaxed">
+                  Tính cách của bé {pet.name} đang vận hành đầy đủ — từ lịch trình mỗi ngày đến điểm sức khoẻ và quà tặng.
+                </p>
+              </div>
+            </div>
+          </template>
+        </section>
+
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!--  STEP: intro                                                -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <div x-show="step === 'intro'">
+        <!-- Hero — Profile banner pattern (same as result) -->
+        <div class="pp-shell">
+          <div class="pp-banner" style="padding-bottom:22px">
+            <div class="pp-banner-strip">
+              <span class="pp-tag">· Personality Atelier ·</span>
+              <span class="pp-tag">12 TYPES</span>
+            </div>
+            <h1 class="pp-watermark">Định danh<br/>tính cách</h1>
+            <p class="text-xs italic mt-2 mb-5" style="color:rgba(255,255,255,0.72)">Bé {pet.name} thuộc 1 trong 12 personality types khoa học</p>
+
+            <div class="flex items-center gap-4 pt-4" style="border-top:1px solid rgba(236,185,33,0.25)">
+              <div class="pp-avatar-wrap">
+                {pet.photo_url ? (
+                  <img src={pet.photo_url} alt={pet.name} class="pp-avatar" />
+                ) : (
+                  <div class="pp-avatar flex items-center justify-center" style="background:#0a0a0a">
+                    <FeatureIcon name={pet.species === "cat" ? "cat" : "dog"} class="w-10 h-10" style="color:#ecb921" />
+                  </div>
+                )}
+                <span class="pp-avatar-crest">
+                  <FeatureIcon name="brain" class="w-4 h-4" />
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="pp-meta-name">BÉ · {pet.name}</p>
+                <p class="pp-meta-group">≈ 3 PHÚT · 20 CÂU HỎI</p>
+                <p class="pp-meta-sub">Khoa học hành vi · 6 chiều radar</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Value preview card -->
+        <div class="pv-card">
+          <div class="p-2">
+            <div class="grid grid-cols-3 gap-2 mb-5">
+              <div class="text-center p-3 rounded-2xl bg-mmp-cream">
+                <p class="text-[10px] uppercase tracking-wider text-gold-deep font-bold mb-1">Thời gian</p>
+                <p class="text-base font-extrabold text-mmp-ink">≈ 3 phút</p>
+              </div>
+              <div class="text-center p-3 rounded-2xl bg-mmp-cream">
+                <p class="text-[10px] uppercase tracking-wider text-gold-deep font-bold mb-1">Câu hỏi</p>
+                <p class="text-base font-extrabold text-mmp-ink">{questions.length || 20}</p>
+              </div>
+              <div class="text-center p-3 rounded-2xl bg-mmp-cream">
+                <p class="text-[10px] uppercase tracking-wider text-gold-deep font-bold mb-1">Personality</p>
+                <p class="text-base font-extrabold text-mmp-ink">12 types</p>
+              </div>
+            </div>
+
+            <!-- What you get -->
+            <div class="rounded-2xl border-2 border-gold-deep bg-mmp-cream p-4 mb-5">
+              <p class="text-[11px] uppercase tracking-wider text-gold-deep font-bold mb-2 flex items-center gap-1.5">
+                <FeatureIcon name="gift" class="w-3.5 h-3.5" /> Sau khi xong bạn nhận
+              </p>
+              <ul class="space-y-1.5 text-sm text-mmp-ink">
+                <li class="flex items-start gap-2">
+                  <span class="text-gold-deep mt-0.5 font-bold">◆</span>
+                  <span><b>Bộ nhân Pet Score</b> (×0.75 → ×1.60) áp lên tổng điểm hằng ngày</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-gold-deep mt-0.5 font-bold">◆</span>
+                  <span><b>30-day Action Plan</b> điều phối theo type của bé</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-gold-deep mt-0.5 font-bold">◆</span>
+                  <span><b>Psychological Badge</b> mở khóa danh mục voucher phù hợp</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-gold-deep mt-0.5 font-bold">◆</span>
+                  <span><b>Lịch nhắn thông minh</b> theo nhịp sinh học từng nhóm</span>
+                </li>
+              </ul>
+            </div>
+
+            <button @click="startQuiz()"
+              class="w-full inline-flex items-center justify-center gap-2 bg-mmp-ink hover:bg-mmp-ink/90 text-white font-extrabold px-6 py-4 rounded-2xl text-base shadow-xl">
+              Bắt đầu định danh
+              <FeatureIcon name="arrow" class="w-5 h-5" />
+            </button>
+
+            <template x-if="resumeAvailable">
+              <p class="mt-4 text-xs text-mmp-ink text-center">
+                <FeatureIcon name="info" class="w-3.5 h-3.5 inline -mt-0.5" />
+                Có khảo sát đang dở.
+                <button @click="resume()" class="underline font-bold text-gold-deep">Tiếp tục</button>
+              </p>
+            </template>
+
+            <p class="text-[11px] text-mmp-ink/60 text-center mt-4 italic">
+              Tiến độ tự lưu mỗi khi bạn chọn — nghỉ giữa chừng vẫn quay lại được
+            </p>
+          </div>
+        </div>{/* close pv-card */}
+
+        <!-- Hybrid model preview — 3 nhịp -->
+        <section class="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="rounded-2xl bg-white border border-mmp-cream p-4">
+            <span class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-mmp-cream text-gold-deep mb-2">
+              <FeatureIcon name="brain" class="w-5 h-5" />
+            </span>
+            <p class="text-xs uppercase tracking-wider text-gold-deep font-bold">Core · 1 lần</p>
+            <p class="text-sm font-bold text-mmp-ink mt-0.5">20 câu — Type cố định</p>
+            <p class="text-[11px] text-mmp-ink/70 mt-1">Tạo nền tảng nhân vật cho bé</p>
+          </div>
+          <div class="rounded-2xl bg-white border border-mmp-cream p-4">
+            <span class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-mmp-cream text-gold-deep mb-2">
+              <FeatureIcon name="heart" class="w-5 h-5" />
+            </span>
+            <p class="text-xs uppercase tracking-wider text-gold-deep font-bold">State · Hằng ngày</p>
+            <p class="text-sm font-bold text-mmp-ink mt-0.5">Daily Mood 3 nút</p>
+            <p class="text-[11px] text-mmp-ink/70 mt-1">Theo dõi cảm xúc thoáng qua</p>
+          </div>
+          <div class="rounded-2xl bg-white border border-mmp-cream p-4">
+            <span class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-mmp-cream text-gold-deep mb-2">
+              <FeatureIcon name="sparkles" class="w-5 h-5" />
+            </span>
+            <p class="text-xs uppercase tracking-wider text-gold-deep font-bold">Refresh · 90 ngày</p>
+            <p class="text-sm font-bold text-mmp-ink mt-0.5">Micro-quiz 3 câu</p>
+            <p class="text-[11px] text-mmp-ink/70 mt-1">Rà nhanh behavior shift</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!--  STEP: quiz                                                 -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <div x-show="step === 'quiz'">
+        <!-- Progress -->
+        <div class="mb-5 sticky top-2 z-10 bg-white/95 backdrop-blur-md rounded-2xl p-3.5 shadow-md border border-mmp-cream">
+          <div class="flex items-center gap-3 mb-1.5">
+            <button @click="back()" :disabled="qIndex === 0"
+              class="shrink-0 text-xs font-medium text-mmp-ink/70 disabled:opacity-30 hover:text-gold-deep inline-flex items-center gap-1">
+              ← Trước
+            </button>
+            <span class="text-xs font-bold text-mmp-ink shrink-0">
+              <span x-text="qIndex + 1"></span><span class="text-mmp-ink/50">/<span x-text="questions.length"></span></span>
+            </span>
+            <div class="flex-1 h-2 bg-mmp-cream rounded-full overflow-hidden">
+              <div class="h-full transition-all duration-500 rounded-full"
+                style="background:linear-gradient(90deg, #B48608 0%, #ecb921 100%)"
+                :style="`width: ${((qIndex + 1) / questions.length) * 100}%; background:linear-gradient(90deg, #B48608 0%, #ecb921 100%)`"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-wider text-gold-deep font-bold shrink-0" x-text="currentQuestion?.dimension || ''"></span>
+          </div>
+        </div>
+
+        <!-- Current question -->
+        <div :key="qIndex" class="bg-white rounded-3xl border border-mmp-cream p-6 sm:p-8 shadow-md question-enter">
+          <!-- Subtle dimension icon thay 3xl emoji sticker -->
+          <div class="flex items-center justify-center mb-3">
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-mmp-cream text-gold-deep text-[10px] font-bold uppercase tracking-wider">
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              <span x-text="currentQuestion?.dimension || ''"></span>
+            </span>
+          </div>
+          <h2 class="text-lg sm:text-xl font-extrabold text-mmp-ink text-center mb-6 leading-snug" x-text="currentQuestion?.question_vi"></h2>
+
+          <div class="space-y-2.5">
+            <template x-for="opt in currentQuestion?.options || []" :key="opt.id">
+              <button @click="choose(opt.id)"
+                :class="answers[currentQuestion.id] === opt.id ? 'quiz-opt selected' : 'quiz-opt'"
+                class="w-full text-left border-2 border-mmp-ink/12 rounded-2xl p-4 bg-white active:scale-[0.98] hover:border-gold-deep">
+                <div class="flex items-center gap-3">
+                  <span class="w-8 h-8 shrink-0 rounded-full bg-mmp-cream text-mmp-ink flex items-center justify-center text-sm font-extrabold uppercase"
+                    :class="answers[currentQuestion.id] === opt.id ? 'bg-gold-deep text-white' : ''"
+                    x-text="opt.id"></span>
+                  <span class="text-sm font-medium text-mmp-ink" x-text="opt.text_vi"></span>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <p class="text-center text-[11px] text-mmp-ink/55 mt-4 italic">
+          <FeatureIcon name="check" class="w-3 h-3 inline -mt-0.5" />
+          Tiến độ tự lưu mỗi khi bạn chọn — có thể tạm dừng và quay lại bất cứ lúc nào
+        </p>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!--  STEP: loading                                              -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <div x-show="step === 'loading'" class="bg-white rounded-3xl border border-mmp-cream p-12 text-center shadow-md">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-mmp-cream text-gold-deep mb-4 animate-pulse">
+          <FeatureIcon name="paw" class="w-10 h-10" />
+        </div>
+        <p class="text-lg font-extrabold text-mmp-ink" x-text="`Đang định danh tính cách bé ${pet.name}...`"></p>
+        <p class="text-xs text-mmp-ink/60 mt-2">Đối chiếu 12 types · Tính radar 6 chiều · Mapping k_factor</p>
+        <div class="mt-5 flex justify-center gap-1.5">
+          <span class="inline-block w-2 h-2 rounded-full bg-gold-deep animate-bounce" style="animation-delay: 0ms"></span>
+          <span class="inline-block w-2 h-2 rounded-full bg-gold-deep animate-bounce" style="animation-delay: 120ms"></span>
+          <span class="inline-block w-2 h-2 rounded-full bg-gold-deep animate-bounce" style="animation-delay: 240ms"></span>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!--  STEP: result                                               -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <div x-show="step === 'result'">
+        <template x-if="result">
+          <div>
+            <!-- PROFILE BANNER — same pattern as existing -->
+            <div id="result-card" class="pp-shell result-card-enter">
+              <div class="pp-banner" style="padding-bottom:22px">
+                <div class="pp-banner-strip">
+                  <span class="pp-tag">· Vừa định danh ·</span>
+                  <span class="pp-tag" x-text="`№ ${String(pet.id).padStart(4,'0')}`"></span>
+                </div>
+                <h1 class="pp-watermark" x-text="result.primary_meta?.name_vi"></h1>
+                <p class="text-xs italic mt-2 mb-5" style="color:rgba(255,255,255,0.72)" x-text="`«${result.primary_meta?.tagline_vi || ''}»`"></p>
+
+                <div class="flex items-center gap-4 pt-4" style="border-top:1px solid rgba(236,185,33,0.25)">
+                  <div class="pp-avatar-wrap type-reveal">
+                    {pet.photo_url ? (
+                      <img src={pet.photo_url} alt={pet.name} class="pp-avatar" />
+                    ) : (
+                      <div class="pp-avatar flex items-center justify-center" style="background:#0a0a0a">
+                        <FeatureIcon name={pet.species === "cat" ? "cat" : "dog"} class="w-10 h-10" style="color:#ecb921" />
+                      </div>
+                    )}
+                    <span class="pp-avatar-crest" x-html="typeIcon(result.primary_meta?.id, 'w-4 h-4')"></span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="pp-meta-name" x-text="`BÉ · ${pet.name}`"></p>
+                    <p class="pp-meta-group" x-text="kMeta.group + ' · GROUP'"></p>
+                    <p class="pp-meta-sub" x-text="`${badgeName}`"></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- K-Factor focal -->
+            <section class="pp-k-hero mb-3 k-badge">
+              <div class="pp-k-disc">
+                <span class="pp-k-value">×<span x-text="kFactor.toFixed(2)"></span></span>
+                <span class="pp-k-mini">k-factor</span>
+              </div>
+              <div class="pp-k-info">
+                <p class="pp-k-info-label">Bộ nhân Pet Score</p>
+                <p class="pp-k-info-name" x-text="badgeName"></p>
+                <p class="pp-k-info-sub" x-text="`Áp dụng vào tổng điểm hằng ngày · ${actionPlanLabel}`"></p>
+              </div>
+            </section>
+
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div class="pp-tile">
+                <p class="pp-tile-label">Action Plan</p>
+                <p class="pp-tile-value" x-text="actionPlanLabel"></p>
+                <p class="pp-tile-sub">30 ngày điều phối</p>
+              </div>
+              <div class="pp-tile">
+                <p class="pp-tile-label">Voucher</p>
+                <p class="pp-tile-value" x-text="voucherCategory"></p>
+                <p class="pp-tile-sub">Đã mở khóa</p>
+              </div>
+            </div>
+
+            <!-- Description -->
+            <section class="pv-card mb-3">
+              <p class="text-[13px] leading-relaxed text-mmp-ink/85" x-text="result.primary_meta?.description_vi"></p>
+            </section>
+
+            <!-- Strengths + Needs grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <section class="pv-card">
+                <p class="pv-card-label">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-11"/></svg>
+                  Điểm mạnh
+                </p>
+                <ul class="text-sm space-y-2 text-mmp-ink">
+                  <template x-for="s in (result.primary_meta?.strengths || [])">
+                    <li class="flex items-start gap-2"><span class="text-gold-deep font-bold leading-6">◆</span><span x-text="s"></span></li>
+                  </template>
+                </ul>
+              </section>
+              <section class="pv-card">
+                <p class="pv-card-label">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                  Bé cần
+                </p>
+                <ul class="text-sm space-y-2 text-mmp-ink">
+                  <template x-for="n in (result.primary_meta?.needs || [])">
+                    <li class="flex items-start gap-2"><span class="text-gold-deep font-bold leading-6">◆</span><span x-text="n"></span></li>
+                  </template>
+                </ul>
+              </section>
+            </div>
+
+            <!-- Radar chart -->
+            <section class="pv-card mb-3">
+              <p class="pv-card-label">
+                <FeatureIcon name="radar" class="w-3 h-3" />
+                Bản đồ tính cách (6 chiều)
+              </p>
+              <!-- v142 — Pre-rendered via x-html (same fix as radar6d). -->
+              <div x-html="radar5dHtml" aria-label="Radar tính cách 6 chiều"></div>
+            </section>
+
+            <!-- Secondary + Compatibility -->
+            <template x-if="result.secondary_meta || result.primary_meta?.compatible_types?.length">
+              <section class="pv-card mb-3">
+                <template x-if="result.secondary_meta">
+                  <div class="mb-3 pb-3 border-b border-mmp-cream">
+                    <p class="pv-card-label">Cũng có nét của</p>
+                    <span class="pv-chip">
+                      <span class="pv-chip-icon" x-html="typeIcon(result.secondary_meta.id, 'w-3 h-3')"></span>
+                      <span x-text="result.secondary_meta.name_vi"></span>
+                    </span>
+                  </div>
+                </template>
+                <template x-if="result.primary_meta?.compatible_types?.length">
+                  <div>
+                    <p class="pv-card-label">Playdate hợp với</p>
+                    <div class="flex flex-wrap gap-2">
+                      <template x-for="cid in result.primary_meta.compatible_types" :key="cid">
+                        <span class="pv-chip">
+                          <span class="pv-chip-icon" x-html="typeIcon(cid, 'w-3 h-3')"></span>
+                          <span x-text="getTypeMeta(cid)?.name_vi"></span>
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </section>
+            </template>
+
+            <!-- Unlock callout — badge + plan -->
+            <section class="mt-5 rounded-3xl p-5 sm:p-6 shadow-md relative overflow-hidden bg-mmp-cream border-2 border-gold-deep">
+              <div class="flex items-start gap-3">
+                <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gold-deep text-white shrink-0 shadow-lg">
+                  <FeatureIcon name="award" class="w-6 h-6" />
+                </span>
+                <div class="flex-1">
+                  <p class="text-[10px] uppercase tracking-wider text-gold-deep font-bold">Vừa mở khóa</p>
+                  <h3 class="text-base font-extrabold text-mmp-ink mt-0.5" x-text="`Badge ${badgeName}`"></h3>
+                  <p class="text-xs text-mmp-ink/80 mt-1">
+                    Bộ nhân ×<span x-text="kFactor.toFixed(2)" class="font-bold text-gold-deep"></span> đang áp dụng vào Pet Score · 30-day Action Plan đã đẩy vào Dashboard.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <!-- ═════ BƯỚC TIẾP THEO — Roadmap rõ ràng cho user ═════ -->
+            <section class="mt-4 bg-white rounded-3xl border-2 border-gold-deep p-5 sm:p-6 shadow-lg">
+              <div class="flex items-center gap-2 mb-4">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gold-deep text-white">
+                  <FeatureIcon name="arrow" class="w-4 h-4" />
+                </span>
+                <h3 class="text-base font-extrabold text-mmp-ink">Bước tiếp theo</h3>
+              </div>
+              <p class="text-xs text-mmp-ink/75 mb-4">Bé {pet.name} đã có "căn cước tính cách". Giờ áp vào 4 việc dưới đây để biến k-factor thành điểm thật:</p>
+
+              <div class="space-y-2.5">
+                <a href={`/pets/${pet.id}/routines`}
+                  class="group flex items-center gap-3 p-3.5 rounded-2xl bg-mmp-cream hover:bg-gold-deep hover:text-white border border-gold-deep transition">
+                  <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white text-gold-deep shrink-0 group-hover:bg-mmp-ink group-hover:text-gold-deep">
+                    <FeatureIcon name="target" class="w-5 h-5" />
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-extrabold">1. Lên Routines theo type</p>
+                    <p class="text-[11px] opacity-80 truncate" x-text="`${actionPlanLabel} — Smart Blueprint match với ${badgeName}`"></p>
+                  </div>
+                  <FeatureIcon name="arrow" class="w-4 h-4 shrink-0" />
+                </a>
+
+                <a href="/dashboard"
+                  class="group flex items-center gap-3 p-3.5 rounded-2xl bg-white hover:bg-mmp-ink hover:text-white border border-mmp-ink/15 transition">
+                  <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream text-gold-deep shrink-0 group-hover:bg-gold-deep group-hover:text-white">
+                    <FeatureIcon name="home" class="w-5 h-5" />
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-extrabold">2. Xem Pet Score với k-factor</p>
+                    <p class="text-[11px] opacity-80 truncate">Dashboard — gauge cập nhật ×<span x-text="kFactor.toFixed(2)"></span></p>
+                  </div>
+                  <FeatureIcon name="arrow" class="w-4 h-4 shrink-0" />
+                </a>
+
+                <a href={`/pets/${pet.id}/rewards`}
+                  class="group flex items-center gap-3 p-3.5 rounded-2xl bg-white hover:bg-mmp-ink hover:text-white border border-mmp-ink/15 transition">
+                  <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream text-gold-deep shrink-0 group-hover:bg-gold-deep group-hover:text-white">
+                    <FeatureIcon name="gift" class="w-5 h-5" />
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-extrabold">3. Đổi voucher hợp type</p>
+                    <p class="text-[11px] opacity-80 truncate" x-text="`Danh mục mở khóa: ${voucherCategory}`"></p>
+                  </div>
+                  <FeatureIcon name="arrow" class="w-4 h-4 shrink-0" />
+                </a>
+
+                <button @click="shareZalo()"
+                  class="group w-full flex items-center gap-3 p-3.5 rounded-2xl bg-white hover:bg-mmp-ink hover:text-white border border-mmp-ink/15 transition text-left">
+                  <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-mmp-cream text-gold-deep shrink-0 group-hover:bg-gold-deep group-hover:text-white">
+                    <FeatureIcon name="share" class="w-5 h-5" />
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-extrabold">4. Chia sẻ thẻ tính cách</p>
+                    <p class="text-[11px] opacity-80 truncate">Mở menu chia sẻ (Zalo · Messenger · Copy link)</p>
+                  </div>
+                  <FeatureIcon name="arrow" class="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-mmp-cream">
+                <p class="text-[11px] text-mmp-ink/70 flex items-start gap-1.5">
+                  <FeatureIcon name="info" class="w-3.5 h-3.5 shrink-0 mt-0.5 text-gold-deep" />
+                  <span><b>Kết quả này cố định</b> — không cần làm lại. Quay lại trang này mỗi ngày để tick tâm trạng & sau <b>90 ngày</b> mình sẽ gợi ý micro-quiz để rà behavior shift.</span>
+                </p>
+              </div>
+            </section>
+
+            <!-- Actions secondary -->
+            <div class="mt-5 flex flex-wrap gap-2 justify-center">
+              <button @click="saveImage('result-card')"
+                class="inline-flex items-center gap-2 bg-gold-deep hover:opacity-90 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow"
+                :disabled="savingImage">
+                <FeatureIcon name="image" class="w-4 h-4" />
+                <span x-show="!savingImage">Lưu ảnh thẻ</span>
+                <span x-show="savingImage">Đang lưu...</span>
+              </button>
+              <button @click="confirmReset()"
+                class="inline-flex items-center gap-2 bg-white hover:bg-mmp-cream border border-mmp-ink/15 text-mmp-ink text-sm font-bold px-4 py-2.5 rounded-xl">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                Làm lại quiz
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Global toast — fixed bottom-center, hiện khi setMood / shareZalo / saveImage -->
+      <div x-show="moodToast" x-transition.opacity
+        class="fixed left-1/2 -translate-x-1/2 bottom-6 px-5 py-3 rounded-full text-sm font-bold text-white shadow-2xl pointer-events-none z-50"
+        style="background:#0a0a0a;border:1px solid rgba(236,185,33,0.4);max-width:90vw">
+        <span x-text="moodToast"></span>
+      </div>
+
+      <!-- v140 — WOW CARD MODAL (Step 4 share). Luxury editorial social card với
+           cream bg, pet silhouette tròn, badge tính cách, tagline, logo + QR góc.
+           Render html2canvas qua saveImage('wow-card', {bgColor:'#FAF6EC'}). -->
+      <div
+        x-show="wowCardOpen"
+        x-transition.opacity.duration.250ms
+        x-cloak
+        @click.self="closeWowCard()"
+        @keydown.escape.window="wowCardOpen && closeWowCard()"
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto"
+        style="background: rgba(10,10,10,0.78); backdrop-filter: blur(6px); display: none;"
+      >
+        <div class="relative max-w-[400px] w-full flex flex-col items-center gap-5 my-auto">
+
+          <!-- The Wow Card itself (captured) -->
+          <div
+            id="wow-card"
+            class="relative w-[360px] aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+            style="background-color: #FAF6EC; border: 1px solid rgba(180,134,8,0.30); font-family: var(--font-display, 'Fraunces', serif);"
+          >
+            <!-- Hairline gold top edge -->
+            <div class="absolute top-0 left-6 right-6 h-[1.5px]"
+              style="background: linear-gradient(90deg, transparent, #B48608, #ecb921, #B48608, transparent);"></div>
+
+            <!-- Top: brand eyebrow + personality badge -->
+            <div class="pt-7 pb-2 px-6 text-center relative">
+              <p class="text-[9px] uppercase font-bold"
+                style="letter-spacing: 0.32em; color: #B48608;">· Mon Min Pet ·</p>
+              <div class="mt-3 inline-block px-4 py-1.5 rounded-full text-[11px] font-bold uppercase"
+                style="background: #0a0a0a; color: #ecb921; letter-spacing: 0.16em;"
+                x-text="result?.type || existingResult?.type || 'Pet'">Chuyên gia ngủ ngon</div>
+            </div>
+
+            <!-- Center: pet silhouette + gold rings -->
+            <div class="flex-1 flex items-center justify-center px-6 relative">
+              <div class="absolute inset-0 pointer-events-none"
+                style="background: radial-gradient(circle at 50% 50%, rgba(236,185,33,0.18), transparent 60%); opacity: 0.55;"></div>
+              <div class="relative">
+                <div class="absolute rounded-full"
+                  style="inset: -14px; border: 1px solid rgba(180,134,8,0.25);"></div>
+                <div class="absolute rounded-full"
+                  style="inset: -6px; border: 2px solid rgba(180,134,8,0.6);"></div>
+                <div class="w-40 h-40 rounded-full overflow-hidden shadow-lg"
+                  style="border: 4px solid #ffffff;">
+                  <template x-if="pet.photo_url">
+                    <img :src="pet.photo_url" :alt="pet.name" class="w-full h-full object-cover" crossorigin="anonymous"/>
+                  </template>
+                  <template x-if="!pet.photo_url">
+                    <div class="w-full h-full flex items-center justify-center text-5xl"
+                      style="background: #0a0a0a; color: #ecb921;">
+                      <span x-text="pet.species === 'cat' ? '🐱' : '🐶'">🐾</span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom: pet name + tagline -->
+            <div class="px-6 pt-3 text-center">
+              <h3 class="text-[26px] leading-tight font-semibold italic m-0"
+                style="color: #0a0a0a;" x-text="pet.name">Min</h3>
+              <p class="mt-2 text-[12.5px] italic leading-snug m-0"
+                style="color: rgba(10,10,10,0.72);"
+                x-text="`Tự hào là chủ nhân của một bé ${result?.type || existingResult?.type || 'Pet'} tại VowVet`">
+                Tự hào là chủ nhân của một bé Chuyên gia ngủ ngon tại VowVet
+              </p>
+            </div>
+
+            <!-- Bottom corner: logo + QR -->
+            <div class="px-6 pb-5 pt-3 flex items-end justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <img src="/logo-mmp.png" alt="VowVet" width="28" height="28" class="w-7 h-7" crossorigin="anonymous"/>
+                <div class="leading-tight">
+                  <p class="text-[10px] italic m-0"
+                    style="color: rgba(10,10,10,0.55); font-family: var(--font-display);">vowvet</p>
+                  <p class="text-[8.5px] font-bold uppercase m-0"
+                    style="color: #B48608; letter-spacing: 0.18em;">.monminpet.com</p>
+                </div>
+              </div>
+              <template x-if="qrDataUrl">
+                <div class="p-1 rounded-md"
+                  style="background: #ffffff; border: 1px solid rgba(10,10,10,0.08);">
+                  <img :src="qrDataUrl" alt="QR quét xem thẻ" class="w-14 h-14"/>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Actions row (NOT captured) -->
+          <div class="flex items-center justify-center gap-3 flex-wrap mt-1">
+            <button
+              type="button"
+              @click="closeWowCard()"
+              class="px-4 py-2.5 rounded-full text-sm font-semibold transition-all"
+              style="color: rgba(255,255,255,0.78); border: 1px solid rgba(255,255,255,0.3); background: transparent;"
+              onmouseover="this.style.color='#fff';this.style.borderColor='rgba(255,255,255,0.6)';"
+              onmouseout="this.style.color='rgba(255,255,255,0.78)';this.style.borderColor='rgba(255,255,255,0.3)';"
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              @click="saveImage('wow-card', { bgColor: '#FAF6EC', filenameBase: 'thecanhan' }); markMilestone('share');"
+              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-extrabold transition-all shadow-lg"
+              style="background: #ecb921; color: #0a0a0a;"
+              onmouseover="this.style.background='#fff8d4';"
+              onmouseout="this.style.background='#ecb921';"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Tải ảnh thẻ
+            </button>
+            <button
+              type="button"
+              @click="shareZalo(); markMilestone('share');"
+              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-extrabold transition-all"
+              style="background: #0a0a0a; color: #ecb921; border: 1px solid rgba(236,185,33,0.4);"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Chia sẻ link
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    const LS_KEY_PREFIX = "vowvet_personality_progress_";
+    const LS_MOOD_PREFIX = "vowvet_pet_mood_";
+
+    /**
+     * TYPE LUCIDE ICONS — thay 12 emoji sticker backend bằng SVG inline
+     * (#ecb921 on ink-card; auto-colored via currentColor).
+     */
+    const TYPE_LUCIDE_ICONS = {
+      // explorer 🗺️ → map-pin
+      "explorer":  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+      // cuddler 🤗 → heart
+      "cuddler":   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>',
+      // foodie 🍴 → utensils
+      "foodie":    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>',
+      // guardian 🛡️ → shield-check
+      "guardian":  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+      // comedian 🎭 → mask
+      "comedian":  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11c-1.5 0-2.5.5-3 2"/><path d="M4 11c1.5 0 2.5.5 3 2"/><path d="M2.5 8.5c0-1 1.5-2 5.5-2s5.5 1 6 2.5c.5-1.5 2-2.5 6-2.5s5.5 1 5.5 2c0 7-3 13-7 13-2 0-3-1-4.5-3-1.5 2-2.5 3-4.5 3-4 0-7-6-7-13Z"/></svg>',
+      // athlete 🏃 → activity-run
+      "athlete":   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M4 22l4-9 4 4 3-3 4 9"/><path d="M9 13l-2 4"/><path d="M14 7l1 6 4-2"/></svg>',
+      // diplomat 🤝 → handshake
+      "diplomat":  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3l4-4"/><path d="M2 12l4-4 4 4-4 4z"/><path d="M14 12l4-4 4 4-4 4z"/><path d="M8 14h8"/></svg>',
+      // loner 🌙 → moon
+      "loner":     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+      // talker 💬 → message-circle
+      "talker":    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+      // sleeper 😴 → mood-sleeping (moon-Z)
+      "sleeper":   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/><path d="M7 9h3l-3 4h3" stroke-width="1.4"/></svg>',
+      // trickster 🎩 → sparkles
+      "trickster": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+      // sensitive 💎 → diamond
+      "sensitive": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9l4-6zM12 22V3M2 9h20M9 3l-3 6M15 3l3 6"/></svg>',
+    };
+    function getTypeIcon(typeId, sizeClass) {
+      const svg = TYPE_LUCIDE_ICONS[typeId];
+      if (!svg) return "";
+      const cls = sizeClass || "w-7 h-7";
+      // Inject size class into the svg root
+      return svg.replace("<svg ", `<svg class="${cls}" `);
+    }
+
+    /**
+     * K-FACTOR MAP — 12 personality types backend (explorer, cuddler, foodie...)
+     * → multiplier áp lên Pet Score.
+     *
+     * OUTGOING  (1.30-1.60): năng động cao, đốt cháy năng lượng nhanh
+     * BALANCED  (1.05-1.25): cân bằng, đa dụng
+     * INTROVERT (0.75-0.95): nhạy cảm, cần chăm sóc tinh tế
+     * SPECIAL   (1.10-1.35): cá tính độc đáo, sáng tạo
+     */
+    const K_FACTOR_MAP = {
+      // OUTGOING (4 types)
+      "explorer":  { k: 1.50, group: "OUTGOING",  badge: "Nhà Thám Hiểm",      plan: "Outdoor 30d",  voucher: "Đồ chơi vận động" },
+      "athlete":   { k: 1.60, group: "OUTGOING",  badge: "Vận Động Viên",      plan: "Active 30d",   voucher: "Dinh dưỡng tăng cơ" },
+      "talker":    { k: 1.30, group: "OUTGOING",  badge: "Diễn Giả Tí Hon",    plan: "Bond 30d",     voucher: "Quà tương tác" },
+      "comedian":  { k: 1.35, group: "OUTGOING",  badge: "Vua Hài Hước",       plan: "Play 30d",     voucher: "Đồ chơi quirky" },
+      // BALANCED (3 types)
+      "guardian":  { k: 1.20, group: "BALANCED",  badge: "Vệ Sĩ Trung Thành",  plan: "Training 30d", voucher: "Huấn luyện cao cấp" },
+      "diplomat":  { k: 1.15, group: "BALANCED",  badge: "Sứ Giả Hòa Bình",    plan: "Social 30d",   voucher: "Playdate pack" },
+      "foodie":    { k: 1.05, group: "BALANCED",  badge: "Thực Khách Sành",    plan: "Nutrition 30d",voucher: "Đồ ăn premium" },
+      // INTROVERT (4 types)
+      "cuddler":   { k: 0.95, group: "INTROVERT", badge: "Trái Tim Ấm",        plan: "Bonding 30d",  voucher: "Đồ giữ ấm + ổ" },
+      "loner":     { k: 0.80, group: "INTROVERT", badge: "Người Cô Độc Êm",    plan: "Quiet 30d",    voucher: "Phụ kiện riêng tư" },
+      "sleeper":   { k: 0.75, group: "INTROVERT", badge: "Triết Gia Ngủ Ngon", plan: "Rest 30d",     voucher: "Đệm + giấc ngủ" },
+      "sensitive": { k: 0.85, group: "INTROVERT", badge: "Tâm Hồn Mong Manh",  plan: "Calm 30d",     voucher: "Anti-stress" },
+      // SPECIAL (1 type)
+      "trickster": { k: 1.25, group: "SPECIAL",   badge: "Nghệ Sĩ Tinh Nghịch",plan: "Enrich 30d",   voucher: "Puzzle toy + treat" },
+    };
+
+    function getKMeta(typeId) {
+      return K_FACTOR_MAP[typeId] || { k: 1.0, group: "BALANCED", badge: "Tính cách Đặc biệt", plan: "Custom 30d", voucher: "Quà bí mật" };
+    }
+
+    /**
+     * BEHAVIORAL INSIGHT MAP — "Ngày mai của bé" gợi ý theo type
+     * Mỗi type có time + hành động cụ thể cho ngày mai.
+     */
+    const INSIGHT_MAP = {
+      explorer:  { time: "07:00 sáng",   icon: "map-pin",        tip: "Dắt bé tới chỗ mới — quán cafe khác, công viên lạ. Khám phá 3 mùi mới sẽ làm bé phấn khích cả ngày." },
+      athlete:   { time: "06:30 sáng",   icon: "activity-run",   tip: "Interval 5 phút × 4 lần sáng sớm. Cardio cao + nghỉ 1 phút. Tránh nắng giữa trưa." },
+      cuddler:   { time: "21:00 tối",    icon: "heart",          tip: "10 phút ôm bé trước khi ngủ → cortisol giảm 30%. Bé sẽ ngủ ngon hơn cả gia đình." },
+      sleeper:   { time: "20:00 tối",    icon: "moon",           tip: "Đừng ép chơi sáng. Đặt đồ chơi mới lúc 8h tối — đó là lúc bé tỉnh táo nhất." },
+      loner:     { time: "linh hoạt",    icon: "home",           tip: "Đặt cave bed góc yên. Để bé chủ động approach — đừng tự ý ôm. Tôn trọng signal." },
+      guardian:  { time: "07:00 sáng",   icon: "shield-check",   tip: "Dạy lệnh 'yên' 5 phút. Cho bé canh cửa nhưng có boundary rõ — tránh overzealous." },
+      foodie:    { time: "trước bữa",    icon: "utensils",       tip: "Puzzle feeder để bé tập ăn chậm. Cân tuần 1 lần — kiểm soát BCS không để overweight." },
+      comedian:  { time: "19:00 tối",    icon: "camera",         tip: "Quay 1 video bé làm trò → bé sẽ học lại nhiều hơn. Audience là motivation #1." },
+      talker:    { time: "07:00 sáng",   icon: "message-circle", tip: "Đáp lại tiếng kêu bằng 1 từ → bé sẽ học vocabulary. Train 'yên' nếu ở apartment." },
+      diplomat:  { time: "17:00 chiều",  icon: "handshake",      tip: "Pet meetup chiều tan tầm. Bé cần ≥3 lần socialize/tuần để giữ ổn định cảm xúc." },
+      trickster: { time: "10:00 sáng",   icon: "sparkles",       tip: "Puzzle mới mỗi 3 ngày. Tăng difficulty từng cấp. Tránh repetitive routine → bé sẽ tự phá đồ." },
+      sensitive: { time: "linh hoạt",    icon: "shield",         tip: "Pheromone diffuser bật 24/7. Tránh khách lạ. Routine predictable = stress thấp nhất." },
+    };
+
+    /**
+     * MOOD × ROUTINE SUGGESTION — kết hợp tâm trạng hôm nay + personality
+     * Output cụ thể: action + reward bonus + reasoning.
+     */
+    const MOOD_SUGGESTION_MAP = {
+      happy: {
+        label: "Đẩy intensity +10%",
+        detail: "Bé đang phấn khích — tận dụng energy cao. Tăng vận động sáng nay 1.5× bình thường để max-out reward.",
+        bonusPts: 5,
+        icon: "trending-up",
+      },
+      anxious: {
+        label: "Soft routine + ôm 5p",
+        detail: "Bé đang lo. Tránh routine intense. Thay bằng massage 5p + ổ ấm + voice calm. ≥3 ngày liền → mình sẽ alert.",
+        bonusPts: 3,
+        icon: "shield",
+      },
+      lethargic: {
+        label: "Gentle pace 50%",
+        detail: "Bé low energy. Giảm intensity xuống nhẹ. Theo dõi BCS, hydration, dấu hiệu bệnh nếu kéo dài 3+ ngày.",
+        bonusPts: 3,
+        icon: "moon",
+      },
+    };
+
+    /**
+     * TYPE → DIMENSION MAP — derive 6-dim scores từ 12-type scores
+     * Mỗi type contribute weighted vào 1-3 dimensions.
+     */
+    const DIMENSION_WEIGHTS = {
+      explorer:  { energy: 1.0, social: 0.3 },
+      athlete:   { energy: 1.0, food: 0.2 },
+      comedian:  { social: 0.6, energy: 0.4, communication: 0.3 },
+      talker:    { communication: 1.0, social: 0.3 },
+      diplomat:  { social: 1.0, communication: 0.3 },
+      foodie:    { food: 1.0 },
+      guardian:  { communication: 0.5, social: 0.3, emotion: 0.3 },
+      cuddler:   { social: 0.7, emotion: 0.4 },
+      sensitive: { emotion: 1.0 },
+      loner:     { independence: 1.0 },
+      sleeper:   { independence: 0.7 },
+      trickster: { independence: 0.6, communication: 0.3 },
+    };
+
+    function personalityPage(initial) {
+      return {
+        pet: initial.pet,
+        questions: initial.questions,
+        allTypes: initial.allTypes,
+        existingResult: initial.existingResult,
+        // v140 — Wow Card data (SSR-generated QR + target URL)
+        qrDataUrl: initial.qrDataUrl || "",
+        personalityCardUrl: initial.personalityCardUrl || "",
+        result: null,
+        savingImage: false,
+        moodTodayValue: null,
+
+        step: "intro",
+        qIndex: 0,
+        answers: {},
+        resumeAvailable: false,
+
+        get currentQuestion() {
+          return this.questions[this.qIndex];
+        },
+
+        get lsKey() {
+          return LS_KEY_PREFIX + this.pet.id;
+        },
+
+        get lsMoodKey() {
+          return LS_MOOD_PREFIX + this.pet.id;
+        },
+
+        // === Derived meta from result ===
+        get activeTypeId() {
+          // Defensive — backend uses `.primary` (submit) hoặc `.type` (existing GET)
+          // và type_meta object có .id field
+          return (
+            this.result?.primary ||
+            this.result?.primary_meta?.id ||
+            this.existingResult?.type ||
+            this.existingResult?.type_meta?.id ||
+            null
+          );
+        },
+        get activeSecondaryId() {
+          return (
+            this.result?.secondary ||
+            this.result?.secondary_meta?.id ||
+            this.existingResult?.secondary_type ||
+            this.existingResult?.secondary_meta?.id ||
+            null
+          );
+        },
+        get kMeta() {
+          return getKMeta(this.activeTypeId);
+        },
+        get kFactor() { return this.kMeta.k; },
+        get badgeName() { return this.kMeta.badge; },
+        get actionPlanLabel() { return this.kMeta.plan; },
+        get voucherCategory() { return this.kMeta.voucher; },
+
+        // === Quarterly refresh check ===
+        get daysSinceQuiz() {
+          const ts = this.existingResult?.completed_at || this.existingResult?.created_at;
+          if (!ts) return 0;
+          const then = new Date(ts).getTime();
+          if (Number.isNaN(then)) return 0;
+          return Math.floor((Date.now() - then) / 86400000);
+        },
+        get quarterlyDue() { return this.daysSinceQuiz >= 90; },
+
+        onMount() {
+          if (this.existingResult) {
+            this.step = "existing";
+          } else {
+            try {
+              const saved = localStorage.getItem(this.lsKey);
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && parsed.answers && Object.keys(parsed.answers).length > 0) {
+                  this.resumeAvailable = true;
+                }
+              }
+            } catch (_) {}
+          }
+          this.loadMoodToday();
+          this.loadJourney();
+          // v140 — auto-sync milestones từ backend (silent, idempotent)
+          this.journeyAutoSync();
+          // BIG SURPRISE: init tilt + count-up + confetti listener
+          this.$nextTick(() => this.initBigEffects());
+          // v147 — Wow WAAPI animations cho phần ngoài radar (đồng bộ aesthetic).
+          // Delay 250ms để DOM của result step render xong.
+          setTimeout(() => this.applyWowAnimations(), 250);
+        },
+
+        // ============ v147 — WAAPI WOW ANIMATIONS ============
+        // Tại sao WAAPI thay vì CSS animation? Trên page này CSS keyframes có vấn đề
+        // chưa rõ root cause (radar phải dùng SMIL mới chạy được). WAAPI là JS API
+        // gọi trực tiếp browser animation engine — bulletproof, không phụ thuộc CSS.
+        applyWowAnimations() {
+          if (typeof window === "undefined" || !document.body.animate) return;
+          // Respect OS reduce-motion
+          if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+          const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+          const $1 = (sel) => document.querySelector(sel);
+
+          // 1) HERO PET PHOTO — gold halo breathing pulse
+          const photo = $1("#result-card-existing img.pet-photo-zoom, #result-card-existing div[style*='box-shadow']");
+          if (photo) {
+            photo.animate(
+              [
+                { boxShadow: "0 0 0 3px #ecb921, 0 0 0 5px rgba(180,134,8,0.3), 0 8px 18px -4px rgba(236,185,33,0.5)" },
+                { boxShadow: "0 0 0 3px #ecb921, 0 0 0 10px rgba(236,185,33,0.55), 0 14px 28px -4px rgba(236,185,33,0.8)" },
+                { boxShadow: "0 0 0 3px #ecb921, 0 0 0 5px rgba(180,134,8,0.3), 0 8px 18px -4px rgba(236,185,33,0.5)" },
+              ],
+              { duration: 3200, iterations: Infinity, easing: "ease-in-out" }
+            );
+          }
+
+          // 2) K-FACTOR NUMBER — scale + glow pulse (×1.30 v.v.)
+          $$("#result-card-existing .k-pulse-mount").forEach((el) => {
+            el.animate(
+              [
+                { transform: "scale(1)",     textShadow: "0 0 0 rgba(236,185,33,0)" },
+                { transform: "scale(1.08)",  textShadow: "0 0 18px rgba(236,185,33,0.95)" },
+                { transform: "scale(1)",     textShadow: "0 0 0 rgba(236,185,33,0)" },
+              ],
+              { duration: 2400, iterations: Infinity, easing: "ease-in-out" }
+            );
+          });
+
+          // 3) HERO NAME — gold shimmer sweep (replaces CSS name-shine in case CSS dead)
+          const nameEl = $1("#result-card-existing .name-shine");
+          if (nameEl) {
+            // Force the gradient bg in case CSS chưa apply
+            nameEl.style.backgroundImage = "linear-gradient(90deg, #fff 0%, #fff 35%, #ecb921 50%, #fff 65%, #fff 100%)";
+            nameEl.style.backgroundSize = "200% 100%";
+            nameEl.style.webkitBackgroundClip = "text";
+            nameEl.style.backgroundClip = "text";
+            nameEl.style.color = "transparent";
+            nameEl.style.webkitTextFillColor = "transparent";
+            nameEl.animate(
+              [
+                { backgroundPosition: "-150% 0" },
+                { backgroundPosition: "250% 0" },
+              ],
+              { duration: 3800, iterations: Infinity, easing: "linear" }
+            );
+          }
+
+          // 4) AI PARTICLES (5 dots trên hero) — float trôi với scale
+          $$("#result-card-existing .ai-particle").forEach((el, i) => {
+            const dx = [40, -50, 30, -45, 60][i] || 30;
+            const dy = [-32, 38, -48, 36, -40][i] || -30;
+            el.animate(
+              [
+                { transform: "translate(0,0) scale(1)",                 opacity: 0.45 },
+                { transform: `translate(${dx}px,${dy}px) scale(1.35)`,  opacity: 1 },
+                { transform: "translate(0,0) scale(1)",                 opacity: 0.45 },
+              ],
+              {
+                duration: 5500 + i * 800,
+                iterations: Infinity,
+                easing: "ease-in-out",
+                delay: i * 350,
+              }
+            );
+          });
+
+          // 5) AI SCAN LINE — horizontal sweep across hero
+          const scan = $1("#result-card-existing .ai-scan");
+          if (scan) {
+            scan.animate(
+              [
+                { transform: "translateX(-110%)", opacity: 0 },
+                { transform: "translateX(-20%)",  opacity: 1, offset: 0.2 },
+                { transform: "translateX(110%)",  opacity: 1, offset: 0.7 },
+                { transform: "translateX(210%)",  opacity: 0 },
+              ],
+              { duration: 4800, iterations: Infinity, easing: "ease-in-out" }
+            );
+          }
+
+          // 6) ALL .live-dot indicators — gold pulse halo (đồng bộ với radar)
+          $$(".live-dot").forEach((el) => {
+            el.animate(
+              [
+                { transform: "scale(1)",    boxShadow: "0 0 0 0 rgba(236,185,33,0.85)" },
+                { transform: "scale(1.18)", boxShadow: "0 0 0 7px rgba(236,185,33,0)" },
+                { transform: "scale(1)",    boxShadow: "0 0 0 0 rgba(236,185,33,0)" },
+              ],
+              { duration: 1600, iterations: Infinity, easing: "ease-out" }
+            );
+          });
+
+          // 7) GROWTH JOURNEY active step CTA — gentle scale pulse (focus magnet)
+          // Selector: .growth-step.is-ready button.growth-step-cta (vellum timeline)
+          const ctaInterval = setInterval(() => {
+            const cta = $1(".growth-step .growth-step-cta");
+            if (!cta) return;
+            clearInterval(ctaInterval);
+            cta.animate(
+              [
+                { transform: "translateY(0) scale(1)",       boxShadow: "0 0 0 0 rgba(10,10,10,0)" },
+                { transform: "translateY(-1.5px) scale(1.03)", boxShadow: "0 6px 14px -4px rgba(10,10,10,0.35)" },
+                { transform: "translateY(0) scale(1)",       boxShadow: "0 0 0 0 rgba(10,10,10,0)" },
+              ],
+              { duration: 2400, iterations: Infinity, easing: "ease-in-out" }
+            );
+          }, 200);
+          // Stop probing sau 3s nếu CTA chưa render (user chưa scroll tới)
+          setTimeout(() => clearInterval(ctaInterval), 3000);
+
+          // 8) SECTION ICON BADGES — 8x8/9x9 rounded squares ở header các section (Điểm mạnh / Bé cần / Tomorrow / Mood) — float bob
+          $$("section .inline-flex.items-center.justify-center.rounded-xl[style*='ecb921']").forEach((el, i) => {
+            el.animate(
+              [
+                { transform: "translateY(0) rotate(0deg)" },
+                { transform: "translateY(-2.5px) rotate(2deg)" },
+                { transform: "translateY(0) rotate(0deg)" },
+                { transform: "translateY(-1.5px) rotate(-2deg)" },
+                { transform: "translateY(0) rotate(0deg)" },
+              ],
+              {
+                duration: 4500 + i * 350,
+                iterations: Infinity,
+                easing: "ease-in-out",
+                delay: i * 200,
+              }
+            );
+          });
+        },
+
+        // === BIG SURPRISE EFFECTS ===
+        initBigEffects() {
+          // 1) 3D tilt trên hero card
+          const card = document.getElementById("result-card-existing");
+          if (card) {
+            card.classList.add("tilt-3d");
+            card.addEventListener("mousemove", (e) => {
+              const rect = card.getBoundingClientRect();
+              const x = (e.clientX - rect.left) / rect.width - 0.5;
+              const y = (e.clientY - rect.top) / rect.height - 0.5;
+              card.classList.add("tilting");
+              card.style.transform = `perspective(1000px) rotateX(${-y * 6}deg) rotateY(${x * 8}deg) scale(1.01)`;
+            });
+            card.addEventListener("mouseleave", () => {
+              card.classList.remove("tilting");
+              card.style.transform = "";
+            });
+            // Touch device tilt-on-scroll fallback
+            if ("ontouchstart" in window) {
+              let raf = null;
+              const onScroll = () => {
+                if (raf) return;
+                raf = requestAnimationFrame(() => {
+                  const rect = card.getBoundingClientRect();
+                  const center = rect.top + rect.height / 2;
+                  const offset = (center - window.innerHeight / 2) / window.innerHeight;
+                  card.style.transform = `perspective(1000px) rotateX(${offset * -4}deg)`;
+                  raf = null;
+                });
+              };
+              window.addEventListener("scroll", onScroll, { passive: true });
+            }
+          }
+        },
+
+        // === Confetti burst — called on milestone tick ===
+        burstConfetti(originX, originY) {
+          const colors = ["#ecb921", "#B48608", "#fff", "#8B6705"];
+          const n = 32;
+          for (let i = 0; i < n; i++) {
+            const p = document.createElement("div");
+            p.className = "confetti-piece";
+            const c = colors[i % colors.length];
+            const angle = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+            const dist = 80 + Math.random() * 120;
+            const dx = Math.cos(angle) * dist;
+            const dy = Math.sin(angle) * dist;
+            p.style.background = c;
+            p.style.left = (originX || window.innerWidth / 2) + "px";
+            p.style.top = (originY || 100) + "px";
+            p.style.transform = `translate(${dx}px, ${dy}px) rotate(${Math.random() * 360}deg)`;
+            p.style.borderRadius = Math.random() > 0.5 ? "2px" : "50%";
+            p.style.animationDelay = (i * 8) + "ms";
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 2400);
+          }
+        },
+
+        moodHistory: [],   // [{ date: "YYYY-MM-DD", mood: "happy" }, ...]
+        moodToast: null,    // hiện text tạm vài giây
+
+        loadMoodToday() {
+          try {
+            const raw = localStorage.getItem(this.lsMoodKey);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            // Old format compatibility
+            if (data.date && data.mood && !data.history) {
+              this.moodHistory = [{ date: data.date, mood: data.mood }];
+            } else if (Array.isArray(data.history)) {
+              this.moodHistory = data.history;
+            }
+            const today = new Date().toISOString().slice(0, 10);
+            const todayEntry = this.moodHistory.find((m) => m.date === today);
+            if (todayEntry) this.moodTodayValue = todayEntry.mood;
+          } catch (_) {}
+        },
+
+        setMood(mood) {
+          this.moodTodayValue = mood;
+          const today = new Date().toISOString().slice(0, 10);
+          // Update history — replace today if exists, else append
+          this.moodHistory = (this.moodHistory || []).filter((m) => m.date !== today);
+          this.moodHistory.push({ date: today, mood });
+          // Keep only last 14 days
+          this.moodHistory = this.moodHistory.slice(-14);
+          try {
+            localStorage.setItem(this.lsMoodKey, JSON.stringify({
+              history: this.moodHistory,
+            }));
+          } catch (_) {}
+          // Visual confirm toast
+          this.moodToast = `Đã ghi: ${mood === "happy" ? "Vui vẻ" : mood === "anxious" ? "Lo âu" : "Lừ đừ"} cho hôm nay`;
+          setTimeout(() => { this.moodToast = null; }, 2200);
+          // Fire-and-forget mood log (backend endpoint optional — silently ignore failure)
+          fetch(`/api/v1/pets/${this.pet.id}/personality/mood`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ mood }),
+          }).catch(() => {});
+        },
+
+        // === Mood helpers for the 7-day strip + auto-suggest ===
+        // Returns last 7 day-keys [-6d ... today] with their mood (or null)
+        get last7Days() {
+          const arr = [];
+          const now = new Date();
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            const key = d.toISOString().slice(0, 10);
+            const entry = (this.moodHistory || []).find((m) => m.date === key);
+            arr.push({
+              key,
+              i,
+              isToday: i === 0,
+              mood: entry ? entry.mood : null,
+              dayLabel: i === 0 ? "HÔM NAY" : `-${i}d`,
+            });
+          }
+          return arr;
+        },
+        moodColor(mood) {
+          if (mood === "happy")     return "linear-gradient(90deg, #ecb921, #B48608)"; // gold
+          if (mood === "anxious")   return "linear-gradient(90deg, #d97706, #92400e)"; // amber-deep
+          if (mood === "lethargic") return "linear-gradient(90deg, #94a3b8, #475569)"; // slate
+          return null;
+        },
+        // Auto suggest based on personality type group — heuristic, không cần backend
+        get suggestedMood() {
+          if (this.moodTodayValue) return null; // đã chọn rồi → không gợi ý
+          const g = (this.kMeta && this.kMeta.group) || "BALANCED";
+          if (g === "OUTGOING") return { mood: "happy",     reason: `${g} type — thường năng động ban đầu` };
+          if (g === "INTROVERT") return { mood: "lethargic", reason: `${g} type — hay yên tĩnh, ngủ nhiều` };
+          if (g === "SPECIAL")   return { mood: "happy",     reason: `${g} type — sáng tạo, tích cực` };
+          return { mood: "happy", reason: `${g} type — cân bằng, ưu tiên Vui vẻ` };
+        },
+
+        startQuiz() {
+          this.step = "quiz";
+          this.qIndex = 0;
+          this.answers = {};
+          try { localStorage.removeItem(this.lsKey); } catch (_) {}
+        },
+
+        resume() {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(this.lsKey) || "{}");
+            this.answers = parsed.answers || {};
+            const firstMissing = this.questions.findIndex((q) => !this.answers[q.id]);
+            this.qIndex = firstMissing === -1 ? this.questions.length - 1 : firstMissing;
+            this.step = "quiz";
+            this.resumeAvailable = false;
+          } catch (_) {
+            this.startQuiz();
+          }
+        },
+
+        choose(optId) {
+          if (!this.currentQuestion) return;
+          this.answers[this.currentQuestion.id] = optId;
+          try {
+            localStorage.setItem(this.lsKey, JSON.stringify({ qIndex: this.qIndex, answers: this.answers, ts: Date.now() }));
+          } catch (_) {}
+          if (this.qIndex < this.questions.length - 1) {
+            // Smooth delay so user sees selected state before transition
+            setTimeout(() => { this.qIndex++; }, 220);
+          } else {
+            setTimeout(() => this.submit(), 220);
+          }
+        },
+
+        back() {
+          if (this.qIndex > 0) this.qIndex--;
+        },
+
+        async submit() {
+          this.step = "loading";
+          try {
+            const res = await fetch(`/api/v1/pets/${this.pet.id}/personality/submit`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ answers: this.answers }),
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              alert("Lỗi: " + (j?.error?.message || res.status));
+              this.step = "quiz";
+              return;
+            }
+            const data = await res.json();
+            this.result = data;
+            try { localStorage.removeItem(this.lsKey); } catch (_) {}
+            this.step = "result";
+          } catch (err) {
+            alert("Không kết nối được server.");
+            this.step = "quiz";
+          }
+        },
+
+        async confirmReset() {
+          if (!confirm("Làm lại personality quiz cho bé? Kết quả cũ sẽ bị xoá.")) return;
+          try {
+            await fetch(`/api/v1/pets/${this.pet.id}/personality/reset`, {
+              method: "POST",
+              credentials: "include",
+            });
+          } catch (_) {}
+          try { localStorage.removeItem(this.lsKey); } catch (_) {}
+          this.existingResult = null;
+          this.result = null;
+          this.answers = {};
+          this.qIndex = 0;
+          this.step = "intro";
+        },
+
+        getTypeMeta(typeId) {
+          return this.allTypes.find((t) => t.id === typeId) || null;
+        },
+        // Public for templates — render Lucide SVG thay emoji sticker từ backend
+        typeIcon(typeId, sizeClass) {
+          return getTypeIcon(typeId, sizeClass);
+        },
+
+        // === M15.2 — 6-dimension radar from type scores ===
+        get dim6Scores() {
+          const raw = (this.existingResult && this.existingResult.scores) || (this.result && this.result.scores) || {};
+          const dims = { energy: 0, social: 0, food: 0, independence: 0, communication: 0, emotion: 0 };
+          for (const [type, score] of Object.entries(raw)) {
+            const w = DIMENSION_WEIGHTS[type] || {};
+            for (const [d, weight] of Object.entries(w)) {
+              dims[d] += Number(score) * weight;
+            }
+          }
+          // Normalize cap at 25 raw → 100%
+          const out = {};
+          for (const k of Object.keys(dims)) {
+            out[k] = Math.min(100, Math.round((dims[k] / 25) * 100));
+          }
+          return out;
+        },
+        get dim6Axes() {
+          return [
+            { key: "energy",        label: "Năng lượng",   icon: "lightning" },
+            { key: "social",        label: "Xã hội",       icon: "handshake" },
+            { key: "food",          label: "Đồ ăn",         icon: "utensils" },
+            { key: "communication", label: "Giao tiếp",     icon: "message-circle" },
+            { key: "independence",  label: "Độc lập",       icon: "home" },
+            { key: "emotion",       label: "Cảm xúc",       icon: "heart" },
+          ];
+        },
+        // 6-dim radar: dots, polygon, labels
+        get dim6Dots() {
+          const cx = 160, cy = 140, radius = 100;
+          const scores = this.dim6Scores;
+          return this.dim6Axes.map((ax, i) => {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            const r = radius * ((scores[ax.key] || 0) / 100);
+            return { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r, pct: scores[ax.key] || 0 };
+          });
+        },
+        get dim6Points() {
+          return this.dim6Dots.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+        },
+        get dim6Labels() {
+          const cx = 160, cy = 140, radius = 118;
+          return this.dim6Axes.map((ax, i) => {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            const x = cx + Math.cos(ang) * radius;
+            let y = cy + Math.sin(ang) * radius;
+            if (y < 18) y = 18;
+            const score = this.dim6Scores[ax.key] || 0;
+            return { x, y, label: ax.label, score };
+          });
+        },
+        // v141 — tách inline `dim6Labels.slice().sort(...).slice(0,3)` ra getter
+        // để Alpine không phải eval arrow function trong x-for expression (safer scope).
+        get topDim6Labels() {
+          return this.dim6Labels
+            .slice()
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3);
+        },
+        // v141 — guard: chỉ render radar khi đã có scores (existingResult HOẶC result).
+        get hasRadarData() {
+          return !!((this.existingResult && this.existingResult.scores) ||
+                    (this.result && this.result.scores));
+        },
+
+        // v143 — LIVING RADAR. Bỏ x-html. Real SVG elements via createElementNS.
+        // x-effect track this.dim6Dots / this.dim6Labels / this.dim6Points dependencies
+        // → khi quiz submit, getter recompute, x-effect re-run, SVG rebuild → reactive thật.
+        radarVisible: false,
+        setupRadarObserver(rootEl) {
+          if (!rootEl) return;
+          // No-IO browser → fallback show ngay
+          if (typeof IntersectionObserver === "undefined") {
+            this.radarVisible = true;
+            return;
+          }
+          const obs = new IntersectionObserver(
+            ([entry]) => {
+              if (entry.isIntersecting) {
+                this.radarVisible = true;
+                obs.disconnect(); // one-shot
+              }
+            },
+            { threshold: 0.25, rootMargin: "0px 0px -10% 0px" }
+          );
+          obs.observe(rootEl);
+        },
+        renderRadar6dSvg(svg) {
+          if (!svg) return;
+          // Đọc deps TRƯỚC để Alpine x-effect track changes
+          const dots = this.dim6Dots;
+          const labels = this.dim6Labels;
+          const polyPoints = this.dim6Points;
+          const NS = "http://www.w3.org/2000/svg";
+          const cx = 160, cy = 140;
+          const RADIUS = 100;
+
+          // CLEAN — giữ <defs>, xoá mọi children khác (để x-effect re-render mượt)
+          const defs = svg.querySelector("defs");
+          while (svg.firstChild) svg.removeChild(svg.firstChild);
+          if (defs) svg.appendChild(defs);
+
+          // Helper: create namespaced element with attrs
+          const make = (tag, attrs, text) => {
+            const el = document.createElementNS(NS, tag);
+            for (const [k, v] of Object.entries(attrs || {})) {
+              if (v == null) continue;
+              el.setAttribute(k, String(v));
+            }
+            if (text != null) el.textContent = text;
+            return el;
+          };
+
+          // 1) 4 hex rings — class radar-hex + --i stagger
+          const HEX = [
+            { r: 100, op: 0.25 },
+            { r: 75,  op: 0.32 },
+            { r: 50,  op: 0.40 },
+            { r: 25,  op: 0.50 },
+          ];
+          HEX.forEach((ring, i) => {
+            svg.appendChild(make("polygon", {
+              points: this.hexPoints6(ring.r, cx, cy),
+              fill: "none",
+              stroke: `rgba(180,134,8,${ring.op})`,
+              "stroke-width": 1,
+              class: "radar-hex",
+              style: `--i:${i}`,
+            }));
+          });
+
+          // 2) 6 axis lines — stroke draw stagger
+          for (let i = 0; i < 6; i++) {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            const x2 = (cx + Math.cos(ang) * RADIUS).toFixed(1);
+            const y2 = (cy + Math.sin(ang) * RADIUS).toFixed(1);
+            svg.appendChild(make("line", {
+              x1: cx, y1: cy, x2, y2,
+              stroke: "rgba(180,134,8,0.28)",
+              "stroke-width": 1,
+              class: "radar-axis",
+              style: `--i:${i}`,
+            }));
+          }
+
+          // 3) 6 synapse arcs — SMIL native (stroke-dashoffset flow, không cần CSS)
+          dots.forEach((d, i) => {
+            const begin = (i * 0.25).toFixed(2);
+            const line = make("line", {
+              x1: cx, y1: cy,
+              x2: d.x.toFixed(1), y2: d.y.toFixed(1),
+              class: "synapse",
+              stroke: "#ecb921",
+              "stroke-width": 1.6,
+              "stroke-dasharray": "5 5",
+              fill: "none",
+              style: "filter: drop-shadow(0 0 4px rgba(236,185,33,0.7));",
+            });
+            line.appendChild(make("animate", {
+              attributeName: "stroke-dashoffset",
+              values: "0; -28; 0",
+              dur: "2s",
+              begin: `${begin}s`,
+              repeatCount: "indefinite",
+            }));
+            line.appendChild(make("animate", {
+              attributeName: "opacity",
+              values: "0.65; 1; 0.65",
+              dur: "2s",
+              begin: `${begin}s`,
+              repeatCount: "indefinite",
+            }));
+            svg.appendChild(line);
+          });
+
+          // 4) Sweep wedge — SMIL native animateTransform rotate 360° (bulletproof)
+          const wedgeStart = { x: cx, y: cy - RADIUS };
+          const wedgeAng = ((-90 + 60) * Math.PI) / 180;
+          const wedgeEnd = {
+            x: (cx + Math.cos(wedgeAng) * RADIUS).toFixed(1),
+            y: (cy + Math.sin(wedgeAng) * RADIUS).toFixed(1),
+          };
+          const wedge = make("path", {
+            d: `M ${cx} ${cy} L ${wedgeStart.x} ${wedgeStart.y} A ${RADIUS} ${RADIUS} 0 0 1 ${wedgeEnd.x} ${wedgeEnd.y} Z`,
+            fill: "url(#radar6dSweepGrad)",
+            class: "radar-wedge",
+            opacity: "0.55",
+            style: "mix-blend-mode: multiply;",
+          });
+          // SMIL animateTransform — built-in browser, không cần CSS, không cần transform-box
+          wedge.appendChild(make("animateTransform", {
+            attributeName: "transform",
+            type: "rotate",
+            from: `0 ${cx} ${cy}`,
+            to: `360 ${cx} ${cy}`,
+            dur: "3.6s",
+            repeatCount: "indefinite",
+          }));
+          svg.appendChild(wedge);
+
+          // 5) Data polygon — SMIL animateTransform scale around center (additive translate trick)
+          // Để scale quanh (cx,cy) cần: translate(cx,cy) → scale → translate(-cx,-cy)
+          // SMIL hỗ trợ additive="sum" để compose transforms
+          const poly = make("polygon", {
+            points: polyPoints,
+            class: "dim6-poly",
+            fill: "rgba(180,134,8,0.30)",
+            stroke: "#B48608",
+            "stroke-width": 3,
+            style: "filter: drop-shadow(0 0 14px rgba(236,185,33,0.6));",
+          });
+          // Translate to origin
+          poly.appendChild(make("animateTransform", {
+            attributeName: "transform", type: "translate",
+            values: `${cx} ${cy}`, dur: "3.5s", repeatCount: "indefinite",
+          }));
+          // Scale (additive)
+          poly.appendChild(make("animateTransform", {
+            attributeName: "transform", type: "scale",
+            values: "1; 1.08; 0.94; 1",
+            keyTimes: "0; 0.33; 0.66; 1",
+            dur: "3.5s", repeatCount: "indefinite", additive: "sum",
+          }));
+          // Translate back (additive)
+          poly.appendChild(make("animateTransform", {
+            attributeName: "transform", type: "translate",
+            values: `${-cx} ${-cy}`, dur: "3.5s", repeatCount: "indefinite", additive: "sum",
+          }));
+          svg.appendChild(poly);
+
+          // 6) 6 vertex dots — SMIL animate r attribute (native SVG, no CSS)
+          dots.forEach((d, i) => {
+            const begin = (i * 0.2).toFixed(2);
+            const dot = make("circle", {
+              cx: d.x.toFixed(1), cy: d.y.toFixed(1),
+              r: 4,
+              fill: "#B48608",
+              stroke: "#fff",
+              "stroke-width": 2,
+              class: "radar-dot-galaxy",
+              style: "filter: drop-shadow(0 0 3px rgba(180,134,8,0.7));",
+            });
+            dot.appendChild(make("animate", {
+              attributeName: "r",
+              values: "4; 6; 4",
+              dur: "2s",
+              begin: `${begin}s`,
+              repeatCount: "indefinite",
+            }));
+            dot.appendChild(make("animate", {
+              attributeName: "opacity",
+              values: "1; 0.75; 1",
+              dur: "2s",
+              begin: `${begin}s`,
+              repeatCount: "indefinite",
+            }));
+            svg.appendChild(dot);
+          });
+
+          // 7) 6 labels (group with label text + score text)
+          labels.forEach((lab, i) => {
+            const g = make("g", { class: "radar-label" });
+            g.appendChild(make("text", {
+              x: lab.x.toFixed(1), y: lab.y.toFixed(1),
+              fill: "#0a0a0a",
+              "font-size": 11,
+              "font-weight": 800,
+              "text-anchor": "middle",
+            }, lab.label));
+            g.appendChild(make("text", {
+              x: lab.x.toFixed(1), y: (lab.y + 13).toFixed(1),
+              fill: "#B48608",
+              "font-size": 10,
+              "font-weight": 900,
+              "text-anchor": "middle",
+            }, `${lab.score}%`));
+            svg.appendChild(g);
+          });
+        },
+        get radar5dHtml() {
+          const cx = 160, cy = 140;
+          const hexRings = [
+            { r: 120, op: 0.25 }, { r: 80, op: 0.35 }, { r: 40, op: 0.45 },
+          ].map(({ r, op }) =>
+            `<polygon points="${this.hexagonPoints(r, cx, cy)}" fill="none" stroke="rgba(180,134,8,${op})" stroke-width="1"/>`
+          ).join("");
+
+          let axisLines = "";
+          for (let i = 0; i < 6; i++) {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            const x2 = (cx + Math.cos(ang) * 120).toFixed(1);
+            const y2 = (cy + Math.sin(ang) * 120).toFixed(1);
+            axisLines += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(180,134,8,0.3)" stroke-width="1"/>`;
+          }
+
+          const dotEls = this.radarDots.map((pt) =>
+            `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="4" fill="#B48608" stroke="#fff" stroke-width="2"/>`
+          ).join("");
+
+          const labelEls = this.radarLabels.map((lab) =>
+            `<text x="${lab.x.toFixed(1)}" y="${lab.y.toFixed(1)}" fill="#0a0a0a" font-size="11" font-weight="700" text-anchor="middle">${this._escSvg(lab.label)}</text>`
+          ).join("");
+
+          return `<svg viewBox="0 0 320 280" class="w-full max-w-xs mx-auto">${hexRings}${axisLines}<polygon points="${this.radarPoints}" fill="rgba(180,134,8,0.30)" stroke="#B48608" stroke-width="2.5"/>${dotEls}${labelEls}</svg>`;
+        },
+
+        // v142 — certDate getter (was undefined → x-text="certDate" throw ReferenceError)
+        get certDate() {
+          const d = new Date();
+          const pad = (n) => String(n).padStart(2, "0");
+          return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+        },
+        hexPoints6(radius, cx, cy) {
+          const pts = [];
+          for (let i = 0; i < 6; i++) {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            pts.push(`${cx + Math.cos(ang) * radius},${cy + Math.sin(ang) * radius}`);
+          }
+          return pts.join(" ");
+        },
+
+        // === M15.3 — Behavioral Insight "Ngày mai của bé" ===
+        get behaviorInsight() {
+          const tid = this.activeTypeId;
+          if (!tid) return null;
+          return INSIGHT_MAP[tid] || null;
+        },
+
+        // === M15.4 — Mood × Routine smart suggestion ===
+        get moodRoutineSuggestion() {
+          if (!this.moodTodayValue) return null;
+          return MOOD_SUGGESTION_MAP[this.moodTodayValue] || null;
+        },
+
+        // === M15.5 — Journey Timeline (4 milestones) ===
+        // v140 — Auto-detect from backend, manual click chỉ còn cho step 4 (share).
+        completedMilestones: [],
+        // Backend-driven state (populated by journeyAutoSync trên init)
+        routinesTotal: null,         // null = chưa fetch, 0 = fetched no routines
+        routineStreakDays: 0,
+        petScoreTotal: 0,
+        claimedRewardsCount: 0,
+        // Wow Card modal state (v140 — Task #8). qrDataUrl + personalityCardUrl đã set ở top.
+        wowCardOpen: false,
+        openWowCard() {
+          if (this.petScoreTotal <= 0) {
+            this.moodToast = "Cần Pet Score > 0 mới mở thẻ chia sẻ";
+            setTimeout(() => { this.moodToast = null; }, 3000);
+            return;
+          }
+          this.wowCardOpen = true;
+          document.body.style.overflow = "hidden";
+        },
+        closeWowCard() {
+          this.wowCardOpen = false;
+          document.body.style.overflow = "";
+        },
+        get lsJourneyKey() { return `vowvet_journey_${this.pet.id}`; },
+        loadJourney() {
+          try {
+            const raw = localStorage.getItem(this.lsJourneyKey);
+            if (raw) this.completedMilestones = JSON.parse(raw);
+          } catch (_) {}
+        },
+        // v140: silent auto-sync với 3 API. Idempotent — gọi nhiều lần OK.
+        async journeyAutoSync() {
+          if (!this.pet || !this.pet.id) return;
+          const petId = this.pet.id;
+          try {
+            const [routinesRes, scoreRes, claimedRes] = await Promise.allSettled([
+              fetch(`/api/v1/pets/${petId}/routines`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)),
+              fetch(`/api/v1/pets/${petId}/pet-score`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)),
+              fetch(`/api/v1/rewards/pets/${petId}/claimed`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)),
+            ]);
+
+            // Routines total
+            const routinesData = routinesRes.status === "fulfilled" ? routinesRes.value : null;
+            this.routinesTotal = routinesData?.total ?? (Array.isArray(routinesData?.routines) ? routinesData.routines.length : 0);
+
+            // Pet score + streak
+            const scoreData = scoreRes.status === "fulfilled" ? scoreRes.value : null;
+            this.petScoreTotal = Number(scoreData?.score ?? scoreData?.pet_score ?? 0) || 0;
+            this.routineStreakDays = Number(scoreData?.routine_streak_days ?? scoreData?.inputs?.routine_streak_days ?? 0) || 0;
+
+            // Claimed rewards count
+            const claimedData = claimedRes.status === "fulfilled" ? claimedRes.value : null;
+            const claimedList = claimedData?.rewards || claimedData?.claimed || claimedData?.claims || [];
+            this.claimedRewardsCount = Array.isArray(claimedList) ? claimedList.length : Number(claimedData?.total ?? 0) || 0;
+
+            // Auto-mark milestones (idempotent — sẽ skip nếu đã có)
+            if (this.routinesTotal > 0)            this._addMilestone("routine");
+            if (this.routineStreakDays >= 3)       this._addMilestone("score");
+            if (this.claimedRewardsCount > 0)      this._addMilestone("voucher");
+            // Step 4 (share) vẫn manual — chỉ done khi user thực sự bấm "Khoe ngay"
+          } catch (_) {
+            // Silent — journey vẫn fallback về localStorage state
+          }
+        },
+        // Internal — push without confetti (dùng cho auto-sync)
+        _addMilestone(id) {
+          if (!this.completedMilestones.includes(id)) {
+            this.completedMilestones.push(id);
+            try { localStorage.setItem(this.lsJourneyKey, JSON.stringify(this.completedMilestones)); } catch (_) {}
+          }
+        },
+        markMilestone(id) {
+          const wasNew = !this.completedMilestones.includes(id);
+          this._addMilestone(id);
+          if (wasNew) {
+            // BIG SURPRISE: confetti burst when complete a milestone!
+            const evt = (window.event || {});
+            const x = evt.clientX || window.innerWidth / 2;
+            const y = evt.clientY || 200;
+            this.burstConfetti(x, y);
+            // EXTRA bonus: if just hit 100% → MEGA burst
+            if (this.completedMilestones.length === 4) {
+              setTimeout(() => {
+                this.burstConfetti(window.innerWidth * 0.25, 100);
+                this.burstConfetti(window.innerWidth * 0.75, 100);
+                this.burstConfetti(window.innerWidth * 0.5, 200);
+              }, 250);
+            }
+          }
+        },
+        // v140 — Step 4 gating: cần petScore > 0 mới mở
+        isStepGated(stepId) {
+          if (stepId === "share") return this.petScoreTotal <= 0;
+          return false;
+        },
+        get journeyPct() {
+          return Math.round((this.completedMilestones.length / 4) * 100);
+        },
+        get journeyAllDone() {
+          return this.completedMilestones.length >= 4;
+        },
+        // Steps definition + status helpers (v138 — Growth Journey Checklist)
+        // `title` = clean numbered step name (sang trọng, ngắn gọn)
+        // `lead`  = 1-sentence Fraunces italic description (luxury feel)
+        // `label`/`subtitle` giữ lại để backward compat với chỗ khác đọc journeySteps
+        get journeySteps() {
+          const all = [
+            { id: "routine", num: 1, label: "Routines",  icon: "target", title: "Lên lịch trình",       lead: "Bộ thói quen 30 ngày được điều chỉnh riêng theo type của bé.",      subtitle: this.actionPlanLabel + " · Smart Blueprint match",                  href: `/pets/${this.pet.id}/routines`, cta: "Khởi hành" },
+            { id: "score",   num: 2, label: "Pet Score", icon: "home",   title: "Kiểm tra sức khoẻ",   lead: "Pet Score tính lại với hệ số k-factor cá nhân hoá của bé.",         subtitle: "Dashboard gauge — k-factor đã được áp ×" + this.kFactor.toFixed(2), href: "/dashboard",                    cta: "Khởi hành" },
+            { id: "voucher", num: 3, label: "Voucher",   icon: "gift",   title: "Nhận quà tặng",        lead: "Voucher hợp tính cách được đẩy lên đầu danh sách đổi thưởng.",      subtitle: "Danh mục: " + this.voucherCategory,                                 href: `/pets/${this.pet.id}/rewards`,  cta: "Khởi hành" },
+            { id: "share",   num: 4, label: "Chia sẻ",   icon: "share",  title: "Chia sẻ tính cách",    lead: "Thẻ tính cách lan toả qua Zalo, Messenger hoặc copy link.",         subtitle: "Khoe trên Zalo / Messenger / Copy link",                            href: null,                            cta: "Khởi hành" },
+          ];
+          return all.map((s) => ({ ...s, done: this.completedMilestones.includes(s.id) }));
+        },
+        // v140 — Active = first undone, non-gated step. Trả sentinel khi không có
+        // step nào actionable (vd. 1-3 done nhưng share đang gated bởi petScore=0).
+        get journeyActiveStep() {
+          for (const s of this.journeySteps) {
+            if (s.done) continue;
+            if (this.isStepGated(s.id)) continue;
+            return s;
+          }
+          // Fallback: nếu thực sự all done, trả step cuối để header/seal render OK.
+          // Còn nếu chỉ gated, trả sentinel để HTML không hiển thị active state cho gated step.
+          if (this.completedMilestones.length >= 4) return this.journeySteps[this.journeySteps.length - 1];
+          return { id: "__none__", num: 0, label: "", title: "", lead: "", subtitle: "", href: null };
+        },
+
+        // ============ Radar chart ============
+        get dimensionScores() {
+          const dims = { energy: 0, social: 0, food: 0, independence: 0, communication: 0, stress: 0 };
+          const counts = { energy: 0, social: 0, food: 0, independence: 0, communication: 0, stress: 0 };
+          if (!this.result || !this.questions) return dims;
+          for (const q of this.questions) {
+            const optId = this.answers[q.id];
+            if (!optId) continue;
+            const opt = q.options.find((o) => o.id === optId);
+            if (!opt) continue;
+            const sumPts = Object.values(opt.scores || {}).reduce((s, n) => s + (Number(n) || 0), 0);
+            dims[q.dimension] = (dims[q.dimension] || 0) + sumPts;
+            counts[q.dimension] = (counts[q.dimension] || 0) + 1;
+          }
+          const out = {};
+          for (const k of Object.keys(dims)) {
+            const maxPerQ = 8;
+            const cap = (counts[k] || 1) * maxPerQ;
+            out[k] = Math.min(1, dims[k] / cap);
+          }
+          return out;
+        },
+
+        get radarAxes() {
+          return [
+            { key: "energy", label: "Năng lượng" },
+            { key: "social", label: "Xã hội" },
+            { key: "food", label: "Đồ ăn" },
+            { key: "stress", label: "Cảm xúc" },
+            { key: "independence", label: "Độc lập" },
+            { key: "communication", label: "Giao tiếp" },
+          ];
+        },
+
+        get radarDots() {
+          const cx = 160, cy = 140, radius = 120;
+          const scores = this.dimensionScores;
+          return this.radarAxes.map((ax, i) => {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            const r = radius * (scores[ax.key] || 0);
+            return { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r };
+          });
+        },
+
+        get radarPoints() {
+          return this.radarDots.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+        },
+
+        get radarLabels() {
+          const cx = 160, cy = 140, radius = 138;
+          return this.radarAxes.map((ax, i) => {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            const x = cx + Math.cos(ang) * radius;
+            let y = cy + Math.sin(ang) * radius;
+            if (y < 16) y = 16;
+            return { x, y, label: ax.label };
+          });
+        },
+
+        hexagonPoints(radius, cx, cy) {
+          const pts = [];
+          for (let i = 0; i < 6; i++) {
+            const ang = ((i * 60 - 90) * Math.PI) / 180;
+            pts.push(`${cx + Math.cos(ang) * radius},${cy + Math.sin(ang) * radius}`);
+          }
+          return pts.join(" ");
+        },
+
+        // ============ Share / save ============
+        // Web Share API (mobile có Zalo/FB/etc) → fallback copy clipboard.
+        // Zalo KHÔNG có public URL share endpoint (zalo.me/share/url là 404).
+        async shareZalo() {
+          const data = this.result || this.existingResult;
+          if (!data) return;
+          const shareUrl = (data.share && data.share.url) || `https://vowvet.monminpet.com/personality/${this.pet.public_slug || this.pet.id}`;
+          const meta = data.primary_meta || data.type_meta;
+          const k = getKMeta(meta && meta.id).k;
+          const shareTitle = `Tính cách của bé ${this.pet.name}`;
+          const shareText = (data.share && data.share.text) ||
+            `Bé ${this.pet.name} là ${meta && meta.name_vi} · Bộ nhân Pet Score ×${k.toFixed(2)}. Test thử ngay:`;
+
+          // 1) Web Share API (iOS Safari + Android Chrome → menu hiện Zalo nếu cài app)
+          if (navigator.share) {
+            try {
+              await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+              return;
+            } catch (e) {
+              // User huỷ — không sao
+              if (e && e.name === "AbortError") return;
+            }
+          }
+
+          // 2) Fallback — copy link vào clipboard + toast
+          const fullText = `${shareText} ${shareUrl}`;
+          try {
+            await navigator.clipboard.writeText(fullText);
+            this.moodToast = "✓ Đã copy link · Dán vào Zalo để chia sẻ";
+            setTimeout(() => { this.moodToast = null; }, 2800);
+          } catch (e) {
+            // 3) Last resort — prompt
+            window.prompt("Copy link này và dán vào Zalo:", fullText);
+          }
+        },
+
+        async saveImage(elementId, opts = {}) {
+          // v140 — accept opts.bgColor (cream cho Wow Card) + opts.filenameBase
+          const captureBg = opts.bgColor || "#0a0a0a";
+          const filenameBase = opts.filenameBase || "personality";
+          if (this.savingImage) return;
+          this.savingImage = true;
+          this.moodToast = "Đang chuẩn bị ảnh...";
+          const watchdog = setTimeout(() => {
+            if (this.savingImage) {
+              this.savingImage = false;
+              this.moodToast = "Lưu ảnh timeout — thử lại sau";
+              setTimeout(() => { this.moodToast = null; }, 3500);
+            }
+          }, 20000);
+
+          // Helper: prefetch cross-origin image → data URI để bypass CORS taint
+          const toDataURI = async (url) => {
+            try {
+              const res = await fetch(url, { mode: "cors", credentials: "omit" });
+              if (!res.ok) throw new Error("fetch fail");
+              const blob = await res.blob();
+              return await new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.onerror = reject;
+                r.readAsDataURL(blob);
+              });
+            } catch (_) {
+              return null;
+            }
+          };
+
+          try {
+            // 1) Load html2canvas
+            if (!window.html2canvas) {
+              await new Promise((resolve, reject) => {
+                const s = document.createElement("script");
+                s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+                s.onload = resolve;
+                s.onerror = () => reject(new Error("Không tải được thư viện ảnh"));
+                document.body.appendChild(s);
+                setTimeout(() => reject(new Error("Tải thư viện quá lâu")), 10000);
+              });
+            }
+            const card = document.getElementById(elementId);
+            if (!card) throw new Error("Không tìm thấy thẻ");
+
+            // 2) PRE-CAPTURE — replace cross-origin <img> với data URI (R2 không có CORS header)
+            const imgs = Array.from(card.querySelectorAll("img"));
+            const originals = [];
+            for (const img of imgs) {
+              originals.push({ img, src: img.src, crossorigin: img.getAttribute("crossorigin") });
+              if (!img.src || img.src.startsWith("data:")) continue;
+              this.moodToast = "Đang tải ảnh pet...";
+              const dataUri = await toDataURI(img.src);
+              if (dataUri) {
+                img.src = dataUri;
+                img.removeAttribute("crossorigin");
+              } else {
+                // Photo CORS fail → ẩn ảnh trong capture để tránh canvas tainted
+                img.style.visibility = "hidden";
+              }
+            }
+
+            // 3) Force inline bg (capture-specific — dark cho result card, cream cho wow card)
+            const oldBg = card.style.backgroundColor;
+            card.style.backgroundColor = captureBg;
+
+            this.moodToast = "Đang render ảnh...";
+            const canvas = await window.html2canvas(card, {
+              backgroundColor: captureBg,
+              scale: 2,
+              useCORS: true,
+              allowTaint: false,
+              logging: false,
+              foreignObjectRendering: false,
+              imageTimeout: 12000,
+              onclone: (clonedDoc) => {
+                const cloned = clonedDoc.getElementById(elementId);
+                if (cloned) {
+                  cloned.style.backgroundColor = captureBg;
+                  // Đảm bảo text inline color không bị lost trong html2canvas
+                  cloned.querySelectorAll('[style*="color:rgba"]').forEach((el) => {
+                    el.style.color = el.style.color; // force inline
+                  });
+                }
+              },
+            });
+
+            // 4) Restore
+            for (const { img, src, crossorigin } of originals) {
+              img.src = src;
+              img.style.visibility = "";
+              if (crossorigin) img.setAttribute("crossorigin", crossorigin);
+            }
+            card.style.backgroundColor = oldBg;
+
+            if (!canvas || canvas.width === 0 || canvas.height === 0) {
+              throw new Error("Canvas rỗng");
+            }
+
+            const dataUrl = canvas.toDataURL("image/png");
+            if (!dataUrl || dataUrl.length < 1000) {
+              throw new Error("Ảnh quá nhỏ — có thể do CORS hoặc element rỗng");
+            }
+
+            // 5) Download / iOS open-in-tab
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            if (isIOS) {
+              const win = window.open();
+              if (win) {
+                win.document.write(`<title>${this.pet.name} · Personality</title><body style="margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0a;min-height:100vh;padding:16px"><img src="${dataUrl}" style="max-width:100%;height:auto;border-radius:16px"/><p style="color:#ecb921;font-family:sans-serif;font-size:13px;margin-top:14px;text-align:center">Nhấn giữ ảnh → <b>Save to Photos</b></p></body>`);
+                win.document.close();
+              } else {
+                throw new Error("Cho phép pop-up để lưu ảnh");
+              }
+            } else {
+              const link = document.createElement("a");
+              link.download = `${filenameBase}-${this.pet.name || "pet"}.png`;
+              link.href = dataUrl;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+
+            // Không hiện toast thành công — file đã tải xuống là đủ tín hiệu
+            this.moodToast = null;
+          } catch (err) {
+            console.error("[saveImage] error:", err);
+            this.moodToast = "Lỗi: " + ((err && err.message) || "không xác định");
+            setTimeout(() => { this.moodToast = null; }, 4500);
+          } finally {
+            clearTimeout(watchdog);
+            this.savingImage = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>
