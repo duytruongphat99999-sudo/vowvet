@@ -1,17 +1,17 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-30 (buổi 2 — WOW arc)**: 🌌 Constellation WOW v197-203 · 📈 Trend polish v204-205 · 🔒 token rotated. **SW hiện tại = `vowvet-v205-trend-clarity`**.
-> Nền tảng: Pet Score Phase 1→8 + **arc WOW v197-205** (active-sync · comet hút lõi đồng bộ · constellation lines · trend auto-zoom + clarity headline) trên `/pets/[id]/pet-score`.
-> Đọc TRƯỚC khi đụng pet-score.astro. Xem **🌌 WOW ARC v197-205** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
+> Snapshot kỹ thuật — cập nhật **2026-05-30 (buổi 2)**: 🌌 Constellation WOW v197-203 · 📈 Trend polish v204-205 · 🧭 TopBar v206-207 · ✨ Dashboard WOW v208 · 🔒 token rotated. **SW hiện tại = `vowvet-v208-dashboard-wow`**.
+> Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
+> Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-208** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
 ---
 
 ## 1. TRẠNG THÁI HIỆN TẠI — Pet Score redesign HOÀN CHỈNH
 
-> **STATUS: ✅ COMPLETE & PRODUCTION-READY** — Phase 1→8 (12 deliverables) **+ WOW arc v197-205** (Constellation sống động + Trend dễ hiểu). **SW cuối = `vowvet-v205-trend-clarity`**. → Bảng "8 section" dưới là baseline Phase-8; Constellation + Trend đã nâng cấp lớn ở section **🌌 WOW ARC v197-205**.
+> **STATUS: ✅ COMPLETE & PRODUCTION-READY** — Phase 1→8 (12 deliverables) **+ WOW arc v197-205** (Constellation sống động + Trend dễ hiểu). **SW hiện tại = `vowvet-v208-dashboard-wow`** (sau arc TopBar + dashboard wow). → Bảng "8 section" dưới là baseline Phase-8; Constellation + Trend đã nâng cấp lớn ở section **🌌 WOW ARC v197-205**.
 
 **File chính**: `web/src/pages/pets/[id]/pet-score.astro` (inline JS `scorePage()` + SSR frontmatter `stars`/`edges`).
-**SW version cuối**: `vowvet-v205-trend-clarity` (`web/public/sw.js` line 17).
+**SW version cuối**: `vowvet-v208-dashboard-wow` (`web/public/sw.js` line 17).
 **Backup**: `pet-score.astro.phase8-pre.bak` (+ các phase trước: phase2/3/4/45/451/5/51/53/6/7-pre.bak).
 
 ### 8 section theo thứ tự + status
@@ -51,6 +51,25 @@ User quyết bỏ vì: (a) perf risk (35 simultaneous animations + drop-shadow r
 - **v205**: **headline kết luận** trung tính trên chart (`.trend-headline`, 3 trạng thái theo `delta_30d` >0/===0/<0, số delta gold-bright Fraunces 15px) + chú thích **"Thang 0–1000 · biểu đồ phóng to vùng thay đổi"** (chống hiểu nhầm zoom); giữ "TOP X%" (KHÔNG đổi "cao hơn X%" vì `percentile.percentile` chưa verify ở BE).
 
 **Git checkpoints arc:** `c1ad2fc` baseline → `3220c7f` docs → `fa0c977` (v197-199) → `7f67245` (v200-202) → `ad8826e` (v203) → `8504494` (v204-205). 6 commit, history 0 secret, **chưa push**.
+
+---
+
+## 🧭 TOPBAR + DASHBOARD WOW v206-208 (2026-05-30 buổi 2 — tiếp)
+
+> Quy ước: recon→plan→approve→code→restart→verify→commit mỗi bước; secret-safe commit (value-scan `.env`, count-only); **chưa push**.
+
+**TopBar arc (nav dùng chung):**
+- **v206 (GĐ1)**: tạo `web/src/components/TopBar.astro` dùng chung (Logo + nav pet-jump/alerts/chat/settings); count fetch **client-side Alpine** (`Promise.allSettled` 2 endpoint CÓ SẴN `/chat/threads?limit=50` + `/alerts/today`, AbortController 5s, fail-soft, KHÔNG tạo BE); badge chat **gold**, chấm cảnh báo **đỏ** (functional); style scoped riêng. Thay header hand-rolled trong `dashboard.astro` bằng `<TopBar pet={primaryPet} />`.
+- **v207 (GĐ2-A)**: **khai tử quick-nav floating** — gỡ markup + fetch `quickNavPet` + `data-route` body trong `Layout.astro`; dọn **2 cục rác**: (a) CSS mồ côi `.vowvet-quick-nav*`/`.dashboard-pet-jump*` (global.css L2253-2485) — **GIỮ `@keyframes gold-pulse`** (dùng chung 5 element khác); (b) SSR count chết `chatUnreadTotal`/`hasUrgentClimate` + 2 fetch `chat`/`climate` (dashboard frontmatter — sửa destructure `Promise.all` an toàn, bỏ cặp vị trí 7-8). **305 dòng xoá / 5 thêm.**
+- ⚠️ **Sub-page (≥45) GIỮ NGUYÊN nav ngữ cảnh riêng** (back + title + action) — KHÔNG đụng.
+
+**Dashboard WOW (`components/dashboard/PetScoreCompact.astro` + `PetHeroCard.astro`):**
+- **v208**: **score ring fill 0→490 đồng bộ count-up** — cách **A2**: drive `dashOffset` + `score` trong **CÙNG 1 rAF tick, cùng `e=1-(1-p)³`** (1800ms) → khớp 100%; bỏ transition inline; SSR `stroke-dashoffset={ARC}` (rỗng → không flash full-ring); reduced-motion → nhánh `if(reduced){jump}`. **tier badge pop-in** (`psc-badge-pop`, giữ `translateX(-50%)` CẢ 2 step → căn giữa, không lệch trái). **chips stagger** (`psc-chip-in` + `animation-delay 1.6+i*0.1s`, `both` fill). **hero halo pulse** (`phc-halo-pulse` trên **halo div [177]**, KHÔNG phải `<img>` đang breathe) + **CTA shine** (`phc-cta-shine` trên `::after`, KHÔNG đụng transform `<a>` hover-scale). **brand-sync chrome** (slate→ink/cream, GIỮ TIER_META semantic).
+- 4 keyframe mới prefix `psc-*`/`phc-*` (không trùng 27 cái cũ — đã grep) + **reduced-motion guard riêng** (badge chỉ `animation:none`, KHÔNG `transform:none` để giữ căn giữa).
+
+**🏛️ Ghi chú kiến trúc (quan trọng):** TopBar full-width **KHÔNG phủ toàn app được** — ~45 sub-page đã có **nav ngữ cảnh riêng** (back-button + title + action) mà TopBar không thay được; nhồi TopBar vào Layout → **chồng 2 thanh** + mất back-nav nếu gỡ header cũ (mobile-first → ăn ~120px). → Chọn **Hướng A** (TopBar ở dashboard, khai tử quick-nav floating). Phủ toàn app thật = **Hướng B** (chuẩn hoá ~45 header thành `PageHeader` dưới TopBar — đại phẫu, dự án riêng — xem 🚨 Tomorrow Queue #1).
+
+**Git checkpoints arc:** v206 `e1d235d` · v207 `2eb7d3c` · v208 `685b35c` (trên nền `a204aea`). 3 commit, history 0 secret, **chưa push**.
 
 ---
 
@@ -162,14 +181,15 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 
 ---
 
-## 🚨 TOMORROW PRIORITY QUEUE (cập nhật 2026-05-30 buổi 2)
+## 🚨 TOMORROW PRIORITY QUEUE (cập nhật 2026-05-30 buổi 2 — sau arc TopBar + dashboard)
 
-1. **Update Hụi Pet stats placeholder** → số thật (1.234+ pet / 2.5M+ điểm / 01/07 khai vận) khi có data BE.
-2. **Chuyển `astro dev` → `astro build` production** — dev server đang làm prod (chậm 1-3.7s/req, file-watch restart). Xem `docker/docker-compose.yml` + `docker/web.Dockerfile`. *(Lưu ý: build mode → sửa code phải rebuild, mất cold-start nhanh — cân nhắc trade-off.)*
-3. **(Optional) Rotate `BASEROW_USER_PASSWORD`** — xem 🔒 SECURITY (rủi ro thấp) → xong thì xoá `MIGRATION_REPORT.md`.
+1. **TopBar Hướng B — phủ toàn app** (đại phẫu, dự án riêng): chuẩn hoá ~45 header sub-page thành component `PageHeader` chung (slot back+title+action) đặt DƯỚI TopBar (global bar + context bar). Đụng 50+ page, mobile 2 thanh, rủi ro cao. Hiện TopBar chỉ ở dashboard (Hướng A — xem 🏛️ Ghi chú kiến trúc ở section 🧭).
+2. **Update Hụi Pet stats placeholder** → số thật (1.234+ pet / 2.5M+ điểm / 01/07 khai vận) khi có data BE.
+3. **Chuyển `astro dev` → `astro build` production** — dev server đang làm prod (chậm 1-3.7s/req, file-watch restart). Xem `docker/docker-compose.yml` + `docker/web.Dockerfile`. *(Lưu ý: build mode → sửa code phải rebuild, mất cold-start nhanh — cân nhắc trade-off.)*
+4. **(Optional) Rotate `BASEROW_USER_PASSWORD`** — xem 🔒 SECURITY (rủi ro thấp, local-only, user tự quản) → xong thì xoá `MIGRATION_REPORT.md`.
 
-**✅ Đã xong buổi 2:** rotate token · xoá `.env.backup` · WOW arc v197-205 (6 commit).
-**Backlog (chưa ưu tiên):** Fix SW reload loop (`controllerchange→reload` — chưa gây sự cố thực qua 9 lần bump SW v197-205, hạ ưu tiên) · CTA `/hui-pet/register` route · `#ffd56b` cosmetic · Phase 5.2 orbit · dashboard polish · DESIGN.md · M28 Vet Buddy.
+**✅ Đã xong buổi 2:** rotate token · xoá `.env.backup` · WOW arc v197-205 (6 commit) · **TopBar v206-207** (component dùng chung + khai tử quick-nav + dọn 2 rác) · **Dashboard WOW v208** (ring fill + badge/chips + hero polish). Tổng 5 commit `e1d235d→685b35c`, chưa push.
+**Backlog (chưa ưu tiên):** Fix SW reload loop (`controllerchange→reload` — chưa gây sự cố thực qua nhiều lần bump SW, hạ ưu tiên) · CTA `/hui-pet/register` route · `#ffd56b` cosmetic · Phase 5.2 orbit · dashboard polish (phần còn lại — v208 đã làm ring + hero) · DESIGN.md · M28 Vet Buddy.
 
 ---
 
@@ -219,7 +239,7 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 - **Phases applied (theo thứ tự)**: 1 (setup) → 2 (Hero) → 2-after (fix VV monogram/flourish) → 3 (Achievement) → 4 (Rec) → 4.5 (polish) → 4.5.1 (tweaks) → 5 (Constellation) → 5.1 (galaxy + ticker) → 5.3 (xóa nebula, SKIP 5.2 orbit) → 6 (Trend-Community merge) → 7 (Hụi Pet teaser) → 8 (cleanup tier accordion)
 - **Protocol mỗi phase**: plan + diff text → user APPROVE → backup `.phaseN-pre.bak` → Edit tool literal match → 6 checkpoint (backup/size/markers/SW/curl 302/node new Function) → restart vowvet-web → authed render 200 → screenshot user verify → next phase
 - **11 backup files** trong scope: `pet-score.astro.{phase2,phase3,phase4,phase45,phase451,phase5,phase51,phase53,phase6,phase7,phase8}-pre.bak`
-- **SW version progression**: v184 → v185 → v186 → v187 → v188 → v189 → v190 → v191 → **v193** (skip v192 = Phase 5.2 skipped) → v194 → v195 → **v196** (final)
+- **SW version progression**: v184 → v185 → v186 → v187 → v188 → v189 → v190 → v191 → **v193** (skip v192 = Phase 5.2 skipped) → v194 → v195 → **v196** (redesign final) → v197-205 (WOW arc) → **v206-208** (TopBar + dashboard wow; current `vowvet-v208-dashboard-wow`)
 - **File pet-score.astro size**: 26.8KB (v184 start) → 79.1KB (v196 end). Tăng chủ yếu inline CSS các phase + SSR stars data + ticker logic + Hụi Pet teaser.
 - **Verification record**: 6/6 checkpoint pass mỗi phase. Authed render `[200] /pets/12/pet-score` verified Phase 2, 5, 5.1, 8 (logs `vowvet-web --tail`).
 - **ZERO rollback** cần dùng. Backup mechanism proven nhưng chưa kích hoạt thật.
