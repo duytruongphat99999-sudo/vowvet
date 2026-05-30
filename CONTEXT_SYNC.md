@@ -1,17 +1,17 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-30 (phiên follow-up)**: ✅ git baseline · 🔒 security audit · 🔍 điều tra 302 loop.
-> Nền tảng: **Pet Score redesign arc Phase 1→8 HOÀN TẤT** (visual/UX trang `/pets/[id]/pet-score`, KHÔNG đụng SEO/Schema).
-> Đọc TRƯỚC khi tiếp tục đụng pet-score.astro. Xem **🚨 TOMORROW PRIORITY QUEUE** ở cuối.
+> Snapshot kỹ thuật — cập nhật **2026-05-30 (buổi 2 — WOW arc)**: 🌌 Constellation WOW v197-203 · 📈 Trend polish v204-205 · 🔒 token rotated. **SW hiện tại = `vowvet-v205-trend-clarity`**.
+> Nền tảng: Pet Score Phase 1→8 + **arc WOW v197-205** (active-sync · comet hút lõi đồng bộ · constellation lines · trend auto-zoom + clarity headline) trên `/pets/[id]/pet-score`.
+> Đọc TRƯỚC khi đụng pet-score.astro. Xem **🌌 WOW ARC v197-205** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
 ---
 
 ## 1. TRẠNG THÁI HIỆN TẠI — Pet Score redesign HOÀN CHỈNH
 
-> **STATUS: ✅ COMPLETE & PRODUCTION-READY** — 8 phase chính + 4 polish sub-phase = 12 deliverables. SW `vowvet-v196-phase8-cleanup`. File `pet-score.astro` = **79.080 bytes** (verified 2026-05-30).
+> **STATUS: ✅ COMPLETE & PRODUCTION-READY** — Phase 1→8 (12 deliverables) **+ WOW arc v197-205** (Constellation sống động + Trend dễ hiểu). **SW cuối = `vowvet-v205-trend-clarity`**. → Bảng "8 section" dưới là baseline Phase-8; Constellation + Trend đã nâng cấp lớn ở section **🌌 WOW ARC v197-205**.
 
-**File chính**: `web/src/pages/pets/[id]/pet-score.astro` (~79KB, 335 dòng inline JS `scorePage()`, ~1100 dòng tổng).
-**SW version cuối**: `vowvet-v196-phase8-cleanup` (`web/public/sw.js` line 17).
+**File chính**: `web/src/pages/pets/[id]/pet-score.astro` (inline JS `scorePage()` + SSR frontmatter `stars`/`edges`).
+**SW version cuối**: `vowvet-v205-trend-clarity` (`web/public/sw.js` line 17).
 **Backup**: `pet-score.astro.phase8-pre.bak` (+ các phase trước: phase2/3/4/45/451/5/51/53/6/7-pre.bak).
 
 ### 8 section theo thứ tự + status
@@ -32,6 +32,25 @@ User quyết bỏ vì: (a) perf risk (35 simultaneous animations + drop-shadow r
 
 ### Backend (M1-M27 + Gamification A+B+C) — KHÔNG đụng phiên này
 54 Baserow tables, 14 cron jobs, API v0.36.0, 119/119 E2E pass. Detail trong `BUILD_PROGRESS.json`.
+
+---
+
+## 🌌 WOW ARC v197-205 (2026-05-30 buổi 2) — Constellation sống động + Trend dễ hiểu
+
+> Quy ước arc này (khác Phase 1-8): mỗi feature = phần **THÊM**, KHÔNG sửa cái cũ · commit checkpoint riêng mỗi lớp · chỉ touch `.constellation-section` / `.trend-community` theo task · precompute Alpine expr string trong frontmatter (proven-safe vs template-literal-in-JSX).
+
+**Constellation (`.constellation-section`):**
+- **v197 active-sync**: thread `<line>` sao→tâm sáng khi active (`threadOnExpr`); star-active scale+glow, dim sao khác (`activeClassExpr`); ticker icon đổi `iconSvg(componentIconKey)` (bỏ ✦ đen — BE không trả `.icon`).
+- **v198 bright-counter**: pill "X / 15 CỰC SÁNG" — X = `stars.filter(stateClass==='star-bright')` đếm **SSR**; heading "Constellation" đồng bộ màu MMP·ID 12 (`rgba(255,255,255,0.55)`).
+- **v199 align-fix**: pill căn dòng đầu heading (`items-start` + line-height 1.5 match).
+- **v200-202 Comet hút lõi**: đốm gold chạy thread sao→tâm (CSS `transform` qua `--dx/--dy` precompute SSR) + đuôi mờ; **core-flash** ring + **shockwave** ripple quét chòm khi comet cắm; **v202 tách `coreLabel`** (getter) — chữ ticker đổi TRỄ 1s (`_labelTimer` setTimeout trong interval) → **comet cắm = lõi loé = shockwave = chữ đổi (1 cú, t≈1.0s)**; hover = tức thì (getter ưu tiên `hoveredComponent`); `destroy()` clear interval+timer.
+- **v203 constellation lines**: net nearest-neighbor **SSR** (`edges[]`, K=2 sao gần nhất, dist≤90, dedup → **17 cạnh / 2 chòm**); đường nền gold-deep mờ 0.13, sáng `edge-on` (gold-bright) khi 1 đầu = active.
+
+**Trend (`.trend-community`):**
+- **v204**: Chart.js Y-axis **auto-zoom** quanh data (flat-safe range≥60, mid±30) thay thang cứng 0-1000 → đường thấy chuyển động thật; chấm "hôm nay" vẽ **canvas** (plugin `afterDatasetsDraw`, resize-proof — đọc lại `meta.data[last].x/y` mỗi draw) + glow `shadowBlur`; brand sync (slate→ink/gold, `pill-negative`/`delta-down`→ink, thêm icon `users` vào `ICON_PATHS`); empty-state khi 0 pet opt-in.
+- **v205**: **headline kết luận** trung tính trên chart (`.trend-headline`, 3 trạng thái theo `delta_30d` >0/===0/<0, số delta gold-bright Fraunces 15px) + chú thích **"Thang 0–1000 · biểu đồ phóng to vùng thay đổi"** (chống hiểu nhầm zoom); giữ "TOP X%" (KHÔNG đổi "cao hơn X%" vì `percentile.percentile` chưa verify ở BE).
+
+**Git checkpoints arc:** `c1ad2fc` baseline → `3220c7f` docs → `fa0c977` (v197-199) → `7f67245` (v200-202) → `ad8826e` (v203) → `8504494` (v204-205). 6 commit, history 0 secret, **chưa push**.
 
 ---
 
@@ -113,7 +132,9 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 - **Secret leak chặn KỊP trước commit đầu tiên:** `.env.backup` (chứa `BASEROW_TOKEN` + `BASEROW_USER_PASSWORD` thật) và `docs/archive/MIGRATION_REPORT.md` (token + password + email plaintext) — đã thêm vào `.gitignore`, KHÔNG vào git.
 - **Đã verify HEAD sạch:** quét toàn bộ giá trị secret ≥16 ký tự trong `.env` khắp 478 file tracked → 0 leak. `GEMINI_API_KEY` / `JWT_SECRET` / `R2_*` KHÔNG hardcode đâu cả. Working tree + HEAD clean (`git grep` token = 0).
 - **Non-secret bị flag (an toàn, KHÔNG cần lo):** `BASEROW_URL`, `APP_URL`, `API_URL`, `R2_PUBLIC_URL`, `TZ`, `VAPID_SUBJECT`, `GOOGLE_OAUTH_REDIRECT_URI`, `ZALO_OA_ID` — đều là URL/config công khai, vốn dĩ nằm trong source.
-- **⚠️ ACTION ITEM (CRITICAL → queue #1):** rotate (đổi) **Baserow token + user password** sớm — chúng đã từng plaintext trong file local, rủi ro nếu folder bị sync/share. Cần thao tác Baserow admin → update `.env` → restart container. Assistant hướng dẫn từng bước khi user sẵn sàng.
+- **✅ ĐÃ ROTATE (buổi 2): `BASEROW_TOKEN`** — token cũ đã chết; token mới verify OK (leaderboard 200, 0 lỗi `ERROR_TOKEN_DOES_NOT_EXIST`). `.env.backup` **đã xoá** (chỉ chứa token chết, gitignored). *(KHÔNG ghi giá trị token vào file này.)*
+- **⚠️ CÒN TREO: `BASEROW_USER_PASSWORD` CHƯA rotate.** `docs/archive/MIGRATION_REPORT.md` vẫn còn **password live** (gitignored, giữ tới khi rotate xong). **Rủi ro THẤP**: chỉ trên đĩa local · git history sạch (pickaxe 0 commit) · chưa từng push. Khi rotate: đổi pass Baserow → update `.env` → `docker compose up -d --force-recreate` → verify → xoá `MIGRATION_REPORT.md`.
+- **Bài học rotate** (xem 🛠️ BÀI HỌC HẠ TẦNG): đổi `.env` PHẢI `docker compose up -d --force-recreate` — `docker restart` KHÔNG nạp lại env_file.
 
 ---
 
@@ -133,13 +154,22 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 
 ---
 
-## 🚨 TOMORROW PRIORITY QUEUE (2026-05-30)
+## 🛠️ BÀI HỌC HẠ TẦNG (2026-05-30 buổi 2 — QUAN TRỌNG, đọc trước khi deploy/đổi env)
 
-1. **(CRITICAL) Rotate Baserow creds** (token + user password) — đã leak vào file local (`.env.backup`, `MIGRATION_REPORT.md`). Làm sớm nhất.
-2. **Fix SW reload loop** (`Layout.astro:185-189` + `sw.js:35/50`) — VERIFY repro browser TRƯỚC, rồi bỏ `controllerchange` auto-reload, chỉ reload khi user bấm toast (nút gửi `SKIP_WAITING` đã có sẵn).
-3. **Chuyển `astro dev` → `astro build` production mode** — hiện chạy dev server làm production (chậm 1-3.7s/request, file-watch restart, nghi nguồn Exit 255 THẬT). Xem `docker/docker-compose.yml` + `docker/web.Dockerfile`.
-4. **Update Hụi Pet stats placeholder** với số thật (1.234+ pet / 2.5M+ điểm / 01/07 khai vận) khi có data.
-5. **(Optional) Phase 5.2 orbit Constellation** nếu đầu óc fresh — cần fix `transform-box: view-box` + cân nhắc perf mobile.
+1. **Sửa `.astro`/code → KHÔNG hot-reload** (Docker trên Windows): source mount từ Windows host → **inotify miss qua mount** → Vite không thấy file đổi → serve transform CŨ. **Fix: `docker restart vowvet-web`** (Vite cold-start, đọc lại file từ mount). `sw.js` (static) update ngay; chỉ `.astro` SSR kẹt cache Vite.
+2. **Đổi `.env` → `docker restart` KHÔNG nạp env**: `env_file` bake lúc TẠO container (`compose up`); `restart` giữ env cũ. **Fix: `docker compose -f docker/docker-compose.yml up -d --force-recreate vowvet-api vowvet-web`** (recreate = đọc lại `.env`). *(Đã dính lúc rotate token: `docker restart` 2 lần vẫn token cũ → tới khi recreate mới nạp token mới.)*
+3. **Phân biệt rõ:** code `.astro` → **`docker restart vowvet-web`** · đổi `.env` → **`docker compose up -d --force-recreate`**. KHÔNG lẫn.
+
+---
+
+## 🚨 TOMORROW PRIORITY QUEUE (cập nhật 2026-05-30 buổi 2)
+
+1. **Update Hụi Pet stats placeholder** → số thật (1.234+ pet / 2.5M+ điểm / 01/07 khai vận) khi có data BE.
+2. **Chuyển `astro dev` → `astro build` production** — dev server đang làm prod (chậm 1-3.7s/req, file-watch restart). Xem `docker/docker-compose.yml` + `docker/web.Dockerfile`. *(Lưu ý: build mode → sửa code phải rebuild, mất cold-start nhanh — cân nhắc trade-off.)*
+3. **(Optional) Rotate `BASEROW_USER_PASSWORD`** — xem 🔒 SECURITY (rủi ro thấp) → xong thì xoá `MIGRATION_REPORT.md`.
+
+**✅ Đã xong buổi 2:** rotate token · xoá `.env.backup` · WOW arc v197-205 (6 commit).
+**Backlog (chưa ưu tiên):** Fix SW reload loop (`controllerchange→reload` — chưa gây sự cố thực qua 9 lần bump SW v197-205, hạ ưu tiên) · CTA `/hui-pet/register` route · `#ffd56b` cosmetic · Phase 5.2 orbit · dashboard polish · DESIGN.md · M28 Vet Buddy.
 
 ---
 
