@@ -302,6 +302,37 @@ body {
   .phc-cta-shine::after { display: none !important; }
 }
 
+/* ─── Tier gold system v210 — high-tier badge glow/shimmer (delay 2s = sau pop-in) ─── */
+/* Đặt trên BADGE, KHÔNG đụng A2 ring fill (stroke-dashoffset trên circle).
+   glow = filter (khác property với pop-in transform); shimmer = transform của ::after (pseudo riêng). */
+@keyframes psc-tier-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(236, 185, 33, 0.45)); }
+  50%      { filter: drop-shadow(0 0 7px rgba(236, 185, 33, 0.85)); }
+}
+.psc-tier-glow { animation: psc-tier-glow 2.4s ease-in-out 2s infinite; }
+
+@keyframes psc-tier-shimmer {
+  0%        { transform: translateX(-140%) skewX(-18deg); }
+  55%, 100% { transform: translateX(260%) skewX(-18deg); }
+}
+.psc-tier-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  animation: psc-tier-shimmer 3.5s ease-in-out 2.3s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psc-tier-glow { animation: none !important; }
+  .psc-tier-shimmer::after { display: none !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .marquee-track,

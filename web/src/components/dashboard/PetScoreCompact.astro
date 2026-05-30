@@ -37,12 +37,12 @@ const TIER_ORDER = ["bronze", "silver", "gold", "platinum", "diamond"];
 const TIER_THRESHOLDS: Record<string, number> = {
   bronze: 0, silver: 301, gold: 501, platinum: 701, diamond: 851,
 };
-const TIER_META: Record<string, { icon: string; label: string; color: string; ring: string; gradFrom: string; gradTo: string }> = {
-  bronze:   { icon: "medal",   label: "Mới bắt đầu", color: "#a0826d", ring: "ring-amber-200", gradFrom: "#fbbf24", gradTo: "#a0826d" },
-  silver:   { icon: "medal",   label: "Tốt",         color: "#64748b", ring: "ring-slate-200", gradFrom: "#cbd5e1", gradTo: "#64748b" },
-  gold:     { icon: "trophy",  label: "Rất tốt",     color: "#ecb921", ring: "ring-amber-300", gradFrom: "#ecb921", gradTo: "#fde68a" },
-  platinum: { icon: "crown",   label: "Xuất sắc",    color: "#3b82f6", ring: "ring-sky-200",   gradFrom: "#60a5fa", gradTo: "#3b82f6" },
-  diamond:  { icon: "diamond", label: "Hoàn hảo",    color: "#7c3aed", ring: "ring-mmp-ink", gradFrom: "#a78bfa", gradTo: "#7c3aed" },
+const TIER_META: Record<string, { icon: string; label: string; color: string; ring: string; gradFrom: string; gradTo: string; fx: string }> = {
+  bronze:   { icon: "medal",   label: "Mới bắt đầu", color: "#8a6d1a", ring: "ring-amber-200", gradFrom: "#a87a1e", gradTo: "#6e5417", fx: "" },
+  silver:   { icon: "medal",   label: "Tốt",         color: "#c9a84a", ring: "ring-amber-100", gradFrom: "#ddc77f", gradTo: "#c9a84a", fx: "" },
+  gold:     { icon: "trophy",  label: "Rất tốt",     color: "#ecb921", ring: "ring-amber-300", gradFrom: "#ecb921", gradTo: "#fde68a", fx: "" },
+  platinum: { icon: "crown",   label: "Xuất sắc",    color: "#ecb921", ring: "ring-amber-300", gradFrom: "#fde68a", gradTo: "#ecb921", fx: "psc-tier-glow" },
+  diamond:  { icon: "diamond", label: "Hoàn hảo",    color: "#ecb921", ring: "ring-amber-200", gradFrom: "#fff3c4", gradTo: "#f3cf3f", fx: "psc-tier-glow psc-tier-shimmer" },
 };
 const tier = TIER_META[levelId] || TIER_META.bronze;
 
@@ -157,9 +157,9 @@ if (breakdown?.components && Array.isArray(breakdown.components)) {
         <span class="text-[10px] text-mmp-ink/40 mt-1 uppercase tracking-widest font-medium">/ 1000</span>
       </div>
       {/* Floating tier badge top */}
-      <div class={`psc-badge-pop absolute -top-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white shadow-md ring-1 ${tier.ring}`}>
-        <FeatureIcon name={tier.icon} class="w-3.5 h-3.5" strokeWidth={1.8} />
-        <span class="text-[10px] font-bold uppercase tracking-wider" style={`color: ${tier.color};`}>{levelId}</span>
+      <div class={`psc-badge-pop ${tier.fx} absolute overflow-hidden -top-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white shadow-md ring-1 ${tier.ring}`}>
+        <FeatureIcon name={tier.icon} class="relative z-10 w-3.5 h-3.5" strokeWidth={1.8} />
+        <span class="relative z-10 text-[10px] font-bold uppercase tracking-wider" style={`color: ${tier.color};`}>{levelId}</span>
       </div>
     </a>
 
