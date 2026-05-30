@@ -1,12 +1,14 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật cuối phiên 2026-05-30 — **Pet Score redesign arc Phase 1→8 HOÀN TẤT**.
-> Phiên này KHÔNG đụng SEO/Schema — toàn bộ là visual/UX redesign trang `/pets/[id]/pet-score`.
-> Đọc TRƯỚC khi tiếp tục đụng pet-score.astro.
+> Snapshot kỹ thuật — cập nhật **2026-05-30 (phiên follow-up)**: ✅ git baseline · 🔒 security audit · 🔍 điều tra 302 loop.
+> Nền tảng: **Pet Score redesign arc Phase 1→8 HOÀN TẤT** (visual/UX trang `/pets/[id]/pet-score`, KHÔNG đụng SEO/Schema).
+> Đọc TRƯỚC khi tiếp tục đụng pet-score.astro. Xem **🚨 TOMORROW PRIORITY QUEUE** ở cuối.
 
 ---
 
 ## 1. TRẠNG THÁI HIỆN TẠI — Pet Score redesign HOÀN CHỈNH
+
+> **STATUS: ✅ COMPLETE & PRODUCTION-READY** — 8 phase chính + 4 polish sub-phase = 12 deliverables. SW `vowvet-v196-phase8-cleanup`. File `pet-score.astro` = **79.080 bytes** (verified 2026-05-30).
 
 **File chính**: `web/src/pages/pets/[id]/pet-score.astro` (~79KB, 335 dòng inline JS `scorePage()`, ~1100 dòng tổng).
 **SW version cuối**: `vowvet-v196-phase8-cleanup` (`web/public/sw.js` line 17).
@@ -97,8 +99,8 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 - ✅ Astro `@mouseenter`/`:class` trong `.map()` JSX → proven compile + runtime OK (curl 302 + authed 200)
 
 ### Còn tồn (đã flag, chưa fix — priority order)
-1. **🔴 NO `.git` history**: tất cả 8 phase + 11 backup files KHÔNG có git baseline. Rủi ro cao nếu cần revert lùi nhiều phase.
-2. **🟡 `/pets/12/personality` redirect loop**: vowvet-web logs spam `[302] /pets/12/personality` mỗi 0.5-0.7s — phát hiện đầu phiên. Có thể source của vowvet-web Exit 255 trước. User pending note "đào sau Phase 10".
+1. ✅ **GIT BASELINE DONE** (2026-05-30): `git init` + commit `c1ad2fc` (478 files). Loại khỏi git: `node_modules`, `.env*`, `baserow-config.json`, `*.bak*`, `docs/archive/MIGRATION_REPORT.md`. Backup `.bak`/`.env.backup` vẫn còn trên đĩa (chỉ untrack). → chi tiết section 🔒 SECURITY AUDIT.
+2. ✅ **`/pets/12/personality` 302 loop — ĐÃ ĐIỀU TRA** (2026-05-30): server ĐÚNG, loop là client-side SW reload, KHÔNG active hiện tại, KHÔNG phải nguồn Exit 255. → chi tiết section 🔍 INVESTIGATION 302 LOOP. Fix để mai.
 3. **🟢 CTA `/hui-pet/register` route không tồn tại**: glob `web/src/pages/**/hui*` = 0 file. Hiện `href="#"` (Phase 7 A=a). Khi route ready → đổi link 1 dòng.
 4. **🟢 Stats Hụi Pet placeholder**: 1,234+ pet / 2.5M+ điểm / 01/07 khai vận — chờ data thật từ user.
 5. **🟢 `#ffd56b` coin highlight** (Phase 7): gold-family nhưng không trong palette chính (deep/bright/light). Có thể swap `#f4c842` để khít strict (cosmetic).
@@ -106,20 +108,48 @@ Methods/getters: `onMount/animateScore/startGauge/startTicker/loadTrend/renderCh
 
 ---
 
-## 4. NEXT STEPS (5 nhiệm vụ tiếp theo, theo priority)
+## 🔒 SECURITY AUDIT (2026-05-30)
 
-### 🔴 CRITICAL — làm NGAY trước mọi thứ khác
-1. **`git init` + baseline commit** trong `C:/docker/vowvet/`. Trang Pet Score sau 8 phase đã production-ready → đây là moment đúng để chốt snapshot lịch sử. Lệnh:
-   ```bash
-   cd C:/docker/vowvet
-   git init
-   git add -A
-   git commit -m "feat(pet-score): complete redesign Phase 1-8 — Hero Cert XL + Achievement Strip + Recommendations + Constellation Star Map + Trend-Community merged + Hụi Pet teaser + tier cleanup"
-   ```
-   Sau đó mỗi phase/feature → commit riêng. Có thể `git branch backup-bak-files` rồi `git rm *.bak` để gọn (backup giờ trong git history).
+- **Secret leak chặn KỊP trước commit đầu tiên:** `.env.backup` (chứa `BASEROW_TOKEN` + `BASEROW_USER_PASSWORD` thật) và `docs/archive/MIGRATION_REPORT.md` (token + password + email plaintext) — đã thêm vào `.gitignore`, KHÔNG vào git.
+- **Đã verify HEAD sạch:** quét toàn bộ giá trị secret ≥16 ký tự trong `.env` khắp 478 file tracked → 0 leak. `GEMINI_API_KEY` / `JWT_SECRET` / `R2_*` KHÔNG hardcode đâu cả. Working tree + HEAD clean (`git grep` token = 0).
+- **Non-secret bị flag (an toàn, KHÔNG cần lo):** `BASEROW_URL`, `APP_URL`, `API_URL`, `R2_PUBLIC_URL`, `TZ`, `VAPID_SUBJECT`, `GOOGLE_OAUTH_REDIRECT_URI`, `ZALO_OA_ID` — đều là URL/config công khai, vốn dĩ nằm trong source.
+- **⚠️ ACTION ITEM (CRITICAL → queue #1):** rotate (đổi) **Baserow token + user password** sớm — chúng đã từng plaintext trong file local, rủi ro nếu folder bị sync/share. Cần thao tác Baserow admin → update `.env` → restart container. Assistant hướng dẫn từng bước khi user sẵn sàng.
 
-### 🟡 HIGH — sau khi có git baseline
-2. **Đào root cause `/pets/12/personality` 302 loop**: vowvet-web logs cho thấy request mỗi 0.5-0.7s. Hypothesis: setInterval poll trong tab cũ chưa close, hoặc cookie expired → redirect /login loop, hoặc Alpine x-init recurse. Audit personality.astro + check Network tab khi mở page.
+---
+
+## 🔍 INVESTIGATION 302 LOOP (2026-05-30)
+
+- **Loop `/pets/12/personality` KHÔNG active hiện tại** (sau restart web 09:59 chỉ có 1 hit do curl test).
+- **Server hành xử ĐÚNG:** request không session → middleware [`middleware.ts:246`] redirect `302 /login?return_to=…`. Không có bug server-side.
+- **Root cause = SW reload loop pattern (3 mảnh ghép):**
+  - `sw.js:35` — `install → self.skipWaiting()` (SW mới kích hoạt ngay)
+  - `sw.js:50` — `activate → self.clients.claim()` (chiếm quyền mọi tab)
+  - `Layout.astro:185-189` — `controllerchange → window.location.reload()` (đổi quyền SW → tự reload)
+- **Catalyst:** chạy `astro dev` mode (server tưởng `/sw.js` có bản mới liên tục) + **12 lần bump VERSION** (v184→v196) trong arc redesign → SW liên tục activate → reload.
+- **ĐÍNH CHÍNH CONTEXT_SYNC cũ:**
+  1. "Spam mỗi 0.5-0.7s" thực ra phần lớn là **bot quét lỗ hổng** (`/.env`, `/wp-includes/...`, `/phpinfo.php`), KHÔNG phải /personality.
+  2. Loop /personality thật ~**2.45s**, status 302, **0ms** (redirect rẻ, không render SSR) → **KHÔNG đủ gây Exit 255**. Exit 255 nhiều khả năng do `astro dev` + SSR nặng (personality 2.4-2.8s, pet-score 3.7s) + file-watch restart.
+- **Mức độ chắc:** CAO cho "client-side SW loop + server OK"; mắt xích "vì sao tái kích hoạt đều 2.45s" cần repro browser mới khẳng định 100%.
+
+---
+
+## 🚨 TOMORROW PRIORITY QUEUE (2026-05-30)
+
+1. **(CRITICAL) Rotate Baserow creds** (token + user password) — đã leak vào file local (`.env.backup`, `MIGRATION_REPORT.md`). Làm sớm nhất.
+2. **Fix SW reload loop** (`Layout.astro:185-189` + `sw.js:35/50`) — VERIFY repro browser TRƯỚC, rồi bỏ `controllerchange` auto-reload, chỉ reload khi user bấm toast (nút gửi `SKIP_WAITING` đã có sẵn).
+3. **Chuyển `astro dev` → `astro build` production mode** — hiện chạy dev server làm production (chậm 1-3.7s/request, file-watch restart, nghi nguồn Exit 255 THẬT). Xem `docker/docker-compose.yml` + `docker/web.Dockerfile`.
+4. **Update Hụi Pet stats placeholder** với số thật (1.234+ pet / 2.5M+ điểm / 01/07 khai vận) khi có data.
+5. **(Optional) Phase 5.2 orbit Constellation** nếu đầu óc fresh — cần fix `transform-box: view-box` + cân nhắc perf mobile.
+
+---
+
+## 4. BACKLOG (từ phiên redesign — tham khảo, KHÔNG ưu tiên bằng queue trên)
+
+### ✅ ĐÃ XONG phiên 2026-05-30 (không còn là next-step)
+1. ~~git init + baseline commit~~ → **DONE** (commit `c1ad2fc`, 478 files). Xem section 🔒 SECURITY AUDIT.
+2. ~~Đào root cause `/pets/12/personality` 302 loop~~ → **DONE** (root cause = SW reload pattern). Xem section 🔍 INVESTIGATION 302 LOOP.
+
+### 🟡 HIGH — vẫn còn (xem 🚨 TOMORROW PRIORITY QUEUE cho thứ tự ưu tiên thật)
 
 3. **Polish `dashboard.astro`** (17KB, entry chính của app) apply design language Pet Score đã proven: 
    - Gold-thread `::before` cho main sections
