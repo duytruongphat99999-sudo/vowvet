@@ -258,6 +258,50 @@ body {
 }
 .animate-progress-pulse { animation: progress-pulse 1.5s ease-in-out infinite; }
 
+/* ─── Dashboard WOW v208 — Pet Score ring + Hero polish (prefix psc-/phc-, no name collision) ─── */
+@keyframes psc-badge-pop {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.8); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+.psc-badge-pop { animation: psc-badge-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 1.5s both; }
+
+@keyframes psc-chip-in {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.psc-chip-in { animation: psc-chip-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes phc-halo-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.78; transform: scale(1.05); }
+}
+.phc-halo-pulse { animation: phc-halo-pulse 4.5s ease-in-out infinite; }
+
+@keyframes phc-cta-shine {
+  0%        { transform: translateX(-120%) skewX(-18deg); }
+  60%, 100% { transform: translateX(220%) skewX(-18deg); }
+}
+.phc-cta-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  animation: phc-cta-shine 4.5s ease-in-out 1.2s infinite;
+}
+
+/* Reduced-motion guard riêng cho WOW v208 — KHÔNG dùng transform:none (giữ translateX(-50%) badge) */
+@media (prefers-reduced-motion: reduce) {
+  .psc-badge-pop { animation: none !important; }
+  .psc-chip-in { animation: none !important; }
+  .phc-halo-pulse { animation: none !important; }
+  .phc-cta-shine::after { display: none !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .marquee-track,

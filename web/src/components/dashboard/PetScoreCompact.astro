@@ -92,16 +92,26 @@ if (breakdown?.components && Array.isArray(breakdown.components)) {
 
 <div class="space-y-2">
 <div
-  class="relative bg-white rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm overflow-hidden"
+  class="relative bg-white rounded-3xl p-5 sm:p-6 border border-mmp-cream shadow-sm overflow-hidden"
   x-data={`{
     score: 0,
+    dashOffset: ${ARC},
     init() {
       const target = ${score};
+      const arc = ${ARC};
+      const endOffset = ${offset};
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        this.score = target;
+        this.dashOffset = endOffset;
+        return;
+      }
       const duration = 1800;
       const start = performance.now();
       const tick = (now) => {
         const p = Math.min((now - start) / duration, 1);
-        this.score = Math.round(target * (1 - Math.pow(1 - p, 3)));
+        const e = 1 - Math.pow(1 - p, 3);
+        this.score = Math.round(target * e);
+        this.dashOffset = arc - (arc - endOffset) * e;
         if (p < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
@@ -128,7 +138,7 @@ if (breakdown?.components && Array.isArray(breakdown.components)) {
           </linearGradient>
         </defs>
         {/* Background track */}
-        <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#f1f5f9" stroke-width="8" stroke-linecap="round" stroke-dasharray={`${ARC} ${CIRC}`} />
+        <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="rgba(10, 10, 10, 0.06)" stroke-width="8" stroke-linecap="round" stroke-dasharray={`${ARC} ${CIRC}`} />
         {/* Progress */}
         <circle
           cx="50" cy="50" r={RADIUS}
@@ -136,18 +146,18 @@ if (breakdown?.components && Array.isArray(breakdown.components)) {
           stroke={`url(#gauge-${levelId})`}
           stroke-width="8" stroke-linecap="round"
           stroke-dasharray={`${ARC} ${CIRC}`}
-          stroke-dashoffset={offset}
+          stroke-dashoffset={ARC}
+          :stroke-dashoffset="dashOffset"
           class={isNearNext ? "animate-progress-pulse" : ""}
-          style="transition: stroke-dashoffset 1.8s cubic-bezier(0.16, 1, 0.3, 1);"
         />
       </svg>
       {/* Center overlay */}
       <div class="absolute inset-0 flex flex-col items-center justify-center">
         <span class="text-3xl sm:text-4xl font-bold text-mmp-ink leading-none tabular-nums" x-text="score">{score}</span>
-        <span class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-medium">/ 1000</span>
+        <span class="text-[10px] text-mmp-ink/40 mt-1 uppercase tracking-widest font-medium">/ 1000</span>
       </div>
       {/* Floating tier badge top */}
-      <div class={`absolute -top-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white shadow-md ring-1 ${tier.ring}`}>
+      <div class={`psc-badge-pop absolute -top-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white shadow-md ring-1 ${tier.ring}`}>
         <FeatureIcon name={tier.icon} class="w-3.5 h-3.5" strokeWidth={1.8} />
         <span class="text-[10px] font-bold uppercase tracking-wider" style={`color: ${tier.color};`}>{levelId}</span>
       </div>
@@ -162,7 +172,7 @@ if (breakdown?.components && Array.isArray(breakdown.components)) {
         class="block hover:opacity-90 transition"
         aria-label="Chi tiết Pet Score"
       >
-        <p class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Pet Score</p>
+        <p class="text-[10px] text-mmp-ink/55 uppercase tracking-widest font-semibold">Pet Score</p>
         <p class="font-display italic text-lg sm:text-xl font-semibold text-mmp-ink leading-tight mt-0.5">{levelNameVi || tier.label}</p>
       </a>
 
@@ -174,7 +184,7 @@ if (breakdown?.components && Array.isArray(breakdown.components)) {
           <span class="line-clamp-1">{tierNudge.title}</span>
         </p>
       ) : nextTier ? (
-        <p class="text-xs text-slate-600 mt-2 leading-snug">
+        <p class="text-xs text-mmp-ink/70 mt-2 leading-snug">
           Còn <span class="font-bold tabular-nums" style="color: var(--c-gold);">{pointsToNext}</span> điểm đến tier
           <span class="font-bold text-mmp-ink uppercase ml-0.5">{nextTier}</span>
         </p>
@@ -188,10 +198,11 @@ if (breakdown?.components && Array.isArray(breakdown.components)) {
       {/* Breakdown chips — each is now a clickable <a> to its detail page (visible sm+) */}
       {chips.length > 0 && (
         <div class="hidden sm:flex flex-wrap gap-1.5 mt-3">
-          {chips.map((c) => (
+          {chips.map((c, i) => (
             <a
               href={c.url}
-              class="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 hover:bg-mmp-cream hover:border-amber-200 hover:text-mmp-ink hover:shadow-sm transition"
+              class="psc-chip-in inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-mmp-cream/40 text-mmp-ink/75 border border-mmp-cream hover:bg-mmp-cream hover:border-amber-200 hover:text-mmp-ink hover:shadow-sm transition"
+              style={`animation-delay: ${1.6 + i * 0.1}s`}
               aria-label={`Xem chi tiết ${c.label}`}
             >
               <FeatureIcon name={c.icon} class="w-3 h-3" strokeWidth={2} />

@@ -155,9 +155,9 @@ const ageStr = calcAge(pet.dob);
 
         {topAction && (
           <a href={heroCtaHref}
-             class="hero-fade hero-fade-d3 mt-6 inline-flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-mmp-gold text-mmp-ink hover:scale-[1.02] hover:shadow-lg hover:shadow-mmp-gold/30 active:scale-[0.99] transition-all font-bold text-sm sm:text-base group">
-            <span>{topAction.label}</span>
-            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-mmp-ink/10 group-hover:bg-mmp-ink/20 transition">
+             class="phc-cta-shine hero-fade hero-fade-d3 relative overflow-hidden mt-6 inline-flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-mmp-gold text-mmp-ink hover:scale-[1.02] hover:shadow-lg hover:shadow-mmp-gold/30 active:scale-[0.99] transition-all font-bold text-sm sm:text-base group">
+            <span class="relative z-10">{topAction.label}</span>
+            <span class="relative z-10 inline-flex items-center justify-center w-6 h-6 rounded-full bg-mmp-ink/10 group-hover:bg-mmp-ink/20 transition">
               <FeatureIcon name="arrow" class="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </span>
           </a>
@@ -174,7 +174,7 @@ const ageStr = calcAge(pet.dob);
       <div class="hero-fade hero-fade-d2 relative shrink-0 order-1 sm:order-2 mx-auto sm:mx-0">
         <div class="relative w-44 h-44 sm:w-52 sm:h-52 md:w-60 md:h-60">
           {/* Gold halo blur behind */}
-          <div class="absolute -inset-4 rounded-3xl opacity-60 blur-2xl pointer-events-none"
+          <div class="phc-halo-pulse absolute -inset-4 rounded-3xl opacity-60 blur-2xl pointer-events-none"
                style="background: radial-gradient(circle, rgba(236,185,33,0.45) 0%, transparent 70%);"></div>
           {/* Clean photo with gold ring */}
           <div class="relative w-full h-full rounded-3xl overflow-hidden ring-2 ring-offset-4 ring-offset-mmp-ink shadow-2xl"
@@ -188,7 +188,7 @@ const ageStr = calcAge(pet.dob);
                 decoding="async"
               />
             ) : (
-              <div class="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-mmp-gold/40">
+              <div class="w-full h-full bg-gradient-to-br from-mmp-ink to-mmp-ink/80 flex items-center justify-center text-mmp-gold/40">
                 <FeatureIcon name="paw" class="w-20 h-20" />
               </div>
             )}
