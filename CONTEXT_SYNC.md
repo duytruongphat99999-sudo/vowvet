@@ -1,6 +1,6 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-30 (buổi 2)**: 🌌 Constellation WOW v197-203 · 📈 Trend polish v204-205 · 🧭 TopBar v206-207 · ✨ Dashboard WOW v208 · 🎨 Color-sync v209 · 🏅 Tier-gold v210 · 🔒 token rotated. **SW hiện tại = `vowvet-v210-tier-gold`**.
+> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai GĐ1** (backend Overpass `/suggest`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v229-bills-brand-gold`** · ~37 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
 > Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
@@ -52,6 +52,12 @@
 > - **Weather 500** (`?city=hcm` slug sai) → fix frontend dùng `settings.city` (**`86a4392`**) + hardening route `/` trả 400 BAD_CITY thay 500 (**`3cbd272`**). Verified 200 thật.
 > - **Icon form Check-in/Climate** → 7 icon FeatureIcon mới (**`a46cf1e`**) + ráp vào form thay emoji + micro-interaction (pop/hover, reduced-motion guard) + nút Lưu (`clipboard-check`) & empty state (`info`) (**`55a2928`**). Stool select giữ emoji (native). SW → `v216`.
 > - **Production mode** (thoát `astro dev`/inotify) → **đã cân nhắc kỹ, QUYẾT BỎ** — restart tay mỗi lần sửa không đủ phiền; giữ dev setup hiện tại (4 hướng đã recon, không chọn).
+> - **🎨 Arc icon — 8 màn iconified** (emoji→FeatureIcon SVG): Check-in/Climate · BCS Vision · Nutrition tab · mobility · pain (+chấm severity) · cognitive (+`severityDot`+`domainIcon`) · water · bills. **Pattern:** spot tĩnh → `<FeatureIcon>` SSR; spot data-driven (x-for/x-text) → helper trả **SVG-string** render `x-html` (vì FeatureIcon SSR KHÔNG dùng được trong Alpine).
+> - **~21 icon mới trong `FeatureIcon.astro`** (mai khỏi vẽ lại): mood-nausea/tired/energetic · sneeze · limp · fog · cloud · bone · wand · mailbox · cookie · sunrise · refresh · ban · circle-filled · compass · toilet · anxiety · bar-chart · package · hospital · scissors · microscope.
+> - **2 nút fix contrast** (BCS + cognitive → `bg-mmp-ink text-white` thay nền sáng chữ trắng chìm).
+> - **🐛 BUG ẨN FIXED — `as number[]` trong `<script is:inline>` bills** (L555/560, getter maxCategoryAmt/maxMonthlyAmt): TS trong is:inline mà **Astro KHÔNG transpile** → browser `SyntaxError: Unexpected identifier 'as'` → **chết cả script → `billsPage` undefined → Alpine TOÀN TRANG chết** (tab/upload/list/filter đơ). Fix xoá 2 cast (**`e66db76`**). **📌 BÀI HỌC: `<script is:inline>` = JS THUẦN, TUYỆT ĐỐI KHÔNG viết TS (`as`/type) — Astro không transpile, lỗi LỌT RUNTIME (build vẫn "ready in" OK).** `billsPage` phải global cho `x-data="billsPage()"` nên BẮT BUỘC giữ is:inline.
+> - **💰 Bills brand-color** (**`f187208`**): đổi 15 chỗ xanh lạc brand (sky/blue/indigo) → gold/ink/brown — tab active + nút Lưu = `bg-mmp-ink text-white` (theo pattern BCS/Diary), 3 số tiền `text-mmp-ink`, viền/bar/spinner/focus `mmp-gold`, text phụ `mmp-brown`, card tổng kết `bg-mmp-cream`. **Giữ functional** (green/orange/red). Trước đó: bills markup iconified + badge danh mục **7/7 icon** (`categoryIcon` SVG-string).
+> - **SW**: v211→**v229** qua loạt commit icon/fix/brand.
 >
 > ⬇️ *Phần dưới = lịch sử debug v211 (giữ tham khảo — kết luận cuối: OS reduce-motion, KHÔNG phải CSS stale/z-index như nghi ban đầu).*
 
@@ -82,6 +88,30 @@ getComputedStyle(o).display;         // 'block' hay 'none'?
 - `web/public/sw.js` — VERSION `vowvet-v211-grand-entrance`.
 - ⚠️ `data/api/gemini-usage.log.jsonl` = log runtime, **KHÔNG add** khi commit (nên gitignore).
 - *(v209-210 đã commit: `3d19d67`/`0f03f15`/`e12e623`. Chỉ v211 đang dở.)*
+
+---
+
+## 🗺️ MAP-LAI (2026-05-31 buổi 3) — ĐANG DỞ (Baserow + gợi ý OSM Overpass)
+
+> **Mục tiêu:** map gợi ý địa điểm pet từ OpenStreetMap — giữ **Baserow làm nguồn chính**, user **promote** gợi ý OSM vào DB. Trang `/map` (public, Leaflet+OSM tiles, KHÔNG cần API key). Nguồn place hiện tại = Baserow table `places` (**KHÔNG tự cập nhật** — phải user submit `/places/new` hoặc admin nhập tay; không có tích hợp Google Places/OSM POI auto). 9 category trong `lib/places.ts` `CATEGORIES`.
+
+**✅ GĐ1 XONG (commit `b3953b9`, chưa push):**
+- Backend `GET /api/v1/places/suggest?bbox=S,W,N,E` (PUBLIC, read-only, **KHÔNG ghi DB**) + file mới `api/src/lib/overpass.ts`.
+- Overpass **Tầng 1** (precision cao): `amenity=veterinary→vet` · `shop=pet→pet_shop` · `shop=pet_grooming→grooming` · `leisure=dog_park→park`. Fetch POST overpass-api.de + **`AbortSignal.timeout(25000)`** + User-Agent định danh app (Acceptable Use Policy). Parse `out tags center` (node+way+relation, bỏ POI không name).
+- **Dedup <80m** vs place Baserow trong bbox (`haversineDistance` từ `shared/geo.ts`). **Guard** bbox >0.2° → 400 `BBOX_TOO_LARGE`; bbox sai → 400 `BAD_BBOX`. **Degraded** (Overpass lỗi/timeout) → `{suggestions:[],degraded:true}` (**KHÔNG 500** — map vẫn chạy). Cache in-memory 10′/bbox-tile.
+- **Test curl:** bbox HCMC rộng → **7 POI thật** (3 vet + 4 pet_shop, tên VN thật) → **data VN dùng được** (mỏng nhưng có; zoom siêu-cận D1 = 0). Guard 400 OK, cache `cached=true` OK, dedup đối chứng **23 place Baserow** trong box → 0 trùng (7 POI là MỚI = giá trị feature).
+
+**📌 Quyết định đã CHỐT:**
+- Promote **GIỮ gate Pet Score ≥ 200** (tái dùng `POST /api/v1/places` — anti-spam, KHÔNG cần write-path mới).
+- **Chỉ Tầng 1** (chưa Tầng 2 cafe/nhà hàng có tag `dog=*` — volume lớn, để sau).
+- Tên: endpoint `/places/suggest` + nút frontend **"Tìm gần đây"**.
+
+**🔜 CÒN LÀM:**
+- **GĐ2 frontend** (`map.astro`): nút "Tìm gần đây" → `map.getBounds()` → gọi `/suggest` → render marker gợi ý **style khác** (mờ/gold-đứt-nét/badge "+"), layer riêng, toggle on/off. ⚠️ **`map.astro` là `<script is:inline>` JS THUẦN — cẩn thận KHÔNG lặp bug `as number[]` (xem bài học buổi 3).**
+- **GĐ3 promote**: click marker gợi ý → popup "Thêm vào map" → `POST /api/v1/places` (prefill từ OSM) → bắt 403 gate (Pet Score <200).
+- **GĐ4 polish**: tinh chỉnh ngưỡng dedup, min-zoom guard, debounce, empty/error state, attribution OSM, brand-icon marker gợi ý.
+
+**📋 Queue khác buổi 3 (chưa làm):** diary đồng bộ emoji · playdate/setup brainstorm · **map: đồng bộ emoji UI + 2 hex lạc brand** (`#c4b5fd` viền marker, `#3b82f6` chấm user) · **severity refactor pain/mobility** (gom `severityDot` helper dùng chung) · TopBar Hướng B · Hụi Pet stats thật.
 
 ---
 
