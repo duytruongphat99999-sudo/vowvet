@@ -39,6 +39,23 @@ const initialData = JSON.stringify({ places, categories });
     }
     .place-marker:hover { transform: scale(1.15); }
     .place-marker.verified { border-color: #10b981; }
+    /* GĐ2 Map-Lai: marker gợi ý OSM (chưa vào DB) — viền gold đứt nét + badge "+" */
+    .place-marker.suggest {
+      border-color: var(--color-mmp-gold, #ecb921);
+      border-style: dashed;
+      opacity: 0.82;
+    }
+    .place-marker.suggest::after {
+      content: "+";
+      position: absolute;
+      top: -5px; right: -5px;
+      width: 15px; height: 15px;
+      background: var(--color-mmp-gold, #ecb921);
+      color: var(--color-mmp-ink, #0a0a0a);
+      border-radius: 50%;
+      font-size: 12px; font-weight: 800; line-height: 15px; text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    }
   </style>
 
   <main class="relative" x-data={`mapPage(${initialData})`} x-init="onMount()">
@@ -75,6 +92,14 @@ const initialData = JSON.stringify({ places, categories });
             </button>
           </template>
         </div>
+
+        <!-- GĐ2 Map-Lai: nút gợi ý OSM (chỉ render, chưa promote) -->
+        <button @click="toggleSuggest()" :disabled="loadingSuggest"
+          :class="showSuggest ? 'bg-mmp-gold text-mmp-ink' : 'bg-white text-mmp-ink border border-mmp-cream'"
+          class="w-full mt-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-60">
+          <span x-text="loadingSuggest ? 'Đang tìm…' : (showSuggest ? 'Ẩn gợi ý OSM' : 'Tìm gần đây (OSM)')"></span>
+        </button>
+        <p x-show="suggestMsg" x-text="suggestMsg" x-cloak class="text-[10px] text-mmp-brown mt-1 text-center"></p>
       </div>
     </div>
 
@@ -180,6 +205,11 @@ const initialData = JSON.stringify({ places, categories });
         map: null,
         markers: [],
         userMarker: null,
+        suggestions: [],
+        suggestMarkers: [],
+        showSuggest: false,
+        loadingSuggest: false,
+        suggestMsg: "",
         catMap: Object.fromEntries(initial.categories.map((c) => [c.key, c])),
 
         catEmoji(k) { return this.catMap[k]?.emoji || "📍"; },
@@ -288,6 +318,85 @@ const initialData = JSON.stringify({ places, categories });
         },
 
         closeSheet() { this.selectedPlace = null; },
+
+        // ── GĐ2 Map-Lai: layer gợi ý OSM (Overpass) — layer RIÊNG, KHÔNG đụng render()/markers chính thức ──
+        toggleSuggest() {
+          this.showSuggest = !this.showSuggest;
+          if (this.showSuggest) {
+            this.fetchSuggest();
+          } else {
+            this.suggestions = [];
+            this.suggestMsg = "";
+            this.clearSuggestMarkers();
+          }
+        },
+
+        async fetchSuggest() {
+          if (!this.map || this.loadingSuggest) return; // guard double-click / chưa có map
+          this.loadingSuggest = true;
+          this.suggestMsg = "";
+          try {
+            const b = this.map.getBounds();
+            const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]
+              .map((n) => n.toFixed(5))
+              .join(",");
+            const res = await fetch("/api/v1/places/suggest?bbox=" + bbox);
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              this.suggestMsg = (j.error && j.error.message) || "Không tìm được gợi ý";
+              this.suggestions = [];
+              this.clearSuggestMarkers();
+              return;
+            }
+            const data = await res.json();
+            if (data.degraded) {
+              this.suggestMsg = "OSM không phản hồi, thử lại sau";
+              this.suggestions = [];
+              this.clearSuggestMarkers();
+              return;
+            }
+            this.suggestions = data.suggestions || [];
+            this.suggestMsg = this.suggestions.length ? "" : "Không có gợi ý quanh đây";
+            this.renderSuggestions();
+          } catch (e) {
+            this.suggestMsg = "Lỗi tải gợi ý";
+            this.suggestions = [];
+            this.clearSuggestMarkers();
+          } finally {
+            this.loadingSuggest = false;
+          }
+        },
+
+        renderSuggestions() {
+          if (!this.map) return;
+          this.clearSuggestMarkers();
+          for (const s of this.suggestions) {
+            const emoji = this.catEmoji(s.category);
+            const icon = L.divIcon({
+              className: "place-marker suggest",
+              html: emoji,
+              iconSize: [38, 38],
+              iconAnchor: [19, 19],
+            });
+            const m = L.marker([s.lat, s.lng], { icon }).addTo(this.map);
+            const label = this.catLabel(s.category);
+            const safeName = String(s.name || "")
+              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            m.bindPopup(
+              '<div style="min-width:150px">' +
+              "<b>" + safeName + "</b><br>" +
+              '<span style="color:#8b6f47;font-size:12px">' + emoji + " " + label + "</span><br>" +
+              '<span style="color:#8b6f47;font-size:11px">Gợi ý từ OpenStreetMap</span>' +
+              "</div>"
+            );
+            this.suggestMarkers.push(m);
+          }
+        },
+
+        clearSuggestMarkers() {
+          for (const m of this.suggestMarkers) this.map.removeLayer(m);
+          this.suggestMarkers = [];
+        },
       };
     }
   </script>
