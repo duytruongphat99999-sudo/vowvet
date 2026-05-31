@@ -3,6 +3,7 @@
  * /pets/[id]/pain — Glasgow CMPS-SF pain assessment (M23).
  */
 import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 import { PAIN_QUESTIONS, PAIN_LABELS } from "@shared/pain-glasgow.ts";
 
@@ -42,7 +43,7 @@ const initialData = JSON.stringify({
 
       <header class="flex items-center justify-between mb-5 gap-3">
         <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
-        <h1 class="text-lg font-bold text-slate-900">🩺 Đánh giá đau</h1>
+        <h1 class="text-lg font-bold text-slate-900 inline-flex items-center gap-1.5"><FeatureIcon name="stethoscope" class="w-5 h-5" />Đánh giá đau</h1>
         <span class="w-12"></span>
       </header>
 
@@ -65,10 +66,10 @@ const initialData = JSON.stringify({
         <div>
           <button @click="start()"
             class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-orange-500 hover:opacity-95 text-white font-bold shadow-lg mb-4">
-            🩺 <span x-text="latest ? 'Đánh giá lại' : 'Bắt đầu đánh giá đau'"></span>
+            <span class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="stethoscope" class="w-5 h-5" /><span x-text="latest ? 'Đánh giá lại' : 'Bắt đầu đánh giá đau'"></span></span>
           </button>
           <p class="text-xs text-slate-500 text-center mt-2">
-            ⓘ Glasgow Composite Measure Pain Scale - Short Form (CMPS-SF) — vet-validated chuẩn quốc tế
+            <FeatureIcon name="info" class="w-3.5 h-3.5 inline-block align-text-bottom mr-1" />Glasgow Composite Measure Pain Scale - Short Form (CMPS-SF) — vet-validated chuẩn quốc tế
           </p>
         </div>
       </template>
@@ -104,7 +105,7 @@ const initialData = JSON.stringify({
       </template>
 
       <template x-if="view === 'loading'">
-        <div class="bg-white rounded-3xl p-12 text-center"><p class="text-6xl mb-3 animate-pulse">🩺</p><p class="font-bold">Đang tính điểm...</p></div>
+        <div class="bg-white rounded-3xl p-12 text-center"><p class="mb-3 flex justify-center animate-pulse text-rose-500"><FeatureIcon name="stethoscope" class="w-14 h-14" /></p><p class="font-bold">Đang tính điểm...</p></div>
       </template>
 
       <template x-if="view === 'result' && submittedResult">
@@ -118,7 +119,7 @@ const initialData = JSON.stringify({
           </div>
           <template x-if="submittedResult.needs_vet">
             <a :href="`/chat`" class="block w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-center mb-2 shadow-lg">
-              💬 Chat với vet ngay
+              <span class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="message-circle" class="w-5 h-5" />Chat với vet ngay</span>
             </a>
           </template>
           <button @click="view = 'home'; reload()" class="w-full py-3 rounded-xl bg-slate-100 text-slate-700 font-bold">Xong</button>
