@@ -6,7 +6,49 @@
 
 ---
 
-## 📌 SESSION-END SNAPSHOT (2026-05-30 buổi 2) — 4 mục
+## 📌 SESSION-END SNAPSHOT (2026-05-31 buổi 3) — Brand-sync / Iconify arc — 4 mục
+
+> ⚠️ **Đính chính phạm vi (KHÔNG bịa):** Đây là **VowVet / Mon Min Pet** — nền tảng chăm sóc thú cưng (Astro SSR + Bun + Hono + Baserow + R2 + Gemini). **KHÔNG phải dự án SEO/Schema.** Phiên buổi 3 **KHÔNG đụng SEO/Schema**. SEO hiện trạng: chỉ **meta/OG cơ bản** ở `Layout.astro` (og:title/description/image, twitter:card) — **CHƯA có Schema.org JSON-LD / structured data** nào. Phiên này = **đồng bộ icon/màu brand (gold/ink/cream) + feature Map-Lai (gợi ý OSM)**.
+
+### 1️⃣ Trạng thái hiện tại — đã làm xong (file + tính năng)
+~17 commit buổi 3 (`86a4392` → `2b87a21`, **CHƯA push**). Đây là arc **brand-sync UI** (không SEO/Schema):
+- **Weather fix** (`86a4392`/`3cbd272`): `/api/v1/weather` slug sai → frontend dùng `settings.city`; route `/` trả 400 BAD_CITY thay 500.
+- **🐛 BUG ẨN FIXED** (`e66db76`): `as number[]` (TypeScript) lọt vào `<script is:inline>` bills → browser `SyntaxError` → chết Alpine **TOÀN TRANG** (tab/upload/list đơ). → bài học is:inline (mục 2).
+- **Arc iconify (emoji → `FeatureIcon` SVG)** nhiều màn: Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · **bills** (icon + brand-color xanh→gold/ink + badge danh mục 7/7) · **map** DONE ALL · **diary** DONE ALL.
+- **🗺️ Map-Lai (feature MỚI)** — gợi ý địa điểm pet từ OSM Overpass:
+  - Backend `GET /api/v1/places/suggest?bbox=` + `api/src/lib/overpass.ts` (Tầng 1 vet/pet_shop/grooming/dog_park · pad bbox +3km · guard 0.5° · dedup <80m Haversine · degraded khi Overpass lỗi · cache 10′). Commit `b3953b9`.
+  - Frontend `map.astro`: nút "Tìm gần đây" → marker gợi ý vàng nổi → "+ Thêm" → toast → **promote tạo place Baserow** (gate Pet Score ≥200; fix `9f5a554` round6 lat/lng vì Baserow giới hạn 6 chữ số thập phân). Commit `95df5ec`/`c2b194e`.
+  - Brand-sync /map (`6da3a17`/`b59b3fa`/`ce41970`/`6cb0a73`): hết emoji UI, hết hex lạc (#c4b5fd/#3b82f6→ink), category icon **màu-theo-loại** (vet đỏ/park xanh…).
+- **📔 diary DONE ALL** (`10e15bc`/`22dcc70`): mood emoji → **mood face icon** (smile/frown/laugh/party-popper/paw, màu-theo-mood) render x-html · UI emoji → FeatureIcon · căn giữa nút mic/stop (`mx-auto`) · màu yearbook hồng/đen → gold/cream.
+- **`FeatureIcon.astro`** (~130 icon) — buổi 3 thêm ~30 icon (mood faces · hospital/scissors/microscope · phone/tree/coffee/bed/waves · printer/stop/chevron-down/right · mood/weather…).
+- **SW hiện tại = `vowvet-v242-diary-yearbook-gold`**.
+
+### 2️⃣ Cấu trúc cốt lõi — quy chuẩn code (LƯU Ý: "schema" ở đây = quy chuẩn code, KHÔNG phải Schema.org)
+- **Stack:** Astro 5 SSR + Bun (`vowvet-web` :4322) · Hono + Bun API (`vowvet-api` :3010) · Baserow REST :8888 · Cloudflare R2 · Gemini 2.5 Flash. Docker + bos-network. **Git local-only (không remote).**
+- **Icon system = `web/src/components/FeatureIcon.astro`**: inline SVG Lucide-style (`viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=1.5` round); render `{name === "x" && (<svg>…)}`; màu qua text-class/`currentColor`.
+- **⚠️ `<script is:inline>` = JS THUẦN** (Astro KHÔNG transpile) → TUYỆT ĐỐI không TypeScript (`as`/`: type`/generic) → SyntaxError chết Alpine, **lọt runtime** (build vẫn "ready in" OK). **BẮT BUỘC `node --check` block is:inline sau mỗi sửa.**
+- **Icon ĐỘNG trong Alpine** (x-for/x-text/Leaflet divIcon): KHÔNG dùng `<FeatureIcon>` (SSR) → dùng **helper trả SVG-string + `x-html`** (proven: `catIconSvg`/`moodIcon`/`severityDot`/`categoryIcon`). Icon tĩnh → `<FeatureIcon>` literal.
+- **Brand palette (tokens `--color-mmp-*`, Tailwind v4 @theme):** gold `#ecb921` · ink `#0a0a0a` · cream `#f5f1eb` · brown `#8b6f47`. **Gold/cream/amber cho NỀN/accent — KHÔNG dùng gold cho CHỮ (gold-on-white chìm ~1.9:1, bài học bills); ink cho chữ chính; brown cho accent-text đọc được.** **Functional GIỮ:** severity đỏ/amber · mood emerald/amber/rose · done/live emerald · recording red · verified `#10b981` · category-color trên marker /map.
+- **SW versioning:** `web/public/sw.js` L17 `const VERSION` — bump mỗi release UI; `cacheFirst` cho `.css/.js` → dễ stale ("không thấy thay đổi" → hard-refresh / Unregister SW).
+- **SEO/Schema:** chỉ meta/OG cơ bản ở `Layout.astro` — **CHƯA có JSON-LD / structured data** (chưa làm, không bịa).
+
+### 3️⃣ Lỗi tồn đọng
+- **⚠️ Row test RÁC trong Baserow `places`**: `id25`/`id26` (E2E test cũ) + **`id27`** (round6-fix verify tôi tạo) → **nên xoá thủ công** trong Baserow để `/map` sạch (CHƯA xoá).
+- **SW reload loop** (`controllerchange→reload` + skipWaiting/clients.claim, `Layout.astro`) — auto-reload mỗi lần bump SW; chưa gây sự cố thực → hạ ưu tiên.
+- **Live `BASEROW_USER_PASSWORD`** trong `docs/archive/MIGRATION_REPORT.md` — **đã gitignore** (KHÔNG track/push); rotate chỉ là hygiene. `.env.backup` đã xoá.
+- **KHÔNG có git remote** — **51 commit local, CHƯA push** (backup chỉ ở máy).
+- *(Đã fix phiên này: `as number[]` Alpine-chết · Weather 500 · promote 500 (round6) · mic "lệch màu" = cache (v242).)*
+
+### 4️⃣ NEXT STEPS (việc tiếp, ưu tiên)
+1. **Dọn row test Baserow** `id25/26/27` — xoá thủ công trong Baserow UI (nhanh, cho `/map` sạch marker rác).
+2. **Severity refactor** `pain.astro`/`mobility.astro` — gom `severityDot` helper dùng chung (nhận cả `yellow` + `amber`); GIỮ shared `pain-glasgow.ts`/`cognitive-ccds.ts` (API dùng calc).
+3. **Màn admin duyệt place** (CHƯA có UI): place promote/form tạo `verified=false` → hiện phải đổi cột `verified` thủ công trong Baserow → cân nhắc trang admin (list `verified=false` + nút duyệt/từ chối). Tương lai.
+4. **Playdate / setup / pet 12 brainstorm** — cần user mô tả trang muốn làm gì.
+5. **(tùy)** Backup remote (tạo repo private + `git push`) · TopBar Hướng B (PageHeader toàn app, đại phẫu) · Hụi Pet stats thật · bills nút `×` "Đổi ảnh"→close icon (optional).
+
+---
+
+## 📌 SESSION-END SNAPSHOT (2026-05-30 buổi 2 — lịch sử) — 4 mục
 
 > ⚠️ **Đính chính phạm vi:** Đây là **VowVet / Mon Min Pet** — nền tảng chăm sóc thú cưng (UI/UX + WOW animation). **KHÔNG phải dự án SEO/Schema.** Phiên này KHÔNG làm SEO/Schema. SEO hiện chỉ có **meta/OG cơ bản** ở `Layout.astro` (og:title/image, twitter:card) — **CHƯA có Schema.org JSON-LD** (không bịa). Phiên này = **arc UI/WOW dashboard + pet page**.
 
