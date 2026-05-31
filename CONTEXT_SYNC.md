@@ -17,7 +17,7 @@
 - **v208 Dashboard WOW** — `components/dashboard/PetScoreCompact.astro` (ring fill 0→score đồng bộ count-up — cách **A2**: rAF tick chung 1 eased; reduced-motion nhánh jump) + `PetHeroCard.astro` (halo pulse + CTA shine).
 - **v209 color-sync** — slate/zinc → ink/cream trên **5 file** (dashboard + QuestStrip/QuickAccess/CarePlanProgress/CommunityMini); CommunityMini 5-màu event-type → gold/ink (giữ icon).
 - **v210 tier-gold** — `PetScoreCompact.astro` TIER_META → **hệ sắc độ gold** (bỏ slate/xanh/tím): bronze tối→silver pale→gold bright→platinum glow→diamond shimmer.
-- **v211 Grand Entrance** ⏳ **ĐANG DỞ** (xem mục 🚧 ngay dưới) — welcome reveal `/pets/[id]`.
+- **v211 Grand Entrance** ✅ **RESOLVED** (commit `f871596` — không phải bug, do OS reduce-motion) — welcome reveal `/pets/[id]`.
 → Chi tiết: section **🧭 TOPBAR + DASHBOARD WOW v206-210**.
 
 ### 2️⃣ Cấu trúc cốt lõi — quy chuẩn / framework
@@ -30,23 +30,32 @@
 - **Schema/SEO:** chỉ meta/OG cơ bản (`Layout.astro`) — **chưa có structured data / JSON-LD**.
 
 ### 3️⃣ Lỗi tồn đọng
-- **🐛 Grand Entrance v211 reveal KHÔNG hiện** (ĐANG DỞ — mục 🚧): gate script đã chạy đúng (`html.pge-run` set ✓), overlay render trong DOM ✓, CSS file có rule ✓, no-print đã loại (print-only) ✓ — nhưng overlay vô hình. Nghi: **CSS stale (SW cache)** hoặc z-index/opacity. Chốt = 3 dòng Console `getComputedStyle` (mục 🚧).
+- **✅ Grand Entrance v211 — RESOLVED (KHÔNG phải bug):** reveal "ẩn" trên máy dev = OS bật reduce-motion → `@media (prefers-reduced-motion: reduce)` tắt overlay đúng thiết kế. Verify OK Chrome/Safari/mobile. Commit `f871596`. (chi tiết: mục ✅ RESOLVED)
 - **SW reload trifecta** (`controllerchange→reload` + skipWaiting + clients.claim ở `Layout.astro` L133-139 + `sw.js`) — auto-reload mỗi lần bump SW, từng nuốt gate v211. Chưa fix (MEMORY flag).
 - `data/api/gemini-usage.log.jsonl` bị git track + app ghi runtime → **nên gitignore** (KHÔNG add khi commit).
 - Live Baserow creds trong `docs/archive/MIGRATION_REPORT.md` (rotate khuyến nghị — xem 🔒 SECURITY). **✅ Verify cuối phiên:** file này **đã gitignore** (`.gitignore` L22) → **KHÔNG bị track, KHÔNG lộ kể cả `git add -A` / push**; `.env.backup` đã gitignore (`.env*` + `*.backup`) **và không còn trên đĩa**. File DUY NHẤT bị track bất thường = `data/api/gemini-usage.log.jsonl` (log `.jsonl` nên `*.log` không bắt; KHÔNG chứa creds) → mai `git rm --cached` + thêm gitignore để hết noise.
 
 ### 4️⃣ NEXT STEPS (3-5 việc tiếp, ưu tiên)
-1. **Fix nốt Grand Entrance v211** → chạy 3 dòng Console (mục 🚧) chốt stale-CSS vs che-z-index → fix → verify (lần đầu reveal chạy / lần 2 vào thẳng / reduced-motion tĩnh / birthday confetti) → **commit v211** (secret-safe, KHÔNG add `gemini-usage.log.jsonl`).
+1. ✅ **XONG — Grand Entrance v211**: không phải bug (OS reduce-motion), commit `f871596` (xem mục ✅ RESOLVED).
 2. **Backup lên remote — repo HIỆN CHƯA CÓ remote** (✅ verify cuối phiên: `git remote -v` rỗng; local-only từ `git init`). 8 commit `8504494→e12e623` (+ v211) an toàn ở máy nhưng chưa có nơi push. Mai muốn đẩy GitHub: ① tạo repo **private** ② `git remote add origin <url>` ③ gitignore gemini log + (tùy chọn) rotate creds ④ `git push -u origin master`. ⚠️ Creds đã gitignore (xem mục 3) nên push KHÔNG lộ — rotate chỉ là hygiene thêm.
 3. **TopBar Hướng B** (nav global toàn app) — chuẩn hoá ~45 header sub-page thành component `PageHeader` đặt dưới TopBar (đại phẫu, dự án riêng — xem 🚨 TOMORROW QUEUE #1).
 4. **Fix SW auto-reload** — gỡ/guard `controllerchange→reload`; cân nhắc **network-first cho `.css`** để hết stale-CSS (giải quyết luôn root của bug v211 nếu là stale).
-5. **Cấu hình prod + dọn:** `astro dev`→`astro build`; gitignore gemini log; update Hụi Pet stats placeholder; (optional) rotate `BASEROW_USER_PASSWORD` → xoá `MIGRATION_REPORT.md`.
+5. **Cấu hình prod:** ❌ **QUYẾT BỎ** thoát `astro dev`/inotify (restart tay không đủ phiền — giữ dev setup). Gemini log đã gitignore ✅ (`9190d13`). Còn lại: update Hụi Pet stats placeholder; (optional) rotate creds.
 
 ---
 
-## 🚧 ĐANG DỞ — Grand Entrance v211 (CHƯA commit · còn trong working tree)
+## ✅ RESOLVED — Grand Entrance v211 + cập nhật buổi 3 (2026-05-31)
 
-> Welcome-reveal cho `/pets/[id]` (overlay + spotlight + stagger + sparkle, 1 lần/ngày + birthday). Debug dở — mai tiếp. SW working-tree = `vowvet-v211-grand-entrance` (CHƯA commit).
+> **🟢 v211 Grand Entrance — KHÔNG có bug.** Reveal "không hiện" trên máy dev = do **Windows tắt animation** (Settings → Accessibility → Visual effects → "Show animations" = **Off**) → browser báo `prefers-reduced-motion: reduce` → `@media (prefers-reduced-motion: reduce)` (`global.css`) **tắt overlay/spotlight/sparkle ĐÚNG THIẾT KẾ** (accessibility chuẩn). ✅ Verify reveal hiện OK trên **Chrome + Safari + mobile**. ✅ Commit **`f871596`**. 📌 Bài học: "animation không chạy" trên máy dev → check **OS reduce-motion TRƯỚC** khi nghi CSS stale/z-index.
+>
+> **✅ Đã xong buổi 3 (2026-05-31):**
+> - **Weather 500** (`?city=hcm` slug sai) → fix frontend dùng `settings.city` (**`86a4392`**) + hardening route `/` trả 400 BAD_CITY thay 500 (**`3cbd272`**). Verified 200 thật.
+> - **Icon form Check-in/Climate** → 7 icon FeatureIcon mới (**`a46cf1e`**) + ráp vào form thay emoji + micro-interaction (pop/hover, reduced-motion guard) + nút Lưu (`clipboard-check`) & empty state (`info`) (**`55a2928`**). Stool select giữ emoji (native). SW → `v216`.
+> - **Production mode** (thoát `astro dev`/inotify) → **đã cân nhắc kỹ, QUYẾT BỎ** — restart tay mỗi lần sửa không đủ phiền; giữ dev setup hiện tại (4 hướng đã recon, không chọn).
+>
+> ⬇️ *Phần dưới = lịch sử debug v211 (giữ tham khảo — kết luận cuối: OS reduce-motion, KHÔNG phải CSS stale/z-index như nghi ban đầu).*
+
+> *(Lịch sử)* Welcome-reveal cho `/pets/[id]` (overlay + spotlight + stagger + sparkle, 1 lần/ngày + birthday). SW = `vowvet-v211-grand-entrance` (đã commit `f871596`, sau nâng tiếp v212→v216).
 
 **✅ Đã fix (2 bug đã xử):**
 - **Bỏ `slot="head"`** → gate script đặt **slot-less, con đầu tiên của `<main>`** (combo `slot="head"` + define:vars render hỏng).
