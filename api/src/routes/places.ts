@@ -65,7 +65,8 @@ placesRoute.get("/categories", async (c) => {
 });
 
 // ── GET /suggest?bbox=S,W,N,E — gợi ý OSM Overpass Tầng 1 (PUBLIC, read-only, KHÔNG ghi DB) ──
-const SUGGEST_MAX_SPAN_DEG = 0.2; // ~22km mỗi trục; lớn hơn = zoom thấp → từ chối
+const SUGGEST_MAX_SPAN_DEG = 0.5; // ~55km/trục (tính trên bbox GỐC client, TRƯỚC pad); query Tầng 1 thưa nên rẻ
+const SUGGEST_PAD_DEG = 0.03; // ~3km nới mỗi phía trước khi query Overpass → zoom chặt vẫn kéo được POI lân cận (POI VN thưa, gần nhất 2-3km)
 const DEDUP_RADIUS_KM = 0.08; // 80m: POI OSM trùng place Baserow → loại
 const SUGGEST_TTL_MS = 10 * 60 * 1000; // cache 10 phút theo bbox-tile
 const suggestCache = new Map<string, { data: any; expires: number }>();
@@ -80,11 +81,18 @@ placesRoute.get("/suggest", async (c) => {
   if (south >= north || west >= east) {
     return c.json({ error: { code: "BAD_BBOX", message: "bbox không hợp lệ (cần S<N, W<E)" } }, 400);
   }
+  // Guard tính trên bbox GỐC client gửi (trước khi pad)
   if (north - south > SUGGEST_MAX_SPAN_DEG || east - west > SUGGEST_MAX_SPAN_DEG) {
-    return c.json({ error: { code: "BBOX_TOO_LARGE", message: "Khu vực quá rộng — zoom gần hơn để tìm gợi ý" } }, 400);
+    return c.json({ error: { code: "BBOX_TOO_LARGE", message: "Khu vực quá rộng để tìm — thu nhỏ vùng xem lại" } }, 400);
   }
 
-  const bbox = { south, west, north, east };
+  // Pad ~3km mỗi phía → query Overpass + dedup chạy trên vùng đã nới (zoom chặt vẫn thấy POI lân cận)
+  const bbox = {
+    south: south - SUGGEST_PAD_DEG,
+    west: west - SUGGEST_PAD_DEG,
+    north: north + SUGGEST_PAD_DEG,
+    east: east + SUGGEST_PAD_DEG,
+  };
   const cacheKey = parts.map((n) => n.toFixed(3)).join(",");
   const cached = suggestCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
@@ -105,7 +113,7 @@ placesRoute.get("/suggest", async (c) => {
   try {
     const all = await listPlaces({});
     existing = all.filter(
-      (p) => p.lat >= south && p.lat <= north && p.lng >= west && p.lng <= east
+      (p) => p.lat >= bbox.south && p.lat <= bbox.north && p.lng >= bbox.west && p.lng <= bbox.east
     );
   } catch (err) {
     console.error("[places/suggest] dedup list error (bỏ qua dedup):", err);

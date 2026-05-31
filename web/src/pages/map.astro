@@ -39,22 +39,40 @@ const initialData = JSON.stringify({ places, categories });
     }
     .place-marker:hover { transform: scale(1.15); }
     .place-marker.verified { border-color: #10b981; }
-    /* GĐ2 Map-Lai: marker gợi ý OSM (chưa vào DB) — viền gold đứt nét + badge "+" */
+    /* GĐ4.2 Map-Lai: marker gợi ý OSM — NỔI BẬT hẳn (nền gold đặc + to + viền ink dày + glow + pop) */
     .place-marker.suggest {
-      border-color: var(--color-mmp-gold, #ecb921);
-      border-style: dashed;
-      opacity: 0.82;
+      background: var(--color-mmp-gold, #ecb921);
+      border: 3px dashed var(--color-mmp-ink, #0a0a0a);
+      width: 46px !important; height: 46px !important;
+      font-size: 22px;
+      opacity: 1;
+      box-shadow: 0 0 0 4px rgba(236, 185, 33, 0.30), 0 4px 14px rgba(0, 0, 0, 0.30);
+      animation: suggest-pop 0.45s cubic-bezier(0.2, 0.8, 0.3, 1.25), suggest-glow 1.3s ease-in-out 0.45s 2;
     }
     .place-marker.suggest::after {
       content: "+";
       position: absolute;
-      top: -5px; right: -5px;
-      width: 15px; height: 15px;
-      background: var(--color-mmp-gold, #ecb921);
-      color: var(--color-mmp-ink, #0a0a0a);
+      top: -6px; right: -6px;
+      width: 18px; height: 18px;
+      background: var(--color-mmp-ink, #0a0a0a);
+      color: #fff;
+      border: 2px solid #fff;
       border-radius: 50%;
-      font-size: 12px; font-weight: 800; line-height: 15px; text-align: center;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      font-size: 13px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+    @keyframes suggest-pop {
+      0%   { transform: scale(0.3); opacity: 0; }
+      60%  { transform: scale(1.18); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes suggest-glow {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(236, 185, 33, 0.30), 0 4px 14px rgba(0, 0, 0, 0.30); }
+      50%      { box-shadow: 0 0 0 10px rgba(236, 185, 33, 0.55), 0 4px 14px rgba(0, 0, 0, 0.30); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .place-marker.suggest { animation: none; }
     }
   </style>
 
@@ -96,10 +114,11 @@ const initialData = JSON.stringify({ places, categories });
         <!-- GĐ2 Map-Lai: nút gợi ý OSM (chỉ render, chưa promote) -->
         <button @click="toggleSuggest()" :disabled="loadingSuggest"
           :class="showSuggest ? 'bg-mmp-gold text-mmp-ink' : 'bg-white text-mmp-ink border border-mmp-cream'"
-          class="w-full mt-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-60">
+          class="w-full mt-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-60 inline-flex items-center justify-center gap-1.5">
+          <span x-show="loadingSuggest" x-cloak class="w-3 h-3 border-2 border-mmp-ink/30 border-t-mmp-ink rounded-full animate-spin"></span>
           <span x-text="loadingSuggest ? 'Đang tìm…' : (showSuggest ? 'Ẩn gợi ý OSM' : 'Tìm gần đây (OSM)')"></span>
         </button>
-        <p x-show="suggestMsg" x-text="suggestMsg" x-cloak class="text-[10px] text-mmp-brown mt-1 text-center"></p>
+        <p x-show="suggestMsg" x-text="suggestMsg" x-cloak class="text-xs text-mmp-ink/80 bg-mmp-cream rounded-lg px-2 py-1.5 mt-1.5 text-center"></p>
       </div>
     </div>
 
@@ -119,6 +138,13 @@ const initialData = JSON.stringify({ places, categories });
       title="Thêm địa điểm">
       +
     </a>
+
+    <!-- GĐ4.3: toast kết quả promote (giữa-dưới map, gần tầm mắt — không như <p> đỉnh) -->
+    <div x-show="promoteToast.show" x-cloak
+      class="absolute bottom-28 left-1/2 -translate-x-1/2 z-[1002] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold text-center max-w-[88vw] pointer-events-none"
+      :class="promoteToast.ok ? 'bg-mmp-ink text-white' : 'bg-white text-mmp-ink border-2 border-mmp-gold'"
+      x-text="promoteToast.msg">
+    </div>
 
     <!-- Bottom sheet for selected place -->
     <div x-show="selectedPlace"
@@ -210,6 +236,9 @@ const initialData = JSON.stringify({ places, categories });
         showSuggest: false,
         loadingSuggest: false,
         suggestMsg: "",
+        _promoting: false,
+        promoteToast: { show: false, msg: "", ok: false },
+        _toastTimer: null,
         catMap: Object.fromEntries(initial.categories.map((c) => [c.key, c])),
 
         catEmoji(k) { return this.catMap[k]?.emoji || "📍"; },
@@ -356,7 +385,7 @@ const initialData = JSON.stringify({ places, categories });
               return;
             }
             this.suggestions = data.suggestions || [];
-            this.suggestMsg = this.suggestions.length ? "" : "Không có gợi ý quanh đây";
+            this.suggestMsg = this.suggestions.length ? "" : "Khu này chưa có gợi ý OSM — thử pan sang khu khác";
             this.renderSuggestions();
           } catch (e) {
             this.suggestMsg = "Lỗi tải gợi ý";
@@ -375,27 +404,102 @@ const initialData = JSON.stringify({ places, categories });
             const icon = L.divIcon({
               className: "place-marker suggest",
               html: emoji,
-              iconSize: [38, 38],
-              iconAnchor: [19, 19],
+              iconSize: [46, 46],
+              iconAnchor: [23, 23],
             });
             const m = L.marker([s.lat, s.lng], { icon }).addTo(this.map);
-            const label = this.catLabel(s.category);
-            const safeName = String(s.name || "")
-              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            m.bindPopup(
-              '<div style="min-width:150px">' +
-              "<b>" + safeName + "</b><br>" +
-              '<span style="color:#8b6f47;font-size:12px">' + emoji + " " + label + "</span><br>" +
-              '<span style="color:#8b6f47;font-size:11px">Gợi ý từ OpenStreetMap</span>' +
-              "</div>"
-            );
+            m.bindPopup(() => this._suggestPopupEl(s, m)); // GĐ3: popup kèm nút "Thêm vào map"
             this.suggestMarkers.push(m);
+          }
+          // GĐ4.1: backend pad +3km → POI có thể nằm NGOÀI viewport (nhất là zoom chặt) → marker tạo ra nhưng off-screen.
+          // fitBounds để map tự gom hiện các gợi ý vừa tìm (đúng kỳ vọng "tìm gần đây").
+          if (this.suggestMarkers.length) {
+            try {
+              this.map.fitBounds(L.featureGroup(this.suggestMarkers).getBounds(), { padding: [40, 40], maxZoom: 15 });
+            } catch (e) {}
           }
         },
 
         clearSuggestMarkers() {
           for (const m of this.suggestMarkers) this.map.removeLayer(m);
           this.suggestMarkers = [];
+        },
+
+        // GĐ3: popup DOM cho marker gợi ý (textContent → an toàn XSS) + nút promote
+        _suggestPopupEl(s, m) {
+          const self = this;
+          const wrap = document.createElement("div");
+          wrap.style.minWidth = "160px";
+          const title = document.createElement("b");
+          title.textContent = s.name || "Địa điểm";
+          const meta = document.createElement("div");
+          meta.style.cssText = "color:var(--color-mmp-brown,#8b6f47);font-size:12px;margin:3px 0 6px";
+          meta.textContent = this.catEmoji(s.category) + " " + this.catLabel(s.category) + " · Gợi ý OSM";
+          const btn = document.createElement("button");
+          btn.textContent = "+ Thêm vào map";
+          btn.style.cssText = "width:100%;padding:6px 8px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-weight:700;background:var(--color-mmp-ink,#0a0a0a);color:#fff";
+          btn.onclick = function () { self.promoteSuggestion(s, m, btn); };
+          wrap.appendChild(title);
+          wrap.appendChild(meta);
+          wrap.appendChild(btn);
+          return wrap;
+        },
+
+        // GĐ4.3: toast kết quả promote — hiện giữa-dưới map (gần tầm mắt, KHÁC <p> đỉnh), auto ẩn 3.5s
+        _toast(msg, ok) {
+          this.promoteToast = { show: true, msg: msg, ok: !!ok };
+          if (this._toastTimer) clearTimeout(this._toastTimer);
+          this._toastTimer = setTimeout(() => { this.promoteToast.show = false; }, 3500);
+        },
+
+        // GĐ3: promote gợi ý OSM → place chính thức qua POST /places (tái dùng endpoint submit, gate Pet Score ≥200 giữ nguyên)
+        async promoteSuggestion(s, m, btn) {
+          if (this._promoting) return; // guard double-click toàn cục
+          this._promoting = true;
+          if (btn) { btn.disabled = true; btn.textContent = "Đang thêm…"; }
+          try {
+            const payload = {
+              name: s.name,
+              // OSM hay thiếu address → fallback dùng name để qua validate ADDRESS_REQUIRED (place verified=false, owner/admin sửa sau)
+              address: (s.address && s.address.trim()) ? s.address : s.name,
+              lat: s.lat,
+              lng: s.lng,
+              category: s.category,
+              pet_policy: "by_request", // OSM không có pet_policy → default trung tính (hợp lệ)
+            };
+            const res = await fetch("/api/v1/places", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (res.status === 201) {
+              const place = await res.json();
+              this.map.removeLayer(m); // gỡ marker gợi ý vừa thêm (tránh promote lần 2 → trùng)
+              this.suggestMarkers = this.suggestMarkers.filter((x) => x !== m);
+              this.suggestions = this.suggestions.filter((x) => x !== s);
+              this.places.push(place); // thêm vào layer chính thức + vẽ lại (verified=false → marker thường)
+              this.render();
+              this.suggestMsg = "Đã thêm “" + (s.name || "địa điểm") + "” vào map (chờ duyệt)";
+              this._toast("✓ Đã thêm “" + (s.name || "địa điểm") + "” (chờ duyệt)", true);
+              return;
+            }
+            if (res.status === 401) {
+              this.suggestMsg = "Cần đăng nhập để thêm địa điểm";
+            } else if (res.status === 403) {
+              this.suggestMsg = "Cần Pet Score ≥ 200 để thêm địa điểm";
+            } else {
+              const j = await res.json().catch(() => ({}));
+              this.suggestMsg = (j.error && j.error.message) || "Không thêm được, thử lại sau";
+            }
+            this._toast(this.suggestMsg, false);
+            if (btn) { btn.disabled = false; btn.textContent = "+ Thêm vào map"; }
+          } catch (e) {
+            this.suggestMsg = "Lỗi mạng, thử lại sau";
+            this._toast("Lỗi mạng, thử lại sau", false);
+            if (btn) { btn.disabled = false; btn.textContent = "+ Thêm vào map"; }
+          } finally {
+            this._promoting = false;
+          }
         },
       };
     }
