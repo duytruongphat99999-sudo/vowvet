@@ -20,3 +20,5 @@ baserow-config.json
 .astro/
 # docs/archive/MIGRATION_REPORT.md — live Baserow token + password + email
 docs/archive/MIGRATION_REPORT.md
+# runtime gemini usage log — app appends at runtime (token counts + cost, no creds); *.log không bắt .log.jsonl
+data/api/gemini-usage.log.jsonl

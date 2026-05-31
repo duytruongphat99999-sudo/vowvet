@@ -6,6 +6,76 @@
 
 ---
 
+## 📌 SESSION-END SNAPSHOT (2026-05-30 buổi 2) — 4 mục
+
+> ⚠️ **Đính chính phạm vi:** Đây là **VowVet / Mon Min Pet** — nền tảng chăm sóc thú cưng (UI/UX + WOW animation). **KHÔNG phải dự án SEO/Schema.** Phiên này KHÔNG làm SEO/Schema. SEO hiện chỉ có **meta/OG cơ bản** ở `Layout.astro` (og:title/image, twitter:card) — **CHƯA có Schema.org JSON-LD** (không bịa). Phiên này = **arc UI/WOW dashboard + pet page**.
+
+### 1️⃣ Trạng thái hiện tại — đã làm xong (file + tính năng)
+8 commit local `8504494 → e12e623` (CHƯA push) + v211 đang dở:
+- **v206 TopBar** — `web/src/components/TopBar.astro` (nav dùng chung: Logo + pet-jump/alerts/chat/settings; count fetch client-side Alpine, `Promise.allSettled` + AbortController) → tích hợp `dashboard.astro`.
+- **v207 khai tử quick-nav** — gỡ floating quick-nav khỏi `Layout.astro` + dọn CSS mồ côi `global.css` + SSR count chết `dashboard.astro` (305 dòng xoá / 5 thêm).
+- **v208 Dashboard WOW** — `components/dashboard/PetScoreCompact.astro` (ring fill 0→score đồng bộ count-up — cách **A2**: rAF tick chung 1 eased; reduced-motion nhánh jump) + `PetHeroCard.astro` (halo pulse + CTA shine).
+- **v209 color-sync** — slate/zinc → ink/cream trên **5 file** (dashboard + QuestStrip/QuickAccess/CarePlanProgress/CommunityMini); CommunityMini 5-màu event-type → gold/ink (giữ icon).
+- **v210 tier-gold** — `PetScoreCompact.astro` TIER_META → **hệ sắc độ gold** (bỏ slate/xanh/tím): bronze tối→silver pale→gold bright→platinum glow→diamond shimmer.
+- **v211 Grand Entrance** ⏳ **ĐANG DỞ** (xem mục 🚧 ngay dưới) — welcome reveal `/pets/[id]`.
+→ Chi tiết: section **🧭 TOPBAR + DASHBOARD WOW v206-210**.
+
+### 2️⃣ Cấu trúc cốt lõi — quy chuẩn / framework
+- **Stack:** Astro 5 SSR + Bun (`vowvet-web`) · Hono + Bun API (`vowvet-api`) · Baserow REST · Cloudflare R2 · Gemini 2.5 Flash. Docker Compose + bos-network.
+- **Frontend:** Alpine.js 3.14.7 · Tailwind v4 beta · Chart.js (CDN).
+- **Brand palette STRICT:** gold `#ecb921` · ink `#0a0a0a` · cream `#f5f1eb` (tokens `--color-mmp-*` / `--c-gold`). Chỉ giữ màu **functional** có chủ đích (đỏ/amber severity · emerald done/live · difficulty traffic-light · TIER huy hiệu).
+- **Animation convention:** keyframe **prefix theo scope** (`psc-`/`phc-`/`pge-`) tránh trùng (đã có 27+ keyframe) · chỉ transform/opacity (GPU) · 1-iteration `forwards` (no loop CPU) · **reduced-motion guard BẮT BUỘC**. Hạ tầng sẵn: `hero-fade-up`, `hero-*` (pet passport), `gold-pulse` (dùng chung).
+- **Astro pitfalls (đã học):** `define:vars` inline script **PHẢI slot-less** — combo `slot="head"` + define:vars render hỏng (drop var). SSR `.map()` cho SVG (né Alpine x-for-in-SVG). `Number(Astro.params.id)` qua define:vars có thể bị drop → **lấy id từ `location.pathname` trong script** an toàn hơn.
+- **SW versioning:** `web/public/sw.js` L17 `const VERSION` — bump mỗi release HTML/CSS. ⚠️ **`cacheFirst` cho `.css` → dễ stale** ("không thấy thay đổi" sau sửa CSS → hard-refresh / Unregister SW).
+- **Schema/SEO:** chỉ meta/OG cơ bản (`Layout.astro`) — **chưa có structured data / JSON-LD**.
+
+### 3️⃣ Lỗi tồn đọng
+- **🐛 Grand Entrance v211 reveal KHÔNG hiện** (ĐANG DỞ — mục 🚧): gate script đã chạy đúng (`html.pge-run` set ✓), overlay render trong DOM ✓, CSS file có rule ✓, no-print đã loại (print-only) ✓ — nhưng overlay vô hình. Nghi: **CSS stale (SW cache)** hoặc z-index/opacity. Chốt = 3 dòng Console `getComputedStyle` (mục 🚧).
+- **SW reload trifecta** (`controllerchange→reload` + skipWaiting + clients.claim ở `Layout.astro` L133-139 + `sw.js`) — auto-reload mỗi lần bump SW, từng nuốt gate v211. Chưa fix (MEMORY flag).
+- `data/api/gemini-usage.log.jsonl` bị git track + app ghi runtime → **nên gitignore** (KHÔNG add khi commit).
+- Live Baserow creds trong `docs/archive/MIGRATION_REPORT.md` (rotate khuyến nghị — xem 🔒 SECURITY). **✅ Verify cuối phiên:** file này **đã gitignore** (`.gitignore` L22) → **KHÔNG bị track, KHÔNG lộ kể cả `git add -A` / push**; `.env.backup` đã gitignore (`.env*` + `*.backup`) **và không còn trên đĩa**. File DUY NHẤT bị track bất thường = `data/api/gemini-usage.log.jsonl` (log `.jsonl` nên `*.log` không bắt; KHÔNG chứa creds) → mai `git rm --cached` + thêm gitignore để hết noise.
+
+### 4️⃣ NEXT STEPS (3-5 việc tiếp, ưu tiên)
+1. **Fix nốt Grand Entrance v211** → chạy 3 dòng Console (mục 🚧) chốt stale-CSS vs che-z-index → fix → verify (lần đầu reveal chạy / lần 2 vào thẳng / reduced-motion tĩnh / birthday confetti) → **commit v211** (secret-safe, KHÔNG add `gemini-usage.log.jsonl`).
+2. **Backup lên remote — repo HIỆN CHƯA CÓ remote** (✅ verify cuối phiên: `git remote -v` rỗng; local-only từ `git init`). 8 commit `8504494→e12e623` (+ v211) an toàn ở máy nhưng chưa có nơi push. Mai muốn đẩy GitHub: ① tạo repo **private** ② `git remote add origin <url>` ③ gitignore gemini log + (tùy chọn) rotate creds ④ `git push -u origin master`. ⚠️ Creds đã gitignore (xem mục 3) nên push KHÔNG lộ — rotate chỉ là hygiene thêm.
+3. **TopBar Hướng B** (nav global toàn app) — chuẩn hoá ~45 header sub-page thành component `PageHeader` đặt dưới TopBar (đại phẫu, dự án riêng — xem 🚨 TOMORROW QUEUE #1).
+4. **Fix SW auto-reload** — gỡ/guard `controllerchange→reload`; cân nhắc **network-first cho `.css`** để hết stale-CSS (giải quyết luôn root của bug v211 nếu là stale).
+5. **Cấu hình prod + dọn:** `astro dev`→`astro build`; gitignore gemini log; update Hụi Pet stats placeholder; (optional) rotate `BASEROW_USER_PASSWORD` → xoá `MIGRATION_REPORT.md`.
+
+---
+
+## 🚧 ĐANG DỞ — Grand Entrance v211 (CHƯA commit · còn trong working tree)
+
+> Welcome-reveal cho `/pets/[id]` (overlay + spotlight + stagger + sparkle, 1 lần/ngày + birthday). Debug dở — mai tiếp. SW working-tree = `vowvet-v211-grand-entrance` (CHƯA commit).
+
+**✅ Đã fix (2 bug đã xử):**
+- **Bỏ `slot="head"`** → gate script đặt **slot-less, con đầu tiên của `<main>`** (combo `slot="head"` + define:vars render hỏng).
+- **petId lấy từ URL trong script** (`location.pathname.match(/\/pets\/(\d+)/)`) — vì `define:vars` **DROP key petId** (View Source: có `const isBirthday=false` + `const todayVN="..."` nhưng KHÔNG có `const petId` → trong script `petId` undefined → `ReferenceError` → `catch{}` nuốt im → không add class). isBirthday/todayVN vẫn qua define:vars (inject OK). 
+- → Gate script **GIỜ CHẠY ĐÚNG**: Console `document.documentElement.className` = `pge-run` (đã xác nhận).
+
+**🐛 BUG CÒN LẠI (reveal vẫn không hiện trên màn hình):**
+- `<html class="pge-run">` ✅ · `.pge-overlay` render trong DOM ✅ (Console `querySelector('.pge-overlay')` ra `<div class="pge-overlay no-print">`) · global.css **CÓ** rule `html.pge-run .pge-overlay{display:block;position:fixed;inset:0;z-index:90;background:rgba(10,10,10,.55);animation:pge-overlay-out .55s ease 1.7s both}` [global.css ~L345] ✅ · `.no-print` ĐÃ LOẠI (chỉ trong `@media print` [global.css L708] → vô hại trên màn hình) ✅ — **NHƯNG overlay/spotlight/sparkle vô hình.**
+- File CSS + markup verify ĐÚNG HẾT (specificity html.pge-run 0,2,1 > default 0,1,0; overlay `both` giữ opacity 1 suốt 1.7s). Cái chưa biết = **computed style THẬT trong browser**.
+
+**🔜 BƯỚC TIẾP (mai) — chạy Console trên /pets/12 (đã đăng nhập):**
+```js
+var o = document.querySelector('.pge-overlay');
+getComputedStyle(o).position;        // 'fixed' hay 'static'?
+getComputedStyle(o).backgroundColor; // 'rgba(10, 10, 10, 0.55)' hay 'rgba(0, 0, 0, 0)'?
+getComputedStyle(o).display;         // 'block' hay 'none'?
+```
+- **static / transparent / (display none)** → rule `html.pge-run .pge-overlay` **KHÔNG áp** → **CSS STALE** (SW cache serve global.css cũ chưa có pge-) → Fix: DevTools → Application → Service Workers → **Unregister** + reload (hoặc Ctrl+Shift+R). *(Nghi phạm: SW `cacheFirst` cho `.css` [sw.js 88-95] — đúng bài học hạ tầng "SW cache → không thấy thay đổi".)*
+- **fixed / đúng bg** → rule ĐÃ áp → kiểm thêm `getComputedStyle(o).opacity` + `zIndex` → có element khác che (z-index), hoặc opacity 0 (animation đã fade — check timing).
+
+**📁 File working-tree (CHƯA commit, đừng mất):**
+- `web/src/pages/pets/[id].astro` — gate script slot-less + GE markup (overlay/spotlight/sparkle/confetti/banner) + `isBirthday` SSR + 2 stagger class (`pge-d1`/`pge-d2`).
+- `web/src/styles/global.css` — keyframe `pge-*` (overlay-out/spotlight/sparkle/rise/confetti/banner) + rule `html.pge-run/.pge-seen/.pge-birthday` + reduced-motion guard [~L336-432].
+- `web/public/sw.js` — VERSION `vowvet-v211-grand-entrance`.
+- ⚠️ `data/api/gemini-usage.log.jsonl` = log runtime, **KHÔNG add** khi commit (nên gitignore).
+- *(v209-210 đã commit: `3d19d67`/`0f03f15`/`e12e623`. Chỉ v211 đang dở.)*
+
+---
+
 ## 1. TRẠNG THÁI HIỆN TẠI — Pet Score redesign HOÀN CHỈNH
 
 > **STATUS: ✅ COMPLETE & PRODUCTION-READY** — Phase 1→8 (12 deliverables) **+ WOW arc v197-205** (Constellation sống động + Trend dễ hiểu). **SW hiện tại = `vowvet-v210-tier-gold`** (sau arc TopBar + dashboard wow + color-sync). → Bảng "8 section" dưới là baseline Phase-8; Constellation + Trend đã nâng cấp lớn ở section **🌌 WOW ARC v197-205**.
