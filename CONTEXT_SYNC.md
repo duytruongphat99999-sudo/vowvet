@@ -1,6 +1,6 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai GĐ1→4 HOÀN CHỈNH** (gợi ý OSM Overpass + promote + marker nổi + toast). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v235-map-promote-toast`** · ~40 commit local, chưa push.
+> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai GĐ1→4 HOÀN CHỈNH** (gợi ý OSM Overpass + promote + marker nổi + toast). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v235-map-promote-toast`** · ~42 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
 > Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
@@ -110,7 +110,7 @@ getComputedStyle(o).display;         // 'block' hay 'none'?
 - **GĐ2** (`95df5ec`): nút **"Tìm gần đây"** + render marker gợi ý layer riêng + popup info.
 - **GĐ3+4** (`c2b194e`): **promote** (click marker → "+ Thêm vào map" → `POST /api/v1/places` prefill OSM, fallback `address`=name + `pet_policy`=by_request, gate ≥200 giữ) · **pad bbox +0.03°** (~3km, query trên vùng nới) + **nới guard 0.2°→0.5°** (tính trên bbox GỐC) · **fitBounds** sau render (POI off-screen do pad → tự gom hiện) · **marker gợi ý NỔI BẬT** (nền gold đặc + 46px + viền ink dày + badge "+" + pop & glow, reduced-motion guard) · **toast** báo kết quả giữa-dưới map (gần nút, KHÔNG phải `<p>` đỉnh) cho 4 nhánh 201/401/403/lỗi.
 - → **Chạy trọn vòng:** Tìm gần đây → marker vàng nổi → "+ Thêm" → toast + promote vào Baserow.
-- ⚠️ **CHƯA test tận mắt nhánh 201 thành công** (pet 12 < 200 điểm → luôn 403) — cần **tài khoản pet ≥ 200 điểm** để verify promote tạo place THẬT trong Baserow. Nhánh **401/403/UX đã verify** (preview + curl). Baserow recon: **0 row OSM được tạo** (đúng — toàn bị gate 403/401 chặn, KHÔNG có row rác cần dọn).
+- ✅ **Nhánh 201 CHẠY TRỌN** (verified browser "✓ Đã thêm"): promote tạo place THẬT trong Baserow. Bug 500 trước đó **KHÔNG phải gate** mà là Baserow **`max_decimal_places`** (OSM lat/lng 7 số > giới hạn 6) → fix **round6** trong `createPlace` (commit `9f5a554`, vá cả promote LẪN form `/places/new`). Place tạo ra `verified=false` (chờ duyệt — xem note màn admin ở queue).
 
 **📌 Bài học buổi này (Map-Lai):**
 - **Marker Leaflet off-screen sau pad bbox**: backend pad +3km kéo POI ra ngoài viewport → frontend tạo marker đúng nhưng nằm ngoài khung → phải **fitBounds** để hiện.
@@ -124,6 +124,7 @@ getComputedStyle(o).display;         // 'block' hay 'none'?
 - **map**: đồng bộ emoji UI + 2 hex lạc brand (`#c4b5fd` viền marker · `#3b82f6` chấm user — **giữ `#10b981` verified** = functional).
 - **severity refactor** pain/mobility (gom `severityDot` helper dùng chung, nhận cả `yellow` + `amber`).
 - **bills**: nút `×` "Đổi ảnh" → icon close (optional).
+- **Màn admin duyệt place** (CHƯA có): place user thêm (promote OSM / form `/places/new`) tạo với `verified=false`; hiện phải vào **Baserow đổi cột `verified` false→true thủ công**. Nhiều user thêm → mệt → cân nhắc UI admin (list place `verified=false` + nút duyệt/từ chối). Feature tương lai, không gấp.
 - **TopBar Hướng B** (PageHeader toàn app) · **Hụi Pet stats** thật.
 
 ---
