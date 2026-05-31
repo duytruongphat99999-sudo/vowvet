@@ -9,6 +9,7 @@
  */
 import Layout from "../../../layouts/Layout.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 const user = Astro.locals.user;
@@ -101,7 +102,7 @@ const initialData = JSON.stringify({
       <!-- Header -->
       <header class="flex items-center justify-between mb-5 gap-3 no-print">
         <a href={backHref} class="text-sm text-slate-500 hover:text-mmp-ink">← {backLabel}</a>
-        <h1 class="text-lg sm:text-xl font-bold text-slate-900">📔 Nhật ký bé</h1>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900 inline-flex items-center gap-1.5"><FeatureIcon name="book-open" class="w-5 h-5" />Nhật ký bé</h1>
         <span class="w-12"></span>
       </header>
 
@@ -109,18 +110,18 @@ const initialData = JSON.stringify({
       <div class="bg-white/70 backdrop-blur rounded-2xl p-1 flex gap-1 mb-5 shadow-sm tab-bar no-print">
         <button @click="tab = 'record'"
           :class="tab === 'record' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600 hover:bg-white'"
-          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">
-          🎙️ Ghi hôm nay
+          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="mic" class="w-4 h-4 shrink-0" />Ghi hôm nay
         </button>
         <button @click="tab = 'history'"
           :class="tab === 'history' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600 hover:bg-white'"
-          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">
-          📜 Nhật ký
+          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="clock" class="w-4 h-4 shrink-0" />Nhật ký
         </button>
         <button @click="tab = 'yearbook'"
           :class="tab === 'yearbook' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600 hover:bg-white'"
-          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">
-          📖 Yearbook
+          class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="book-open" class="w-4 h-4 shrink-0" />Yearbook
         </button>
       </div>
 
@@ -130,7 +131,7 @@ const initialData = JSON.stringify({
         <!-- Already has today's entry -->
         <template x-if="todayEntry">
           <div class="bg-gradient-to-br from-emerald-50 to-slate-800 border-2 border-emerald-200 rounded-2xl p-6 text-center">
-            <p class="text-5xl mb-2" x-text="moodEmoji[todayEntry.mood_detected] || '📔'"></p>
+            <p class="mb-2 flex justify-center" x-html="moodIcon(todayEntry.mood_detected, 56)"></p>
             <h2 class="text-lg font-bold text-emerald-900 mb-1">Đã có nhật ký hôm nay ✓</h2>
             <p class="text-sm text-emerald-700 mb-4" x-text="todayEntry.pet_diary_title"></p>
             <div class="flex gap-2 justify-center">
@@ -152,14 +153,14 @@ const initialData = JSON.stringify({
 
             <!-- mode: idle -->
             <div x-show="mode === 'idle'" class="bg-white rounded-3xl border border-slate-100 p-6 sm:p-10 shadow-md text-center">
-              <p class="text-base text-slate-700 mb-2">📔 Kể về ngày hôm nay của bé</p>
+              <p class="text-base text-slate-700 mb-2 inline-flex items-center gap-1.5"><FeatureIcon name="book-open" class="w-4 h-4 shrink-0" />Kể về ngày hôm nay của bé</p>
               <p class="text-2xl font-bold text-slate-900 mb-6" x-text="pet.name"></p>
 
               <template x-if="speechSupported">
                 <div>
                   <button @click="startRecording()"
-                    class="w-32 h-32 rounded-full bg-mmp-ink hover:opacity-90 active:scale-95 transition-all shadow-2xl text-white text-6xl mb-4">
-                    🎤
+                    class="w-32 h-32 rounded-full bg-mmp-ink hover:opacity-90 active:scale-95 transition-all shadow-2xl text-white mb-4 flex items-center justify-center">
+                    <FeatureIcon name="mic" class="w-14 h-14" />
                   </button>
                   <p class="text-sm font-semibold text-slate-700 mb-1">Bấm để bắt đầu kể</p>
                   <p class="text-xs text-slate-500">Tiếng Việt · 30-60 giây là đủ</p>
@@ -168,13 +169,13 @@ const initialData = JSON.stringify({
               </template>
 
               <button @click="mode = 'typing'"
-                class="mt-3 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-5 py-2.5 rounded-xl">
-                💬 Gõ trực tiếp
+                class="mt-3 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-5 py-2.5 rounded-xl inline-flex items-center gap-1.5">
+                <FeatureIcon name="message-circle" class="w-4 h-4 shrink-0" />Gõ trực tiếp
               </button>
 
               <template x-if="!speechSupported">
-                <p class="text-xs text-amber-700 mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                  ⚠️ Trình duyệt không hỗ trợ ghi âm. Vui lòng dùng Chrome/Edge hoặc gõ tay.
+                <p class="text-xs text-amber-700 mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-1.5">
+                  <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5" /><span>Trình duyệt không hỗ trợ ghi âm. Vui lòng dùng Chrome/Edge hoặc gõ tay.</span>
                 </p>
               </template>
             </div>
@@ -182,8 +183,8 @@ const initialData = JSON.stringify({
             <!-- mode: recording -->
             <div x-show="mode === 'recording'" class="bg-white rounded-3xl border border-slate-100 p-6 sm:p-10 shadow-md text-center">
               <button @click="stopRecording()"
-                class="w-32 h-32 rounded-full bg-red-500 hover:bg-red-600 active:scale-95 transition-all text-white text-6xl mb-4 recording-pulse">
-                ⏹️
+                class="w-32 h-32 rounded-full bg-red-500 hover:bg-red-600 active:scale-95 transition-all text-white mb-4 recording-pulse flex items-center justify-center">
+                <FeatureIcon name="stop" class="w-14 h-14" />
               </button>
               <p class="text-2xl font-mono font-bold text-red-600 mb-2" x-text="formatTimer(timer)"></p>
               <p class="text-xs text-slate-500 mb-4">Bấm để dừng</p>
@@ -194,7 +195,7 @@ const initialData = JSON.stringify({
 
             <!-- mode: typing or reviewing -->
             <div x-show="mode === 'typing' || mode === 'reviewing'" class="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6">
-              <h2 class="text-base font-semibold text-slate-900 mb-3">📝 Câu chuyện hôm nay</h2>
+              <h2 class="text-base font-semibold text-slate-900 mb-3 inline-flex items-center gap-1.5"><FeatureIcon name="edit-pencil" class="w-4 h-4 shrink-0" />Câu chuyện hôm nay</h2>
               <textarea x-model="transcript"
                 :placeholder="`Hôm nay bé ${pet.name} đi dạo... ăn... chơi với...`"
                 rows="6"
@@ -212,20 +213,20 @@ const initialData = JSON.stringify({
 
               <div class="flex gap-2 mt-4">
                 <button @click="reset()"
-                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">
-                  🔄 Bắt đầu lại
+                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm inline-flex items-center justify-center gap-1.5">
+                  <FeatureIcon name="refresh" class="w-4 h-4 shrink-0" />Bắt đầu lại
                 </button>
                 <button @click="submit()"
                   :disabled="wordCount(transcript) < 5"
-                  class="flex-[2] bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm shadow-lg">
-                  ✨ Tạo nhật ký của bé
+                  class="flex-[2] bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm shadow-lg inline-flex items-center justify-center gap-1.5">
+                  <FeatureIcon name="sparkles" class="w-4 h-4 shrink-0" />Tạo nhật ký của bé
                 </button>
               </div>
             </div>
 
             <!-- mode: saving -->
             <div x-show="mode === 'saving'" class="bg-white rounded-3xl border border-slate-100 p-10 text-center">
-              <p class="text-6xl mb-4 animate-bounce">🐾</p>
+              <p class="mb-4 flex justify-center"><FeatureIcon name="paw" class="w-14 h-14 animate-bounce text-mmp-ink" /></p>
               <p class="text-lg font-semibold text-slate-700" x-text="`Bé ${pet.name} đang kể chuyện...`"></p>
               <p class="text-xs text-slate-500 mt-2">AI đang viết nhật ký theo góc nhìn của bé</p>
             </div>
@@ -234,7 +235,7 @@ const initialData = JSON.stringify({
             <div x-show="mode === 'done' && resultEntry" class="space-y-4">
               <div class="bg-gradient-to-br from-amber-50 to-rose-50 border-2 border-amber-200 rounded-3xl p-6 shadow-lg">
                 <div class="flex items-center gap-3 mb-3">
-                  <span class="text-4xl" x-text="resultEntry && moodEmoji[resultEntry.mood_detected] || '🐾'"></span>
+                  <span class="flex shrink-0" x-html="moodIcon(resultEntry?.mood_detected, 40)"></span>
                   <div class="flex-1">
                     <p class="text-xs text-amber-700 font-medium">Nhật ký của bé</p>
                     <h2 class="text-lg font-bold text-amber-900" x-text="resultEntry?.pet_diary_title"></h2>
@@ -248,12 +249,12 @@ const initialData = JSON.stringify({
               </div>
               <div class="flex gap-2">
                 <button @click="reset()"
-                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">
-                  🔄 Tạo lại
+                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm inline-flex items-center justify-center gap-1.5">
+                  <FeatureIcon name="refresh" class="w-4 h-4 shrink-0" />Tạo lại
                 </button>
                 <a :href="`/pets/${pet.id}/diary/${resultEntry?.id}`"
-                  class="flex-[2] bg-mmp-ink hover:bg-slate-800 text-white text-center font-bold py-2.5 rounded-xl text-sm">
-                  ✅ Xem chi tiết →
+                  class="flex-[2] bg-mmp-ink hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm inline-flex items-center justify-center gap-1.5">
+                  <FeatureIcon name="check" class="w-4 h-4 shrink-0" />Xem chi tiết →
                 </a>
               </div>
             </div>
@@ -267,7 +268,7 @@ const initialData = JSON.stringify({
       <div x-show="tab === 'history'">
         <div class="bg-white rounded-2xl border border-slate-100 p-5">
           <div class="flex items-center justify-between mb-4 gap-3">
-            <h2 class="text-base font-semibold text-slate-900">📜 Tháng <span x-text="curMonth"></span>/<span x-text="curYear"></span></h2>
+            <h2 class="text-base font-semibold text-slate-900 inline-flex items-center gap-1.5"><FeatureIcon name="clock" class="w-4 h-4 shrink-0" /><span>Tháng <span x-text="curMonth"></span>/<span x-text="curYear"></span></span></h2>
             <div class="flex gap-1">
               <select x-model="filterMonth" @change="reloadMonth()"
                 class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
@@ -286,10 +287,10 @@ const initialData = JSON.stringify({
 
           <template x-if="monthEntries.length === 0">
             <div class="text-center py-10">
-              <p class="text-5xl mb-3">📭</p>
+              <p class="mb-3 flex justify-center"><FeatureIcon name="mailbox" class="w-12 h-12 text-slate-300" /></p>
               <p class="text-sm text-slate-500 italic">Chưa có nhật ký nào tháng này</p>
-              <button @click="tab = 'record'" class="mt-4 text-xs text-mmp-ink hover:underline font-medium">
-                🎙️ Ghi nhật ký hôm nay →
+              <button @click="tab = 'record'" class="mt-4 text-xs text-mmp-ink hover:underline font-medium inline-flex items-center gap-1">
+                <FeatureIcon name="mic" class="w-3.5 h-3.5 shrink-0" />Ghi nhật ký hôm nay →
               </button>
             </div>
           </template>
@@ -299,7 +300,7 @@ const initialData = JSON.stringify({
               <a :href="`/pets/${pet.id}/diary/${e.id}`"
                 class="block bg-gradient-to-r from-slate-50 to-white border border-slate-100 rounded-xl p-4 hover:shadow-md hover:border-mmp-cream transition">
                 <div class="flex items-center gap-3 mb-2">
-                  <span class="text-2xl shrink-0" x-text="moodEmoji[e.mood_detected] || '📔'"></span>
+                  <span class="shrink-0 flex" x-html="moodIcon(e.mood_detected, 26)"></span>
                   <div class="flex-1 min-w-0">
                     <p class="font-bold text-sm text-slate-900 truncate" x-text="e.pet_diary_title"></p>
                     <p class="text-[11px] text-slate-500" x-text="fmtDate(e.entry_date)"></p>
@@ -325,8 +326,8 @@ const initialData = JSON.stringify({
             </template>
           </select>
           <button @click="printYearbook()"
-            class="text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-xl shadow">
-            🖨️ In Yearbook
+            class="text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-xl shadow inline-flex items-center gap-1.5">
+            <FeatureIcon name="printer" class="w-4 h-4 shrink-0" />In Yearbook
           </button>
         </div>
 
@@ -335,8 +336,8 @@ const initialData = JSON.stringify({
           {pet.photo_url ? (
             <img src={pet.photo_url} alt={pet.name} class="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-white shadow-lg" />
           ) : (
-            <div class="w-32 h-32 rounded-full bg-white flex items-center justify-center text-6xl mx-auto mb-4 shadow-lg">
-              {pet.species === "cat" ? "🐱" : "🐶"}
+            <div class="w-32 h-32 rounded-full bg-white flex items-center justify-center mx-auto mb-4 shadow-lg text-mmp-ink">
+              <FeatureIcon name={pet.species === "cat" ? "cat" : "dog"} class="w-16 h-16" />
             </div>
           )}
           <p class="text-sm font-medium text-slate-700 mb-1">Cuốn Nhật Ký Bé</p>
@@ -348,22 +349,22 @@ const initialData = JSON.stringify({
         <!-- Stats -->
         <div class="grid grid-cols-2 gap-3 mb-6">
           <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
-            <p class="text-3xl mb-1">📔</p>
+            <p class="mb-1 flex justify-center"><FeatureIcon name="book-open" class="w-7 h-7 text-mmp-ink" /></p>
             <p class="text-2xl font-extrabold text-slate-900" x-text="yearbook.total_entries"></p>
             <p class="text-xs text-slate-500">ngày được ghi</p>
           </div>
           <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
-            <p class="text-3xl mb-1">😊</p>
+            <p class="mb-1 flex justify-center"><FeatureIcon name="smile" class="w-7 h-7 text-emerald-600" /></p>
             <p class="text-2xl font-extrabold text-emerald-600" x-text="yearbook.by_mood?.happy || 0"></p>
             <p class="text-xs text-slate-500">ngày vui</p>
           </div>
           <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
-            <p class="text-3xl mb-1">😄</p>
+            <p class="mb-1 flex justify-center"><FeatureIcon name="laugh" class="w-7 h-7 text-amber-600" /></p>
             <p class="text-2xl font-extrabold text-amber-600" x-text="yearbook.by_mood?.funny || 0"></p>
             <p class="text-xs text-slate-500">ngày thú vị</p>
           </div>
           <div class="bg-white rounded-2xl p-4 text-center border border-slate-100">
-            <p class="text-3xl mb-1">🎉</p>
+            <p class="mb-1 flex justify-center"><FeatureIcon name="party-popper" class="w-7 h-7 text-rose-600" /></p>
             <p class="text-2xl font-extrabold text-rose-600" x-text="yearbook.by_mood?.exciting || 0"></p>
             <p class="text-xs text-slate-500">ngày đặc biệt</p>
           </div>
@@ -381,7 +382,7 @@ const initialData = JSON.stringify({
               <template x-for="e in m.entries" :key="e.id">
                 <article class="yearbook-entry bg-white rounded-xl p-4 border border-slate-100">
                   <div class="flex items-center gap-2 mb-2">
-                    <span class="text-xl shrink-0" x-text="moodEmoji[e.mood_detected] || '📔'"></span>
+                    <span class="shrink-0 flex" x-html="moodIcon(e.mood_detected, 22)"></span>
                     <h4 class="font-bold text-sm text-slate-900 flex-1 truncate" x-text="e.pet_diary_title"></h4>
                     <span class="text-[11px] text-slate-400" x-text="fmtDateShort(e.entry_date)"></span>
                   </div>
@@ -422,7 +423,19 @@ const initialData = JSON.stringify({
         resultEntry: null,
         error: null,
 
-        moodEmoji: { happy: "😊", sad: "😢", funny: "😄", exciting: "🎉", ordinary: "🐾" },
+        // Hướng B: mood emoji → mood face icon (SVG-string, màu theo mood). Render qua x-html.
+        moodIcon(mood, size) {
+          const M = {
+            happy: ["#059669", '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
+            sad: ["#64748b", '<circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
+            funny: ["#d97706", '<circle cx="12" cy="12" r="10"/><path d="M18 13a6 6 0 0 1-6 5 6 6 0 0 1-6-5h12Z"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
+            exciting: ["#e11d48", '<path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11c-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z"/>'],
+            ordinary: ["#8b6f47", '<ellipse cx="6.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="17.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="10" cy="6.5" rx="2" ry="2.5"/><ellipse cx="14" cy="6.5" rx="2" ry="2.5"/><path d="M12 12c-3.4 0-6.5 2.9-6.5 6.2 0 1.5 1.2 2.8 2.8 2.8 1 0 1.8-.5 2.8-1 .3-.2.6-.3.9-.3s.6.1.9.3c1 .5 1.8 1 2.8 1 1.6 0 2.8-1.3 2.8-2.8 0-3.3-3.1-6.2-6.5-6.2z"/>'],
+          };
+          const e = M[mood] || M.ordinary;
+          const s = size || 32;
+          return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="' + e[0] + '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block">' + e[1] + "</svg>";
+        },
 
         get years() {
           const y = this.curYear;

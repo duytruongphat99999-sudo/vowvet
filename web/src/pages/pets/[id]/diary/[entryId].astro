@@ -6,6 +6,7 @@
  */
 import Layout from "../../../../layouts/Layout.astro";
 import { fetchPet } from "../../../../lib/api-client.ts";
+import FeatureIcon from "../../../../components/FeatureIcon.astro";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 const user = Astro.locals.user;
@@ -55,8 +56,8 @@ const initialData = JSON.stringify({
 
       <header class="flex items-center justify-between mb-5 gap-3">
         <a href={`/pets/${petId}/diary`} class="text-sm text-slate-500 hover:text-slate-700">← Nhật ký</a>
-        <h1 class="text-base font-bold text-slate-900 truncate">📔 Chi tiết</h1>
-        <button @click="confirmDelete()" class="text-xs text-red-500 hover:text-red-700">🗑️ Xoá</button>
+        <h1 class="text-base font-bold text-slate-900 inline-flex items-center gap-1.5"><FeatureIcon name="book-open" class="w-4 h-4 shrink-0" />Chi tiết</h1>
+        <button @click="confirmDelete()" class="text-xs text-red-500 hover:text-red-700 inline-flex items-center gap-1"><FeatureIcon name="trash" class="w-3.5 h-3.5 shrink-0" />Xoá</button>
       </header>
 
       <!-- Hero card -->
@@ -68,7 +69,7 @@ const initialData = JSON.stringify({
             <img src={pet.photo_url} alt={pet.name} class="absolute inset-0 w-full h-full object-cover opacity-50 mix-blend-multiply" />
           )}
           <div class="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3">
-            <span class="text-6xl drop-shadow" x-text="moodEmoji[entry.mood_detected] || '📔'"></span>
+            <span class="drop-shadow flex" x-html="moodIcon(entry.mood_detected, 56)"></span>
             <span class="bg-white/85 backdrop-blur rounded-full px-3 py-1 text-xs font-bold text-slate-700" x-text="fmtDate(entry.entry_date)"></span>
           </div>
         </div>
@@ -96,7 +97,7 @@ const initialData = JSON.stringify({
           <!-- Audio player -->
           <template x-if="entry.audio_url">
             <div class="mt-6 pt-5 border-t border-slate-100">
-              <p class="text-xs text-slate-500 mb-2">🔊 Ghi âm gốc</p>
+              <p class="text-xs text-slate-500 mb-2 inline-flex items-center gap-1.5"><FeatureIcon name="volume" class="w-3.5 h-3.5 shrink-0" />Ghi âm gốc</p>
               <audio :src="entry.audio_url" controls class="w-full h-10"></audio>
             </div>
           </template>
@@ -107,20 +108,23 @@ const initialData = JSON.stringify({
       <div class="bg-white/60 backdrop-blur rounded-2xl border border-slate-100 p-4 mb-4">
         <button @click="showTranscript = !showTranscript"
           class="w-full text-left flex items-center justify-between text-sm font-semibold text-slate-700">
-          <span>📝 Câu chuyện gốc từ chủ</span>
-          <span class="text-xs text-slate-400" x-text="showTranscript ? '▼' : '▶'"></span>
+          <span class="inline-flex items-center gap-1.5"><FeatureIcon name="edit-pencil" class="w-4 h-4 shrink-0" />Câu chuyện gốc từ chủ</span>
+          <span class="text-slate-400 inline-flex">
+            <span x-show="showTranscript" x-cloak><FeatureIcon name="chevron-down" class="w-4 h-4" /></span>
+            <span x-show="!showTranscript" x-cloak><FeatureIcon name="chevron-right" class="w-4 h-4" /></span>
+          </span>
         </button>
         <div x-show="showTranscript" x-transition class="mt-3 bg-slate-50 rounded-xl p-3">
           <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-line" x-text="entry.owner_transcript"></p>
-          <button @click="startEdit()" class="mt-3 text-xs text-mmp-ink hover:underline font-medium">
-            ✏️ Sửa transcript & tạo lại
+          <button @click="startEdit()" class="mt-3 text-xs text-mmp-ink hover:underline font-medium inline-flex items-center gap-1">
+            <FeatureIcon name="edit-pencil" class="w-3.5 h-3.5 shrink-0" />Sửa transcript & tạo lại
           </button>
         </div>
       </div>
 
       <!-- Edit mode -->
       <div x-show="editing" class="bg-white rounded-2xl border-2 border-mmp-cream p-5 mb-4">
-        <h3 class="text-base font-bold text-mmp-ink mb-3">✏️ Sửa câu chuyện</h3>
+        <h3 class="text-base font-bold text-mmp-ink mb-3 inline-flex items-center gap-1.5"><FeatureIcon name="edit-pencil" class="w-4 h-4 shrink-0" />Sửa câu chuyện</h3>
         <textarea x-model="editTranscript" rows="6" maxlength="3000"
           class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mmp-gold resize-none"></textarea>
         <p class="text-xs text-slate-500 mt-2"><span x-text="wordCount(editTranscript) + ' từ'"></span></p>
@@ -134,7 +138,7 @@ const initialData = JSON.stringify({
           </button>
           <button @click="saveEdit()" :disabled="saving"
             class="flex-[2] bg-mmp-ink hover:bg-slate-800 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-sm">
-            <span x-show="!saving">✨ Tạo lại nhật ký</span>
+            <span x-show="!saving" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="sparkles" class="w-4 h-4 shrink-0" />Tạo lại nhật ký</span>
             <span x-show="saving">Đang tạo...</span>
           </button>
         </div>
@@ -143,12 +147,12 @@ const initialData = JSON.stringify({
       <!-- Footer actions -->
       <div class="flex gap-2 mt-4">
         <a :href="`/pets/${pet.id}/diary`"
-          class="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-center font-semibold py-2.5 rounded-xl text-sm">
-          📜 Tất cả nhật ký
+          class="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 rounded-xl text-sm inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="clock" class="w-4 h-4 shrink-0" />Tất cả nhật ký
         </a>
         <a :href="`/pets/${pet.id}/diary`"
-          class="flex-1 bg-mmp-ink hover:bg-slate-800 text-white text-center font-semibold py-2.5 rounded-xl text-sm">
-          🎙️ Ghi mới
+          class="flex-1 bg-mmp-ink hover:bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-sm inline-flex items-center justify-center gap-1.5">
+          <FeatureIcon name="mic" class="w-4 h-4 shrink-0" />Ghi mới
         </a>
       </div>
 
@@ -166,8 +170,21 @@ const initialData = JSON.stringify({
         editError: null,
         saving: false,
 
-        moodEmoji: { happy: "😊", sad: "😢", funny: "😄", exciting: "🎉", ordinary: "🐾" },
-        moodLabel: { happy: "Một ngày vui 😊", sad: "Một ngày buồn 😢", funny: "Một ngày thú vị 😄", exciting: "Một ngày đặc biệt 🎉", ordinary: "Một ngày bình thường 🐾" },
+        moodLabel: { happy: "Một ngày vui", sad: "Một ngày buồn", funny: "Một ngày thú vị", exciting: "Một ngày đặc biệt", ordinary: "Một ngày bình thường" },
+
+        // Hướng B: mood emoji → mood face icon (SVG-string, màu theo mood). Render x-html.
+        moodIcon(mood, size) {
+          const M = {
+            happy: ["#059669", '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
+            sad: ["#64748b", '<circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
+            funny: ["#d97706", '<circle cx="12" cy="12" r="10"/><path d="M18 13a6 6 0 0 1-6 5 6 6 0 0 1-6-5h12Z"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
+            exciting: ["#e11d48", '<path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11c-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z"/>'],
+            ordinary: ["#8b6f47", '<ellipse cx="6.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="17.5" cy="11" rx="2.2" ry="2.8"/><ellipse cx="10" cy="6.5" rx="2" ry="2.5"/><ellipse cx="14" cy="6.5" rx="2" ry="2.5"/><path d="M12 12c-3.4 0-6.5 2.9-6.5 6.2 0 1.5 1.2 2.8 2.8 2.8 1 0 1.8-.5 2.8-1 .3-.2.6-.3.9-.3s.6.1.9.3c1 .5 1.8 1 2.8 1 1.6 0 2.8-1.3 2.8-2.8 0-3.3-3.1-6.2-6.5-6.2z"/>'],
+          };
+          const e = M[mood] || M.ordinary;
+          const s = size || 32;
+          return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="' + e[0] + '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block">' + e[1] + "</svg>";
+        },
 
         startEdit() {
           this.editTranscript = this.entry.owner_transcript || "";
