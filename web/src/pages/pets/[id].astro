@@ -1374,12 +1374,12 @@ const storyExcerpt = hasStory
             <template x-if="!nutrition.loading.calorie && nutrition.noWeight">
               <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6">
                 <div class="flex items-start gap-3">
-                  <span class="text-3xl">⚖️</span>
+                  <FeatureIcon name="scale" class="w-8 h-8 text-amber-600 shrink-0" />
                   <div class="flex-1">
                     <p class="font-semibold text-slate-900 mb-1">Cần cân nặng để tính dinh dưỡng</p>
                     <p class="text-sm text-slate-700 mb-3">Hãy log cân nặng cho bé để tính calorie target và meal plan.</p>
                     <button @click="nutrition.showLogForm = true" class="bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-                      ⚖️ Log cân nặng ngay
+                      <span class="inline-flex items-center gap-1.5"><FeatureIcon name="scale" class="w-4 h-4" />Log cân nặng ngay</span>
                     </button>
                   </div>
                 </div>
@@ -1391,13 +1391,13 @@ const storyExcerpt = hasStory
               <section class="bg-gradient-to-br from-sky-50 to-emerald-50 rounded-2xl border-2 border-sky-100 p-5">
                 <div class="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <h3 class="text-sm font-semibold text-slate-700 mb-1">🎯 Calo mục tiêu hằng ngày (DER)</h3>
+                    <h3 class="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1.5"><FeatureIcon name="target" class="w-4 h-4" />Calo mục tiêu hằng ngày (DER)</h3>
                     <div class="flex items-baseline gap-2">
                       <span class="text-4xl font-bold text-sky-700" x-text="nutrition.calorie.breakdown.der_final"></span>
                       <span class="text-lg text-slate-600 font-medium">kcal/ngày</span>
                     </div>
                   </div>
-                  <button @click="invalidateAndReload()" class="text-xs text-slate-500 hover:text-sky-600" title="Tính lại">🔄</button>
+                  <button @click="invalidateAndReload()" class="text-xs text-slate-500 hover:text-sky-600" title="Tính lại" aria-label="Tính lại"><FeatureIcon name="refresh" class="w-4 h-4" /></button>
                 </div>
                 <!-- Breakdown chips -->
                 <div class="flex flex-wrap gap-1.5 mt-3">
@@ -1437,7 +1437,7 @@ const storyExcerpt = hasStory
             <template x-if="!nutrition.loading.plan && nutrition.plan">
               <section class="bg-white rounded-2xl border border-slate-100 p-5">
                 <div class="flex items-start justify-between gap-2 mb-3 flex-wrap">
-                  <h3 class="text-sm font-semibold text-slate-700">🍽️ Kế hoạch bữa ăn</h3>
+                  <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-1.5"><FeatureIcon name="utensils" class="w-4 h-4" />Kế hoạch bữa ăn</h3>
                   <div class="flex items-center gap-2">
                     <label class="text-xs text-slate-500">Bữa/ngày:</label>
                     <select x-model.number="nutrition.mealsPerDay" @change="reloadPlan()"
@@ -1476,7 +1476,7 @@ const storyExcerpt = hasStory
                   <template x-for="meal in nutrition.plan.plan.meals" :key="meal.time">
                     <div class="bg-slate-50 border border-slate-100 rounded-xl p-3">
                       <div class="flex items-center justify-between mb-1">
-                        <span class="text-lg" x-text="mealIcon(meal.type)"></span>
+                        <span class="inline-flex" x-html="mealIcon(meal.type)"></span>
                         <span class="text-xs text-slate-500 font-mono" x-text="meal.time"></span>
                       </div>
                       <p class="text-xs text-slate-500 capitalize" x-text="mealTypeLabel(meal.type)"></p>
@@ -1490,11 +1490,11 @@ const storyExcerpt = hasStory
                 <!-- Treats + water -->
                 <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div class="bg-amber-50 border border-orange-100 rounded-lg p-2 text-center">
-                    <p class="text-slate-500">🍪 Treat budget</p>
+                    <p class="text-slate-500 flex items-center justify-center gap-1"><FeatureIcon name="cookie" class="w-3.5 h-3.5" />Treat budget</p>
                     <p class="font-semibold text-amber-700"><span x-text="nutrition.plan.plan.treat_budget_kcal"></span> kcal/ngày</p>
                   </div>
                   <div class="bg-sky-50 border border-sky-100 rounded-lg p-2 text-center">
-                    <p class="text-slate-500">💧 Nước uống</p>
+                    <p class="text-slate-500 flex items-center justify-center gap-1"><FeatureIcon name="droplet" class="w-3.5 h-3.5" />Nước uống</p>
                     <p class="font-semibold text-sky-700"><span x-text="nutrition.plan.plan.water_target_ml"></span> ml/ngày</p>
                   </div>
                 </div>
@@ -1557,7 +1557,7 @@ const storyExcerpt = hasStory
             <!-- SECTION 4: ALLERGY ALERTS (chỉ hiển thị nếu có) -->
             <template x-if="nutrition.insights && (nutrition.insights.recommendations.length > 0)">
               <section class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4">
-                <h3 class="text-sm font-semibold text-amber-900 mb-2">⚠️ Cảnh báo dinh dưỡng</h3>
+                <h3 class="text-sm font-semibold text-amber-900 mb-2 flex items-center gap-1.5"><FeatureIcon name="alert-triangle" class="w-4 h-4" />Cảnh báo dinh dưỡng</h3>
                 <div class="space-y-1.5">
                   <template x-for="(r, i) in nutrition.insights.recommendations" :key="i">
                     <p class="text-sm px-3 py-2 rounded-lg"
@@ -1571,7 +1571,7 @@ const storyExcerpt = hasStory
             <!-- SECTION 5: WEIGHT TRACKING -->
             <section class="bg-white rounded-2xl border border-slate-100 p-5">
               <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold text-slate-700">⚖️ Theo dõi cân nặng</h3>
+                <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-1.5"><FeatureIcon name="scale" class="w-4 h-4" />Theo dõi cân nặng</h3>
                 <button @click="nutrition.showLogForm = !nutrition.showLogForm" class="text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold px-3 py-1.5 rounded-lg">
                   <span x-show="!nutrition.showLogForm">+ Log cân nặng</span>
                   <span x-show="nutrition.showLogForm">Hủy</span>
@@ -1670,7 +1670,7 @@ const storyExcerpt = hasStory
             <!-- SECTION 6: FORBIDDEN FOODS -->
             <template x-if="nutrition.forbidden && nutrition.forbidden.length > 0">
               <section class="bg-white rounded-2xl border border-slate-100 p-5">
-                <h3 class="text-sm font-semibold text-slate-700 mb-1">⛔ Thực phẩm cấm</h3>
+                <h3 class="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1.5"><FeatureIcon name="ban" class="w-4 h-4 text-red-600" />Thực phẩm cấm</h3>
                 <p class="text-xs text-slate-500 mb-3">Tham khảo nguồn ASPCA + WSAVA. <span class="text-red-600 font-semibold">ĐỎ = tuyệt đối không</span>, <span class="text-amber-700 font-semibold">vàng = hạn chế</span>.</p>
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <template x-for="f in nutrition.forbidden" :key="f.id">
@@ -1690,7 +1690,7 @@ const storyExcerpt = hasStory
                 <div class="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-y-auto p-5">
                   <div class="flex items-center justify-between mb-3">
                     <h3 class="font-semibold text-slate-900">Chọn brand cho meal plan</h3>
-                    <button @click="nutrition.showBrandPicker = false" class="text-slate-400 hover:text-slate-700">✕</button>
+                    <button @click="nutrition.showBrandPicker = false" class="text-slate-400 hover:text-slate-700" aria-label="Đóng"><FeatureIcon name="close" class="w-5 h-5" /></button>
                   </div>
                   <div class="space-y-2">
                     <button @click="setBrandForPlan(null)" class="w-full text-left bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg p-3">
@@ -3467,7 +3467,12 @@ const storyExcerpt = hasStory
         return labels[level] || level || "—";
       },
       mealIcon(type) {
-        return type === "breakfast" ? "🌅" : type === "lunch" ? "☀️" : type === "dinner" ? "🌙" : "🍪";
+        // v219: trả chuỗi SVG (render x-html). meal.type là enum controlled → x-html an toàn. Path copy từ FeatureIcon.
+        const wrap = (inner) => '<svg class="w-5 h-5 text-mmp-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+        if (type === "breakfast") return wrap('<path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/>'); // sunrise
+        if (type === "lunch") return wrap('<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/>'); // sun
+        if (type === "dinner") return wrap('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'); // mood-sleeping (moon)
+        return wrap('<path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/>'); // cookie (snack/treat)
       },
       mealTypeLabel(type) {
         const labels = { breakfast: "Sáng", lunch: "Trưa", dinner: "Tối", snack: "Snack" };
