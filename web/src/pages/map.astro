@@ -7,6 +7,7 @@
  * Click marker → bottom sheet with place detail + check-in link.
  */
 import Layout from "../layouts/Layout.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
 
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
@@ -31,7 +32,7 @@ const initialData = JSON.stringify({ places, categories });
   <style is:inline>
     #leaflet-map { height: calc(100vh - 64px); width: 100%; }
     .place-marker {
-      background: white; border: 2px solid #c4b5fd; border-radius: 50%;
+      background: white; border: 2px solid var(--color-mmp-ink, #0a0a0a); border-radius: 50%;
       width: 38px !important; height: 38px !important;
       display: flex; align-items: center; justify-content: center;
       font-size: 18px; box-shadow: 0 3px 10px rgba(0,0,0,0.15);
@@ -84,7 +85,7 @@ const initialData = JSON.stringify({ places, categories });
         <!-- Header row -->
         <div class="flex items-center gap-3 mb-2">
           <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700 shrink-0">← Dashboard</a>
-          <h1 class="text-sm font-bold text-slate-900 flex-1 truncate">🗺️ Pet-friendly Places</h1>
+          <h1 class="text-sm font-bold text-slate-900 flex-1 min-w-0 inline-flex items-center gap-1.5"><FeatureIcon name="map-pin" class="w-4 h-4 shrink-0" /><span class="truncate">Pet-friendly Places</span></h1>
           <span class="text-[10px] text-slate-400 shrink-0" x-text="`${filteredPlaces.length} địa điểm`"></span>
         </div>
 
@@ -127,9 +128,9 @@ const initialData = JSON.stringify({ places, categories });
 
     <!-- "Gần tôi" FAB -->
     <button @click="locateMe()"
-      class="absolute bottom-24 right-4 z-[999] w-12 h-12 rounded-full bg-white shadow-xl border-2 border-mmp-cream hover:bg-mmp-cream text-xl"
+      class="absolute bottom-24 right-4 z-[999] w-12 h-12 rounded-full bg-white shadow-xl border-2 border-mmp-cream hover:bg-mmp-cream flex items-center justify-center text-mmp-ink"
       title="Vị trí của tôi">
-      📍
+      <FeatureIcon name="map-pin" class="w-5 h-5" />
     </button>
 
     <!-- Submit new place FAB -->
@@ -154,7 +155,7 @@ const initialData = JSON.stringify({ places, categories });
       class="absolute bottom-0 left-0 right-0 z-[1001] bg-white rounded-t-3xl shadow-2xl max-h-[60vh] overflow-y-auto">
       <template x-if="selectedPlace">
         <div class="p-5">
-          <button @click="closeSheet()" class="float-right text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+          <button @click="closeSheet()" class="float-right text-slate-400 hover:text-slate-700"><FeatureIcon name="close" class="w-5 h-5" /></button>
 
           <div class="flex items-start gap-3 mb-3">
             <span class="text-4xl shrink-0" x-text="catEmoji(selectedPlace.category)"></span>
@@ -180,30 +181,29 @@ const initialData = JSON.stringify({ places, categories });
           </div>
 
           <template x-if="selectedPlace.distance_km != null">
-            <p class="text-xs text-mmp-ink font-semibold mb-3">
-              📍 Cách bạn <span x-text="fmtDistance(selectedPlace.distance_km)"></span>
+            <p class="text-xs text-mmp-ink font-semibold mb-3 inline-flex items-center gap-1">
+              <FeatureIcon name="map-pin" class="w-3.5 h-3.5 shrink-0" /><span>Cách bạn <span x-text="fmtDistance(selectedPlace.distance_km)"></span></span>
             </p>
           </template>
 
           <template x-if="selectedPlace.total_checkins > 0">
-            <p class="text-xs text-slate-500 mb-3">
-              ⭐ <span x-text="selectedPlace.avg_rating.toFixed(1)"></span>
-              · <span x-text="selectedPlace.total_checkins"></span> check-in
+            <p class="text-xs text-slate-500 mb-3 inline-flex items-center gap-1">
+              <FeatureIcon name="star" class="w-3.5 h-3.5 shrink-0 text-mmp-gold" /><span><span x-text="selectedPlace.avg_rating.toFixed(1)"></span> · <span x-text="selectedPlace.total_checkins"></span> check-in</span>
             </p>
           </template>
 
           <div class="flex flex-wrap gap-2">
             <a :href="`/places/${selectedPlace.id}`"
-              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm py-2.5 rounded-xl text-center">
-              📖 Chi tiết
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm py-2.5 rounded-xl inline-flex items-center justify-center gap-1.5">
+              <FeatureIcon name="book-open" class="w-4 h-4" />Chi tiết
             </a>
             <a :href="`/places/checkin?placeId=${selectedPlace.id}`"
-              class="flex-1 bg-mmp-ink hover:bg-slate-800 text-white font-semibold text-sm py-2.5 rounded-xl text-center">
-              📍 Check-in
+              class="flex-1 bg-mmp-ink hover:bg-slate-800 text-white font-semibold text-sm py-2.5 rounded-xl inline-flex items-center justify-center gap-1.5">
+              <FeatureIcon name="map-pin" class="w-4 h-4" />Check-in
             </a>
             <a :href="googleMapsUrl(selectedPlace)" target="_blank"
-              class="bg-mmp-ink hover:bg-mmp-ink text-white font-semibold text-sm px-3 py-2.5 rounded-xl">
-              🧭
+              class="bg-mmp-ink hover:bg-mmp-ink text-white font-semibold text-sm px-3 py-2.5 rounded-xl inline-flex items-center justify-center">
+              <FeatureIcon name="compass" class="w-4 h-4" />
             </a>
             <template x-if="selectedPlace.contact_phone">
               <a :href="`tel:${selectedPlace.contact_phone}`"
@@ -327,7 +327,7 @@ const initialData = JSON.stringify({ places, categories });
               if (this.userMarker) this.map.removeLayer(this.userMarker);
               const userIcon = L.divIcon({
                 className: "",
-                html: `<div style="background:#3b82f6;border:3px solid white;width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.3)"></div>`,
+                html: `<div style="background:#0a0a0a;border:3px solid white;width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 4px rgba(10,10,10,0.3)"></div>`,
                 iconSize: [18, 18],
                 iconAnchor: [9, 9],
               });
