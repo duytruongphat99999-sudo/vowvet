@@ -552,12 +552,12 @@ const initialData = JSON.stringify({
         },
 
         get maxCategoryAmt() {
-          const vals = Object.values(this.summary.by_category || {}) as number[];
+          const vals = Object.values(this.summary.by_category || {});
           return vals.length ? Math.max(...vals) : 0;
         },
 
         get maxMonthlyAmt() {
-          const vals = (this.summary.monthly_trend || []).map((m) => m.total) as number[];
+          const vals = (this.summary.monthly_trend || []).map((m) => m.total);
           return vals.length ? Math.max(...vals) : 0;
         },
 
