@@ -11,6 +11,7 @@
  * Mock fallback message khi is_mock=true.
  */
 import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -42,18 +43,18 @@ const initialData = JSON.stringify({
 
       <header class="flex items-center justify-between mb-5 gap-3">
         <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
-        <h1 class="text-lg font-bold text-slate-900">⚖️ BCS AI Vision</h1>
+        <h1 class="text-lg font-bold text-slate-900 inline-flex items-center gap-1.5"><FeatureIcon name="scale" class="w-5 h-5" />BCS AI Vision</h1>
         <span class="w-12"></span>
       </header>
 
       <!-- Tab switcher -->
       <div class="flex bg-white rounded-2xl p-1 mb-4 shadow-sm border border-slate-100">
         <button @click="tab = 'assess'" :class="tab === 'assess' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600'"
-          class="flex-1 py-2 rounded-xl text-sm font-bold transition">📸 Đánh giá</button>
+          class="flex-1 py-2 rounded-xl text-sm font-bold transition"><span class="inline-flex items-center justify-center gap-1"><FeatureIcon name="camera" class="w-4 h-4" />Đánh giá</span></button>
         <button @click="tab = 'history'" :class="tab === 'history' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600'"
-          class="flex-1 py-2 rounded-xl text-sm font-bold transition">📋 Lịch sử (<span x-text="assessments.length"></span>)</button>
+          class="flex-1 py-2 rounded-xl text-sm font-bold transition"><span class="inline-flex items-center justify-center gap-1"><FeatureIcon name="clipboard" class="w-4 h-4" />Lịch sử (<span x-text="assessments.length"></span>)</span></button>
         <button @click="tab = 'trend'" :class="tab === 'trend' ? 'bg-mmp-ink text-white shadow' : 'text-slate-600'"
-          class="flex-1 py-2 rounded-xl text-sm font-bold transition">📈 Xu hướng</button>
+          class="flex-1 py-2 rounded-xl text-sm font-bold transition"><span class="inline-flex items-center justify-center gap-1"><FeatureIcon name="trending-up" class="w-4 h-4" />Xu hướng</span></button>
       </div>
 
       <!-- ============================================
@@ -73,17 +74,17 @@ const initialData = JSON.stringify({
               </div>
             </div>
             <template x-if="latest.needs_vet_review">
-              <p class="text-xs bg-white/25 rounded-lg px-2 py-1 mt-2 inline-block">⚠️ Cần vet review</p>
+              <p class="text-xs bg-white/25 rounded-lg px-2 py-1 mt-2 inline-flex items-center gap-1"><FeatureIcon name="alert-triangle" class="w-3.5 h-3.5" />Cần vet review</p>
             </template>
             <template x-if="latest.is_mock">
-              <p class="text-xs bg-white/25 rounded-lg px-2 py-1 mt-2 inline-block">🤖 AI chưa khả dụng — đánh giá mock</p>
+              <p class="text-xs bg-white/25 rounded-lg px-2 py-1 mt-2 inline-flex items-center gap-1"><FeatureIcon name="ai" class="w-3.5 h-3.5" />AI chưa khả dụng — đánh giá mock</p>
             </template>
           </div>
         </template>
 
         <!-- Capture form -->
         <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-          <h2 class="text-base font-bold text-slate-900 mb-1">📸 Chụp 2 ảnh để AI phân tích</h2>
+          <h2 class="text-base font-bold text-slate-900 mb-1 inline-flex items-center gap-1.5"><FeatureIcon name="camera" class="w-5 h-5" />Chụp 2 ảnh để AI phân tích</h2>
           <p class="text-xs text-slate-500 mb-4">Bé đứng thẳng, đủ sáng. AI sẽ chấm BCS theo thang WSAVA 1-9.</p>
 
           <!-- Side photo -->
@@ -98,7 +99,7 @@ const initialData = JSON.stringify({
                 :class="sidePreview ? 'border-mmp-cream bg-mmp-cream' : 'border-slate-300 hover:border-mmp-cream'">
                 <template x-if="!sidePreview">
                   <div>
-                    <p class="text-2xl">📷</p>
+                    <p class="flex justify-center text-slate-400"><FeatureIcon name="camera" class="w-7 h-7" /></p>
                     <p class="text-xs text-slate-600 mt-1">Tap để chọn ảnh nghiêng</p>
                   </div>
                 </template>
@@ -121,7 +122,7 @@ const initialData = JSON.stringify({
                 :class="topPreview ? 'border-mmp-cream bg-mmp-cream' : 'border-slate-300 hover:border-mmp-cream'">
                 <template x-if="!topPreview">
                   <div>
-                    <p class="text-2xl">🦴</p>
+                    <p class="flex justify-center text-slate-400"><FeatureIcon name="bone" class="w-7 h-7" /></p>
                     <p class="text-xs text-slate-600 mt-1">Tap để chọn ảnh nhìn trên</p>
                   </div>
                 </template>
@@ -137,8 +138,8 @@ const initialData = JSON.stringify({
           </template>
 
           <button @click="submit()" :disabled="!canSubmit || analyzing"
-            class="w-full bg-gradient-to-r from-mmp-cream to-white hover:opacity-90 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm shadow-lg">
-            <span x-show="!analyzing">🪄 Phân tích AI</span>
+            class="w-full bg-mmp-ink hover:bg-slate-800 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm shadow-lg">
+            <span x-show="!analyzing" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="wand" class="w-4 h-4" />Phân tích AI</span>
             <span x-show="analyzing">⏳ AI đang phân tích... (15-30s)</span>
           </button>
         </div>
@@ -169,7 +170,7 @@ const initialData = JSON.stringify({
       <div x-show="tab === 'history'" x-cloak>
         <template x-if="assessments.length === 0">
           <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
-            <p class="text-3xl mb-2">📭</p>
+            <p class="flex justify-center mb-2 text-slate-300"><FeatureIcon name="mailbox" class="w-9 h-9" /></p>
             <p class="text-sm text-slate-600">Chưa có đánh giá nào. Chuyển sang tab "Đánh giá" để bắt đầu.</p>
           </div>
         </template>
@@ -196,14 +197,14 @@ const initialData = JSON.stringify({
                   <p class="text-[11px] text-slate-500 mb-1" x-text="`${fmtDate(a.assessed_at)} · ${a.ai_confidence}% confidence`"></p>
                   <p class="text-xs text-slate-700 line-clamp-2" x-text="a.ai_analysis"></p>
                   <template x-if="a.recommended_action">
-                    <p class="text-xs text-emerald-700 mt-1 font-semibold line-clamp-2" x-text="`💡 ${a.recommended_action}`"></p>
+                    <p class="text-xs text-emerald-700 mt-1 font-semibold line-clamp-2 flex items-start gap-1"><FeatureIcon name="lightbulb" class="w-3.5 h-3.5 shrink-0 mt-0.5" /><span x-text="a.recommended_action"></span></p>
                   </template>
                   <div class="flex items-center gap-2 mt-2">
                     <template x-if="a.needs_vet_review && !a.vet_reviewed">
-                      <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">⚠️ Cần vet review</span>
+                      <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1"><FeatureIcon name="alert-triangle" class="w-3 h-3" />Cần vet review</span>
                     </template>
                     <template x-if="a.is_mock">
-                      <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">🤖 Mock</span>
+                      <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full inline-flex items-center gap-1"><FeatureIcon name="ai" class="w-3 h-3" />Mock</span>
                     </template>
                     <button @click="del(a.id)" class="ml-auto text-[10px] text-red-500 hover:text-red-700 underline">Xoá</button>
                   </div>
@@ -220,7 +221,7 @@ const initialData = JSON.stringify({
       <div x-show="tab === 'trend'" x-cloak>
         <template x-if="assessments.length < 2">
           <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
-            <p class="text-3xl mb-2">📈</p>
+            <p class="flex justify-center mb-2 text-slate-300"><FeatureIcon name="trending-up" class="w-9 h-9" /></p>
             <p class="text-sm text-slate-600">Cần ít nhất 2 lần đánh giá để xem xu hướng.</p>
           </div>
         </template>
@@ -262,15 +263,15 @@ const initialData = JSON.stringify({
 
             <!-- Insight -->
             <div class="mt-4 p-3 bg-mmp-cream rounded-xl text-xs text-mmp-ink">
-              <p class="font-bold mb-1">💡 Phân tích nhanh</p>
-              <p x-text="trendInsight"></p>
+              <p class="font-bold mb-1 inline-flex items-center gap-1.5"><FeatureIcon name="lightbulb" class="w-4 h-4" />Phân tích nhanh</p>
+              <p x-html="trendInsight"></p>
             </div>
           </div>
         </template>
       </div>
 
       <p class="text-[11px] text-slate-400 text-center italic mt-6">
-        🤖 AI tham khảo, không thay thế bác sĩ thú y. Khi BCS extreme (≤2 hoặc ≥7) hệ thống tự đánh dấu cần vet review.
+        <FeatureIcon name="ai" class="w-3 h-3 inline-block align-text-bottom mr-1" />AI tham khảo, không thay thế bác sĩ thú y. Khi BCS extreme (≤2 hoặc ≥7) hệ thống tự đánh dấu cần vet review.
       </p>
 
     </div>
@@ -326,6 +327,14 @@ const initialData = JSON.stringify({
           try {
             return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
           } catch { return iso.slice(0, 10); }
+        },
+
+        // v217: emoji→SVG string cho trend message (render qua x-html). Path copy từ FeatureIcon.
+        _icon(name) {
+          const wrap = (inner) => '<svg class="w-4 h-4 inline-block align-text-bottom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+          if (name === "award") return wrap('<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>');
+          if (name === "alert") return wrap('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>');
+          return "";
         },
 
         onSideChange(e) {
@@ -431,13 +440,13 @@ const initialData = JSON.stringify({
             return `BCS giữ ở mức ${last}/9 — chưa thay đổi.`;
           }
           if (last >= 4 && last <= 5) {
-            return `BCS ${direction} ${Math.abs(delta)} điểm về mức lý tưởng (${last}/9). 👏`;
+            return `BCS ${direction} ${Math.abs(delta)} điểm về mức lý tưởng (${last}/9). ${this._icon('award')}`;
           }
           if (last >= 7) {
-            return `⚠️ BCS đã ${direction} lên ${last}/9 — thừa cân. Cân nhắc giảm khẩu phần + tăng vận động.`;
+            return `${this._icon('alert')} BCS đã ${direction} lên ${last}/9 — thừa cân. Cân nhắc giảm khẩu phần + tăng vận động.`;
           }
           if (last <= 3) {
-            return `⚠️ BCS xuống còn ${last}/9 — thiếu cân. Cần khám vet để tìm nguyên nhân.`;
+            return `${this._icon('alert')} BCS xuống còn ${last}/9 — thiếu cân. Cần khám vet để tìm nguyên nhân.`;
           }
           return `BCS ${direction} ${Math.abs(delta)} điểm so với lần đầu. Hiện ${last}/9.`;
         },
