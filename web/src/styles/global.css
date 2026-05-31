@@ -431,6 +431,33 @@ html.pge-birthday .pge-birthday-banner {
   html.pge-birthday .pge-birthday-banner { display: flex !important; animation: none !important; opacity: 1 !important; transform: translateX(-50%) !important; }
 }
 
+/* ════════════════════════════════════════════════════════════
+ * GĐ3b — Check-in scale + symptom micro-interactions (prefix pcq-)
+ * Thèm ăn / Năng lượng: icon active "pop" 1 nhịp khi đổi mức rồi giữ nhỉnh scale(1.05).
+ * Hover (desktop, @media hover) nút thang + ô triệu chứng: phóng nhẹ scale(1.08). KHÔNG loop.
+ * Tắt hoàn toàn khi prefers-reduced-motion (active vẫn nổi nhờ màu gold sẵn có).
+ * ════════════════════════════════════════════════════════════ */
+.pcq-btn,
+.pcq-sym { transition: transform 0.15s ease-out; }
+.pcq-btn svg { transition: transform 0.15s ease-out; transform-origin: center; }
+.pcq-btn.pcq-on svg { animation: pcq-pop 0.24s ease-out forwards; }
+
+@media (hover: hover) {
+  .pcq-btn:hover,
+  .pcq-sym:hover { transform: scale(1.08); }
+}
+
+@keyframes pcq-pop {
+  0%   { transform: scale(1); }
+  55%  { transform: scale(1.15); }
+  100% { transform: scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcq-btn, .pcq-sym, .pcq-btn svg { transition: none !important; animation: none !important; transform: none !important; }
+  .pcq-btn:hover, .pcq-sym:hover { transform: none !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .marquee-track,
