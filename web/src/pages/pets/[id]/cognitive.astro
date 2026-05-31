@@ -6,6 +6,7 @@
  * Show banner if pet is not senior age.
  */
 import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 import {
   CCDS_QUESTIONS, ANSWER_LABELS, CATEGORY_LABELS, DOMAIN_LABELS, DOMAIN_MAX,
@@ -59,13 +60,13 @@ const initialData = JSON.stringify({
 
       <header class="flex items-center justify-between mb-5 gap-3">
         <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
-        <h1 class="text-lg font-bold text-slate-900">🧠 Nhận thức (CCDS)</h1>
+        <h1 class="text-lg font-bold text-slate-900 inline-flex items-center gap-1.5"><FeatureIcon name="brain" class="w-5 h-5" />Nhận thức (CCDS)</h1>
         <span class="w-12"></span>
       </header>
 
       {!senior && (
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
-          <p class="text-sm font-semibold text-amber-900">⚠️ Bé chưa đến tuổi senior</p>
+          <p class="text-sm font-semibold text-amber-900 flex items-center gap-1.5"><FeatureIcon name="alert-triangle" class="w-4 h-4" />Bé chưa đến tuổi senior</p>
           <p class="text-xs text-amber-700 mt-1">
             CCDS thiết kế cho chó ≥8 tuổi hoặc mèo ≥10 tuổi (bé hiện {age != null ? age : "?"} tuổi).
             Bạn vẫn có thể làm để tham khảo nhưng kết quả không có ý nghĩa lâm sàng cao.
@@ -89,14 +90,14 @@ const initialData = JSON.stringify({
             </div>
             <template x-if="latest.needs_vet">
               <div class="mt-3 bg-white/20 backdrop-blur rounded-xl p-2.5 text-xs font-semibold">
-                ⚠️ Khuyến cáo: đặt lịch khám vet để có hướng điều trị
+                <span class="inline-flex items-center gap-1"><FeatureIcon name="alert-triangle" class="w-3.5 h-3.5 shrink-0" />Khuyến cáo: đặt lịch khám vet để có hướng điều trị</span>
               </div>
             </template>
           </div>
 
           <!-- Domain breakdown -->
           <div class="bg-white rounded-2xl border border-slate-100 p-4 mt-3">
-            <p class="text-sm font-semibold text-slate-900 mb-3">📊 Chi tiết theo 6 lĩnh vực</p>
+            <p class="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-1.5"><FeatureIcon name="bar-chart" class="w-4 h-4" />Chi tiết theo 6 lĩnh vực</p>
             <div class="space-y-2">
               <template x-for="d in domainsList" :key="d.key">
                 <div>
@@ -124,8 +125,8 @@ const initialData = JSON.stringify({
       <!-- Action: start new assessment -->
       <template x-if="view === 'home'">
         <button @click="startQuiz()"
-          class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-white hover:opacity-95 text-white font-bold shadow-lg mb-4">
-          🧠 <span x-text="latest ? 'Đánh giá lại (khuyến nghị mỗi 90 ngày)' : 'Bắt đầu đánh giá'"></span>
+          class="w-full py-3.5 rounded-2xl bg-mmp-ink hover:bg-slate-800 text-white font-bold shadow-lg mb-4">
+          <span class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="brain" class="w-5 h-5" /><span x-text="latest ? 'Đánh giá lại (khuyến nghị mỗi 90 ngày)' : 'Bắt đầu đánh giá'"></span></span>
         </button>
       </template>
 
@@ -167,7 +168,7 @@ const initialData = JSON.stringify({
           </div>
 
           <p class="text-center text-[11px] text-slate-400 mt-3 italic">
-            🩺 Thang đánh giá DISHAA — chuẩn lâm sàng quốc tế cho CCDS/FCDS
+            <FeatureIcon name="stethoscope" class="w-3.5 h-3.5 inline-block align-text-bottom mr-1" />Thang đánh giá DISHAA — chuẩn lâm sàng quốc tế cho CCDS/FCDS
           </p>
         </div>
       </template>
@@ -175,7 +176,7 @@ const initialData = JSON.stringify({
       <!-- Loading -->
       <template x-if="view === 'loading'">
         <div class="bg-white rounded-3xl p-12 text-center shadow-md">
-          <p class="text-6xl mb-3 animate-pulse">🧠</p>
+          <p class="mb-3 flex justify-center animate-pulse text-indigo-500"><FeatureIcon name="brain" class="w-14 h-14" /></p>
           <p class="text-lg font-bold text-slate-800">Đang tính kết quả CCDS...</p>
         </div>
       </template>
@@ -201,7 +202,7 @@ const initialData = JSON.stringify({
       <!-- History -->
       <template x-if="view === 'home' && history.length > 1">
         <details class="bg-white rounded-2xl border border-slate-100 p-4 mt-4">
-          <summary class="text-sm font-semibold text-slate-900 cursor-pointer">📜 Lịch sử (<span x-text="history.length"></span>)</summary>
+          <summary class="text-sm font-semibold text-slate-900 cursor-pointer"><FeatureIcon name="file-text" class="w-4 h-4 inline-block align-text-bottom mr-1" />Lịch sử (<span x-text="history.length"></span>)</summary>
           <div class="mt-3 space-y-2">
             <template x-for="h in history" :key="h.id">
               <div class="flex items-center gap-3 bg-slate-50 rounded-lg p-2.5">

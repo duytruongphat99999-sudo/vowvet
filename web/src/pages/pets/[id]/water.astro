@@ -9,6 +9,7 @@
  *   high   = > 130% expected_max → possible polydipsia
  */
 import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -48,14 +49,14 @@ const initialData = JSON.stringify({
 
       <header class="flex items-center justify-between mb-5 gap-3">
         <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
-        <h1 class="text-lg font-bold text-slate-900">💧 Lượng nước</h1>
+        <h1 class="text-lg font-bold text-slate-900 inline-flex items-center gap-1.5"><FeatureIcon name="droplet" class="w-5 h-5" />Lượng nước</h1>
         <span class="w-12"></span>
       </header>
 
       <!-- No weight warning -->
       <template x-if="!expected?.weight_kg">
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
-          <p class="text-sm font-semibold text-amber-900">⚠️ Cần cập nhật cân nặng</p>
+          <p class="text-sm font-semibold text-amber-900 flex items-center gap-1.5"><FeatureIcon name="alert-triangle" class="w-4 h-4" />Cần cập nhật cân nặng</p>
           <p class="text-xs text-amber-700 mt-1">Để tính lượng nước khuyến nghị, vui lòng cập nhật cân nặng ở hồ sơ bé.</p>
           <a :href="`/pets/${pet.id}/profile/complete`" class="inline-block mt-2 text-xs bg-amber-600 text-white font-bold px-3 py-1.5 rounded-lg">Cập nhật ngay →</a>
         </div>
@@ -73,13 +74,13 @@ const initialData = JSON.stringify({
           <div class="mt-3 h-2.5 bg-white/25 rounded-full overflow-hidden">
             <div class="h-full bg-white transition-all" :style="`width: ${Math.min(100, (todayAmount / expected.expected_max_ml) * 100)}%`"></div>
           </div>
-          <p class="text-xs opacity-90 mt-2" x-text="todayStatusText"></p>
+          <p class="text-xs opacity-90 mt-2" x-html="todayStatusText"></p>
         </div>
       </template>
 
       <!-- Log new -->
       <div class="bg-white rounded-2xl border border-slate-100 p-4 mb-4 shadow-sm">
-        <h2 class="text-sm font-bold text-slate-900 mb-3">➕ Ghi lượng nước</h2>
+        <h2 class="text-sm font-bold text-slate-900 mb-3 flex items-center gap-1.5"><FeatureIcon name="plus" class="w-4 h-4" />Ghi lượng nước</h2>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <input type="date" x-model="form.log_date" :max="todayIso"
             class="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
@@ -112,7 +113,7 @@ const initialData = JSON.stringify({
 
         <button @click="submit()" :disabled="!canSubmit || saving"
           class="w-full bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm">
-          <span x-show="!saving">💧 Ghi</span>
+          <span x-show="!saving" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="droplet" class="w-4 h-4" />Ghi</span>
           <span x-show="saving">Đang ghi...</span>
         </button>
       </div>
@@ -120,7 +121,7 @@ const initialData = JSON.stringify({
       <!-- 30-day chart -->
       <template x-if="logs.length > 0">
         <div class="bg-white rounded-2xl border border-slate-100 p-4">
-          <h2 class="text-sm font-bold text-slate-900 mb-3">📊 30 ngày gần nhất (<span x-text="logs.length"></span> ngày có ghi)</h2>
+          <h2 class="text-sm font-bold text-slate-900 mb-3 flex items-center gap-1.5"><FeatureIcon name="bar-chart" class="w-4 h-4" />30 ngày gần nhất (<span x-text="logs.length"></span> ngày có ghi)</h2>
           <!-- Simple bar chart SVG -->
           <svg viewBox="0 0 300 100" class="w-full h-32">
             <template x-for="(l, i) in chartLogs" :key="l.id">
@@ -146,7 +147,7 @@ const initialData = JSON.stringify({
       <!-- History list -->
       <template x-if="logs.length > 0">
         <details class="bg-white rounded-2xl border border-slate-100 p-4 mt-3">
-          <summary class="text-sm font-semibold text-slate-900 cursor-pointer">📜 Chi tiết</summary>
+          <summary class="text-sm font-semibold text-slate-900 cursor-pointer"><FeatureIcon name="file-text" class="w-4 h-4 inline-block align-text-bottom mr-1" />Chi tiết</summary>
           <div class="mt-3 space-y-1.5">
             <template x-for="l in logs.slice(0, 30)" :key="l.id">
               <div class="flex items-center gap-3 bg-slate-50 rounded-lg px-3 py-2 text-xs">
@@ -162,7 +163,7 @@ const initialData = JSON.stringify({
       </template>
 
       <p class="text-[11px] text-slate-400 text-center italic mt-4">
-        💡 Lượng nước chuẩn: 50-100ml/kg/ngày. Trời nóng tăng thêm 10% mỗi 5°C trên 25°C.
+        <FeatureIcon name="lightbulb" class="w-3.5 h-3.5 inline-block align-text-bottom mr-1" />Lượng nước chuẩn: 50-100ml/kg/ngày. Trời nóng tăng thêm 10% mỗi 5°C trên 25°C.
       </p>
 
     </div>
@@ -192,13 +193,20 @@ const initialData = JSON.stringify({
           return this.todayLog?.amount_ml || 0;
         },
 
+        _statusIcon(kind) {
+          // v223: SVG-string cho status (render x-html). Path copy từ FeatureIcon alert-triangle/check.
+          const wrap = (inner) => '<svg class="w-3.5 h-3.5 inline-block align-text-bottom mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+          if (kind === "alert") return wrap('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>');
+          if (kind === "check") return wrap('<path d="M5 12l5 5 9-11"/>');
+          return "";
+        },
         get todayStatusText() {
           if (!this.expected) return "—";
           const a = this.todayAmount;
           if (a === 0) return "Chưa ghi nước hôm nay";
-          if (a < this.expected.expected_min_ml * 0.7) return "⚠️ Thấp — khuyến khích bé uống thêm";
-          if (a > this.expected.expected_max_ml * 1.3) return "⚠️ Cao — có thể uống quá nhiều, theo dõi";
-          return "✓ Bình thường";
+          if (a < this.expected.expected_min_ml * 0.7) return this._statusIcon("alert") + "Thấp — khuyến khích bé uống thêm";
+          if (a > this.expected.expected_max_ml * 1.3) return this._statusIcon("alert") + "Cao — có thể uống quá nhiều, theo dõi";
+          return this._statusIcon("check") + "Bình thường";
         },
 
         get canSubmit() {
