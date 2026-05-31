@@ -1,6 +1,6 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai GĐ1→4 HOÀN CHỈNH** (gợi ý OSM Overpass + promote + marker nổi + toast). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v235-map-promote-toast`** · ~42 commit local, chưa push.
+> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v238-map-policy-phone-icons`** · ~47 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
 > Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
@@ -91,7 +91,7 @@ getComputedStyle(o).display;         // 'block' hay 'none'?
 
 ---
 
-## 🗺️ MAP-LAI (2026-05-31 buổi 3) — ✅ HOÀN CHỈNH GĐ1→4 (Baserow + gợi ý OSM Overpass)
+## 🗺️ MAP-LAI (2026-05-31 buổi 3) — ✅ DONE ALL: GĐ1→4 + Brand-sync (Baserow + gợi ý OSM Overpass)
 
 > **Mục tiêu:** map gợi ý địa điểm pet từ OpenStreetMap — giữ **Baserow làm nguồn chính**, user **promote** gợi ý OSM vào DB. Trang `/map` (public, Leaflet+OSM tiles, KHÔNG cần API key). Nguồn place hiện tại = Baserow table `places` (**KHÔNG tự cập nhật** — phải user submit `/places/new` hoặc admin nhập tay; không có tích hợp Google Places/OSM POI auto). 9 category trong `lib/places.ts` `CATEGORIES`.
 
@@ -112,19 +112,26 @@ getComputedStyle(o).display;         // 'block' hay 'none'?
 - → **Chạy trọn vòng:** Tìm gần đây → marker vàng nổi → "+ Thêm" → toast + promote vào Baserow.
 - ✅ **Nhánh 201 CHẠY TRỌN** (verified browser "✓ Đã thêm"): promote tạo place THẬT trong Baserow. Bug 500 trước đó **KHÔNG phải gate** mà là Baserow **`max_decimal_places`** (OSM lat/lng 7 số > giới hạn 6) → fix **round6** trong `createPlace` (commit `9f5a554`, vá cả promote LẪN form `/places/new`). Place tạo ra `verified=false` (chờ duyệt — xem note màn admin ở queue).
 
+**✅ BRAND-SYNC /map DONE ALL (hết emoji pictographic + hết hex lạc):**
+- **Việc A** (`6da3a17`): emoji UI tĩnh (header/nút/sheet) → FeatureIcon + 2 hex lạc → ink (`#c4b5fd` viền marker · `#3b82f6` chấm user → ink; **giữ `#10b981` verified** functional).
+- **+5 icon** (`b59b3fa`): phone/tree/coffee/bed/waves vào FeatureIcon (verify hình bằng rasterize sharp→PNG vì preview headless 0×0).
+- **Việc B** (`ce41970`): category emoji (chip/sheet/marker divIcon) → icon **màu-theo-loại** (vet đỏ, park xanh… giữ phân biệt loại; suggest marker icon ink trên nền vàng). Helper `catIconPaths/catColor/catIconSvg`.
+- **Mẩu cuối** (`6cb0a73`, SW v238): nút gọi 📞 → `phone`; policy/amenity labels → `_miniIcon` SVG-string + x-html (stroke=currentColor theo màu badge).
+- → **/map sạch emoji UI.** ⚠️ Treo nhỏ: by_request (❓) tạm dùng `info` (CHƯA có `help-circle`) · `catEmoji` helper giờ **unused** (giữ, dọn sau).
+
 **📌 Bài học buổi này (Map-Lai):**
 - **Marker Leaflet off-screen sau pad bbox**: backend pad +3km kéo POI ra ngoài viewport → frontend tạo marker đúng nhưng nằm ngoài khung → phải **fitBounds** để hiện.
 - **x-transition kẹt `opacity:0` trong headless preview** (viewport 0×0, rAF không chạy) → toast dùng **plain x-show** (display toggle) cho chắc, bỏ transition.
 - **Toast/feedback phải đặt GẦN chỗ user bấm** (popup giữa map), KHÔNG phải `<p>` đỉnh map → user không thấy = tưởng "không báo".
 - **Preview Claude headless = viewport 0×0** → map/animation/transition không render thật; verify được DOM/state/parse nhưng KHÔNG verify được hình → cần mắt user.
 
-**📋 Queue còn lại (chưa làm):**
+**📋 Queue còn lại (chưa làm):** *(map đồng bộ icon/màu → ĐÃ XONG, gỡ khỏi queue)*
 - **diary** đồng bộ emoji→FeatureIcon (chưa recon).
 - **playdate / setup / pet 12** brainstorm (cần bồ mô tả trang muốn làm gì).
-- **map**: đồng bộ emoji UI + 2 hex lạc brand (`#c4b5fd` viền marker · `#3b82f6` chấm user — **giữ `#10b981` verified** = functional).
 - **severity refactor** pain/mobility (gom `severityDot` helper dùng chung, nhận cả `yellow` + `amber`).
+- **Màn admin duyệt place** (CHƯA có): place promote/form tạo `verified=false`; hiện phải đổi cột `verified` thủ công trong Baserow → cân nhắc UI admin (list `verified=false` + duyệt/từ chối). Không gấp.
+- **Dọn row test Baserow**: id25/26 (E2E test cũ) + id27 (round6-fix verify) — xoá trong Baserow cho sạch `/map`.
 - **bills**: nút `×` "Đổi ảnh" → icon close (optional).
-- **Màn admin duyệt place** (CHƯA có): place user thêm (promote OSM / form `/places/new`) tạo với `verified=false`; hiện phải vào **Baserow đổi cột `verified` false→true thủ công**. Nhiều user thêm → mệt → cân nhắc UI admin (list place `verified=false` + nút duyệt/từ chối). Feature tương lai, không gấp.
 - **TopBar Hướng B** (PageHeader toàn app) · **Hụi Pet stats** thật.
 
 ---
