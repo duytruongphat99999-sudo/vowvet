@@ -104,8 +104,8 @@ const initialData = JSON.stringify({ places, categories });
           <template x-for="c in categories" :key="c.key">
             <button @click="selectedCat = c.key; render()"
               :class="selectedCat === c.key ? 'bg-mmp-ink text-white' : 'bg-slate-100 text-slate-700'"
-              class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
-              <span x-text="c.emoji"></span>
+              class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap inline-flex items-center gap-1">
+              <span class="inline-flex shrink-0" x-html="catIconSvg(c.key, catColor(c.key), 14)"></span>
               <span x-text="c.label_vi"></span>
               <span class="opacity-60" x-text="`(${c.count})`"></span>
             </button>
@@ -158,7 +158,7 @@ const initialData = JSON.stringify({ places, categories });
           <button @click="closeSheet()" class="float-right text-slate-400 hover:text-slate-700"><FeatureIcon name="close" class="w-5 h-5" /></button>
 
           <div class="flex items-start gap-3 mb-3">
-            <span class="text-4xl shrink-0" x-text="catEmoji(selectedPlace.category)"></span>
+            <span class="shrink-0" x-html="catIconSvg(selectedPlace.category, catColor(selectedPlace.category), 36)"></span>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <h2 class="text-lg font-bold text-slate-900" x-text="selectedPlace.name"></h2>
@@ -244,6 +244,31 @@ const initialData = JSON.stringify({ places, categories });
         catEmoji(k) { return this.catMap[k]?.emoji || "📍"; },
         catLabel(k) { return this.catMap[k]?.label_vi || k; },
 
+        // Việc B: icon + màu theo loại (giữ phân biệt loại như emoji cũ). Path copy từ FeatureIcon.
+        catIconPaths(k) {
+          return ({
+            park: '<path d="M8 19a4 4 0 0 1-2.24-7.32A3.5 3.5 0 0 1 9 6.03V6a3 3 0 1 1 6 0v.04a3.5 3.5 0 0 1 3.24 5.65A4 4 0 0 1 16 19Z"/><path d="M12 19v3"/>',
+            cafe: '<path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/>',
+            vet: '<path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M6 3h2"/><path d="M12 3h2"/><path d="M10 13v3a5 5 0 0 0 10 0v-1"/><circle cx="20" cy="12" r="2"/>',
+            restaurant: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+            hotel: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
+            grooming: '<circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/>',
+            pet_shop: '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+            beach: '<path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>',
+            other: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+          })[k] || '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>';
+        },
+        catColor(k) {
+          return ({
+            park: "#16a34a", cafe: "#b45309", vet: "#dc2626", restaurant: "#ea580c",
+            hotel: "#4f46e5", grooming: "#db2777", pet_shop: "#0d9488", beach: "#0284c7", other: "#64748b",
+          })[k] || "#64748b";
+        },
+        catIconSvg(k, color, size) {
+          const s = size || 20;
+          return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="' + (color || "currentColor") + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + this.catIconPaths(k) + "</svg>";
+        },
+
         policyLabel(p) {
           return ({
             allowed: "🐾 Pet welcome", leash_only: "🦮 Có dây xích",
@@ -302,10 +327,10 @@ const initialData = JSON.stringify({ places, categories });
           if (!this.map) return;
           this.clearMarkers();
           for (const place of this.filteredPlaces) {
-            const emoji = this.catEmoji(place.category);
+            const html = this.catIconSvg(place.category, this.catColor(place.category), 20);
             const icon = L.divIcon({
               className: place.verified ? "place-marker verified" : "place-marker",
-              html: emoji,
+              html: html,
               iconSize: [38, 38],
               iconAnchor: [19, 19],
             });
@@ -400,10 +425,10 @@ const initialData = JSON.stringify({ places, categories });
           if (!this.map) return;
           this.clearSuggestMarkers();
           for (const s of this.suggestions) {
-            const emoji = this.catEmoji(s.category);
+            const html = this.catIconSvg(s.category, "#0a0a0a", 24);
             const icon = L.divIcon({
               className: "place-marker suggest",
-              html: emoji,
+              html: html,
               iconSize: [46, 46],
               iconAnchor: [23, 23],
             });
@@ -434,7 +459,7 @@ const initialData = JSON.stringify({ places, categories });
           title.textContent = s.name || "Địa điểm";
           const meta = document.createElement("div");
           meta.style.cssText = "color:var(--color-mmp-brown,#8b6f47);font-size:12px;margin:3px 0 6px";
-          meta.textContent = this.catEmoji(s.category) + " " + this.catLabel(s.category) + " · Gợi ý OSM";
+          meta.textContent = this.catLabel(s.category) + " · Gợi ý OSM";
           const btn = document.createElement("button");
           btn.textContent = "+ Thêm vào map";
           btn.style.cssText = "width:100%;padding:6px 8px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-weight:700;background:var(--color-mmp-ink,#0a0a0a);color:#fff";
