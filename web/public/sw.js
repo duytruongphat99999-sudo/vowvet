@@ -14,7 +14,7 @@
 // IMPORTANT: bump VERSION every release that ships HTML/CSS changes — otherwise
 // stale-while-revalidate keeps serving old cached HTML for /dashboard /chat /alerts /etc.
 // (root cause of "không thấy thay đổi" feedback during Brand Sync Pass 3.)
-const VERSION = "vowvet-v240-diary-icons-stopchev";
+const VERSION = "vowvet-v242-diary-yearbook-gold";
 const PRECACHE = `${VERSION}-precache`;
 const RUNTIME = `${VERSION}-runtime`;
 
