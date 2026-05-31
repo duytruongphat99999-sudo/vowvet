@@ -19,6 +19,8 @@ import {
   type PlaceCategory, type PetPolicy,
 } from "../lib/places.ts";
 import { uploadObject, imageExtFromMime } from "@shared/r2.ts";
+import { haversineDistance } from "@shared/geo.ts";
+import { fetchOverpassSuggestions } from "../lib/overpass.ts";
 
 export const placesRoute = new Hono();
 
@@ -60,6 +62,66 @@ placesRoute.get("/categories", async (c) => {
   } catch (err: any) {
     return c.json({ error: { code: "INTERNAL", message: "Lỗi" } }, 500);
   }
+});
+
+// ── GET /suggest?bbox=S,W,N,E — gợi ý OSM Overpass Tầng 1 (PUBLIC, read-only, KHÔNG ghi DB) ──
+const SUGGEST_MAX_SPAN_DEG = 0.2; // ~22km mỗi trục; lớn hơn = zoom thấp → từ chối
+const DEDUP_RADIUS_KM = 0.08; // 80m: POI OSM trùng place Baserow → loại
+const SUGGEST_TTL_MS = 10 * 60 * 1000; // cache 10 phút theo bbox-tile
+const suggestCache = new Map<string, { data: any; expires: number }>();
+
+placesRoute.get("/suggest", async (c) => {
+  const raw = c.req.query("bbox") || "";
+  const parts = raw.split(",").map((s) => Number(s.trim()));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) {
+    return c.json({ error: { code: "BAD_BBOX", message: "bbox phải là S,W,N,E (4 số)" } }, 400);
+  }
+  const [south, west, north, east] = parts;
+  if (south >= north || west >= east) {
+    return c.json({ error: { code: "BAD_BBOX", message: "bbox không hợp lệ (cần S<N, W<E)" } }, 400);
+  }
+  if (north - south > SUGGEST_MAX_SPAN_DEG || east - west > SUGGEST_MAX_SPAN_DEG) {
+    return c.json({ error: { code: "BBOX_TOO_LARGE", message: "Khu vực quá rộng — zoom gần hơn để tìm gợi ý" } }, 400);
+  }
+
+  const bbox = { south, west, north, east };
+  const cacheKey = parts.map((n) => n.toFixed(3)).join(",");
+  const cached = suggestCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return c.json({ ...cached.data, cached: true });
+  }
+
+  // 1) Query Overpass — lỗi/timeout → degraded (KHÔNG 500, map vẫn chạy)
+  let pois;
+  try {
+    pois = await fetchOverpassSuggestions(bbox);
+  } catch (err: any) {
+    console.error("[places/suggest] Overpass error:", err?.name || err);
+    return c.json({ suggestions: [], total: 0, degraded: true });
+  }
+
+  // 2) Dedup vs place Baserow trong bbox (<80m → coi là trùng, loại khỏi gợi ý)
+  let existing: Array<{ lat: number; lng: number }> = [];
+  try {
+    const all = await listPlaces({});
+    existing = all.filter(
+      (p) => p.lat >= south && p.lat <= north && p.lng >= west && p.lng <= east
+    );
+  } catch (err) {
+    console.error("[places/suggest] dedup list error (bỏ qua dedup):", err);
+  }
+  const suggestions = pois.filter(
+    (s) => !existing.some((p) => haversineDistance(s.lat, s.lng, p.lat, p.lng) < DEDUP_RADIUS_KM)
+  );
+
+  const payload = {
+    suggestions,
+    total: suggestions.length,
+    raw_count: pois.length,
+    deduped: pois.length - suggestions.length,
+  };
+  suggestCache.set(cacheKey, { data: payload, expires: Date.now() + SUGGEST_TTL_MS });
+  return c.json(payload);
 });
 
 placesRoute.get("/:placeId{[0-9]+}", async (c) => {
