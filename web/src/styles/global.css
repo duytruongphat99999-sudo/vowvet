@@ -333,6 +333,104 @@ body {
   .psc-tier-shimmer::after { display: none !important; }
 }
 
+/* ════════════════════════════════════════════════════════════
+ * Grand Entrance v211 — /pets/[id] welcome reveal (prefix pge-)
+ * Gate: html.pge-run (lần đầu/ngày) · html.pge-seen (vào thẳng tĩnh) · html.pge-birthday
+ * MỌI layer pointer-events:none (click xuyên qua — quà không phải nhà tù).
+ * 1-iteration + fill:forwards/both → chạy 1 lần tự ẩn, KHÔNG loop CPU.
+ * Layers ẩn mặc định → no-JS / pge-seen = KHÔNG hiện (chống flash).
+ * ════════════════════════════════════════════════════════════ */
+.pge-overlay, .pge-spotlight, .pge-sparkles, .pge-confetti, .pge-birthday-banner { display: none; }
+
+html.pge-run .pge-overlay {
+  display: block; position: fixed; inset: 0; z-index: 90; pointer-events: none;
+  background: rgba(10, 10, 10, 0.55);
+  animation: pge-overlay-out 0.55s ease 1.7s both;
+}
+html.pge-run .pge-spotlight {
+  display: block; position: fixed; top: -12%; left: 50%; z-index: 91; pointer-events: none;
+  width: min(760px, 130vw); aspect-ratio: 1; transform: translateX(-50%) scale(0.55);
+  background: radial-gradient(circle, rgba(236,185,33,0.34) 0%, rgba(236,185,33,0.12) 36%, transparent 62%);
+  animation: pge-spotlight 2.1s ease 0.3s forwards;
+}
+html.pge-run .pge-sparkles {
+  display: block; position: fixed; top: 1%; left: 50%; z-index: 92; pointer-events: none;
+  width: 540px; max-width: 96vw; height: 400px; transform: translateX(-50%);
+}
+.pge-sparkle {
+  position: absolute; width: 13px; height: 13px; opacity: 0; transform: scale(0);
+  background: radial-gradient(circle, #fff7d6 0%, #ecb921 55%, transparent 72%);
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+}
+html.pge-run .pge-sparkle { animation: pge-sparkle 0.95s ease-out forwards; }
+
+/* Stagger khối dưới hero (gate pge-run → mặc định visible, no-JS không ẩn) */
+html.pge-run .pge-stagger { opacity: 0; animation: pge-rise 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+html.pge-run .pge-d1 { animation-delay: 0.85s; }
+html.pge-run .pge-d2 { animation-delay: 1.05s; }
+
+/* Hero cũ → dời delay vào phase 2 (CHỈ override animation-delay, KHÔNG sửa keyframe hero) */
+html.pge-run .hero-passport h2.font-display { animation-delay: 0.7s; }
+html.pge-run .hero-stamp { animation-delay: 0.78s; }
+html.pge-run .hero-monmin-badge { animation-delay: 0.95s; }
+
+/* Repeat trong ngày → hero tĩnh (tắt entrance, giữ particle drift ambient) */
+html.pge-seen .hero-stamp,
+html.pge-seen .hero-passport h2.font-display,
+html.pge-seen .hero-monmin-badge,
+html.pge-seen .hero-spark,
+html.pge-seen .hero-vv-monogram { animation: none !important; }
+
+/* Birthday — confetti gold (3 sắc độ vàng, set inline) + banner */
+html.pge-birthday .pge-confetti {
+  display: block; position: fixed; inset: 0; z-index: 93; pointer-events: none; overflow: hidden;
+}
+.pge-confetti-piece { position: absolute; top: -5%; width: 9px; height: 14px; border-radius: 2px; opacity: 0; }
+html.pge-birthday .pge-confetti-piece { animation: pge-confetti 2.4s ease-in forwards; }
+html.pge-birthday .pge-birthday-banner {
+  display: flex; position: fixed; top: 13%; left: 50%; z-index: 94; pointer-events: none;
+  transform: translateX(-50%); padding: 0.55rem 1.4rem; border-radius: 9999px;
+  background: rgba(10, 10, 10, 0.82); border: 1px solid rgba(236, 185, 33, 0.5);
+  box-shadow: 0 10px 32px rgba(180, 134, 8, 0.35);
+  animation: pge-banner 3.8s ease 0.8s both;
+}
+.pge-birthday-text { margin: 0; font-weight: 700; font-size: 0.95rem; color: #ecb921; white-space: nowrap; }
+
+@keyframes pge-overlay-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes pge-spotlight {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.55); }
+  28%  { opacity: 1; transform: translateX(-50%) scale(1); }
+  72%  { opacity: 0.92; transform: translateX(-50%) scale(1.04); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.1); }
+}
+@keyframes pge-sparkle {
+  0%   { opacity: 0; transform: scale(0) rotate(0deg); }
+  45%  { opacity: 1; transform: scale(1.15) rotate(40deg); }
+  100% { opacity: 0; transform: scale(0.2) rotate(75deg); }
+}
+@keyframes pge-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pge-confetti {
+  0%   { opacity: 0; transform: translateY(0) rotate(0deg); }
+  12%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(108vh) rotate(640deg); }
+}
+@keyframes pge-banner {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.8) translateY(-6px); }
+  12%  { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
+  80%  { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1) translateY(-8px); }
+}
+
+/* Reduced-motion: KHÔNG overlay/spotlight/sparkle/confetti/stagger động — hiện thẳng. Birthday = text tĩnh. */
+@media (prefers-reduced-motion: reduce) {
+  .pge-overlay, .pge-spotlight, .pge-sparkles, .pge-confetti { display: none !important; }
+  html.pge-run .pge-stagger { animation: none !important; opacity: 1 !important; transform: none !important; }
+  html.pge-run .hero-passport h2.font-display,
+  html.pge-run .hero-stamp,
+  html.pge-run .hero-monmin-badge { animation: none !important; }
+  html.pge-birthday .pge-birthday-banner { display: flex !important; animation: none !important; opacity: 1 !important; transform: translateX(-50%) !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .marquee-track,

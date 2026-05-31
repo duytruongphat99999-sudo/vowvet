@@ -90,6 +90,16 @@ const daysLabel = daysWithUs === null ? "—" : daysWithUs >= 365
   ? `${Math.floor(daysWithUs / 30)} tháng`
   : `${daysWithUs} ngày`;
 
+// v211 Grand Entrance — birthday detection (VN TZ, so MM-DD hôm nay)
+const _vnNow = new Date(Date.now() + 7 * 3600 * 1000);
+const todayVN = _vnNow.toISOString().slice(0, 10);
+let isBirthday = false;
+{
+  const _dob = String((pet as any).dob || (profile as any).dob || "");
+  const _m = _dob.match(/^\d{4}-(\d{2})-(\d{2})/);
+  if (_m) isBirthday = `${_m[1]}-${_m[2]}` === todayVN.slice(5);
+}
+
 // Next-step suggestion text
 const NEXT_STEP_HINTS: Record<string, { title: string; tip: string }> = {
   identity: { title: "Hoàn thiện danh tính", tip: "Thêm microchip + nickname để hộ chiếu chuẩn quốc tế." },
@@ -116,6 +126,44 @@ const storyExcerpt = hasStory
 
 <Layout title={`${pet.name} · VowVet`}>
   <main class="min-h-screen px-4 sm:px-6 py-6 bg-mmp-cream">
+    {/* v211 Grand Entrance — gate script SLOT-LESS, con ĐẦU TIÊN của <main>: chạy SYNC trước mọi GE element + content → set html.pge-run/seen kịp, chống flash. (Pattern define:vars slot-less proven 5× trong app.) */}
+    <script is:inline define:vars={{ isBirthday, todayVN }}>
+      (function () {
+        try {
+          var petId = (location.pathname.match(/\/pets\/(\d+)/) || [])[1] || "";
+          var html = document.documentElement;
+          var key = "vowvet:pet:" + petId + ":welcomed:" + todayVN;
+          if (isBirthday) {
+            html.classList.add("pge-run", "pge-birthday");
+          } else if (!localStorage.getItem(key)) {
+            html.classList.add("pge-run");
+            localStorage.setItem(key, "1");
+          } else {
+            html.classList.add("pge-seen");
+          }
+        } catch (e) {}
+      })();
+    </script>
+    {/* v211 Grand Entrance layers — fixed, pointer-events:none (CLICK XUYÊN QUA), ẩn mặc định, gate html.pge-run */}
+    <div class="pge-overlay no-print" aria-hidden="true"></div>
+    <div class="pge-spotlight no-print" aria-hidden="true"></div>
+    <div class="pge-sparkles no-print" aria-hidden="true">
+      {[[8,14],[22,5],[5,38],[30,24],[12,68],[4,84],[34,86],[46,18],[40,50],[18,60]].map((p, i) => (
+        <span class="pge-sparkle" style={`top:${p[0]}%;left:${p[1]}%;animation-delay:${(1.4 + i * 0.035).toFixed(3)}s`}></span>
+      ))}
+    </div>
+    {isBirthday && (
+      <Fragment>
+        <div class="pge-confetti no-print" aria-hidden="true">
+          {Array.from({ length: 14 }).map((_, i) => (
+            <span class="pge-confetti-piece" style={`left:${(4 + i * 6.5).toFixed(1)}%;background:${["#ecb921","#fde68a","#d4960a"][i % 3]};animation-delay:${(0.1 + i * 0.06).toFixed(2)}s`}></span>
+          ))}
+        </div>
+        <div class="pge-birthday-banner no-print" aria-hidden="true">
+          <p class="pge-birthday-text">🎂 Chúc mừng sinh nhật {pet.name}!</p>
+        </div>
+      </Fragment>
+    )}
     <!-- v74 WOW: gold scroll progress bar (Pet Detail scope) -->
     <div
       class="pet-scroll-progress no-print"
@@ -430,7 +478,7 @@ const storyExcerpt = hasStory
       {/* v85: Profile completion bar MERGED into Quick Stats spotlight card in LEFT col — no standalone bar */}
 
       {/* v85: Origin Documents — moved up from LEFT col to fill the empty top hero zone (horizontal full-width banner) */}
-      <section class="mb-5 relative rounded-2xl bg-mmp-ink text-white overflow-hidden shadow-md origin-doc-card origin-doc-banner">
+      <section class="pge-stagger pge-d1 mb-5 relative rounded-2xl bg-mmp-ink text-white overflow-hidden shadow-md origin-doc-card origin-doc-banner">
         <div aria-hidden="true" class="absolute inset-0 pointer-events-none opacity-80">
           <div class="absolute -top-16 -right-16 w-56 h-56 rounded-full" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
           <div class="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style="background: radial-gradient(circle, rgba(180,134,8,0.28) 0%, transparent 70%);"></div>
@@ -538,7 +586,7 @@ const storyExcerpt = hasStory
       )}
 
       <!-- 2-col layout (1 col mobile) -->
-      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div class="pge-stagger pge-d2 grid grid-cols-1 lg:grid-cols-5 gap-6">
         <!-- LEFT: Photo -->
         <div class="lg:col-span-2 space-y-3">
           <div class="photo-id-card aspect-square bg-white rounded-2xl shadow-sm overflow-hidden flex items-center justify-center relative">
