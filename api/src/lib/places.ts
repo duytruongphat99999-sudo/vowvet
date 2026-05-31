@@ -146,11 +146,17 @@ export interface CreatePlaceInput {
 }
 
 export async function createPlace(input: CreatePlaceInput): Promise<PlaceApi> {
+  // Baserow field lat/lng giới hạn 6 chữ số thập phân; OSM/map-picker có thể gửi 7+ → làm tròn,
+  // tránh 400 ERROR_REQUEST_BODY_VALIDATION (max_decimal_places). Guard NaN/string → giữ nguyên giá trị cũ.
+  const round6 = (v: number): number => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Number(n.toFixed(6)) : v;
+  };
   const row = await createRow<PlaceRow>("places", {
     name: input.name.slice(0, 200),
     address: input.address.slice(0, 300),
-    lat: input.lat,
-    lng: input.lng,
+    lat: round6(input.lat),
+    lng: round6(input.lng),
     category: input.category,
     pet_policy: input.pet_policy,
     amenities: JSON.stringify(input.amenities || []),
