@@ -80,7 +80,7 @@ const initialData = JSON.stringify({
           <div class="rounded-2xl p-5 shadow-md text-white"
             :class="latestColorClass">
             <div class="flex items-start gap-3">
-              <span class="text-4xl" x-text="categoryLabels[latest.category]?.emoji"></span>
+              <span class="inline-block w-9 h-9 shrink-0" x-html="severityDot(categoryLabels[latest.category]?.color)"></span>
               <div class="flex-1 min-w-0">
                 <p class="text-xs uppercase opacity-90">Lần đánh giá gần nhất</p>
                 <p class="text-xl font-extrabold" x-text="`${latest.total_score}/80 · ${categoryLabels[latest.category]?.label}`"></p>
@@ -102,8 +102,8 @@ const initialData = JSON.stringify({
               <template x-for="d in domainsList" :key="d.key">
                 <div>
                   <div class="flex items-center justify-between text-xs mb-1">
-                    <span>
-                      <span x-text="domainLabels[d.key]?.emoji"></span>
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="inline-flex w-4 h-4 shrink-0" x-html="domainIcon(d.key)"></span>
                       <span class="font-medium" x-text="domainLabels[d.key]?.label"></span>
                     </span>
                     <span class="font-mono text-slate-700"
@@ -147,8 +147,8 @@ const initialData = JSON.stringify({
           </div>
 
           <div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-7 shadow-md">
-            <p class="text-xs text-slate-500 mb-2">
-              <span x-text="domainLabels[currentQuestion?.domain]?.emoji"></span>
+            <p class="text-xs text-slate-500 mb-2 inline-flex items-center gap-1.5">
+              <span class="inline-flex w-4 h-4 shrink-0" x-html="domainIcon(currentQuestion?.domain)"></span>
               <span x-text="domainLabels[currentQuestion?.domain]?.label"></span>
             </p>
             <h2 class="text-base sm:text-lg font-bold text-slate-900 mb-5" x-text="currentQuestion?.question_vi"></h2>
@@ -186,7 +186,7 @@ const initialData = JSON.stringify({
         <div>
           <div class="rounded-3xl p-6 text-white shadow-2xl mb-4"
             :class="submittedColorClass">
-            <p class="text-7xl text-center mb-3" x-text="categoryLabels[submittedResult.category]?.emoji"></p>
+            <div class="w-16 h-16 mx-auto mb-3" x-html="severityDot(categoryLabels[submittedResult.category]?.color)"></div>
             <p class="text-center text-sm opacity-90 uppercase tracking-wider">Kết quả CCDS</p>
             <p class="text-center text-5xl font-extrabold mt-1" x-text="`${submittedResult.total_score}/80`"></p>
             <p class="text-center text-xl font-bold mt-2" x-text="categoryLabels[submittedResult.category]?.label"></p>
@@ -206,7 +206,7 @@ const initialData = JSON.stringify({
           <div class="mt-3 space-y-2">
             <template x-for="h in history" :key="h.id">
               <div class="flex items-center gap-3 bg-slate-50 rounded-lg p-2.5">
-                <span class="text-lg shrink-0" x-text="categoryLabels[h.category]?.emoji"></span>
+                <span class="inline-block w-6 h-6 shrink-0" x-html="severityDot(categoryLabels[h.category]?.color)"></span>
                 <div class="flex-1 text-sm min-w-0">
                   <p class="font-semibold text-slate-800" x-text="`${h.total_score}/80 · ${categoryLabels[h.category]?.label}`"></p>
                   <p class="text-[11px] text-slate-500" x-text="fmtDate(h.assessed_at)"></p>
@@ -278,6 +278,25 @@ const initialData = JSON.stringify({
           if (!iso) return "—";
           try { return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }); }
           catch { return iso; }
+        },
+
+        // v225: chấm severity 2 lớp (như pain/mobility) — cognitive mild dùng "amber".
+        severityDot(color) {
+          const tone = ({ emerald: "text-emerald-500", amber: "text-amber-500", yellow: "text-amber-500", orange: "text-orange-500", red: "text-red-500" })[color] || "text-slate-400";
+          return '<svg class="' + tone + ' w-full h-full" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="white"/><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>';
+        },
+        // v225: icon 6 lĩnh vực (SVG-string, path copy từ FeatureIcon). Màu kế thừa currentColor.
+        domainIcon(domain) {
+          const wrap = (inner) => '<svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+          const map = {
+            disorientation: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+            interaction: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+            sleep_wake: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+            house_soiling: '<rect x="5" y="3" width="14" height="4.5" rx="1.5"/><path d="M6.5 7.5h11l-1 4a5 5 0 0 1-9 0z"/><path d="M9 16 8 21h8l-1-5"/>',
+            activity: '<circle cx="13" cy="4" r="2"/><path d="M4 22l4-9 4 4 3-3 4 9"/><path d="M9 13l-2 4"/><path d="M14 7l1 6 4-2"/>',
+            anxiety: '<circle cx="12" cy="12" r="10"/><path d="M7.5 10 9.5 9"/><path d="M16.5 10 14.5 9"/><line x1="9" y1="11.5" x2="9.01" y2="11.5"/><line x1="15" y1="11.5" x2="15.01" y2="11.5"/><path d="M9 16.5c1.5-1 4.5-1 6 0"/><path d="M18 6c.6.9.9 1.4.9 2a.9.9 0 1 1-1.8 0c0-.6.3-1.1.9-2z"/>',
+          };
+          return wrap(map[domain] || '');
         },
 
         startQuiz() {
