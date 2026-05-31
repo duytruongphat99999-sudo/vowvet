@@ -17,6 +17,14 @@ weatherRoute.use("*", requireAuth);
 /** M4 backward compat: /api/v1/weather?city=... */
 weatherRoute.get("/", async (c) => {
   const city = (c.req.query("city") || "ho_chi_minh").toLowerCase();
+  if (!CITY_SLUGS.includes(city as any)) {
+    return c.json(
+      {
+        error: { code: "BAD_CITY", message: `City không hợp lệ. Chấp nhận: ${CITY_SLUGS.join(", ")}` },
+      },
+      400
+    );
+  }
   try {
     return c.json(await getWeather(city));
   } catch (err: any) {
