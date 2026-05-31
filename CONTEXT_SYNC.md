@@ -1,6 +1,6 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v238-map-policy-phone-icons`** · ~47 commit local, chưa push.
+> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại) · 📔 **diary DONE ALL** (mood→face icon + UI emoji→icon + màu yearbook gold/cream; `10e15bc` + fix mic/màu `22dcc70`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v242-diary-yearbook-gold`** · ~51 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
 > Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
@@ -125,8 +125,7 @@ getComputedStyle(o).display;         // 'block' hay 'none'?
 - **Toast/feedback phải đặt GẦN chỗ user bấm** (popup giữa map), KHÔNG phải `<p>` đỉnh map → user không thấy = tưởng "không báo".
 - **Preview Claude headless = viewport 0×0** → map/animation/transition không render thật; verify được DOM/state/parse nhưng KHÔNG verify được hình → cần mắt user.
 
-**📋 Queue còn lại (chưa làm):** *(map đồng bộ icon/màu → ĐÃ XONG, gỡ khỏi queue)*
-- **diary** đồng bộ emoji→FeatureIcon (chưa recon).
+**📋 Queue còn lại (chưa làm):** *(map + diary đồng bộ icon/màu → ĐÃ XONG, gỡ khỏi queue)*
 - **playdate / setup / pet 12** brainstorm (cần bồ mô tả trang muốn làm gì).
 - **severity refactor** pain/mobility (gom `severityDot` helper dùng chung, nhận cả `yellow` + `amber`).
 - **Màn admin duyệt place** (CHƯA có): place promote/form tạo `verified=false`; hiện phải đổi cột `verified` thủ công trong Baserow → cân nhắc UI admin (list `verified=false` + duyệt/từ chối). Không gấp.
