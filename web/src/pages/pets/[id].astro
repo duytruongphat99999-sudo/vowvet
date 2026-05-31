@@ -2740,7 +2740,9 @@ const storyExcerpt = hasStory
         this.care.loading.weather = true;
         this.care.weatherError = null;
         try {
-          const res = await fetch("/api/v1/weather?city=hcm");
+          const settingsRes = await fetch("/api/v1/users/me/settings");
+          const settings = settingsRes.ok ? await settingsRes.json() : { city: "ho_chi_minh" };
+          const res = await fetch(`/api/v1/weather?city=${settings.city}`);
           if (res.ok) {
             this.care.weather = await res.json();
           } else {
