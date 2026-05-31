@@ -50,7 +50,7 @@ const initialData = JSON.stringify({
       <template x-if="latest && view === 'home'">
         <div class="rounded-2xl p-5 shadow-md text-white mb-4" :class="colorClass(latest.level)">
           <div class="flex items-start gap-3">
-            <span class="text-4xl" x-text="labels[latest.level]?.emoji"></span>
+            <span class="inline-block w-9 h-9 shrink-0" x-html="severityDot(labels[latest.level]?.color)"></span>
             <div class="flex-1 min-w-0">
               <p class="text-xs uppercase opacity-90">Lần gần nhất</p>
               <p class="text-xl font-extrabold" x-text="`${latest.pct_score}% · ${labels[latest.level]?.label}`"></p>
@@ -107,7 +107,7 @@ const initialData = JSON.stringify({
       <template x-if="view === 'result' && submittedResult">
         <div>
           <div class="rounded-3xl p-6 text-white shadow-2xl mb-4" :class="colorClass(submittedResult.level)">
-            <p class="text-7xl text-center mb-3" x-text="labels[submittedResult.level]?.emoji"></p>
+            <div class="w-16 h-16 mx-auto mb-3" x-html="severityDot(labels[submittedResult.level]?.color)"></div>
             <p class="text-center text-sm opacity-90 uppercase">Mobility Score</p>
             <p class="text-center text-5xl font-extrabold mt-1" x-text="`${submittedResult.pct_score}%`"></p>
             <p class="text-center text-xl font-bold mt-2" x-text="labels[submittedResult.level]?.label"></p>
@@ -146,6 +146,12 @@ const initialData = JSON.stringify({
           if (level === "limited") return "bg-gradient-to-br from-orange-500 to-red-500";
           if (level === "severely_limited") return "bg-gradient-to-br from-red-600 to-rose-700";
           return "bg-slate-500";
+        },
+
+        // v222: chấm severity SVG (circle-filled) theo tier color — render x-html. Đĩa trắng ngoài cho nổi trên nền card màu.
+        severityDot(color) {
+          const tone = ({ emerald: "text-emerald-500", yellow: "text-amber-500", orange: "text-orange-500", red: "text-red-500" })[color] || "text-slate-400";
+          return '<svg class="' + tone + ' w-full h-full" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="white"/><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>';
         },
 
         fmtDate(iso) {
