@@ -62,8 +62,8 @@ const initialData = JSON.stringify({
 
       {/* v104: HERO TROPHY VAULT — ring + stats + Pet Score bonus */}
       <section class="relative rounded-3xl bg-mmp-ink text-white overflow-hidden mb-5 shadow-md">
-        <div aria-hidden="true" class="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
-        <div aria-hidden="true" class="absolute -bottom-12 -left-12 w-40 h-40 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(180,134,8,0.25) 0%, transparent 70%);"></div>
+        <div aria-hidden="true" class="ach-glow-1 absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(236,185,33,0.4) 0%, transparent 70%);"></div>
+        <div aria-hidden="true" class="ach-glow-2 absolute -bottom-12 -left-12 w-40 h-40 rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(180,134,8,0.25) 0%, transparent 70%);"></div>
 
         <div class="relative p-5 sm:p-6">
           <div class="flex items-center gap-4 mb-4">
@@ -72,12 +72,13 @@ const initialData = JSON.stringify({
               <svg viewBox="0 0 100 100" style="position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
                 <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(236,185,33,0.18)" stroke-width="6"/>
                 <circle cx="50" cy="50" r="44" fill="none" stroke="#ecb921" stroke-width="6" stroke-linecap="round"
-                  stroke-dasharray={`${(unlockedPct / 100) * 276} 276`}
+                  x-ref="ring"
+                  stroke-dasharray="0 276"
                   style="transition: stroke-dasharray 0.8s cubic-bezier(0.22, 0.61, 0.36, 1); filter: drop-shadow(0 0 6px rgba(236,185,33,0.5));"/>
               </svg>
               <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
                 <p class="font-display italic font-bold tabular-nums leading-none" style="color: #ffffff; font-size: 28px;">
-                  <span x-text="summary.unlocked_count"></span>
+                  <span x-text="displayCount"></span>
                 </p>
                 <p class="text-[10px] italic leading-none mt-0.5 text-white/65">
                   / <span x-text="summary.total"></span>
@@ -148,11 +149,14 @@ const initialData = JSON.stringify({
 
       {/* v104: Grid — brand tier colors, Lucide via emoji map */}
       <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-3">
-        <template x-for="ach in filteredAchievements" :key="ach.code">
-          <div :class="cardClasses(ach)"
+        <template x-for="(ach, achIdx) in filteredAchievements" :key="ach.code">
+          <div :class="cardClasses(ach)" :style="`animation-delay: ${Math.min(achIdx * 55, 900)}ms`"
             class="ach-card aspect-square rounded-2xl p-2 sm:p-3 flex flex-col items-center justify-center text-center border-2 transition relative overflow-hidden">
             <template x-if="!ach.viewed && ach.unlocked">
               <span class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full animate-pulse-gold z-10" style="background: #ecb921; box-shadow: 0 0 6px rgba(236,185,33,0.8);"></span>
+            </template>
+            <template x-if="burstCodes[ach.code]">
+              <span class="ach-burst" aria-hidden="true"></span>
             </template>
             <span class="ach-icon inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 z-10"
               :class="ach.unlocked ? '' : 'grayscale opacity-40'"
@@ -271,6 +275,8 @@ const initialData = JSON.stringify({
         summary: initial.summary,
         filter: 'all',
         socialProof: {},
+        displayCount: 0,
+        burstCodes: {},
         renderIcon: renderAchIcon,
 
         categories: [
@@ -285,6 +291,47 @@ const initialData = JSON.stringify({
 
         renderCatIcon(key) {
           return CAT_LUCIDE[key] || '';
+        },
+
+        // v256 WOW: entrance (count-up + ring draw) + unlock burst gating. Reduced-motion → giá trị cuối tức thì.
+        init() {
+          const rm = (typeof window !== 'undefined' && window.matchMedia)
+            ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+          const total = (this.summary && this.summary.total) || 0;
+          const count = (this.summary && this.summary.unlocked_count) || 0;
+
+          // A: count-up số (reduced-motion / 0 → hiện thẳng, không tween)
+          if (rm || count === 0) {
+            this.displayCount = count;
+          } else {
+            const dur = 900, t0 = performance.now();
+            const tick = (now) => {
+              const p = Math.min(1, (now - t0) / dur);
+              this.displayCount = Math.round(count * (1 - Math.pow(1 - p, 3)));
+              if (p < 1) requestAnimationFrame(tick);
+              else this.displayCount = count;
+            };
+            requestAnimationFrame(tick);
+          }
+
+          // A: ring vẽ-dần — SSR bắt đầu "0 276", fill tới target (reduced-motion → tắt transition, hiện thẳng)
+          this.$nextTick(() => {
+            const ring = this.$refs.ring;
+            if (!ring) return;
+            const target = (total > 0 ? (count / total) * 276 : 0).toFixed(2) + ' 276';
+            if (rm) { ring.style.transition = 'none'; ring.style.strokeDasharray = target; }
+            else { requestAnimationFrame(() => { ring.style.strokeDasharray = target; }); }
+          });
+
+          // B: unlock burst — badge vừa-đạt (!viewed && unlocked), CHỈ load window (clear sau 1.6s → đổi tab KHÔNG burst lại), bỏ qua nếu reduced-motion
+          if (!rm) {
+            const codes = {};
+            for (const a of this.achievements) {
+              if (a.unlocked && !a.viewed) codes[a.code] = true;
+            }
+            this.burstCodes = codes;
+            setTimeout(() => { this.burstCodes = {}; }, 1600);
+          }
         },
 
         async loadSocialProof() {
@@ -398,8 +445,62 @@ const initialData = JSON.stringify({
       transform: translateY(-2px);
     }
 
+    /* === WOW v256: entrance (A) + tier glow + unlock burst (B) === */
+    /* A: grid stagger entrance — delay per-card qua :style index (cap 560ms → tổng <1s) */
+    @keyframes ach-card-in {
+      from { opacity: 0; transform: translateY(10px) scale(0.96); }
+      to   { opacity: 1; transform: none; }
+    }
+    .ach-card { animation: ach-card-in 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+    /* A: header gold radial shimmer — chậm, ấm sang */
+    @keyframes ach-glow-pulse {
+      0%, 100% { opacity: 0.86; transform: scale(1); }
+      50%      { opacity: 1;    transform: scale(1.025); }
+    }
+    .ach-glow-1 { animation: ach-glow-pulse 8s ease-in-out infinite; }
+    .ach-glow-2 { animation: ach-glow-pulse 9s ease-in-out infinite; animation-delay: 0.8s; }
+
+    /* B: unlocked tier glow — vàng/bạch-kim lung linh hơn đồng/bạc (combined với entrance) */
+    @keyframes ach-glow-gold {
+      0%, 100% { box-shadow: 0 4px 12px rgba(236, 185, 33, 0.18); }
+      50%      { box-shadow: 0 4px 16px rgba(236, 185, 33, 0.42), 0 0 14px rgba(236, 185, 33, 0.32); }
+    }
+    @keyframes ach-glow-plat {
+      0%, 100% { box-shadow: 0 4px 14px rgba(10, 10, 10, 0.32), 0 0 18px rgba(236, 185, 33, 0.2); }
+      50%      { box-shadow: 0 4px 14px rgba(10, 10, 10, 0.32), 0 0 28px rgba(236, 185, 33, 0.48); }
+    }
+    .ach-card--gold     { animation: ach-card-in 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both, ach-glow-gold 3s ease-in-out infinite; }
+    .ach-card--platinum { animation: ach-card-in 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both, ach-glow-plat 3.4s ease-in-out infinite; }
+
+    /* B: unlock burst — ring vàng + 4 tia sáng (chỉ !viewed unlocked, load window qua burstCodes) */
+    .ach-burst { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 6; }
+    .ach-burst::before {
+      content: ''; position: absolute; left: 50%; top: 44%; width: 44%; height: 44%;
+      margin: -22% 0 0 -22%; border: 2px solid rgba(236, 185, 33, 0.9); border-radius: 9999px;
+      opacity: 0; animation: ach-burst-ring 0.9s ease-out;
+    }
+    @keyframes ach-burst-ring {
+      0%   { transform: scale(0.3); opacity: 0.95; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    .ach-burst::after {
+      content: ''; position: absolute; left: 50%; top: 44%; width: 3px; height: 3px;
+      margin: -1.5px 0 0 -1.5px; border-radius: 9999px; opacity: 0; animation: ach-burst-spark 0.9s ease-out;
+    }
+    @keyframes ach-burst-spark {
+      0%   { opacity: 1; box-shadow: 0 0 0 0 rgba(236,185,33,0.95), 0 0 0 0 rgba(236,185,33,0.95), 0 0 0 0 rgba(236,185,33,0.95), 0 0 0 0 rgba(236,185,33,0.95); }
+      100% { opacity: 0; box-shadow: -15px -13px 0 0 rgba(236,185,33,0), 15px -13px 0 0 rgba(236,185,33,0), -15px 13px 0 0 rgba(236,185,33,0), 15px 13px 0 0 rgba(236,185,33,0); }
+    }
+
+    /* Reduced-motion (bài học v211): tắt MỌI animation mới. Count-up + ring xử riêng trong JS → hiện thẳng giá trị cuối (KHÔNG tween). */
     @media (prefers-reduced-motion: reduce) {
-      .animate-pulse-gold { animation: none; }
+      .animate-pulse-gold,
+      .ach-glow-1, .ach-glow-2,
+      .ach-card, .ach-card--gold, .ach-card--platinum,
+      .ach-burst::before, .ach-burst::after {
+        animation: none !important;
+      }
       .ach-card { transition: none; }
     }
   `}</style>
