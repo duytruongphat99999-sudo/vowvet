@@ -159,7 +159,7 @@ const initialData = JSON.stringify({
 
         // v222: chấm severity SVG (circle-filled) theo tier color — render x-html. Đĩa trắng ngoài cho nổi trên nền card màu.
         severityDot(color) {
-          const tone = ({ emerald: "text-emerald-500", yellow: "text-amber-500", orange: "text-orange-500", red: "text-red-500" })[color] || "text-slate-400";
+          const tone = ({ emerald: "text-emerald-500", amber: "text-amber-500", yellow: "text-amber-500", orange: "text-orange-500", red: "text-red-500" })[color] || "text-slate-400";
           return '<svg class="' + tone + ' w-full h-full" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="white"/><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>';
         },
 
