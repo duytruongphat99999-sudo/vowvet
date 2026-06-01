@@ -438,8 +438,12 @@ const initialData = JSON.stringify({
         },
 
         get years() {
-          const y = this.curYear;
-          return [y, y - 1, y - 2];
+          // Năm bắt đầu yearbook: không bao giờ tụt dưới 2026, tự trôi theo thời gian
+          var startYear = Math.max(2026, new Date().getFullYear());
+          // 4 năm: [startYear .. startYear+3]
+          var yearbookYears = [];
+          for (var i = 0; i < 4; i++) { yearbookYears.push(startYear + i); }
+          return yearbookYears;
         },
 
         onMount() {
