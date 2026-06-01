@@ -9,6 +9,7 @@
  *   today     — Birthday! (confetti, Gemini narrative, wishes wall)
  */
 import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -111,20 +112,20 @@ const initialData = JSON.stringify({
 
       <!-- Header -->
       <header class="flex items-center justify-between mb-5 gap-3">
-        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
-        <h1 class="text-lg sm:text-xl font-bold text-slate-900">🎂 Sinh nhật</h1>
-        <a href={`/pets/${pet.id}/birthday-party`} class="text-xs text-pink-600 hover:underline font-medium">Party planner →</a>
+        <a href={`/pets/${pet.id}`} class="text-sm text-mmp-ink/60 hover:text-mmp-ink">← {pet.name}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-mmp-ink">🎂 Sinh nhật</h1>
+        <a href={`/pets/${pet.id}/birthday-party`} class="text-xs text-mmp-ink/70 hover:text-mmp-ink hover:underline font-medium">Party planner →</a>
       </header>
 
       <!-- ───── STATE: no_date ───── -->
       {state === "no_date" && (
         <div class="bg-white rounded-3xl border border-dashed border-slate-200 p-10 text-center">
-          <p class="text-5xl mb-4">🐾</p>
-          <h2 class="text-xl font-bold text-slate-800 mb-2">Chưa có ngày sinh nhật</h2>
-          <p class="text-slate-500 text-sm mb-6">Thêm ngày sinh để xem đếm ngược, nhận nhắc nhở và tổ chức party cho bé.</p>
+          <div class="flex justify-center mb-4"><FeatureIcon name="paw" class="w-12 h-12 text-pink-300" /></div>
+          <h2 class="text-xl font-bold text-mmp-ink mb-2">Chưa có ngày sinh nhật</h2>
+          <p class="text-mmp-ink/55 text-sm mb-6">Thêm ngày sinh để xem đếm ngược, nhận nhắc nhở và tổ chức party cho bé.</p>
           <a href={`/pets/${pet.id}`}
-            class="inline-block bg-pink-500 hover:bg-pink-600 text-white font-semibold px-6 py-3 rounded-xl text-sm transition">
-            ✏️ Thêm ngày sinh
+            class="inline-flex items-center justify-center gap-1.5 bg-pink-500 hover:bg-pink-600 text-white font-semibold px-6 py-3 rounded-xl text-sm transition">
+            <FeatureIcon name="edit-pencil" class="w-4 h-4 shrink-0" />Thêm ngày sinh
           </a>
         </div>
       )}
@@ -144,14 +145,14 @@ const initialData = JSON.stringify({
             <a href={`/pets/${pet.id}/birthday-party`}
               class="bg-white border border-slate-200 rounded-2xl p-4 text-center hover:border-pink-300 hover:bg-pink-50 transition">
               <p class="text-3xl mb-1">🎊</p>
-              <p class="text-sm font-semibold text-slate-800">Party planner</p>
-              <p class="text-xs text-slate-500 mt-0.5">Chuẩn bị party</p>
+              <p class="text-sm font-semibold text-mmp-ink">Party planner</p>
+              <p class="text-xs text-mmp-ink/55 mt-0.5">Chuẩn bị party</p>
             </a>
             <a href={wallUrl} target="_blank"
               class="bg-white border border-slate-200 rounded-2xl p-4 text-center hover:border-pink-300 hover:bg-pink-50 transition">
               <p class="text-3xl mb-1">💌</p>
-              <p class="text-sm font-semibold text-slate-800">Birthday wall</p>
-              <p class="text-xs text-slate-500 mt-0.5">Trang chúc mừng</p>
+              <p class="text-sm font-semibold text-mmp-ink">Birthday wall</p>
+              <p class="text-xs text-mmp-ink/55 mt-0.5">Trang chúc mừng</p>
             </a>
           </div>
         </div>
@@ -171,22 +172,22 @@ const initialData = JSON.stringify({
           </div>
 
           <!-- Share wall card -->
-          <div class="bg-gradient-to-br from-violet-50 to-pink-50 border-2 border-violet-200 rounded-2xl p-5">
-            <h2 class="text-base font-bold text-violet-900 mb-1">💌 Mời bạn bè chúc mừng bé</h2>
-            <p class="text-xs text-violet-700 mb-3">Chia sẻ link birthday wall — bạn bè để lại lời chúc, bé sẽ thấy vào đúng ngày sinh nhật 🎉</p>
-            <div class="bg-white border border-violet-300 rounded-xl p-3 flex items-center gap-2 mb-3">
-              <code class="text-xs text-violet-800 flex-1 truncate" x-text="wallUrl"></code>
+          <div class="bg-white border border-mmp-cream rounded-2xl p-5">
+            <h2 class="text-base font-bold text-mmp-ink mb-1">💌 Mời bạn bè chúc mừng bé</h2>
+            <p class="text-xs text-mmp-ink/70 mb-3">Chia sẻ link birthday wall — bạn bè để lại lời chúc, bé sẽ thấy vào đúng ngày sinh nhật 🎉</p>
+            <div class="bg-white border border-mmp-cream rounded-xl p-3 flex items-center gap-2 mb-3">
+              <code class="text-xs text-mmp-ink flex-1 truncate" x-text="wallUrl"></code>
               <button @click="copyWallUrl()"
-                class="shrink-0 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
-                <span x-show="!wallCopied">📋 Copy</span>
-                <span x-show="wallCopied">✓ Copied!</span>
+                class="shrink-0 bg-mmp-ink hover:bg-mmp-ink/90 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
+                <span x-show="!wallCopied" class="inline-flex items-center gap-1"><FeatureIcon name="copy" class="w-3.5 h-3.5 shrink-0" />Copy</span>
+                <span x-show="wallCopied" class="inline-flex items-center gap-1"><FeatureIcon name="check" class="w-3.5 h-3.5 shrink-0" />Copied!</span>
               </button>
             </div>
             <div class="flex gap-2">
               <a :href="`https://zalo.me/share/url?url=${encodeURIComponent(wallUrl)}&title=${encodeURIComponent('🎂 Sinh nhật bé ' + birthday.pet_name + '! Để lại lời chúc nhé!')}`"
                 target="_blank"
-                class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-center text-xs font-semibold py-2 rounded-lg">
-                📲 Chia sẻ Zalo
+                class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold py-2 rounded-lg inline-flex items-center justify-center gap-1.5">
+                <FeatureIcon name="send" class="w-4 h-4 shrink-0" />Chia sẻ Zalo
               </a>
               <button @click="shareFacebook()"
                 class="flex-1 bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs font-semibold py-2 rounded-lg">
@@ -198,19 +199,19 @@ const initialData = JSON.stringify({
           <!-- Wishes preview -->
           <template x-if="wishes.length > 0">
             <div class="bg-white rounded-2xl border border-slate-100 p-4">
-              <h2 class="text-sm font-semibold text-slate-900 mb-3">💌 Lời chúc sớm (<span x-text="wishes.length"></span>)</h2>
+              <h2 class="text-sm font-semibold text-mmp-ink mb-3">💌 Lời chúc sớm (<span x-text="wishes.length"></span>)</h2>
               <div class="space-y-2">
                 <template x-for="w in wishes.slice(0, 3)" :key="w.created_at">
                   <div class="bg-pink-50 rounded-xl p-3 flex items-start gap-2">
                     <span class="text-xl" x-text="w.emoji"></span>
                     <div>
-                      <p class="text-xs font-bold text-slate-800" x-text="w.name"></p>
-                      <p class="text-xs text-slate-600 mt-0.5" x-text="w.message"></p>
+                      <p class="text-xs font-bold text-mmp-ink" x-text="w.name"></p>
+                      <p class="text-xs text-mmp-ink/70 mt-0.5" x-text="w.message"></p>
                     </div>
                   </div>
                 </template>
               </div>
-              <a :href="wallUrl" target="_blank" class="block mt-3 text-center text-xs text-violet-600 hover:underline font-medium">
+              <a :href="wallUrl" target="_blank" class="block mt-3 text-center text-xs text-mmp-ink/70 hover:underline font-medium">
                 Xem tất cả trên birthday wall →
               </a>
             </div>
@@ -244,28 +245,28 @@ const initialData = JSON.stringify({
           <!-- Gemini slideshow narrative -->
           {slideshow && (
             <div class="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-5">
-              <h2 class="text-base font-bold text-amber-900 mb-3">📖 {pet.name} kể chuyện năm qua</h2>
-              <p class="text-sm text-slate-700 leading-relaxed italic whitespace-pre-line">{slideshow}</p>
-              <p class="text-xs text-amber-600 mt-3 text-right">✨ Được tạo bởi Mon Min AI</p>
+              <h2 class="text-base font-bold text-amber-900 mb-3 inline-flex items-center gap-1.5"><FeatureIcon name="book-open" class="w-4 h-4 shrink-0" />{pet.name} kể chuyện năm qua</h2>
+              <p class="text-sm text-mmp-ink/70 leading-relaxed italic whitespace-pre-line">{slideshow}</p>
+              <p class="text-xs text-amber-600 mt-3 inline-flex items-center gap-1 w-full justify-end"><FeatureIcon name="sparkles" class="w-3 h-3 shrink-0" />Được tạo bởi Mon Min AI</p>
             </div>
           )}
 
           <!-- Birthday card + download -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5">
-            <h2 class="text-base font-semibold text-slate-900 mb-3">🖼️ Card sinh nhật</h2>
+            <h2 class="text-base font-semibold text-mmp-ink mb-3 inline-flex items-center gap-1.5"><FeatureIcon name="image" class="w-4 h-4 shrink-0" />Card sinh nhật</h2>
             <div class="bg-gradient-to-br from-pink-100 to-orange-100 rounded-xl p-2">
               <img src={cardUrl} alt="Birthday card" class="w-full rounded-lg shadow"
                 onerror="this.style.display='none'" />
             </div>
             <div class="flex gap-2 mt-3">
               <a href={cardUrl} download={`birthday-${pet.name}.svg`}
-                class="flex-1 bg-pink-500 hover:bg-pink-600 text-white text-center font-semibold py-2.5 rounded-lg text-sm">
-                ⬇️ Tải card
+                class="flex-1 bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2.5 rounded-lg text-sm inline-flex items-center justify-center gap-1.5">
+                <FeatureIcon name="download" class="w-4 h-4 shrink-0" />Tải card
               </a>
               <button @click="shareCard()"
                 class="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2.5 rounded-lg text-sm">
-                <span x-show="!cardShared">📤 Share</span>
-                <span x-show="cardShared">✓ Copied!</span>
+                <span x-show="!cardShared" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="share" class="w-4 h-4 shrink-0" />Share</span>
+                <span x-show="cardShared" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="check" class="w-4 h-4 shrink-0" />Copied!</span>
               </button>
             </div>
           </div>
@@ -273,12 +274,12 @@ const initialData = JSON.stringify({
           <!-- Birthday wall -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5">
             <div class="flex items-center justify-between mb-3">
-              <h2 class="text-base font-semibold text-slate-900">💌 Lời chúc từ bạn bè (<span x-text="wishes.length"></span>)</h2>
-              <a :href="wallUrl" target="_blank" class="text-xs text-violet-600 hover:underline">Mở wall →</a>
+              <h2 class="text-base font-semibold text-mmp-ink">💌 Lời chúc từ bạn bè (<span x-text="wishes.length"></span>)</h2>
+              <a :href="wallUrl" target="_blank" class="text-xs text-mmp-ink/70 hover:underline">Mở wall →</a>
             </div>
 
             <template x-if="wishes.length === 0">
-              <p class="text-sm text-slate-400 text-center py-6 italic">Chưa có lời chúc nào. Chia sẻ link để bạn bè chúc mừng bé!</p>
+              <p class="text-sm text-mmp-ink/45 text-center py-6 italic">Chưa có lời chúc nào. Chia sẻ link để bạn bè chúc mừng bé!</p>
             </template>
 
             <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -286,9 +287,9 @@ const initialData = JSON.stringify({
                 <div class="bg-pink-50 rounded-xl p-3 flex items-start gap-2">
                   <span class="text-xl shrink-0" x-text="w.emoji"></span>
                   <div class="min-w-0">
-                    <p class="text-xs font-bold text-slate-800" x-text="w.name"></p>
-                    <p class="text-xs text-slate-600 mt-0.5" x-text="w.message"></p>
-                    <p class="text-[10px] text-slate-400 mt-1" x-text="fmtTime(w.created_at)"></p>
+                    <p class="text-xs font-bold text-mmp-ink" x-text="w.name"></p>
+                    <p class="text-xs text-mmp-ink/70 mt-0.5" x-text="w.message"></p>
+                    <p class="text-[10px] text-mmp-ink/45 mt-1" x-text="fmtTime(w.created_at)"></p>
                   </div>
                 </div>
               </template>
@@ -296,14 +297,14 @@ const initialData = JSON.stringify({
 
             <!-- Share wall link -->
             <div class="mt-4 pt-4 border-t border-slate-100">
-              <p class="text-xs text-slate-500 mb-2">Mời bạn bè để lại lời chúc:</p>
+              <p class="text-xs text-mmp-ink/55 mb-2">Mời bạn bè để lại lời chúc:</p>
               <div class="flex gap-2">
                 <input type="text" :value="wallUrl" readonly
-                  class="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 truncate" />
+                  class="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-mmp-ink/70 truncate" />
                 <button @click="copyWallUrl()"
-                  class="shrink-0 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-2 rounded-lg">
+                  class="shrink-0 bg-mmp-ink hover:bg-mmp-ink/90 text-white text-xs font-semibold px-3 py-2 rounded-lg">
                   <span x-show="!wallCopied">Copy</span>
-                  <span x-show="wallCopied">✓</span>
+                  <span x-show="wallCopied" class="inline-flex items-center"><FeatureIcon name="check" class="w-3.5 h-3.5 shrink-0" /></span>
                 </button>
               </div>
             </div>
