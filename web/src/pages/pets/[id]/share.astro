@@ -5,6 +5,7 @@
  * Toggle is_public + edit bio/quote + preview + QR + stats.
  */
 import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -48,19 +49,19 @@ const initialData = JSON.stringify({
   <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-12">
     <div class="max-w-2xl mx-auto" x-data={`sharePage(${initialData})`}>
       <header class="flex items-center justify-between mb-6 gap-3">
-        <a href={`/pets/${pet.id}`} class="text-sm text-slate-500 hover:text-slate-700">← {pet.name}</a>
-        <h1 class="text-lg sm:text-xl font-bold text-slate-900">🌐 Public Profile</h1>
+        <a href={`/pets/${pet.id}`} class="text-sm text-mmp-ink/60 hover:text-mmp-ink">← {pet.name}</a>
+        <h1 class="text-lg sm:text-xl font-bold text-mmp-ink inline-flex items-center gap-1.5"><FeatureIcon name="globe" class="w-5 h-5 shrink-0" />Public Profile</h1>
         <span class="w-12"></span>
       </header>
 
       <!-- Toggle main switch -->
-      <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+      <section class="bg-white rounded-2xl border border-mmp-cream p-5 mb-4">
         <div class="flex items-start gap-3">
           <div class="flex-1 min-w-0">
-            <h2 class="font-bold text-slate-900">Public profile</h2>
-            <p class="text-sm text-slate-600 mt-1">
+            <h2 class="font-bold text-mmp-ink">Public profile</h2>
+            <p class="text-sm text-mmp-ink/70 mt-1">
               Profile bé sẽ visible với mọi người có link.
-              <strong class="text-slate-900">Health data + thông tin cá nhân KHÔNG bị share.</strong>
+              <strong class="text-mmp-ink">Health data + thông tin cá nhân KHÔNG bị share.</strong>
             </p>
           </div>
           <button @click="toggle()" :disabled="toggling"
@@ -73,23 +74,23 @@ const initialData = JSON.stringify({
 
         <!-- URL display when enabled -->
         <template x-if="state.is_public && state.public_url">
-          <div class="mt-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
-            <p class="text-xs text-sky-700 uppercase tracking-wider font-semibold mb-1">URL public</p>
+          <div class="mt-4 p-3 bg-mmp-cream border border-mmp-gold/30 rounded-lg">
+            <p class="text-xs text-mmp-ink/70 uppercase tracking-wider font-semibold mb-1">URL public</p>
             <div class="flex items-center gap-2">
-              <code class="flex-1 font-mono text-xs text-slate-900 truncate" x-text="state.public_url"></code>
-              <button @click="copyUrl()" class="text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold px-3 py-1 rounded shrink-0">
+              <code class="flex-1 font-mono text-xs text-mmp-ink truncate" x-text="state.public_url"></code>
+              <button @click="copyUrl()" class="text-xs bg-mmp-ink hover:bg-mmp-ink/90 text-white font-semibold px-3 py-1 rounded shrink-0">
                 <span x-show="!urlCopied">Copy</span>
-                <span x-show="urlCopied">✓</span>
+                <span x-show="urlCopied" class="inline-flex items-center"><FeatureIcon name="check" class="w-4 h-4" /></span>
               </button>
             </div>
             <div class="mt-3 flex gap-2">
               <a :href="state.public_url" target="_blank" rel="noopener"
-                class="flex-1 text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2 rounded text-center transition">
-                👁️ Preview
+                class="flex-1 text-xs bg-white border border-mmp-cream hover:bg-mmp-cream text-mmp-ink font-semibold py-2 rounded text-center transition inline-flex items-center justify-center gap-1.5">
+                <FeatureIcon name="eye" class="w-4 h-4 shrink-0" />Preview
               </a>
               <button @click="showQrModal = true"
-                class="flex-1 text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 rounded transition">
-                📱 QR
+                class="flex-1 text-xs bg-mmp-ink hover:bg-mmp-ink/90 text-white font-semibold py-2 rounded transition inline-flex items-center justify-center gap-1.5">
+                <FeatureIcon name="smartphone" class="w-4 h-4 shrink-0" />QR
               </button>
             </div>
           </div>
@@ -98,50 +99,50 @@ const initialData = JSON.stringify({
 
       <!-- Bio + quote editor (only show khi enabled) -->
       <template x-if="state.is_public">
-        <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-          <h2 class="text-base font-semibold text-slate-900 mb-3">✏️ Nội dung public</h2>
+        <section class="bg-white rounded-2xl border border-mmp-cream p-5 mb-4">
+          <h2 class="text-base font-semibold text-mmp-ink mb-3 inline-flex items-center gap-1.5"><FeatureIcon name="edit-pencil" class="w-4 h-4 shrink-0" />Nội dung public</h2>
 
           <div class="mb-4">
-            <label class="block text-xs text-slate-600 mb-1">
-              Câu của bé <span class="text-slate-400">(thay lời bé nói, tối đa 200 ký tự)</span>
+            <label class="block text-xs text-mmp-ink/70 mb-1">
+              Câu của bé <span class="text-mmp-ink/45">(thay lời bé nói, tối đa 200 ký tự)</span>
             </label>
             <input type="text" x-model="form.public_quote" maxlength="200"
               placeholder="VD: Hôm nay tôi đói lắm rồi 🍴"
-              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:outline-none text-sm" />
-            <p class="text-[10px] text-slate-400 mt-1"><span x-text="(form.public_quote || '').length"></span>/200</p>
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/40 focus:outline-none text-sm" />
+            <p class="text-[10px] text-mmp-ink/45 mt-1"><span x-text="(form.public_quote || '').length"></span>/200</p>
           </div>
 
           <div class="mb-4">
-            <label class="block text-xs text-slate-600 mb-1">
-              Bio <span class="text-slate-400">(giới thiệu về bé, tối đa 500 ký tự)</span>
+            <label class="block text-xs text-mmp-ink/70 mb-1">
+              Bio <span class="text-mmp-ink/45">(giới thiệu về bé, tối đa 500 ký tự)</span>
             </label>
             <textarea x-model="form.public_bio" maxlength="500" rows="4"
               placeholder="VD: Bé Mon thích phơi nắng và ngủ trên bàn phím. Sống cùng gia đình từ 2024..."
-              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:outline-none text-sm resize-none"></textarea>
-            <p class="text-[10px] text-slate-400 mt-1"><span x-text="(form.public_bio || '').length"></span>/500</p>
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-mmp-gold focus:ring-2 focus:ring-mmp-gold/40 focus:outline-none text-sm resize-none"></textarea>
+            <p class="text-[10px] text-mmp-ink/45 mt-1"><span x-text="(form.public_bio || '').length"></span>/500</p>
           </div>
 
           <button @click="saveBio()" :disabled="saving || !dirty"
-            class="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-semibold py-2.5 rounded-lg transition">
+            class="w-full bg-mmp-ink hover:bg-mmp-ink/90 disabled:bg-slate-300 text-white font-semibold py-2.5 rounded-lg transition">
             <span x-show="!saving && !saved">Lưu</span>
             <span x-show="saving">Đang lưu…</span>
-            <span x-show="saved">✓ Đã lưu</span>
+            <span x-show="saved" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="check" class="w-4 h-4 shrink-0" />Đã lưu</span>
           </button>
         </section>
       </template>
 
       <!-- Stats -->
       <template x-if="state.is_public">
-        <section class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-          <h2 class="text-base font-semibold text-slate-900 mb-3">📊 Thống kê</h2>
+        <section class="bg-white rounded-2xl border border-mmp-cream p-5 mb-4">
+          <h2 class="text-base font-semibold text-mmp-ink mb-3 inline-flex items-center gap-1.5"><FeatureIcon name="bar-chart" class="w-4 h-4 shrink-0" />Thống kê</h2>
           <div class="grid grid-cols-2 gap-3">
-            <div class="bg-sky-50 rounded-xl p-3 text-center">
-              <p class="text-[10px] text-sky-700 uppercase tracking-wider">👁️ Lượt xem</p>
-              <p class="text-3xl font-bold text-sky-900" x-text="state.view_count"></p>
+            <div class="bg-mmp-cream border border-mmp-gold/20 rounded-xl p-3 text-center">
+              <p class="text-[10px] text-mmp-ink/70 uppercase tracking-wider inline-flex items-center justify-center gap-1"><FeatureIcon name="eye" class="w-3 h-3 shrink-0" />Lượt xem</p>
+              <p class="text-3xl font-bold text-mmp-ink" x-text="state.view_count"></p>
             </div>
-            <div class="bg-emerald-50 rounded-xl p-3 text-center">
-              <p class="text-[10px] text-emerald-700 uppercase tracking-wider">📤 Lượt share</p>
-              <p class="text-3xl font-bold text-emerald-900" x-text="state.share_count"></p>
+            <div class="bg-mmp-cream border border-mmp-gold/20 rounded-xl p-3 text-center">
+              <p class="text-[10px] text-mmp-ink/70 uppercase tracking-wider inline-flex items-center justify-center gap-1"><FeatureIcon name="share" class="w-3 h-3 shrink-0" />Lượt share</p>
+              <p class="text-3xl font-bold text-mmp-ink" x-text="state.share_count"></p>
             </div>
           </div>
         </section>
@@ -150,8 +151,8 @@ const initialData = JSON.stringify({
       <!-- Disable danger zone -->
       <template x-if="state.is_public">
         <section class="bg-white rounded-2xl border border-red-100 p-5">
-          <h2 class="text-base font-semibold text-red-900 mb-1">⚠️ Tắt public profile</h2>
-          <p class="text-xs text-slate-500 mb-3">Sẽ ẩn profile. Link cũ sẽ 404. Có thể bật lại sau với cùng URL.</p>
+          <h2 class="text-base font-semibold text-red-900 mb-1 inline-flex items-center gap-1.5"><FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0" />Tắt public profile</h2>
+          <p class="text-xs text-mmp-ink/55 mb-3">Sẽ ẩn profile. Link cũ sẽ 404. Có thể bật lại sau với cùng URL.</p>
           <button @click="disableConfirm()" :disabled="toggling"
             class="text-sm bg-red-50 hover:bg-red-100 text-red-700 font-semibold px-4 py-2 rounded-lg">
             Tắt public profile
@@ -161,29 +162,29 @@ const initialData = JSON.stringify({
 
       <!-- Not enabled — info -->
       <template x-if="!state.is_public">
-        <section class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
-          <h2 class="text-base font-semibold text-emerald-900 mb-1">🌱 Chưa bật public profile</h2>
-          <p class="text-sm text-emerald-800 mb-3">Bật để tạo URL share với bạn bè qua TikTok, Zalo, Facebook. Không lo lộ thông tin cá nhân — chỉ ảnh + tên + breed + bio + tính cách được public.</p>
-          <p class="text-xs text-emerald-700">Bật toggle phía trên để bắt đầu.</p>
+        <section class="bg-white border border-mmp-cream rounded-2xl p-5">
+          <h2 class="text-base font-semibold text-mmp-ink mb-1 inline-flex items-center gap-1.5"><FeatureIcon name="leaf" class="w-4 h-4 shrink-0" />Chưa bật public profile</h2>
+          <p class="text-sm text-mmp-ink/70 mb-3">Bật để tạo URL share với bạn bè qua TikTok, Zalo, Facebook. Không lo lộ thông tin cá nhân — chỉ ảnh + tên + breed + bio + tính cách được public.</p>
+          <p class="text-xs text-mmp-ink/55">Bật toggle phía trên để bắt đầu.</p>
         </section>
       </template>
 
       <!-- QR modal -->
       <template x-if="showQrModal && state.public_url">
-        <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" @click.self="showQrModal = false">
+        <div class="fixed inset-0 bg-mmp-ink/60 z-50 flex items-center justify-center p-4" @click.self="showQrModal = false">
           <div class="bg-white rounded-3xl p-6 max-w-sm w-full">
             <div class="flex items-center justify-between mb-4">
-              <h3 class="font-bold text-slate-900">📱 QR Collar</h3>
-              <button @click="showQrModal = false" class="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+              <h3 class="font-bold text-mmp-ink inline-flex items-center gap-1.5"><FeatureIcon name="smartphone" class="w-4 h-4 shrink-0" />QR Collar</h3>
+              <button @click="showQrModal = false" class="text-mmp-ink/45 hover:text-mmp-ink"><FeatureIcon name="close" class="w-5 h-5" /></button>
             </div>
-            <div class="bg-white p-4 rounded-2xl border-2 border-slate-100 flex items-center justify-center">
+            <div class="bg-white p-4 rounded-2xl border-2 border-mmp-cream flex items-center justify-center">
               <canvas x-ref="qrCanvas" width="260" height="260"></canvas>
             </div>
-            <p class="text-xs text-slate-600 mt-4">
+            <p class="text-xs text-mmp-ink/70 mt-4">
               In ra → gắn collar bé. Người nhặt được scan → thấy profile public.
             </p>
-            <button @click="downloadQr()" class="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg text-sm">
-              ⬇️ Tải PNG
+            <button @click="downloadQr()" class="mt-3 w-full bg-mmp-cream hover:bg-mmp-gold/15 text-mmp-ink font-semibold py-2 rounded-lg text-sm inline-flex items-center justify-center gap-1.5">
+              <FeatureIcon name="download" class="w-4 h-4 shrink-0" />Tải PNG
             </button>
           </div>
         </div>
