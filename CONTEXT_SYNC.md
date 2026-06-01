@@ -168,6 +168,7 @@ getComputedStyle(o).display;         // 'block' hay 'none'?
 - **Preview Claude headless = viewport 0×0** → map/animation/transition không render thật; verify được DOM/state/parse nhưng KHÔNG verify được hình → cần mắt user.
 
 **📋 Queue còn lại (chưa làm):** *(map + diary đồng bộ icon/màu → ĐÃ XONG, gỡ khỏi queue)*
+- ✅ **ĐÃ QUYẾT — KHÔNG LÀM: Nhóm C playdate** (chips `looking_for` 🎾🚶🧬✨ + `play_styles` 🎾🤼💨🧘🏊 — phần emoji data-driven còn lại sau khi `/playdate/setup` đã iconify phần còn lại) — **GIỮ emoji có chủ đích.** Lý do: là chip phân loại nội dung (feature hẹn-hò-thú-cưng), emoji màu truyền nghĩa tức thì + hợp tông playful; 3 emoji 🎾🤼🧘 KHÔNG có icon Lucide tương đương → iconify sẽ giảm rõ nghĩa. **Quyết định thiết kế, KHÔNG phải nợ kỹ thuật** (đã gỡ khỏi queue).
 - **playdate / setup / pet 12** brainstorm (cần bồ mô tả trang muốn làm gì).
 - **severity refactor** pain/mobility (gom `severityDot` helper dùng chung, nhận cả `yellow` + `amber`).
 - **Màn admin duyệt place** (CHƯA có): place promote/form tạo `verified=false`; hiện phải đổi cột `verified` thủ công trong Baserow → cân nhắc UI admin (list `verified=false` + duyệt/từ chối). Không gấp.
