@@ -1,8 +1,48 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-06-01**: 🛡️ **Admin duyệt place** (Phase 1 backend `a79b84b` + Phase 3 UI `8b5875f` → `/admin/places`) · 📅 diary year-range động [2026–2029] · 🎨 brand-sync **/playdate/setup** + **/share** (iconify emoji→FeatureIcon + sky/amber→ink/cream + thêm icon `download`) · 🔧 severityDot pain/mobility = cognitive (superset) · 🗺️ nhóm C playdate **ĐÃ QUYẾT giữ emoji** · 💾 git bundle backup · 🕯️🎂🚨 **brand-sync 3 trang cảm xúc** (memorial nến-động · birthday · lost — GIỮ palette+emoji thematic) · 🎂 **cụm BIRTHDAY hoàn tất** (chính + wall tông-ấm + party-nav-fix→`/birthday` + **bánh kem nến-động** v255 + confetti reduced-motion guard). **SW hiện tại = `vowvet-v255-birthday-cake-anim`** · **68 commit local, CHƯA push** (không remote). 〈Chi tiết: xem snapshot **2026-06-01** ngay dưới.〉 *Buổi trước — 2026-05-31 (buổi 3):* 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại) · 📔 **diary DONE ALL** (mood→face icon + UI emoji→icon + màu yearbook gold/cream; `10e15bc` + fix mic/màu `22dcc70`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v242-diary-yearbook-gold`** · ~51 commit local, chưa push.
+> Snapshot kỹ thuật — cập nhật **2026-06-01**: 🛡️ **Admin duyệt place** (Phase 1 backend `a79b84b` + Phase 3 UI `8b5875f` → `/admin/places`) · 📅 diary year-range động [2026–2029] · 🎨 brand-sync **/playdate/setup** + **/share** (iconify emoji→FeatureIcon + sky/amber→ink/cream + thêm icon `download`) · 🔧 severityDot pain/mobility = cognitive (superset) · 🗺️ nhóm C playdate **ĐÃ QUYẾT giữ emoji** · 💾 git bundle backup · 🕯️🎂🚨 **brand-sync 3 trang cảm xúc** (memorial nến-động · birthday · lost — GIỮ palette+emoji thematic) · 🎂 **cụm BIRTHDAY hoàn tất** (chính + wall tông-ấm + party-nav-fix→`/birthday` + **bánh kem nến-động** v255 + confetti reduced-motion guard) · ⭐ **Achievements WOW** (`273f558`, v257 — entrance shimmer/ring/count-up/stagger + unlock glow/burst, reduced-motion safe) · 🔍 **recon /food-brands** (công thức RER/DER + data layer — chuẩn bị audit dinh dưỡng, CHƯA code). **SW hiện tại = `vowvet-v257-achievements-wow`** · **70 commit local, CHƯA push** (không remote). 〈Chi tiết: xem snapshot **2026-06-01** ngay dưới.〉 *Buổi trước — 2026-05-31 (buổi 3):* 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại) · 📔 **diary DONE ALL** (mood→face icon + UI emoji→icon + màu yearbook gold/cream; `10e15bc` + fix mic/màu `22dcc70`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v242-diary-yearbook-gold`** · ~51 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
 > Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
+
+---
+
+## 🆕 SESSION MỚI NHẤT (2026-06-01, tiếp) — Achievements WOW + Food-brands recon
+
+> ⚠️ **Đính chính khung "SEO/Schema":** Đây là **VowVet/Mon Min Pet — nền tảng chăm thú cưng** (Astro SSR + Bun + Hono + Baserow + R2 + Gemini), **KHÔNG phải dự án SEO/Schema**. Mục dưới ghi ĐÚNG việc thật của session (animation WOW + recon dinh dưỡng), KHÔNG bịa "tối ưu SEO/Schema". *(File APPEND theo session — KHÔNG ghi đè, để giữ ngữ cảnh 70 commit.)*
+
+### 1️⃣ Trạng thái hiện tại — ĐÃ XONG (committed)
+- ✅ **Achievements WOW** (`273f558`, SW **v257**) — `web/src/pages/pets/[id]/achievements.astro`:
+  - **A entrance (universal, thấy cả ở 0/20):** header gold shimmer (dịu, 8s/9s, ±0.07 opacity / scale 1.025) · grid stagger cascade (~1.45s, delay `achIdx*55` cap 900ms + fade 0.55s) · ring vẽ-dần (SSR `stroke-dasharray="0 276"` → fill target qua transition 0.8s) · count-up (`displayCount` tween easeOutCubic).
+  - **B celebration (code-SẴN, CHƯA duyệt mắt vì pet 0/20):** unlocked tier glow (gold/platinum lung linh hơn đồng/bạc) · unlock burst (ring vàng + 4 tia, gate `burstCodes` clear sau 1.6s → đổi tab KHÔNG lặp).
+  - **reduced-motion 2 lớp:** CSS `@media(prefers-reduced-motion:reduce){animation:none !important}` + JS `matchMedia` (count-up/ring hiện THẲNG giá trị cuối). Pattern clone từ memorial→birthday.
+- 🔍 **Recon /food-brands ×2 (READ-ONLY, CHƯA code)** — chuẩn bị audit dinh dưỡng. Công thức + data layer ghi ở mục 3.
+- 🩺 **Debug "achievements không hiện hiệu ứng" = BÁO ĐỘNG GIẢ** (KHÔNG phải bug). Nguyên nhân: **env đang bật reduced-motion** (DevTools "emulate prefers-reduced-motion" còn bật sau khi test bước (c), hoặc Windows Animation OFF) → guard tắt ĐÚNG thiết kế. Code đã verify khớp (class/keyframe/guard/init/achIdx). Khắc phục: tắt emulation + Windows Animation ON + Ctrl+Shift+R.
+
+### 2️⃣ Cấu trúc cốt lõi (quy chuẩn — KHÔNG phải "loại Schema")
+- **Animation pattern (proven memorial→birthday→achievements):** `<style>` (scoped) hoặc `<style is:inline>` + `@keyframes` + **BẮT BUỘC `@media (prefers-reduced-motion: reduce){ animation:none !important }`** (bài học v211). Effect chạy bằng JS (count-up/ring) phải tự check `window.matchMedia('(prefers-reduced-motion: reduce)').matches` → hiện giá trị cuối, KHÔNG tween.
+- **Iconify:** emoji UI tiện ích → `<FeatureIcon>` (SSR tĩnh) hoặc SVG-string map + `x-html` (data-driven trong x-for). GIỮ emoji thematic/biểu cảm + emoji user-chọn (picker).
+- **Brand tokens:** mmp-ink/mmp-cream/mmp-gold (#ecb921 / #B48608) · slate→ink ladder (heading→ink, body→ink/70, helper→ink/55, faint→ink/45) · gold KHÔNG dùng cho text trên nền sáng (chìm → amber-500).
+- **Protocol bắt buộc:** recon→report→chờ duyệt→code (chỉ file trong SCOPE)→verify (`node --check` is:inline + restart + curl)→duyệt mắt (animation)→secret-scan (value-focused)→commit local co-author **KHÔNG push** · bump `web/public/sw.js` VERSION mỗi release UI.
+- **Stack:** Astro+Bun :4322 · Hono+Bun :3010 · Baserow :8888 · R2 · Gemini 2.5 Flash. Git **local-only (no remote)**.
+
+### 3️⃣ Lỗi tồn đọng + điểm AUDIT /food-brands (CHƯA fix — chờ chốt)
+- **KHÔNG có bug active** từ achievements (đã verify). reduced-motion "no effects" = env, không phải code.
+- **Điểm cần xử trong audit dinh dưỡng /food-brands** (recon ghi, CHƯA sửa):
+  - ⚠️ **2 công thức gram LỆCH:** Mô-đun 1 (headline 59g/107g) dùng hằng số **DRY 360 / WET 85** kcal/100g · còn card mỗi brand `gramsPerDay` dùng **`calories_per_100g` THẬT** của brand → không nhất quán.
+  - ⚠️ `calories_per_100g` **có thể NULL** ở brand Baserow → card hiện "—".
+  - ⚠️ **DER** = `RER(70×W^0.75) × hệ-số-HARDCODE-theo-BCS` (BCS1=1.8 … 5=1.4 … 9=0.8), **KHÔNG theo neuter/tuổi/activity** (chuẩn MER). Pet record **thiếu field neutered/dob/activity** → muốn MER chuẩn phải thêm field HOẶC cho user chọn trên trang. `life_stage` hiện chỉ là filter thủ công, KHÔNG suy từ tuổi.
+  - ⚠️ **Poop Score** chỉ **cap %fat để LỌC brand** (poop5→10% / poop4→13% / else 22%), KHÔNG đổi kcal.
+  - ⚠️ **compatScore** chưa tính giá/MonMin/life-stage (chỉ allergen −40/cái · sai-loài −50 · mèo-carb>20 −25 · BCS×fat/cal −10→−25).
+  - ⚠️ Cache: comment public.ts ghi "1h" nhưng code `loadFoodBrands` = **24h** (lệch doc).
+  - ⚠️ /food-brands là **M8 cũ — gần như CHƯA brand-sync/iconify** (1797 dòng, 1 file; nhiều `text-slate-*` + emoji 🐶🐱🦴✨🚨📋🔍🏠💬🔬🤖🎯📅 chưa iconify).
+- **Baserow (dọn tay, tồn từ trước):** test rows `places` id25/26/27 (active=false, chưa xoá) + user test `+84900000123`.
+
+### 4️⃣ NEXT STEPS (việc tiếp — chính xác)
+1. **Audit công thức dinh dưỡng /food-brands** — đối chiếu RER/DER (BCS-mult 1.8→0.8) + gram-split (hằng số 360/85) với chuẩn **WSAVA/AAHA**; chốt: hợp nhất 2 công thức gram, xử `calories_per_100g` null, quyết DER nâng-cấp (thêm field neutered/tuổi/activity vào pet HAY cho user chọn). *(Recon xong — chờ bồ chốt hướng trước khi code.)*
+2. **Brand-sync + iconify /food-brands** — sweep `text-slate-*`→ink + iconify emoji utility (giữ thematic) theo pattern các trang đã làm. Bề mặt lớn.
+3. **Duyệt mắt Combo B achievements** — trên 1 pet CÓ badge unlocked thật (glow tier + unlock burst chưa thấy được ở pet 0/20).
+4. **Dọn Baserow** — xoá test rows `places` id25/26/27 + disable user `+84900000123`.
+5. **Backup + push** — tạo git bundle mới (đang trễ ~2-3 commit so với `vowvet-20260601-1911.bundle`@`eb16c3d`) + copy off-machine; cân nhắc GitHub private (**70 commit chưa push, no remote**).
 
 ---
 
