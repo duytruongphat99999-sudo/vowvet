@@ -1,0 +1,218 @@
+---
+/**
+ * /admin/places — Admin duyệt/từ chối place user thêm (Phase 3, M26).
+ *
+ * Guard: frontmatter check ADMIN_PHONES (LỚP UX) → redirect /dashboard nếu non-admin.
+ * AN TOÀN THẬT ở API requireAdmin (GET/POST /admin/places/*, đã verify Phase 1) — defense-in-depth.
+ * SSR fetch pending forward cookie (URL nội bộ vowvet-api:3000); client Alpine verify/reject credentials:include.
+ */
+import Layout from "../../layouts/Layout.astro";
+import FeatureIcon from "../../components/FeatureIcon.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+  .split(",")
+  .map((s: string) => s.trim())
+  .filter(Boolean);
+if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let pending: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/admin/places/pending`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (res.ok) {
+    const j = await res.json();
+    pending = j.places || [];
+  }
+} catch (_) {}
+
+const initialData = JSON.stringify({ pending });
+---
+
+<Layout title="Duyệt địa điểm · VowVet Admin" description="Admin duyệt place user thêm">
+  <main class="min-h-screen bg-mmp-cream px-4 sm:px-6 py-6 pb-16">
+    <div class="max-w-2xl mx-auto" x-data={`adminPlacesPage(${initialData})`}>
+
+      <!-- Toast feedback -->
+      <div x-show="toast" x-cloak x-transition
+        class="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-mmp-ink text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-lg inline-flex items-center gap-1.5 max-w-[90vw]">
+        <FeatureIcon name="check" class="w-4 h-4 shrink-0" /><span x-text="toast" class="truncate"></span>
+      </div>
+
+      <header class="flex items-center justify-between mb-6 gap-3">
+        <a href="/admin" class="text-sm text-mmp-ink/60 hover:text-mmp-ink">← Admin</a>
+        <h1 class="text-lg sm:text-xl font-bold text-mmp-ink inline-flex items-center gap-1.5"><FeatureIcon name="map-pin" class="w-5 h-5 shrink-0" />Duyệt địa điểm</h1>
+        <button @click="reload()" :disabled="loading" title="Tải lại"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-xl text-mmp-ink/65 hover:text-mmp-ink hover:bg-mmp-gold/15 transition disabled:opacity-50">
+          <FeatureIcon name="refresh" class="w-5 h-5" />
+        </button>
+      </header>
+
+      <p x-show="places.length > 0" class="text-sm text-mmp-ink/70 mb-4">
+        <span x-text="places.length"></span> địa điểm chờ duyệt
+      </p>
+
+      <!-- Empty state -->
+      <template x-if="places.length === 0">
+        <div class="bg-white border border-mmp-cream rounded-2xl p-10 text-center">
+          <div class="w-14 h-14 mx-auto mb-3 text-mmp-ink/30"><FeatureIcon name="clipboard-check" class="w-full h-full" /></div>
+          <p class="font-bold text-mmp-ink">Không có địa điểm chờ duyệt</p>
+          <p class="text-sm text-mmp-ink/55 mt-1">Place do người dùng thêm sẽ hiện ở đây để bạn duyệt.</p>
+        </div>
+      </template>
+
+      <!-- Pending list -->
+      <div class="space-y-3">
+        <template x-for="p in places" :key="p.id">
+          <div class="bg-white border border-mmp-cream rounded-2xl p-4 transition duration-300"
+            :class="p._removing ? 'opacity-0 scale-95' : 'opacity-100'">
+            <div class="flex gap-3">
+              <!-- Thumbnail -->
+              <div class="w-16 h-16 shrink-0 rounded-xl bg-mmp-cream border border-mmp-gold/20 overflow-hidden flex items-center justify-center text-mmp-ink/30">
+                <template x-if="p.photo_urls && p.photo_urls.length">
+                  <img :src="p.photo_urls[0]" :alt="p.name" class="w-full h-full object-cover" />
+                </template>
+                <template x-if="!p.photo_urls || !p.photo_urls.length">
+                  <FeatureIcon name="image" class="w-6 h-6" />
+                </template>
+              </div>
+              <!-- Info -->
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-mmp-ink truncate" x-text="p.name"></p>
+                <p class="text-sm text-mmp-ink/70 truncate" x-text="p.address"></p>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] text-mmp-ink/55">
+                  <span class="inline-flex items-center bg-mmp-cream px-2 py-0.5 rounded-full font-semibold text-mmp-ink/70" x-text="catLabel(p.category)"></span>
+                  <span x-text="'User #' + (p.created_by || '?')"></span>
+                  <span x-text="fmtDate(p.created_at)"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2 mt-3">
+              <button @click="verify(p)" :disabled="p._busy"
+                class="flex-1 bg-mmp-ink hover:bg-mmp-ink/90 disabled:opacity-50 text-white text-sm font-bold py-2 rounded-lg inline-flex items-center justify-center gap-1.5">
+                <FeatureIcon name="check" class="w-4 h-4 shrink-0" />
+                <span x-text="p._busy === 'verify' ? 'Đang duyệt…' : 'Duyệt'"></span>
+              </button>
+
+              <!-- Từ chối: 2 bước inline -->
+              <template x-if="!p._confirmReject">
+                <button @click="p._confirmReject = true" :disabled="p._busy"
+                  class="flex-1 bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-700 text-sm font-bold py-2 rounded-lg inline-flex items-center justify-center gap-1.5">
+                  <FeatureIcon name="ban" class="w-4 h-4 shrink-0" />Từ chối
+                </button>
+              </template>
+              <template x-if="p._confirmReject">
+                <div class="flex-1 flex gap-2">
+                  <button @click="reject(p)" :disabled="p._busy"
+                    class="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-lg"
+                    x-text="p._busy === 'reject' ? 'Đang ẩn…' : 'Chắc chắn ẩn?'"></button>
+                  <button @click="p._confirmReject = false" :disabled="p._busy"
+                    class="px-3 bg-mmp-cream hover:bg-mmp-gold/15 disabled:opacity-50 text-mmp-ink/70 text-xs font-bold py-2 rounded-lg">Huỷ</button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+    </div>
+  </main>
+
+  <script is:inline>
+    function adminPlacesPage(initial) {
+      return {
+        places: (initial.pending || []).map(function (p) {
+          return Object.assign({}, p, { _busy: "", _confirmReject: false, _removing: false });
+        }),
+        loading: false,
+        toast: "",
+        _toastTimer: 0,
+
+        catLabel(c) {
+          var M = {
+            cafe: "Quán cà phê", restaurant: "Nhà hàng", vet: "Thú y", park: "Công viên",
+            pet_shop: "Cửa hàng thú cưng", grooming: "Spa / Grooming", hotel: "Khách sạn",
+            beach: "Bãi biển", other: "Khác",
+          };
+          return M[c] || c || "—";
+        },
+
+        fmtDate(iso) {
+          if (!iso) return "—";
+          try {
+            return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+          } catch (_) {
+            return iso;
+          }
+        },
+
+        showToast(msg) {
+          this.toast = msg;
+          clearTimeout(this._toastTimer);
+          this._toastTimer = setTimeout(() => { this.toast = ""; }, 2400);
+        },
+
+        // Fade-out chủ đích (300ms) rồi xoá card khỏi list
+        _remove(p) {
+          p._removing = true;
+          setTimeout(() => {
+            this.places = this.places.filter((x) => x.id !== p.id);
+          }, 300);
+        },
+
+        async verify(p) {
+          if (p._busy) return;
+          p._busy = "verify";
+          try {
+            const res = await fetch(`/api/v1/admin/places/${p.id}/verify`, { method: "POST", credentials: "include" });
+            if (!res.ok) { p._busy = ""; this.showToast("Lỗi duyệt (HTTP " + res.status + ")"); return; }
+            this.showToast("✓ Đã duyệt: " + p.name);
+            this._remove(p);
+          } catch (_) {
+            p._busy = "";
+            this.showToast("Lỗi kết nối");
+          }
+        },
+
+        async reject(p) {
+          if (p._busy) return;
+          p._busy = "reject";
+          try {
+            const res = await fetch(`/api/v1/admin/places/${p.id}/reject`, { method: "POST", credentials: "include" });
+            if (!res.ok) { p._busy = ""; this.showToast("Lỗi từ chối (HTTP " + res.status + ")"); return; }
+            this.showToast("Đã ẩn: " + p.name);
+            this._remove(p);
+          } catch (_) {
+            p._busy = "";
+            this.showToast("Lỗi kết nối");
+          }
+        },
+
+        async reload() {
+          if (this.loading) return;
+          this.loading = true;
+          try {
+            const res = await fetch("/api/v1/admin/places/pending", { credentials: "include" });
+            if (res.ok) {
+              const j = await res.json();
+              this.places = (j.places || []).map(function (p) {
+                return Object.assign({}, p, { _busy: "", _confirmReject: false, _removing: false });
+              });
+            }
+          } catch (_) {
+          } finally {
+            this.loading = false;
+          }
+        },
+      };
+    }
+  </script>
+</Layout>
