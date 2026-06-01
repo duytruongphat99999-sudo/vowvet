@@ -7,6 +7,7 @@
  * Visitors can submit a wish (deduplicated by name).
  */
 import Layout from "../../layouts/Layout.astro";
+import FeatureIcon from "../../components/FeatureIcon.astro";
 
 const petId = Number(Astro.params.id);
 if (!petId || isNaN(petId)) return Astro.redirect("/");
@@ -105,7 +106,7 @@ const jsonLd = {
     <meta name="twitter:image" content={ogImage} />
     <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
   </Fragment>
-  <main class="min-h-screen bg-gradient-to-b from-pink-50 via-fuchsia-50 to-violet-50 px-4 py-8 pb-16">
+  <main class="min-h-screen bg-gradient-to-b from-pink-50 via-orange-50 to-amber-50 px-4 py-8 pb-16">
     <div class="max-w-lg mx-auto" x-data={`birthdayWall(${initialData})`}>
 
       <!-- Pet hero card -->
@@ -113,7 +114,7 @@ const jsonLd = {
         "rounded-3xl p-8 text-white text-center shadow-2xl mb-6",
         isToday
           ? "bg-gradient-to-br from-pink-500 via-fuchsia-500 to-orange-400"
-          : "bg-gradient-to-br from-pink-400 to-violet-500"
+          : "bg-gradient-to-br from-pink-400 to-orange-500"
       ]}>
         {pet.photo_url ? (
           <img
@@ -130,7 +131,7 @@ const jsonLd = {
 
         {isToday ? (
           <div>
-            <p class="text-3xl font-extrabold drop-shadow">🎉 HÔM NAY SINH NHẬT!</p>
+            <p class="text-3xl font-extrabold drop-shadow flex items-center justify-center gap-2"><FeatureIcon name="party-popper" class="w-7 h-7 shrink-0" />HÔM NAY SINH NHẬT!</p>
             <p class="text-lg font-semibold mt-1">{petName} tròn {birthday?.age_turning} tuổi</p>
           </div>
         ) : daysUntil !== null ? (
@@ -147,13 +148,13 @@ const jsonLd = {
           </div>
         )}
 
-        <p class="text-xs opacity-70 mt-3">🐾 Mon Min Pet</p>
+        <p class="text-xs opacity-70 mt-3 flex items-center justify-center gap-1"><FeatureIcon name="paw" class="w-3.5 h-3.5 shrink-0" />Mon Min Pet</p>
       </div>
 
       <!-- Wish count badge -->
       <div class="text-center mb-5">
-        <span class="inline-flex items-center gap-1.5 bg-white/80 backdrop-blur rounded-full px-4 py-1.5 text-sm font-semibold text-violet-800 shadow">
-          💌 <span x-text="wishes.length"></span> lời chúc
+        <span class="inline-flex items-center gap-1.5 bg-white/80 backdrop-blur rounded-full px-4 py-1.5 text-sm font-semibold text-pink-700 shadow">
+          <FeatureIcon name="mail" class="w-4 h-4 shrink-0" /><span x-text="wishes.length"></span> lời chúc
         </span>
       </div>
 
@@ -163,9 +164,9 @@ const jsonLd = {
           <div class="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3 border border-pink-100">
             <span class="text-2xl shrink-0 mt-0.5" x-text="w.emoji"></span>
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-bold text-slate-800" x-text="w.name"></p>
-              <p class="text-sm text-slate-600 mt-0.5 leading-relaxed" x-text="w.message"></p>
-              <p class="text-[10px] text-slate-400 mt-1" x-text="fmtTime(w.created_at)"></p>
+              <p class="text-sm font-bold text-mmp-ink" x-text="w.name"></p>
+              <p class="text-sm text-mmp-ink/70 mt-0.5 leading-relaxed" x-text="w.message"></p>
+              <p class="text-[10px] text-mmp-ink/45 mt-1" x-text="fmtTime(w.created_at)"></p>
             </div>
           </div>
         </template>
@@ -173,12 +174,12 @@ const jsonLd = {
 
       <!-- Empty state -->
       <div x-show="wishes.length === 0" class="text-center py-6 mb-4">
-        <p class="text-slate-400 text-sm italic">Chưa có lời chúc nào. Hãy là người đầu tiên! 🎉</p>
+        <p class="text-mmp-ink/45 text-sm italic">Chưa có lời chúc nào. Hãy là người đầu tiên! <FeatureIcon name="party-popper" class="w-4 h-4 inline-block align-[-0.15em]" /></p>
       </div>
 
       <!-- Submit wish form -->
-      <div class="bg-white rounded-3xl border border-violet-100 p-6 shadow-lg" x-show="!submitted">
-        <h2 class="text-base font-bold text-slate-900 mb-4">✍️ Để lại lời chúc cho {petName}</h2>
+      <div class="bg-white rounded-3xl border border-pink-100 p-6 shadow-lg" x-show="!submitted">
+        <h2 class="text-base font-bold text-mmp-ink mb-4 inline-flex items-center gap-1.5"><FeatureIcon name="edit-pencil" class="w-4 h-4 shrink-0" />Để lại lời chúc cho {petName}</h2>
 
         <!-- Error banner -->
         <template x-if="error">
@@ -189,11 +190,11 @@ const jsonLd = {
 
         <!-- Emoji picker -->
         <div class="mb-4">
-          <label class="block text-xs font-semibold text-slate-700 mb-2">Chọn emoji</label>
+          <label class="block text-xs font-semibold text-mmp-ink/70 mb-2">Chọn emoji</label>
           <div class="flex flex-wrap gap-2">
             <template x-for="e in allowedEmojis" :key="e">
               <button type="button" @click="selectedEmoji = e"
-                :class="selectedEmoji === e ? 'ring-2 ring-violet-500 bg-violet-100' : 'bg-slate-50 hover:bg-violet-50'"
+                :class="selectedEmoji === e ? 'ring-2 ring-pink-500 bg-pink-100' : 'bg-slate-50 hover:bg-pink-50'"
                 class="text-xl px-2 py-1 rounded-xl transition">
                 <span x-text="e"></span>
               </button>
@@ -203,48 +204,48 @@ const jsonLd = {
 
         <!-- Name field -->
         <div class="mb-3">
-          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tên của bạn <span class="text-red-500">*</span></label>
+          <label class="block text-xs font-semibold text-mmp-ink/70 mb-1.5">Tên của bạn <span class="text-red-500">*</span></label>
           <input
             type="text"
             x-model="form.name"
             placeholder="Nhập tên bạn..."
             maxlength="50"
-            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
           />
         </div>
 
         <!-- Message field -->
         <div class="mb-5">
-          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Lời chúc <span class="text-red-500">*</span></label>
+          <label class="block text-xs font-semibold text-mmp-ink/70 mb-1.5">Lời chúc <span class="text-red-500">*</span></label>
           <textarea
             x-model="form.message"
             placeholder={`Chúc bé ${petName} sinh nhật vui vẻ...`}
             rows="3"
             maxlength="200"
-            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none"
+            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 resize-none"
           ></textarea>
-          <p class="text-right text-[10px] text-slate-400 mt-0.5"><span x-text="form.message.length"></span>/200</p>
+          <p class="text-right text-[10px] text-mmp-ink/45 mt-0.5"><span x-text="form.message.length"></span>/200</p>
         </div>
 
         <button @click="submitWish()"
           :disabled="submitting"
-          class="w-full bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600 disabled:opacity-60 text-white font-bold py-3 rounded-2xl text-sm transition shadow-lg">
-          <span x-show="!submitting">💌 Gửi lời chúc</span>
+          class="w-full bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600 disabled:opacity-60 text-white font-bold py-3 rounded-2xl text-sm transition shadow-lg">
+          <span x-show="!submitting" class="inline-flex items-center gap-2"><FeatureIcon name="mail" class="w-4 h-4 shrink-0" />Gửi lời chúc</span>
           <span x-show="submitting">Đang gửi…</span>
         </button>
       </div>
 
       <!-- Success state -->
       <div x-show="submitted" class="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-lg">
-        <p class="text-5xl mb-3">🎉</p>
+        <p class="mb-3 flex justify-center"><FeatureIcon name="party-popper" class="w-12 h-12 text-amber-500" /></p>
         <h2 class="text-xl font-bold text-emerald-900 mb-2">Đã gửi lời chúc!</h2>
         <p class="text-sm text-emerald-700">Lời chúc của bạn đã được ghi lại cho bé <strong>{petName}</strong>.</p>
-        <p class="text-xs text-slate-500 mt-3">Bé sẽ thấy khi mở trang sinh nhật 🥰</p>
+        <p class="text-xs text-mmp-ink/55 mt-3">Bé sẽ thấy khi mở trang sinh nhật 🥰</p>
       </div>
 
       <!-- Footer -->
-      <p class="text-center text-xs text-slate-400 mt-8">
-        🐾 <a href="https://vowvet.monminpet.com" class="hover:underline">Mon Min Pet</a> · Birthday Wall
+      <p class="text-center text-xs text-mmp-ink/45 mt-8">
+        <FeatureIcon name="paw" class="w-3.5 h-3.5 inline-block align-[-0.15em]" /> <a href="https://vowvet.monminpet.com" class="hover:underline">Mon Min Pet</a> · Birthday Wall
       </p>
 
     </div>
