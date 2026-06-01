@@ -70,15 +70,15 @@ const initialData = JSON.stringify({
 
           <!-- Bio -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-            <label class="text-xs font-bold text-slate-700 uppercase">Giới thiệu bé (bio)</label>
+            <label class="text-xs font-bold text-mmp-ink/70 uppercase">Giới thiệu bé (bio)</label>
             <textarea x-model="form.bio" rows="3" maxlength="500" placeholder="VD: Bé hiền, thích chạy nhảy, hơi nhút nhát với người lạ..."
               class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
-            <p class="text-[11px] text-slate-400 mt-1"><span x-text="form.bio.length"></span>/500</p>
+            <p class="text-[11px] text-mmp-ink/45 mt-1"><span x-text="form.bio.length"></span>/500</p>
           </div>
 
           <!-- Looking for -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-            <label class="text-xs font-bold text-slate-700 uppercase">Tìm kiếm</label>
+            <label class="text-xs font-bold text-mmp-ink/70 uppercase">Tìm kiếm</label>
             <div class="grid grid-cols-2 gap-2 mt-2">
               <template x-for="opt in lookingForOptions" :key="opt.key">
                 <button type="button" @click="form.looking_for = opt.key"
@@ -92,7 +92,7 @@ const initialData = JSON.stringify({
 
           <!-- Play styles -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-            <label class="text-xs font-bold text-slate-700 uppercase">Kiểu chơi (chọn nhiều)</label>
+            <label class="text-xs font-bold text-mmp-ink/70 uppercase">Kiểu chơi (chọn nhiều)</label>
             <div class="flex flex-wrap gap-2 mt-2">
               <template x-for="ps in playStyles" :key="ps.key">
                 <button type="button" @click="togglePlayStyle(ps.key)"
@@ -106,35 +106,35 @@ const initialData = JSON.stringify({
 
           <!-- Distance -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-            <label class="text-xs font-bold text-slate-700 uppercase flex items-center justify-between">
+            <label class="text-xs font-bold text-mmp-ink/70 uppercase flex items-center justify-between">
               <span>Khoảng cách tối đa</span>
               <span class="text-mmp-ink font-bold"><span x-text="form.max_distance_km"></span> km</span>
             </label>
             <input type="range" min="1" max="50" x-model.number="form.max_distance_km"
-              class="w-full mt-2 accent-violet-600" />
-            <p class="text-[11px] text-slate-400 mt-1">Chỉ thấy bé khác trong bán kính này.</p>
+              class="w-full mt-2 accent-mmp-ink" />
+            <p class="text-[11px] text-mmp-ink/45 mt-1">Chỉ thấy bé khác trong bán kính này.</p>
           </div>
 
           <!-- Location -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-            <label class="text-xs font-bold text-slate-700 uppercase">Vị trí của bạn</label>
+            <label class="text-xs font-bold text-mmp-ink/70 uppercase">Vị trí của bạn</label>
             <div class="flex items-center gap-2 mt-2">
               <input type="number" step="0.000001" x-model.number="form.lat" placeholder="Lat" class="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono" />
               <input type="number" step="0.000001" x-model.number="form.lng" placeholder="Lng" class="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono" />
               <button type="button" @click="locate()" :disabled="locating"
-                class="text-xs bg-mmp-cream hover:bg-yellow-100 text-mmp-ink font-bold px-3 py-1.5 rounded-lg">
+                class="text-xs bg-mmp-cream hover:bg-mmp-gold/15 text-mmp-ink font-bold px-3 py-1.5 rounded-lg">
                 <span x-show="!locating" class="inline-flex items-center gap-1.5"><FeatureIcon name="map-pin" class="w-4 h-4 shrink-0" />Tự định vị</span>
                 <span x-show="locating">...</span>
               </button>
             </div>
-            <p class="text-[11px] text-slate-400 mt-1">Vị trí chỉ dùng để tính khoảng cách — không hiển thị chính xác cho bé khác.</p>
+            <p class="text-[11px] text-mmp-ink/45 mt-1">Vị trí chỉ dùng để tính khoảng cách — không hiển thị chính xác cho bé khác.</p>
           </div>
 
           <!-- Active toggle -->
           <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4 flex items-center justify-between">
             <div>
-              <p class="text-sm font-bold text-slate-900">Hiển thị trong khám phá</p>
-              <p class="text-[11px] text-slate-500">Tắt để pause profile mà không xoá.</p>
+              <p class="text-sm font-bold text-mmp-ink">Hiển thị trong khám phá</p>
+              <p class="text-[11px] text-mmp-ink/55">Tắt để pause profile mà không xoá.</p>
             </div>
             <button @click="form.active = !form.active" type="button"
               :class="form.active ? 'bg-emerald-500' : 'bg-slate-300'"
