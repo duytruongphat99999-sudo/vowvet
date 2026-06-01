@@ -14,6 +14,7 @@ import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
 import { listRows } from "@shared/baserow.ts";
+import { getPlace, listPendingPlaces, verifyPlace, rejectPlace } from "../lib/places.ts";
 import { findUserById, softDeleteUser } from "../lib/users.ts";
 import { adminAnalyticsOverview } from "../lib/analytics.ts";
 import { getZaloStatus, sendOtp } from "../lib/otp-sender.ts";
@@ -401,5 +402,56 @@ adminRoute.post("/cron/test-vaccine-reminders", async (c) => {
       { error: { code: "CRON_FAIL", message: err?.message || "Lỗi chạy cron test" } },
       500
     );
+  }
+});
+
+// ============================================================
+// Place moderation (duyệt place user thêm — Phase 1)
+//   GET  /admin/places/pending     — list verified=false AND active=true
+//   POST /admin/places/:id/verify  — set verified=true + verified_by/at
+//   POST /admin/places/:id/reject  — set active=false (ẩn, GIỮ row)
+// (đã sau requireAuth + requireAdmin qua adminRoute.use("*"))
+// ============================================================
+adminRoute.get("/places/pending", async (c) => {
+  try {
+    const places = await listPendingPlaces();
+    return c.json({ places, total: places.length });
+  } catch (err: any) {
+    console.error("[admin/places/pending] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi load place chờ duyệt" } }, 500);
+  }
+});
+
+adminRoute.post("/places/:id{[0-9]+}/verify", async (c) => {
+  const session = c.get("user");
+  const placeId = Number(c.req.param("id"));
+  const existing = await getPlace(placeId);
+  if (!existing) {
+    return c.json({ error: { code: "NOT_FOUND", message: "Place không tồn tại" } }, 404);
+  }
+  try {
+    const place = await verifyPlace(placeId, session.sub);
+    console.log(`[admin] place ${placeId} verified by admin ${session.phone}`);
+    return c.json({ place });
+  } catch (err: any) {
+    console.error(`[admin/places/${placeId}/verify] error:`, err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi duyệt place" } }, 500);
+  }
+});
+
+adminRoute.post("/places/:id{[0-9]+}/reject", async (c) => {
+  const session = c.get("user");
+  const placeId = Number(c.req.param("id"));
+  const existing = await getPlace(placeId);
+  if (!existing) {
+    return c.json({ error: { code: "NOT_FOUND", message: "Place không tồn tại" } }, 404);
+  }
+  try {
+    await rejectPlace(placeId);
+    console.log(`[admin] place ${placeId} rejected (active=false) by admin ${session.phone}`);
+    return c.json({ success: true });
+  } catch (err: any) {
+    console.error(`[admin/places/${placeId}/reject] error:`, err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi từ chối place" } }, 500);
   }
 });

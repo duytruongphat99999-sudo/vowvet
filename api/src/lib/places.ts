@@ -34,6 +34,8 @@ export interface PlaceRow {
   photo_urls: string | null;
   created_by: number | null;
   verified: boolean;
+  verified_by?: number;
+  verified_at?: string;
   active: boolean;
   created_at: string;
 }
@@ -172,6 +174,69 @@ export async function createPlace(input: CreatePlaceInput): Promise<PlaceApi> {
     created_at: new Date().toISOString(),
   });
   return toApi(row);
+}
+
+// ================================================================
+// Admin moderation (duyệt place user thêm — Phase 1)
+// ================================================================
+
+export interface PendingPlace {
+  id: number;
+  name: string;
+  address: string;
+  category: PlaceCategory;
+  lat: number;
+  lng: number;
+  photo_urls: string[];
+  created_by: number | null;
+  created_at: string;
+}
+
+/**
+ * Admin: list place chờ duyệt — verified=false AND active=true.
+ * Map shape RIÊNG từ PlaceRow để giữ created_by/created_at (toApi() bỏ 2 field này).
+ * Trả raw created_by id, KHÔNG lookup user (Phase 3 lo).
+ */
+export async function listPendingPlaces(): Promise<PendingPlace[]> {
+  const res = await listRows<PlaceRow>("places", {
+    filter: { active__boolean: "true", verified__boolean: "false" },
+    size: 200,
+  });
+  return res.results
+    .filter((r) => r.name)
+    .map((r) => {
+      let photos: string[] = [];
+      try { photos = JSON.parse(r.photo_urls || "[]"); } catch {}
+      return {
+        id: r.id,
+        name: r.name || "",
+        address: r.address || "",
+        category: (flatVal<PlaceCategory>(r.category) || "other") as PlaceCategory,
+        lat: Number(r.lat) || 0,
+        lng: Number(r.lng) || 0,
+        photo_urls: photos,
+        created_by: r.created_by ?? null,
+        created_at: r.created_at || "",
+      };
+    });
+}
+
+/**
+ * Admin: duyệt place — set verified=true + lưu vết (verified_by, verified_at ISO UTC).
+ * Trả place đã update (toApi).
+ */
+export async function verifyPlace(placeId: number, adminUserId: number): Promise<PlaceApi> {
+  const row = await updateRow<PlaceRow>("places", placeId, {
+    verified: true,
+    verified_by: adminUserId,
+    verified_at: new Date().toISOString(),
+  });
+  return toApi(row);
+}
+
+/** Admin: từ chối place — set active=false (ẩn, GIỮ row, KHÔNG xoá). */
+export async function rejectPlace(placeId: number): Promise<void> {
+  await updateRow("places", placeId, { active: false });
 }
 
 // ================================================================
