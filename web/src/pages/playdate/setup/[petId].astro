@@ -6,6 +6,7 @@
  * Auto-fetches lat/lng from browser geolocation (optional).
  */
 import Layout from "../../../layouts/Layout.astro";
+import FeatureIcon from "../../../components/FeatureIcon.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -46,24 +47,24 @@ const initialData = JSON.stringify({
     <div class="max-w-2xl mx-auto" x-data={`setupPage(${initialData})`}>
 
       <header class="flex items-center justify-between mb-5 gap-3">
-        <a href="/playdate" class="text-sm text-slate-500 hover:text-slate-700">← Playdate</a>
-        <h1 class="text-lg font-bold text-slate-900">⚙️ Profile {pet.name}</h1>
+        <a href="/playdate" class="text-sm text-mmp-ink/60 hover:text-mmp-ink">← Playdate</a>
+        <h1 class="text-lg font-bold text-mmp-ink inline-flex items-center gap-1.5"><FeatureIcon name="settings" class="w-5 h-5 shrink-0" />Profile {pet.name}</h1>
         <span class="w-12"></span>
       </header>
 
       <!-- Eligibility -->
       <template x-if="!eligibility?.eligible">
-        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
-          <p class="font-bold text-amber-900">💉 Cần thêm vaccine</p>
-          <p class="text-sm text-amber-700 mt-1" x-text="eligibility?.reason"></p>
-          <a href="/vaccines" class="inline-block mt-3 text-sm bg-amber-600 text-white font-bold px-4 py-2 rounded-lg">Cập nhật vaccine →</a>
+        <div class="bg-mmp-cream border border-mmp-gold/30 rounded-2xl p-5 mb-5">
+          <p class="font-bold text-mmp-ink inline-flex items-center gap-1.5"><FeatureIcon name="syringe" class="w-4 h-4 shrink-0" />Cần thêm vaccine</p>
+          <p class="text-sm text-mmp-ink/70 mt-1" x-text="eligibility?.reason"></p>
+          <a href="/vaccines" class="inline-block mt-3 text-sm bg-mmp-ink text-white font-bold px-4 py-2 rounded-lg">Cập nhật vaccine →</a>
         </div>
       </template>
 
       <template x-if="eligibility?.eligible">
         <div>
           <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-5 text-xs">
-            <p class="font-bold text-emerald-900">✓ Đủ điều kiện</p>
+            <p class="font-bold text-emerald-900 inline-flex items-center gap-1.5"><FeatureIcon name="check" class="w-4 h-4 shrink-0" />Đủ điều kiện</p>
             <p class="text-emerald-700">Đã có <span x-text="eligibility.vaccine_count"></span> vaccine hoàn tất.</p>
           </div>
 
@@ -122,7 +123,7 @@ const initialData = JSON.stringify({
               <input type="number" step="0.000001" x-model.number="form.lng" placeholder="Lng" class="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono" />
               <button type="button" @click="locate()" :disabled="locating"
                 class="text-xs bg-mmp-cream hover:bg-yellow-100 text-mmp-ink font-bold px-3 py-1.5 rounded-lg">
-                <span x-show="!locating">📍 Tự định vị</span>
+                <span x-show="!locating" class="inline-flex items-center gap-1.5"><FeatureIcon name="map-pin" class="w-4 h-4 shrink-0" />Tự định vị</span>
                 <span x-show="locating">...</span>
               </button>
             </div>
@@ -147,18 +148,18 @@ const initialData = JSON.stringify({
             <p class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-3 mb-3" x-text="error"></p>
           </template>
           <template x-if="success">
-            <p class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3" x-text="success"></p>
+            <p class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3" x-html="svgIcon('check', 14) + ' ' + success"></p>
           </template>
 
           <div class="flex gap-2">
             <button @click="submit()" :disabled="saving"
               class="flex-1 bg-mmp-ink hover:opacity-90 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow-lg text-sm">
-              <span x-show="!saving" x-text="profile ? '💾 Lưu' : '🚀 Bật profile'"></span>
+              <span x-show="!saving" x-html="profile ? svgIcon('save', 16) + ' Lưu' : svgIcon('rocket', 16) + ' Bật profile'"></span>
               <span x-show="saving">Đang lưu...</span>
             </button>
             <template x-if="profile">
-              <a :href="`/playdate/discover/${pet.id}`" class="bg-white border border-mmp-cream text-mmp-ink font-bold py-3 px-4 rounded-xl text-sm">
-                🔥 Khám phá →
+              <a :href="`/playdate/discover/${pet.id}`" class="bg-white border border-mmp-cream text-mmp-ink font-bold py-3 px-4 rounded-xl text-sm inline-flex items-center gap-1.5">
+                <FeatureIcon name="flame" class="w-4 h-4 shrink-0" />Khám phá →
               </a>
             </template>
           </div>
@@ -196,6 +197,17 @@ const initialData = JSON.stringify({
         error: "",
         success: "",
 
+        // Iconify emoji trong x-text → SVG-string (render qua x-html). Path đồng bộ FeatureIcon.
+        svgIcon(name, size) {
+          var P = {
+            save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+            rocket: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+            check: '<path d="M5 12l5 5 9-11"/>',
+          };
+          var s = size || 18;
+          return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em">' + (P[name] || "") + "</svg>";
+        },
+
         togglePlayStyle(key) {
           const i = this.form.play_styles.indexOf(key);
           if (i >= 0) this.form.play_styles.splice(i, 1);
@@ -231,7 +243,7 @@ const initialData = JSON.stringify({
               return;
             }
             this.profile = j.profile;
-            this.success = "✓ Đã lưu profile. Sang tab Khám phá để tìm bạn!";
+            this.success = "Đã lưu profile. Sang tab Khám phá để tìm bạn!";
           } catch (_) {
             this.error = "Lỗi kết nối.";
           } finally {
