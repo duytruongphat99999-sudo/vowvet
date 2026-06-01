@@ -1,8 +1,47 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> Snapshot kỹ thuật — cập nhật **2026-05-31 (buổi 3)**: 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại) · 📔 **diary DONE ALL** (mood→face icon + UI emoji→icon + màu yearbook gold/cream; `10e15bc` + fix mic/màu `22dcc70`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v242-diary-yearbook-gold`** · ~51 commit local, chưa push.
+> Snapshot kỹ thuật — cập nhật **2026-06-01**: 🛡️ **Admin duyệt place** (Phase 1 backend `a79b84b` + Phase 3 UI `8b5875f` → `/admin/places`) · 📅 diary year-range động [2026–2029] · 🎨 brand-sync **/playdate/setup** + **/share** (iconify emoji→FeatureIcon + sky/amber→ink/cream + thêm icon `download`) · 🔧 severityDot pain/mobility = cognitive (superset) · 🗺️ nhóm C playdate **ĐÃ QUYẾT giữ emoji** · 💾 git bundle backup. **SW hiện tại = `vowvet-v248-admin-places`** · **60 commit local, CHƯA push** (không remote). 〈Chi tiết: xem snapshot **2026-06-01** ngay dưới.〉 *Buổi trước — 2026-05-31 (buổi 3):* 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại) · 📔 **diary DONE ALL** (mood→face icon + UI emoji→icon + màu yearbook gold/cream; `10e15bc` + fix mic/màu `22dcc70`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v242-diary-yearbook-gold`** · ~51 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
 > Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
+
+---
+
+## 📌 SESSION-END SNAPSHOT (2026-06-01) — Admin duyệt place + brand-sync arc
+
+> ⚠️ **Phạm vi (KHÔNG bịa):** VowVet / Mon Min Pet — nền tảng chăm thú cưng (Astro SSR + Bun + Hono + Baserow + R2 + Gemini). Phiên này = **brand-sync vài trang + feature MỚI "Admin duyệt place" (backend + UI)**. KHÔNG đụng SEO/Schema. **SW = `vowvet-v248-admin-places`** · **60 commit local, CHƯA push** (không remote — backup chỉ bundle local).
+
+### 1️⃣ ĐÃ XONG phiên 2026-06-01 — 8 commit (theo thứ tự)
+1. **Diary year-range động** (`1064c56`, SW v243) — yearbook list mốc đáy 2026: `max(2026, năm nay)`..+3 → **[2026–2029]**. Getter `years` trong `<script is:inline>` `diary.astro`.
+2. **Playdate setup — iconify A+B** (`c167d97`, SW v244) — emoji→FeatureIcon (settings/syringe/check/map-pin/flame) + helper `svgIcon` (save/rocket/check) cho emoji trong x-text · card amber→cream/gold · nút amber→`bg-mmp-ink`.
+3. **Playdate setup — sweep màu form** (`d7cbe88`, SW v245) — `accent-violet-600`→`accent-mmp-ink` · `hover:bg-yellow-100`→`hover:bg-mmp-gold/15` · `text-slate-*`→ink ladder (70/55/45).
+4. **Trang share — brand-sync** (`f4a4894`, SW v246) — iconify 13 emoji chức năng→FeatureIcon (+ **thêm icon `download`** vào `FeatureIcon.astro`) · sky/amber→ink/cream/gold · panel URL→cream+viền gold · 2 stat card→cream · slate→ink.
+5. **Severity refactor** (`c0aa580`, SW v247) — `severityDot` pain/mobility thêm key `amber` → **byte-identical** với cognitive (superset emerald/amber/yellow/orange/red). KHÔNG tách helper (3 copy đồng nhất; dedup thật để sau nếu cần).
+6. **Nhóm C playdate — ĐÃ QUYẾT giữ emoji** (`275c2e5`) — chips `looking_for` 🎾🚶🧬✨ + `play_styles` 🎾🤼💨🧘🏊 → **quyết định thiết kế** (emoji hợp tông playful; 3 emoji 🎾🤼🧘 không có icon Lucide tương đương → iconify giảm rõ nghĩa). **KHÔNG phải nợ kỹ thuật.** (Dòng ĐÃ QUYẾT ở Queue brand-sync — KHÔNG pick lại.)
+7. **Git bundle backup** — `vowvet-20260601-1025.bundle` (verify + clone-test OK) ở `C:\docker\backups\`. ⚠️ Giờ **TRỄ 5 commit** (xem mục 4).
+8. **Admin duyệt place — Phase 1 (`a79b84b`) + Phase 3 (`8b5875f`, SW v248)** — arc chi tiết mục 2.
+
+### 2️⃣ ARC "Admin duyệt place" (GHI KỸ — mai làm Phase 2)
+- **✅ Phase 1 backend** (`a79b84b`): 3 endpoint sau `requireAuth`+`requireAdmin`:
+  - `GET /api/v1/admin/places/pending` — list `verified=false & active=true` (shape có `created_by`/`created_at` → map RIÊNG trong helper, **KHÔNG qua `toApi`** vì toApi bỏ 2 field đó).
+  - `POST /api/v1/admin/places/:id/verify` — `verified=true` + `verified_by` + `verified_at` (ISO UTC).
+  - `POST /api/v1/admin/places/:id/reject` — `active=false` (ẩn, GIỮ row).
+  - Helper `api/src/lib/places.ts`: `listPendingPlaces` / `verifyPlace(id, adminId)` / `rejectPlace(id)`. Verify an toàn server-side đã chứng minh: **401 no-session · 403 non-admin · 200 admin · 404 missing**.
+- **✅ Phase 3 frontend** (`8b5875f`): `web/src/pages/admin/places.astro` — guard frontmatter (check `ADMIN_PHONES` → redirect `/dashboard` nếu non-admin) + **SSR fetch pending FORWARD cookie** (`API_INTERNAL` nội bộ `http://vowvet-api:3000`, `headers:{cookie}`) + Alpine `adminPlacesPage` (verify/reject qua client fetch `credentials:include`, **toast + card fade-out 300ms + reject 2-bước-inline**). Brand cream/gold/ink + FeatureIcon. Link từ `admin.astro` (Quick actions).
+- **Cơ chế admin:** whitelist `ADMIN_PHONES` env (dạng `+84...`). Login `normalizePhone` → `+84...` → **KHỚP** (verify live: admin GET pending 200). **An toàn THẬT ở API `requireAdmin`**; guard frontmatter chỉ là UX (web SSR có access `ADMIN_PHONES` env qua import.meta.env/process.env).
+- **Baserow:** đã thêm field `verified_by` (Number) + `verified_at` (Date+time UTC) vào table `places`.
+- **🔜 CÒN LẠI — Phase 2 (product decision, CHƯA làm):** biến `verified` thành **CỔNG ẩn/hiện** map public. **Hiện `verified` chỉ là BADGE** — place chưa duyệt **VẪN hiện công khai** (map fetch `/api/v1/places` KHÔNG kèm `?verified=1`; default list trả cả verified+unverified miễn `active=true`). Phase 2 = đụng public list (default `verified_only` / map fetch `?verified=1`) + **tính UX cho người thêm** ("đang chờ duyệt"). **Thứ tự đã chốt: 1→3→2** (Phase 2 sau cùng). Trước Phase 2: bồ **test bấm-nút admin UI end-to-end** + **quyết UX người-thêm**.
+
+### 3️⃣ CẦN DỌN (Baserow, làm tay — CHƯA xoá)
+- **Test rows `places` id25/26/27** — giờ chỉ `active=false` (đã reject lúc test), **chưa xoá row** → xoá hẳn trong Baserow. *(Có UI /admin/places rồi: reject = ẩn; xoá hẳn vẫn cần Baserow.)*
+- **User test `+84900000123`** (tạo lúc test Phase 1 Case 2 non-admin) — disable/xoá trong Baserow `users`.
+
+### 4️⃣ Backup
+- Bundle gần nhất `vowvet-20260601-1025.bundle` (`C:\docker\backups\`) = commit `d7cbe88` → **TRỄ 5 commit** (thiếu `f4a4894` share · `c0aa580` severity · `275c2e5` nhóm-C-doc · `a79b84b` admin P1 · `8b5875f` admin P3, + doc này). → **Tạo bundle mới** (`git bundle create <path>/vowvet-<YYYYMMDD-HHMM>.bundle --all HEAD`) + **copy off-machine** (ổ ngoài/cloud). Repo **vẫn chưa có git remote**.
+
+### 5️⃣ Queue còn lại (ngoài admin-place Phase 2)
+- **Playdate brainstorm thiết kế** (chờ bồ mô tả trang muốn làm gì).
+- **TopBar Hướng B** (PageHeader toàn app, đại phẫu) · **Hụi Pet stats** thật.
+- **Nhóm C playdate — ĐÃ ĐÓNG** (giữ emoji, quyết định thiết kế — KHÔNG pick lại).
 
 ---
 
