@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
-import { listUserPets, createPet, type BaserowPet } from "../lib/users.ts";
+import { listUserPets, createPet, findUserById, type BaserowPet } from "../lib/users.ts";
 import {
   getOwnedPet,
   patchPet,
@@ -134,6 +134,9 @@ export function toApiPet(p: BaserowPet) {
     health_conditions: parseHealthConditions((p as any).health_conditions),
     current_medications: (p as any).current_medications ?? null,
     health_history: (p as any).health_history ?? null,
+    // BƯỚC 2: cam kết hồ sơ trọn đời
+    pledge_at: (p as any).pledge_at ?? null,
+    pledged_by: (p as any).pledged_by ?? null,
   };
 }
 
@@ -272,6 +275,27 @@ petsRoute.patch("/:id{[0-9]+}", zValidator("json", petPatchSchema), async (c) =>
     if (data.health_history !== undefined) update.health_history = data.health_history;
 
     const updated = await patchPet(petId, update);
+    return c.json({ pet: toApiPet(updated) });
+  } catch (err) {
+    return petErrorResponse(c, err);
+  }
+});
+
+// ===== POST /pets/:id/pledge (BƯỚC 2) — cam kết hồ sơ trọn đời =====
+const pledgeSchema = z.object({ pledged_by: z.string().trim().max(120).optional() });
+petsRoute.post("/:id{[0-9]+}/pledge", zValidator("json", pledgeSchema), async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  const data = c.req.valid("json");
+  try {
+    await getOwnedPet(petId, session.sub); // ownership check
+    let pledgedBy = (data.pledged_by || "").trim();
+    if (!pledgedBy) {
+      const u = await findUserById(session.sub);
+      pledgedBy = (u && (u as any).name) || "";
+    }
+    const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10); // ngày VN
+    const updated = await patchPet(petId, { pledge_at: today, pledged_by: pledgedBy || null });
     return c.json({ pet: toApiPet(updated) });
   } catch (err) {
     return petErrorResponse(c, err);

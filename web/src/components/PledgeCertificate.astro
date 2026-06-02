@@ -1,0 +1,166 @@
+---
+/**
+ * BƯỚC 2 — Certificate cam kết hồ sơ trọn đời (chặn đầu profile).
+ * Style passport gold/ink. Con mộc = COPY hero-stamp SVG (filter id đổi hsp-* → vvp-* tránh trùng).
+ * Tick → Xác nhận → đóng mộc (animation, reduced-motion 2 lớp) → POST /pets/:id/pledge → ẩn overlay.
+ */
+interface Props {
+  petId: number | string;
+  petName?: string;
+  petImage?: string | null;
+  isReconfirm?: boolean;
+}
+const { petId, petName = "bé", petImage = "", isReconfirm = false } = Astro.props;
+const name = petName || "bé";
+---
+
+<div
+  x-data={`pledgeCert(${petId})`}
+  x-show="visible"
+  x-transition.opacity.duration.400ms
+  class="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto"
+  style="background: rgba(10,10,10,.6);"
+  role="dialog"
+  aria-modal="true"
+>
+  <div class="relative my-auto max-w-md w-full bg-mmp-cream rounded-3xl shadow-2xl vvpledge-card" style="border: 2px solid #B48608;">
+    <div class="m-2 rounded-2xl px-6 py-7 text-center" style="border: 1px solid rgba(180,134,8,.4);">
+      <p class="text-[10px] uppercase tracking-[0.25em] font-bold" style="color:#B48608;">Cam kết hồ sơ trọn đời</p>
+
+      <div class="mt-3 mx-auto w-20 h-20 rounded-full overflow-hidden ring-2 ring-mmp-gold/50 bg-white flex items-center justify-center">
+        {petImage
+          ? <img src={petImage} alt={name} class="w-full h-full object-cover" />
+          : <span class="text-3xl" style="color:#B48608;">🐾</span>}
+      </div>
+
+      <h2 class="font-display italic text-2xl font-semibold text-mmp-ink mt-3 leading-tight">
+        {isReconfirm ? `Xác nhận hồ sơ của ${name}` : `Hồ sơ trọn đời của ${name}`}
+      </h2>
+
+      <div class="mt-4 space-y-2 text-left text-sm text-mmp-ink/80 leading-relaxed">
+        <p class="flex gap-2"><span style="color:#B48608;">✦</span><span>Hồ sơ này đi cùng <strong class="text-mmp-ink">{name}</strong> trọn đời.</span></p>
+        <p class="flex gap-2"><span style="color:#B48608;">✦</span><span>Khai đúng = chăm đúng — thông tin sai lệch dẫn đến khuyến nghị không phù hợp, ảnh hưởng sức khỏe của bé.</span></p>
+      </div>
+
+      <p class="mt-4 font-display italic text-base text-mmp-ink/90 px-2 leading-snug">
+        "Mỗi con số bạn điền hôm nay là một quyết định cho cả cuộc đời bé."
+      </p>
+
+      {/* Vùng đóng mộc */}
+      <div class="relative h-28 flex items-center justify-center mt-1">
+        <span class="vvpledge-stamp" :class="stamping ? 'is-stamping' : ''" x-show="stamping" style="display:none;">
+          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mon Min Pet Certified Passport Official">
+            <defs>
+              <filter id="vvp-ink-rough" x="-5%" y="-5%" width="110%" height="110%">
+                <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="11" result="t"/>
+                <feDisplacementMap in="SourceGraphic" in2="t" scale="0.9"/>
+              </filter>
+              <filter id="vvp-logo-gold" x="-40%" y="-40%" width="180%" height="180%">
+                <feColorMatrix type="matrix" values="0 0 0 0 0.706  0 0 0 0 0.525  0 0 0 0 0.031  0 0 0 1.4 0" result="goldLogo"/>
+                <feGaussianBlur in="goldLogo" stdDeviation="2" result="glowInner"/>
+                <feGaussianBlur in="goldLogo" stdDeviation="5" result="glowOuter"/>
+                <feFlood flood-color="#ecb921" flood-opacity="0.7" result="glowColor1"/>
+                <feComposite in="glowColor1" in2="glowInner" operator="in" result="glow1"/>
+                <feFlood flood-color="#ecb921" flood-opacity="0.4" result="glowColor2"/>
+                <feComposite in="glowColor2" in2="glowOuter" operator="in" result="glow2"/>
+                <feMerge>
+                  <feMergeNode in="glow2"/>
+                  <feMergeNode in="glow1"/>
+                  <feMergeNode in="goldLogo"/>
+                </feMerge>
+              </filter>
+              <path id="vvp-arc-top" d="M 24 100 A 76 76 0 0 1 176 100" fill="none"/>
+              <path id="vvp-arc-bot" d="M 24 100 A 76 76 0 0 0 176 100" fill="none"/>
+            </defs>
+            <g filter="url(#vvp-ink-rough)" fill="#B48608" stroke="#B48608">
+              <circle cx="100" cy="100" r="92" fill="none" stroke-width="3.8" stroke-opacity="0.95"/>
+              <circle cx="100" cy="100" r="84" fill="none" stroke-width="1.6" stroke-opacity="0.85"/>
+              <circle cx="100" cy="100" r="64" fill="none" stroke-width="0.8" stroke-opacity="0.55"/>
+              <text font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="11.5" letter-spacing="2.6" fill-opacity="0.96" stroke="none">
+                <textPath href="#vvp-arc-top" startOffset="50%" text-anchor="middle">CERTIFIED · PASSPORT · OFFICIAL</textPath>
+              </text>
+              <text font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="11" letter-spacing="3" fill-opacity="0.96" stroke="none">
+                <textPath href="#vvp-arc-bot" startOffset="50%" text-anchor="middle">★ BY MON MIN PET ★</textPath>
+              </text>
+              <text x="20" y="107" text-anchor="middle" font-size="16" font-weight="900" fill-opacity="0.92" stroke="none">✦</text>
+              <text x="180" y="107" text-anchor="middle" font-size="16" font-weight="900" fill-opacity="0.92" stroke="none">✦</text>
+              <text x="100" y="115" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-style="italic" font-weight="700" font-size="18" letter-spacing="0.4" fill-opacity="1" stroke="none">VowVet</text>
+              <line x1="60" y1="126" x2="140" y2="126" stroke-width="0.8" stroke-opacity="0.7"/>
+              <text x="100" y="138" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="700" font-size="7.5" letter-spacing="1.4" fill-opacity="0.95" stroke="none">CAM KẾT TRỌN ĐỜI</text>
+              <text x="100" y="150" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="600" font-size="7" letter-spacing="1" fill-opacity="0.88" stroke="none">HCM CITY · VIETNAM</text>
+            </g>
+            <image href="/logo-mmp.png" x="76" y="46" width="48" height="48" preserveAspectRatio="xMidYMid meet" opacity="0.98" filter="url(#vvp-logo-gold)"/>
+          </svg>
+        </span>
+      </div>
+
+      {/* Checkbox + nút (ẩn sau khi đóng mộc xong) */}
+      <div x-show="!done">
+        <label class="flex items-start gap-2 text-left text-[13px] text-mmp-ink/80 cursor-pointer bg-white/60 rounded-xl px-3 py-2 border border-mmp-gold/30">
+          <input type="checkbox" x-model="ticked" class="mt-0.5 shrink-0" style="accent-color:#B48608;" />
+          <span>Tôi cam kết khai báo trung thực thông tin của <strong>{name}</strong>, vì sức khỏe và cuộc sống của bé.</span>
+        </label>
+        <button type="button" @click="confirm()" :disabled="!ticked || busy"
+                class="mt-3 w-full px-5 py-3 rounded-xl font-bold text-sm transition"
+                :class="ticked ? 'bg-mmp-ink text-white hover:bg-mmp-ink/90 shadow-lg' : 'bg-mmp-ink/20 text-mmp-ink/40 cursor-not-allowed'">
+          <span x-text="busy ? 'Đang đóng mộc…' : 'Xác nhận cam kết'"></span>
+        </button>
+        <p x-show="error" style="display:none;" class="text-xs text-red-600 mt-2" x-text="error"></p>
+      </div>
+
+      <p x-show="done" style="display:none;" class="text-sm font-semibold text-emerald-700 mt-2">✓ Đã cam kết hồ sơ trọn đời</p>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  function pledgeCert(petId) {
+    return {
+      petId: petId,
+      ticked: false, busy: false, stamping: false, done: false, error: "", visible: true,
+      confirm() {
+        if (!this.ticked || this.busy) return;
+        this.busy = true; this.error = "";
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        this.stamping = true;  // hiện mộc (+ animation nếu không reduced-motion)
+        var self = this;
+        setTimeout(function () { self.submit(); }, reduce ? 0 : 950);
+      },
+      async submit() {
+        try {
+          var res = await fetch('/api/v1/pets/' + this.petId + '/pledge', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', body: JSON.stringify({}),
+          });
+          if (!res.ok) {
+            var j = await res.json().catch(function () { return {}; });
+            this.error = (j.error && j.error.message) || 'Có lỗi, thử lại nhé'; this.busy = false; return;
+          }
+          this.done = true;
+          var self = this;
+          setTimeout(function () { self.visible = false; }, 1300);  // chuyển mềm vào form
+        } catch (e) {
+          this.error = 'Lỗi kết nối. Thử lại nhé'; this.busy = false;
+        }
+      },
+    };
+  }
+</script>
+
+<style>
+  .vvpledge-card { animation: vvpledge-card-in .35s cubic-bezier(.22,.61,.36,1) both; }
+  @keyframes vvpledge-card-in { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+  .vvpledge-stamp { display: inline-block; }
+  .vvpledge-stamp svg { width: 104px; height: 104px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.35)); }
+  .vvpledge-stamp.is-stamping { animation: vvpledge-stamp-down .9s cubic-bezier(.3,.7,.4,1) both; }
+  @keyframes vvpledge-stamp-down {
+    0%   { opacity: 0; transform: scale(2.6) rotate(-14deg); }
+    55%  { opacity: 1; transform: scale(.92) rotate(2deg); }
+    68%  { transform: scale(1.05) rotate(-1.5deg); }
+    80%  { transform: scale(.98) rotate(.6deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vvpledge-card, .vvpledge-stamp.is-stamping { animation: none !important; }
+  }
+</style>

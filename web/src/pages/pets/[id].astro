@@ -9,6 +9,7 @@ import {
   HEALTH_CONDITIONS, TIER_META, CONDITION_STATUSES,
   COAT_CONDITIONS, DENTAL_STATUSES, ACTIVITY_LEVELS, LIFE_STAGES,
 } from "@shared/health-conditions.ts";
+import PledgeCertificate from "../../components/PledgeCertificate.astro";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 const petId = Number(Astro.params.id);
@@ -41,6 +42,14 @@ try {
   });
   if (res.ok) profile = (await res.json()).pet || {};
 } catch (_) {}
+
+// BƯỚC 2: cam kết hồ sơ trọn đời — chặn đầu khi chưa cam kết HOẶC pledge > 6 tháng (re-confirm)
+const _pledgeRaw = (pet as any)?.pledge_at || null;
+const _pledgeDate = _pledgeRaw ? new Date(_pledgeRaw) : null;
+const _pledgeValid = !!_pledgeDate && !isNaN(_pledgeDate.getTime());
+const pledgeNeeds = !_pledgeValid || (Date.now() - (_pledgeDate as Date).getTime() > 1000 * 60 * 60 * 24 * 182);
+const pledgeIsReconfirm = _pledgeValid && pledgeNeeds;
+const pledgeDateDisplay = _pledgeValid ? String(_pledgeRaw).split("-").reverse().join("/") : null;
 
 // VN labels cho dropdown values
 const VN_LABELS: Record<string, Record<string, string>> = {
@@ -196,6 +205,9 @@ const storyExcerpt = hasStory
     >
       <div class="pet-scroll-progress__fill" :style="`width: ${pct}%`"></div>
     </div>
+    {pledgeNeeds && (
+      <PledgeCertificate petId={petId} petName={pet.name} petImage={(pet as any).photo_url || ""} isReconfirm={pledgeIsReconfirm} />
+    )}
     <div
       class="max-w-5xl mx-auto pet-detail-tabs"
       x-data={`petDetail(${initialJson}, ${dogBreedsJson}, ${catBreedsJson}, "${appUrl}", ${healthConfigJson})`}
@@ -298,6 +310,12 @@ const storyExcerpt = hasStory
             <image href="/logo-mmp.png" x="76" y="46" width="48" height="48" preserveAspectRatio="xMidYMid meet" opacity="0.98" filter="url(#hsp-logo-gold)"/>
           </svg>
         </span>
+        {pledgeDateDisplay && (
+          <p class="no-print -mt-1 mb-4 inline-flex items-center gap-1.5 text-[11px] font-semibold" style="color:#B48608;">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+            Đã cam kết hồ sơ trọn đời · {pledgeDateDisplay}
+          </p>
+        )}
         <div class="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6 lg:gap-10">
           <!-- v66: QR Passport — display + management consolidated (Alpine reactive) -->
           <div class="space-y-3">
