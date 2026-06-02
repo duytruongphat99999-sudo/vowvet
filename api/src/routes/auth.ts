@@ -10,6 +10,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { normalizePhone, VN_PHONE_REGEX } from "@shared/auth.ts";
 import { signSession } from "@shared/jwt.ts";
+import { getMeCache, setMeCache } from "../lib/me-cache.ts";
 import { speciesEnToVi, genderEnToVi } from "@shared/enum-mappers.ts";
 import { toApiPet } from "./pets.ts";   // v49: share mapper
 import { requestOtp, verifyOtp } from "../lib/otp.ts";
@@ -191,15 +192,23 @@ authRoute.post("/logout", (c) => {
 authRoute.get("/me", requireAuth, async (c) => {
   const session = c.get("user");
   // M8: lookup theo user_id thay vì phone (Google OAuth users không có phone)
-  // v274 (tối ưu loading): chạy SONG SONG 2 query Baserow (cùng key = session.sub) thay vì
-  // tuần tự (findUserById ~0.36s + listUserPets ~1.4s = ~1.8s → còn ~1.4s). Mọi page dùng fetchMe nhanh hơn.
-  const [user, pets] = await Promise.all([
-    findUserById(session.sub),
-    listUserPets(session.sub),
-  ]);
-  if (!user || (user as any).deleted_at) {
-    clearSessionCookie(c);
-    return c.json({ error: { code: "USER_NOT_FOUND", message: "Phiên đã hết hạn" } }, 401);
+  // v275: cache ngắn (12s) + song song hóa khi MISS. Invalidate khi user ghi (middleware index.ts)
+  // → tránh query Baserow ~1.5s mỗi page SSR mà KHÔNG trả data cũ sau khi user vừa sửa.
+  let user: any, pets: any[];
+  const cached = getMeCache(session.sub);
+  if (cached) {
+    user = cached.user;
+    pets = cached.pets;
+  } else {
+    [user, pets] = await Promise.all([
+      findUserById(session.sub),
+      listUserPets(session.sub),
+    ]);
+    if (!user || (user as any).deleted_at) {
+      clearSessionCookie(c);
+      return c.json({ error: { code: "USER_NOT_FOUND", message: "Phiên đã hết hạn" } }, 401);
+    }
+    setMeCache(session.sub, user, pets);
   }
   const is_onboarded = pets.length > 0;
 

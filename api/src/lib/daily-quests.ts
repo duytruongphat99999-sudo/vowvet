@@ -104,7 +104,15 @@ export async function listTodayQuests(userId: number, petId: number, dateISO?: s
     }),
     getDefsMap(),
   ]);
-  return questsRes.results.filter((r) => r.quest_code).map((r) => questToApi(r, defsMap));
+  // v275: dedupe theo quest_code (phòng dữ liệu trùng do race cũ) — mỗi quest hiển thị 1 lần
+  const seenCodes = new Set<string>();
+  return questsRes.results
+    .filter((r) => {
+      if (!r.quest_code || seenCodes.has(r.quest_code)) return false;
+      seenCodes.add(r.quest_code);
+      return true;
+    })
+    .map((r) => questToApi(r, defsMap));
 }
 
 export async function listQuestHistory(userId: number, petId: number, limit = 30): Promise<UserDailyQuest[]> {
@@ -135,12 +143,19 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return out;
 }
 
+const assignLocks = new Map<string, Promise<UserDailyQuest[]>>();
+
 export async function assignDailyQuests(userId: number, petId: number, dateISO?: string): Promise<UserDailyQuest[]> {
   const date = (dateISO || new Date().toISOString()).slice(0, 10);
-  // Top-up semantics (changed from early-return):
+  // v275: LOCK theo (user,pet,date) — gộp các call ĐỒNG THỜI (dashboard bắn /quests/today
+  // song song trên account mới 0 quest → nhiều assign cùng pass check-then-insert → TRÙNG).
+  const lockKey = `${userId}:${petId}:${date}`;
+  const inflight = assignLocks.get(lockKey);
+  if (inflight) return inflight;
+  const promise = (async (): Promise<UserDailyQuest[]> => {
+  // Top-up semantics:
   //   - If 3+ quests already exist for today, return them (idempotent — cron-safe).
   //   - If 0/1/2 quests exist, fill the gap to 3, preferring missing difficulty tiers.
-  //   - Never duplicates existing quest_code, never resets completed state.
   const existing = await listTodayQuests(userId, petId, date);
   if (existing.length >= 3) return existing.slice(0, 3);
 
@@ -194,6 +209,13 @@ export async function assignDailyQuests(userId: number, petId: number, dateISO?:
   }
   // Return EXISTING + newly created (caller expects full set of today's quests)
   return [...existing, ...created];
+  })();
+  assignLocks.set(lockKey, promise);
+  try {
+    return await promise;
+  } finally {
+    assignLocks.delete(lockKey);
+  }
 }
 
 // ============================================================

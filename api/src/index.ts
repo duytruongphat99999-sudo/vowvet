@@ -27,6 +27,7 @@ import { authGoogleRoute, googleLinkRoute } from "./routes/auth-google.ts";
 import { authEmailRoute } from "./routes/auth-email.ts";
 import { adminRoute } from "./routes/admin.ts";
 import { devRoute } from "./routes/dev.ts";
+import { invalidateMeCache } from "./lib/me-cache.ts";
 import {
   triageSymptomsRoute,
   petTriageRoute,
@@ -87,6 +88,18 @@ app.use(
     credentials: true, // cần cho cookie HTTP-only
   })
 );
+
+// v275: bust cache /auth/me khi user GHI (non-GET) → không trả pet/user cũ sau khi sửa.
+app.use("*", async (c, next) => {
+  await next();
+  try {
+    const m = c.req.method;
+    if (m !== "GET" && m !== "HEAD" && m !== "OPTIONS") {
+      const u = c.get("user") as any;
+      if (u?.sub) invalidateMeCache(u.sub);
+    }
+  } catch {}
+});
 
 app.get("/", (c) => c.json({ name: "vowvet-api", version: "0.36.0" }));
 
