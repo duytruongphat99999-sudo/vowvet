@@ -9,7 +9,6 @@ import {
   HEALTH_CONDITIONS, TIER_META, CONDITION_STATUSES,
   COAT_CONDITIONS, DENTAL_STATUSES, ACTIVITY_LEVELS, LIFE_STAGES,
 } from "@shared/health-conditions.ts";
-import PledgeCertificate from "../../components/PledgeCertificate.astro";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 const petId = Number(Astro.params.id);
@@ -205,9 +204,6 @@ const storyExcerpt = hasStory
     >
       <div class="pet-scroll-progress__fill" :style="`width: ${pct}%`"></div>
     </div>
-    {pledgeNeeds && (
-      <PledgeCertificate petId={petId} petName={pet.name} petImage={(pet as any).photo_url || ""} isReconfirm={pledgeIsReconfirm} />
-    )}
     <div
       class="max-w-5xl mx-auto pet-detail-tabs"
       x-data={`petDetail(${initialJson}, ${dogBreedsJson}, ${catBreedsJson}, "${appUrl}", ${healthConfigJson})`}
@@ -221,6 +217,23 @@ const storyExcerpt = hasStory
           <FeatureIcon name="file-text" class="w-4 h-4" /><span>Xuất PDF Hộ chiếu</span>
         </button>
       </div>
+
+      {/* BƯỚC 2-fix: re-confirm cam kết 6 tháng — banner MỀM, không chặn cứng */}
+      {pledgeIsReconfirm && (
+        <div x-data="{ show: true, busy: false }" x-show="show" style="display:none;"
+             class="no-print mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <svg class="w-5 h-5 shrink-0 text-amber-600 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-amber-900 leading-relaxed">Hồ sơ cam kết của bé đã hơn 6 tháng — rà soát lại thông tin còn đúng nhé.</p>
+            <button type="button" :disabled="busy"
+              @click={`busy = true; fetch('/api/v1/pets/${petId}/pledge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: '{}' }).then(() => { show = false; }).catch(() => { busy = false; })`}
+              class="mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-mmp-ink text-white hover:bg-mmp-ink/90 transition disabled:opacity-60">
+              <span x-text="busy ? 'Đang lưu…' : 'Xác nhận còn đúng'"></span>
+            </button>
+          </div>
+          <button type="button" @click="show = false" aria-label="Đóng" class="shrink-0 text-amber-600 hover:text-amber-800 text-lg leading-none">✕</button>
+        </div>
+      )}
 
       <!-- v68: HERO PASSPORT — gold top accent + warm cream gradient + larger luxury padding -->
       <div class="hero-passport mb-10 rounded-2xl shadow-sm">
