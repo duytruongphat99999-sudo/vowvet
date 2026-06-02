@@ -17,6 +17,11 @@ const {
 } = Astro.props;
 
 const locale = Astro.locals.locale ?? "vi";
+
+// v269: nút "Reset test" CHỈ hiện ở môi trường dev. `import.meta.env.DEV` được
+// thay tĩnh lúc build → ở production build thành false và bị strip hoàn toàn.
+// Thêm điều kiện đã đăng nhập (không hiện ở /login).
+const showDevTools = import.meta.env.DEV && !!Astro.locals.user;
 ---
 
 <!doctype html>
@@ -55,6 +60,18 @@ const locale = Astro.locals.locale ?? "vi";
   </head>
   <body>
     <slot />
+
+    {showDevTools && (
+      <button
+        id="dev-reset-btn"
+        type="button"
+        title="DEV: Reset tài khoản test đang đăng nhập về mới toanh (xóa pet + onboarding). Không ảnh hưởng tài khoản khác."
+        class="no-print"
+        style="position:fixed;left:12px;bottom:12px;z-index:9999;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9999px;background:#1f1147;color:#fff;font-size:12px;font-weight:700;border:1px solid rgba(255,255,255,.28);box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;opacity:.82;font-family:system-ui,-apple-system,sans-serif"
+      >
+        🔄 Reset test
+      </button>
+    )}
 
     <!-- v136: SW update toast — hiển thị khi service worker activate phiên bản mới.
          Solve root cause "user kẹt SW cũ" (CONTEXT_SYNC #3.1). -->
@@ -189,6 +206,31 @@ const locale = Astro.locals.locale ?? "vi";
           window.__pwa.deferredPrompt = null;
           window.__pwa.installed = true;
           window.dispatchEvent(new CustomEvent("pwa-installed"));
+        });
+      })();
+    </script>
+
+    <!-- v269: DEV-only reset-test button wiring. No-op nếu nút không render (production). -->
+    <script is:inline>
+      (() => {
+        const b = document.getElementById("dev-reset-btn");
+        if (!b) return;
+        b.addEventListener("click", async () => {
+          if (!confirm("DEV — Reset tài khoản test này về MỚI TOANH?\n\n• Xóa toàn bộ pet của CHÍNH tài khoản đang đăng nhập\n• Reset onboarding (chạy lại từ màn \"Thêm bé đầu tiên\")\n\nKhông ảnh hưởng tài khoản khác. Tiếp tục?")) return;
+          const old = b.textContent;
+          b.disabled = true;
+          b.textContent = "⏳ Đang reset…";
+          try {
+            const res = await fetch("/api/v1/dev/reset-onboarding", { method: "POST", credentials: "include" });
+            if (!res.ok) {
+              alert("Reset thất bại (HTTP " + res.status + "). Endpoint chỉ hoạt động ở môi trường dev/local.");
+              b.disabled = false; b.textContent = old; return;
+            }
+            window.location.href = "/onboarding";
+          } catch (e) {
+            alert("Lỗi kết nối khi reset. Thử lại nhé.");
+            b.disabled = false; b.textContent = old;
+          }
         });
       })();
     </script>

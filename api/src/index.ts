@@ -26,6 +26,7 @@ import {
 import { authGoogleRoute, googleLinkRoute } from "./routes/auth-google.ts";
 import { authEmailRoute } from "./routes/auth-email.ts";
 import { adminRoute } from "./routes/admin.ts";
+import { devRoute } from "./routes/dev.ts";
 import {
   triageSymptomsRoute,
   petTriageRoute,
@@ -115,6 +116,7 @@ app.route("/api/v1/food-brands", foodBrandsRoute);
 app.route("/api/v1/forbidden-foods", forbiddenFoodsRoute);
 // M8: admin (protected by ADMIN_PHONES env whitelist)
 app.route("/api/v1/admin", adminRoute);
+app.route("/api/v1/dev", devRoute); // v269: dev-only (self reset-onboarding) — 404 ở production
 // M9.1: Symptom triage routes
 app.route("/api/v1/triage", triageSymptomsRoute);     // GET /symptoms
 app.route("/api/v1/pets", petTriageRoute);            // /pets/:id/triage[/history]

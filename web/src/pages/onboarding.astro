@@ -1,251 +1,45 @@
 ---
 /**
- * /onboarding — Single-flow first-pet creation (M21+).
+ * /onboarding — Màn "Thêm bé đầu tiên 🐾" (welcome-empty, thân thiện).
  *
- * Đã bỏ "Quick vs Full" mode selector (redundant). Chỉ 1 form duy nhất.
- * Sau submit: tạo pet → mark user onboarded → /dashboard?welcome=1.
- *
- * User vẫn có thể bổ sung 50+ field chi tiết qua Pet Passport sau (link
- * /pets/[id]/profile/complete) — nhưng không bắt buộc trong onboarding.
+ * v269: User chưa có pet nào → middleware đưa về đây (chặn dashboard,
+ * kể cả khi gõ /dashboard trực tiếp). Màn này KHÔNG có form — chỉ chào
+ * hỏi + nút "Thêm bé" dẫn sang /pets/new (chào hỏi → certificate cam
+ * kết → form). Đã có ≥1 bé → /dashboard.
  */
 import Layout from "../layouts/Layout.astro";
-import { DOG_BREEDS_VN, CAT_BREEDS_VN } from "../lib/breeds.ts";
 
 const user = Astro.locals.user;
 
-// ────────────────────────────────────────────────────────────
-// Defensive auth gate — middleware already redirects anonymous
-// users to /login?return_to=/onboarding (see web/src/middleware.ts
-// Step 3). This block is belt-and-suspenders: if the middleware
-// is bypassed for any reason (CDN cache, dev override, etc.), the
-// page itself refuses to render and redirects to /login.
-// Also: if user is already onboarded, send them to /dashboard.
-// ────────────────────────────────────────────────────────────
+// Auth gate (belt-and-suspenders — middleware đã lo phần lớn)
 if (!user) {
   return Astro.redirect("/login?return_to=%2Fonboarding");
 }
 if (user.is_onboarded === true) {
   return Astro.redirect("/dashboard");
 }
-// v269: onboarding dùng luồng cert ở /pets/new (chào hỏi → certificate cam kết → form). Form M21 cũ bỏ.
-return Astro.redirect("/pets/new");
-
-const phoneDisplay = user?.phone || "";
-
-const dogBreedsJson = JSON.stringify(DOG_BREEDS_VN);
-const catBreedsJson = JSON.stringify(CAT_BREEDS_VN);
 ---
 
-<Layout title="Thiết lập thú cưng · VowVet" description="Thêm thú cưng đầu tiên vào VowVet">
-  <main class="min-h-screen px-4 sm:px-6 py-8 bg-gradient-to-br from-sky-50 via-mmp-cream to-white">
-    <div class="max-w-xl mx-auto" x-data={`onboardingPage(${dogBreedsJson}, ${catBreedsJson})`}>
-
-      <!-- Top-right info link (newcomers can re-read the pitch without losing flow) -->
-      <div class="flex justify-end mb-1">
-        <a href="/why-vowvet" class="text-xs text-slate-500 hover:text-mmp-ink underline">Tại sao dùng VowVet?</a>
-      </div>
-
-      <!-- Hero -->
-      <div class="text-center mb-7">
-        <p class="text-5xl mb-3 select-none inline-block animate-bounce" style="animation-duration: 2.5s">🐾</p>
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">Chào mừng đến VowVet!</h1>
-        {phoneDisplay && (
-          <p class="mt-1 text-sm text-slate-500">{phoneDisplay}</p>
-        )}
-        <p class="mt-2 text-slate-600">Hãy giới thiệu bé yêu để bắt đầu</p>
-      </div>
-
-      <!-- Single form, NO mode selector -->
-      <div class="bg-white rounded-3xl shadow-xl border border-slate-100 p-6 sm:p-7 space-y-5">
-
-        <!-- Name -->
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1.5">Tên bé *</label>
-          <input
-            type="text"
-            x-model="form.name"
-            placeholder="VD: Lê, Mochi, Bin, Beo, Mun…"
-            maxlength="100"
-            class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none"
-            required
-          />
-        </div>
-
-        <!-- Species -->
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">Loài *</label>
-          <div class="grid grid-cols-2 gap-3">
-            <button type="button"
-              @click="form.species = 'Chó'; form.breed = ''"
-              :class="form.species === 'Chó' ? 'border-mmp-ink bg-mmp-cream ring-2 ring-mmp-gold' : 'border-slate-200 hover:border-mmp-cream'"
-              class="border-2 rounded-2xl py-5 flex flex-col items-center gap-1.5 transition">
-              <span class="text-4xl">🐶</span>
-              <span class="font-semibold text-slate-900">Chó</span>
-            </button>
-            <button type="button"
-              @click="form.species = 'Mèo'; form.breed = ''"
-              :class="form.species === 'Mèo' ? 'border-mmp-ink bg-mmp-cream ring-2 ring-mmp-gold' : 'border-slate-200 hover:border-mmp-cream'"
-              class="border-2 rounded-2xl py-5 flex flex-col items-center gap-1.5 transition">
-              <span class="text-4xl">🐱</span>
-              <span class="font-semibold text-slate-900">Mèo</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Breed -->
-        <div x-show="form.species">
-          <label class="block text-sm font-semibold text-slate-700 mb-1.5">Giống (tuỳ chọn)</label>
-          <input type="text"
-            x-model="form.breed"
-            list="breed-list"
-            placeholder="VD: Poodle, Mèo Anh lông ngắn… (gõ để gợi ý)"
-            maxlength="100"
-            class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
-          <datalist id="breed-list">
-            <template x-for="b in breedOptions" :key="b">
-              <option :value="b"></option>
-            </template>
-          </datalist>
-        </div>
-
-        <!-- Gender + DOB -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Giới tính</label>
-            <select x-model="form.gender"
-              class="w-full px-3 py-3 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none bg-white">
-              <option value="">— Chọn —</option>
-              <option value="Đực">♂️ Đực</option>
-              <option value="Cái">♀️ Cái</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Ngày sinh (tuỳ chọn)</label>
-            <input type="date"
-              x-model="form.dob"
-              :max="todayIso"
-              class="w-full px-3 py-3 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
-          </div>
-        </div>
-
-        <!-- Weight (optional) -->
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1.5">Cân nặng — kg (tuỳ chọn)</label>
-          <input type="number" step="0.1" min="0.1" max="200"
-            x-model.number="form.weight_kg"
-            placeholder="VD: 5.5"
-            class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
-        </div>
-
-        <!-- Error display -->
-        <template x-if="error">
-          <p class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700" x-text="error"></p>
-        </template>
-
-        <!-- Submit -->
-        <button @click="submit()"
-          :disabled="loading || !canSubmit"
-          class="w-full py-3.5 rounded-2xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold shadow-lg transition">
-          <span x-show="!loading">🚀 Hoàn thành & vào dashboard</span>
-          <span x-show="loading">Đang tạo bé…</span>
-        </button>
-
-        <p class="text-xs text-slate-500 text-center">
-          💡 Bạn có thể bổ sung 50+ thông tin chi tiết hơn ở phần Pet Passport sau khi vào dashboard.
-        </p>
-
-      </div>
-
-      <!-- Logout escape hatch -->
-      <p class="text-center mt-5">
-        <a href="/logout" class="text-xs text-slate-400 hover:text-slate-700">← Đăng xuất</a>
+<Layout title="Thêm bé đầu tiên · VowVet" description="Thêm thú cưng đầu tiên vào VowVet">
+  <main class="min-h-screen flex items-center justify-center px-4 sm:px-6 py-10 bg-mmp-cream">
+    <div class="max-w-md mx-auto text-center">
+      <div class="text-6xl mb-5 select-none inline-block animate-bounce" style="animation-duration: 2.5s">🐾</div>
+      <h1 class="font-display italic text-3xl sm:text-4xl font-semibold text-mmp-ink leading-tight">
+        Thêm bé đầu tiên
+      </h1>
+      <p class="mt-4 text-mmp-ink/70 leading-relaxed">
+        Chào mừng bạn đến với VowVet! Hãy bắt đầu bằng việc lập
+        <strong class="text-mmp-ink">Hồ sơ Trọn đời</strong> cho bé yêu —
+        chỉ mất một phút.
       </p>
-
+      <a href="/pets/new"
+         class="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-mmp-ink text-white font-bold text-base hover:bg-mmp-ink/90 shadow-lg transition">
+        <span class="text-xl">🐶</span> Thêm bé
+        <span>→</span>
+      </a>
+      <p class="mt-6">
+        <a href="/logout" class="text-xs text-mmp-ink/40 hover:text-mmp-ink">← Đăng xuất</a>
+      </p>
     </div>
   </main>
-
-  <script is:inline>
-    function onboardingPage(dogBreeds, catBreeds) {
-      return {
-        form: {
-          name: "",
-          species: "",   // "Chó" hoặc "Mèo" (API contract dùng tiếng Việt)
-          breed: "",
-          gender: "",    // "Đực" / "Cái"
-          dob: "",
-          weight_kg: null,
-        },
-        loading: false,
-        error: "",
-
-        get breedOptions() {
-          if (this.form.species === "Chó") return dogBreeds;
-          if (this.form.species === "Mèo") return catBreeds;
-          return [];
-        },
-
-        get todayIso() {
-          return new Date().toISOString().slice(0, 10);
-        },
-
-        get canSubmit() {
-          return this.form.name.trim().length > 0 && !!this.form.species;
-        },
-
-        async submit() {
-          this.error = "";
-          if (!this.form.name.trim()) { this.error = "Vui lòng đặt tên cho bé"; return; }
-          if (!this.form.species) { this.error = "Vui lòng chọn loài (Chó hoặc Mèo)"; return; }
-
-          this.loading = true;
-          const payload = {
-            name: this.form.name.trim(),
-            species: this.form.species,
-            breed: this.form.breed?.trim() || null,
-            dob: this.form.dob || null,
-            gender: this.form.gender || null,
-            weight_kg: this.form.weight_kg || null,
-          };
-
-          try {
-            // Step 1: create pet + auto-refresh JWT (server-side endpoint also sets onboarded=true in DB)
-            const res = await fetch("/api/v1/onboarding/pet", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify(payload),
-            });
-            const json = await res.json();
-            if (!res.ok) {
-              this.error = json.error?.message || "Tạo bé thất bại";
-              this.loading = false;
-              return;
-            }
-
-            // Step 2: double-tap complete-onboarding (idempotent, ensures DB + JWT consistent
-            // for callers who might have hit a slow path). Non-blocking.
-            fetch("/api/v1/users/me/complete-onboarding", {
-              method: "POST",
-              credentials: "include",
-            }).catch(() => {});
-
-            // Redirect → return_to (if user came from a protected page) or /dashboard?welcome=1
-            // Validate return_to to prevent open redirect.
-            let target = "/dashboard?welcome=1";
-            try {
-              const rt = new URLSearchParams(window.location.search).get("return_to");
-              if (rt && rt.startsWith("/") && !rt.startsWith("//") && rt !== "/onboarding") {
-                target = rt;
-              }
-            } catch (_) {}
-            window.location.href = target;
-          } catch (err) {
-            console.error("[onboarding] error:", err);
-            this.error = "Lỗi kết nối. Thử lại sau.";
-            this.loading = false;
-          }
-        },
-      };
-    }
-  </script>
 </Layout>
