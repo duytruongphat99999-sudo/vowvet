@@ -1204,67 +1204,92 @@ const storyExcerpt = hasStory
                 <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60">Chi tiết tình trạng đã chọn</p>
                 <template x-for="entry in medForm.conditions" :key="entry.code">
                   <div class="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-mmp-cream/40 border border-mmp-ink/10">
-                    <span class="text-sm font-medium text-mmp-ink flex-1 min-w-[120px]" x-text="medLabel(entry.code)"></span>
-                    <select x-model="entry.status" class="text-xs bg-white border border-mmp-ink/10 rounded-lg px-2 py-1 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                    <span class="text-sm font-medium text-mmp-ink flex-1 min-w-[110px]" x-text="medLabel(entry.code)"></span>
+                    <select x-model="entry.status" title="Tình trạng hiện tại"
+                            class="text-xs bg-white border border-mmp-ink/10 rounded-lg px-2 py-1 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
                       <template x-for="s in healthConfig.statuses" :key="s.value"><option :value="s.value" x-text="s.label"></option></template>
                     </select>
-                    <input type="month" x-model="entry.since" title="Tháng phát hiện (tùy chọn)"
-                           class="text-xs bg-white border border-mmp-ink/10 rounded-lg px-2 py-1 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300" />
+                    <div class="inline-flex items-center gap-1" title="Tháng phát hiện (tùy chọn)">
+                      <select x-model="entry._m" class="text-xs bg-white border border-mmp-ink/10 rounded-lg px-1.5 py-1 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                        <option value="">Tháng</option>
+                        <template x-for="mo in 12" :key="mo"><option :value="mo" x-text="'Tháng ' + mo"></option></template>
+                      </select>
+                      <select x-model="entry._y" class="text-xs bg-white border border-mmp-ink/10 rounded-lg px-1.5 py-1 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                        <option value="">Năm</option>
+                        <template x-for="yr in medYearOptions" :key="yr"><option :value="yr" x-text="yr"></option></template>
+                      </select>
+                    </div>
+                    <button type="button" @click="medToggleCondition(entry.code)" title="Bỏ tình trạng này"
+                            class="shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-lg text-mmp-ink/50 hover:text-red-600 hover:bg-red-50 transition">
+                      <FeatureIcon name="close" class="w-4 h-4" />
+                    </button>
                   </div>
                 </template>
               </div>
             </template>
           </div>
 
-          {/* PROGRESSIVE: khai chi tiết hơn */}
-          <button type="button" @click="medExpanded = !medExpanded"
-                  class="mt-4 w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-mmp-ink/70 hover:text-mmp-ink py-2 rounded-xl bg-mmp-cream/40 hover:bg-mmp-cream/70 transition">
-            <FeatureIcon name="edit-pencil" class="w-3.5 h-3.5" />
-            <span x-text="medExpanded ? 'Thu gọn' : 'Khai chi tiết hơn (khuyến khích)'"></span>
-          </button>
-          <div x-show="medExpanded" x-collapse style="display:none;" class="mt-3 space-y-3">
+          {/* NHÓM 3: HỒ SƠ CHI TIẾT — mở sẵn, nổi bật (đây là "thuốc", quan trọng) */}
+          <div class="mt-4 pt-4 border-t border-mmp-ink/8">
+            <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60 mb-2 inline-flex items-center gap-1"><FeatureIcon name="clipboard" class="w-3 h-3" /> Hồ sơ chi tiết</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label class="block">
-                <span class="text-[11px] text-mmp-ink/60">Tình trạng lông / da</span>
+                <span class="text-[11px] font-medium text-mmp-ink/70">Tình trạng lông / da</span>
                 <select x-model="medForm.coat_condition" class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
                   <option value="">— Chọn —</option>
                   <template x-for="o in healthConfig.coats" :key="o.value"><option :value="o.value" x-text="o.label"></option></template>
                 </select>
+                <span class="block text-[10px] text-mmp-ink/50 italic mt-1">Giúp gợi ý đạm thủy phân / bổ sung Omega-3 cho lông-da.</span>
               </label>
               <label class="block">
-                <span class="text-[11px] text-mmp-ink/60">Tình trạng răng</span>
+                <span class="text-[11px] font-medium text-mmp-ink/70">Tình trạng răng</span>
                 <select x-model="medForm.dental_status" class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
                   <option value="">— Chọn —</option>
                   <template x-for="o in healthConfig.dentals" :key="o.value"><option :value="o.value" x-text="o.label"></option></template>
                 </select>
+                <span class="block text-[10px] text-mmp-ink/50 italic mt-1">Răng yếu / mất răng → ưu tiên hạt mềm, pate dễ nhai.</span>
               </label>
             </div>
-            <label class="block">
-              <span class="text-[11px] text-mmp-ink/60">Thuốc đang dùng</span>
+            <label class="block mt-3">
+              <span class="text-[11px] font-medium text-mmp-ink/70">Thuốc đang dùng</span>
               <textarea x-model="medForm.current_medications" rows="2" placeholder="VD: Insulin 2 đơn vị/ngày, thuốc tim mạch…"
                         class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300 leading-relaxed"></textarea>
+              <span class="block text-[10px] text-mmp-ink/50 italic mt-1">Để cảnh báo tương tác thuốc – thức ăn (vd thuốc thận, lợi tiểu, tim mạch).</span>
             </label>
-            <label class="block">
-              <span class="text-[11px] text-mmp-ink/60">Bệnh sử / phẫu thuật trước đây</span>
+            <label class="block mt-3">
+              <span class="text-[11px] font-medium text-mmp-ink/70">Bệnh sử / phẫu thuật trước đây</span>
               <textarea x-model="medForm.health_history" rows="2" placeholder="VD: Mổ lấy dị vật 2024, từng viêm tụy…"
                         class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300 leading-relaxed"></textarea>
+              <span class="block text-[10px] text-mmp-ink/50 italic mt-1">Bệnh nền cũ giúp gợi ý phù hợp & tránh tái phát.</span>
             </label>
           </div>
 
-          {/* SAVE */}
-          <div class="mt-4 flex items-center gap-3 flex-wrap">
-            <button type="button" @click="saveMedical()" :disabled="medSaving"
-                    class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-mmp-ink text-white font-bold text-sm transition hover:bg-mmp-ink/90 disabled:opacity-60">
-              <FeatureIcon name="check" class="w-4 h-4" />
-              <span x-text="medSaving ? 'Đang lưu…' : 'Lưu bệnh sử'"></span>
-            </button>
-            <span x-show="medSaved" style="display:none;" class="text-sm font-semibold text-emerald-600 inline-flex items-center gap-1"><FeatureIcon name="check" class="w-4 h-4" /> Đã lưu</span>
-            <span x-show="medError" style="display:none;" class="text-sm text-red-600" x-text="medError"></span>
+          {/* SAVE + FEEDBACK */}
+          <div class="mt-5 pt-4 border-t border-mmp-ink/8">
+            <div class="flex items-center gap-3 flex-wrap">
+              <button type="button" @click="saveMedical()" :disabled="medSaving"
+                      class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-mmp-ink text-white font-bold text-sm transition hover:bg-mmp-ink/90 disabled:opacity-60">
+                <FeatureIcon name="check" class="w-4 h-4" />
+                <span x-text="medSaving ? 'Đang lưu…' : 'Lưu bệnh sử'"></span>
+              </button>
+              <span x-show="medError" style="display:none;" class="text-sm text-red-600" x-text="medError"></span>
+            </div>
+            {/* Feedback thành công — cho user thấy khai CÓ tác dụng */}
+            <div x-show="medSaved" style="display:none;" class="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3">
+              <p class="text-sm text-emerald-800 font-medium inline-flex items-start gap-1.5">
+                <FeatureIcon name="check" class="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Đã ghi nhận bệnh sử. Tình trạng này sẽ được dùng để điều chỉnh gợi ý khẩu phần khi bạn xem phần Dinh dưỡng.</span>
+              </p>
+              <a href="/food-brands" class="group mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-mmp-ink hover:underline">
+                <FeatureIcon name="bowl" class="w-4 h-4" /> Xem phần Dinh dưỡng
+                <span class="transition-transform group-hover:translate-x-0.5">→</span>
+              </a>
+            </div>
+            <p class="text-[10px] text-mmp-ink/55 italic mt-2 inline-flex items-start gap-1">
+              <FeatureIcon name="info" class="w-3 h-3 shrink-0 translate-y-0.5" />
+              <span>Thông tin tham khảo cho gợi ý dinh dưỡng. Với tình trạng nghiêm trọng, hãy hỏi bác sĩ thú y trước khi thay đổi chế độ ăn của bé.</span>
+            </p>
           </div>
-          <p class="text-[10px] text-mmp-ink/55 italic mt-2 inline-flex items-start gap-1">
-            <FeatureIcon name="info" class="w-3 h-3 shrink-0 translate-y-0.5" />
-            <span>Thông tin tham khảo cho gợi ý dinh dưỡng. Với tình trạng nghiêm trọng, hãy hỏi bác sĩ thú y trước khi thay đổi chế độ ăn của bé.</span>
-          </p>
         </div>
 
         <div class="space-y-2">
@@ -2613,7 +2638,7 @@ const storyExcerpt = hasStory
         dental_status: initialPet.dental_status || "",
         current_medications: initialPet.current_medications || "",
         health_history: initialPet.health_history || "",
-        conditions: _mc.map((c) => ({ code: c.code, status: c.status || "active", since: c.since || null })),
+        conditions: _mc.map((c) => { const _ms = /^(\d{4})-(\d{2})$/.exec(c.since || ""); return { code: c.code, status: c.status || "active", since: c.since || null, _y: _ms ? _ms[1] : "", _m: _ms ? String(Number(_ms[2])) : "" }; }),
       },
       medSaving: false,
       medSaved: false,
@@ -2921,7 +2946,7 @@ const storyExcerpt = hasStory
       medToggleCondition(code) {
         const i = this.medForm.conditions.findIndex((c) => c.code === code);
         if (i >= 0) this.medForm.conditions.splice(i, 1);
-        else this.medForm.conditions.push({ code, status: "active", since: null });
+        else this.medForm.conditions.push({ code, status: "active", since: null, _y: "", _m: "" });
       },
       medTierClasses(tier, selected) {
         const map = {
@@ -2930,6 +2955,10 @@ const storyExcerpt = hasStory
           3: selected ? "bg-red-600 text-white border-red-600" : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
         };
         return map[tier] || "";
+      },
+      get medYearOptions() {
+        const y = new Date().getFullYear();
+        return Array.from({ length: 26 }, (_, i) => String(y - i));
       },
       get medDerivedLifeStage() {
         const dob = this.pet.dob;
@@ -2959,7 +2988,9 @@ const storyExcerpt = hasStory
           current_medications: (this.medForm.current_medications || "").trim() || null,
           health_history: (this.medForm.health_history || "").trim() || null,
           health_conditions: this.medForm.conditions.map((c) => ({
-            code: c.code, status: c.status || "active", since: c.since || null,
+            code: c.code,
+            status: c.status || "active",
+            since: (c._y && c._m) ? `${c._y}-${String(c._m).padStart(2, "0")}` : null,
           })),
         };
         try {
@@ -2971,8 +3002,7 @@ const storyExcerpt = hasStory
           const json = await res.json();
           if (!res.ok) { this.medError = json.error?.message || "Có lỗi khi lưu"; return; }
           this.pet = json.pet;
-          this.medSaved = true;
-          setTimeout(() => { this.medSaved = false; }, 2500);
+          this.medSaved = true;  // 2a-fix#2: giữ panel feedback (không auto-ẩn) tới lần lưu sau
         } catch (err) {
           this.medError = "Lỗi kết nối. Thử lại nhé";
         } finally {
