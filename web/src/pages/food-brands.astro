@@ -1127,11 +1127,15 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
       <FeatureIcon name="microscope" class="w-5 h-5 text-mmp-gold" />
       Quét nhãn
     </button>
-    <!-- Đợt 2b: Popup nhắc cân (1 lần/ngày/user, 3s tự mờ hoặc đóng tay). Trong x-data nên Alpine an toàn. -->
+    <!-- Đợt 2b/v264: Popup nhắc cân (1 lần/ngày/user). KHÔNG tự tắt — user tự đóng; mọi cách đóng đều set last_seen=hôm nay. -->
     <div x-show="weightPopupOpen" style="display:none;"
          class="fixed inset-0 z-50 flex items-center justify-center px-4 vv-popup-backdrop"
-         @click="weightPopupOpen = false">
-      <div class="bg-white rounded-2xl shadow-2xl border border-mmp-ink/10 max-w-sm w-full p-5 text-center vv-popup-card" @click.stop>
+         @click="closeWeightPopup()">
+      <div class="relative bg-white rounded-2xl shadow-2xl border border-mmp-ink/10 max-w-sm w-full p-5 text-center vv-popup-card" @click.stop>
+        <button type="button" @click="closeWeightPopup()" aria-label="Đóng"
+                class="absolute top-2 right-2 w-8 h-8 inline-flex items-center justify-center rounded-lg text-mmp-ink/40 hover:text-mmp-ink hover:bg-mmp-cream transition">
+          <FeatureIcon name="close" class="w-4 h-4" />
+        </button>
         <span class="inline-flex w-12 h-12 rounded-full bg-mmp-cream items-center justify-center text-mmp-ink mb-2 mx-auto"><FeatureIcon name="activity" class="w-6 h-6" /></span>
         <h3 class="font-display italic text-lg font-semibold text-mmp-ink">Đã ghi cân nặng hôm nay chưa?</h3>
         <p class="text-sm text-mmp-ink/70 mt-1 leading-relaxed">
@@ -1139,10 +1143,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         </p>
         <div class="mt-4 flex flex-col gap-2">
           <a :href="profile.selectedPetId ? ('/pets/' + profile.selectedPetId + '/care-plan') : '/login'"
+             @click="closeWeightPopup()"
              class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-mmp-ink text-white font-bold text-sm hover:bg-mmp-ink/90 transition">
-            <FeatureIcon name="activity" class="w-4 h-4 text-mmp-gold" /> Ghi cân nặng ngay
+            <FeatureIcon name="activity" class="w-4 h-4 text-mmp-gold" /> Ghi cân ngay
+            <span class="transition-transform">→</span>
           </a>
-          <button type="button" @click="weightPopupOpen = false" class="text-xs text-mmp-ink/60 hover:text-mmp-ink py-1">Để sau</button>
+          <button type="button" @click="closeWeightPopup()" class="text-xs text-mmp-ink/60 hover:text-mmp-ink py-1">Để sau</button>
         </div>
       </div>
     </div>
@@ -1320,9 +1326,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           this.loadDietTimeline();
           // Đợt 2b: popup nhắc cân 1 lần/ngày/user (SSR đã lọc: logged-in + có pet + chưa xem hôm nay)
           if (this.showWeightPopup) {
+            // v264: popup KHÔNG tự tắt — chờ user tự đóng (POST seen dời sang closeWeightPopup)
             this.$nextTick(() => { this.weightPopupOpen = true; });
-            this.markFoodBrandsSeen();
-            setTimeout(() => { this.weightPopupOpen = false; }, 3000);
           }
         },
 
@@ -1455,6 +1460,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             else if (bad) notes.push({ label: "Cân nhắc " + def.label + " · " + why, good: false });
           }
           return notes;
+        },
+        closeWeightPopup() {
+          // v264: mọi cách đóng (Ghi ngay / Để sau / ✕ / nền mờ) → set last_seen = hôm nay (mai mới hiện lại)
+          this.weightPopupOpen = false;
+          this.markFoodBrandsSeen();
         },
         async markFoodBrandsSeen() {
           try { await fetch("/api/v1/users/me/seen-food-brands", { method: "POST", credentials: "same-origin" }); } catch (e) { /* silent */ }
