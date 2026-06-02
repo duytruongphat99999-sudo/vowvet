@@ -233,6 +233,14 @@ const userNameJson = JSON.stringify(userName);
               photoForm.append("photo", this.photoFile);
               await fetch("/api/v1/pets/" + petId + "/photo", { method: "POST", body: photoForm });
             } catch (e) { /* không chặn flow */ }
+            // v271 (mục 3): ghi 1 KỶ NIỆM vào gallery (pet_photos) — "Ngày cam kết Hồ sơ Trọn đời · [ngày]"
+            try {
+              var memForm = new FormData();
+              memForm.append("photo", this.photoFile);
+              memForm.append("type", "general");
+              memForm.append("caption", "Ngày cam kết Hồ sơ Trọn đời · " + this.todayDisplay);
+              await fetch("/api/v1/pets/" + petId + "/photos", { method: "POST", body: memForm });
+            } catch (e) { /* không chặn flow */ }
           }
           // v269: đánh dấu onboarded (re-sign JWT) → vào /pets/[id] không bị middleware bounce về onboarding
           try { await fetch("/api/v1/users/me/complete-onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }); } catch (e) { /* không chặn flow */ }
