@@ -21,22 +21,42 @@ const userNameJson = JSON.stringify(userName);
   <main class="min-h-screen px-4 sm:px-6 py-8 bg-mmp-cream">
     <div class="max-w-xl mx-auto" x-data={`newPetForm(${dogBreedsJson}, ${catBreedsJson}, ${userNameJson})`}>
 
-      {/* ① MÀN CHÀO HỎI */}
+      {/* ① MÀN CHÀO HỎI — lời chào mềm + ảnh bé (tuỳ chọn) + tên */}
       <div x-show="step === 'welcome'" class="text-center py-6">
-        <div class="text-5xl mb-3">🐾</div>
-        <h1 class="font-display italic text-2xl sm:text-3xl font-semibold text-mmp-ink leading-tight">Chào mừng bạn đến VowVet</h1>
-        <p class="text-sm text-mmp-ink/70 leading-relaxed mt-3 max-w-md mx-auto">
-          Trước khi bắt đầu, hãy cùng lập <strong class="text-mmp-ink">Hồ sơ Trọn đời</strong> cho bé —
-          một cam kết chăm sóc đi theo bé suốt cuộc đời.
+        <div class="text-5xl mb-3">🌸</div>
+        <h1 class="font-display italic text-2xl sm:text-3xl font-semibold text-mmp-ink leading-tight">Chào mừng bạn đến với VowVet</h1>
+        <p class="text-sm text-mmp-ink/75 leading-relaxed mt-3 max-w-md mx-auto">
+          Có một sinh linh nhỏ đã chọn bạn làm cả thế giới của nó.<br class="hidden sm:block" />
+          Mỗi bé cưng là một câu chuyện — hãy cùng VowVet mở trang đầu tiên:
+          <strong class="text-mmp-ink">Hồ sơ Trọn đời</strong>, nơi tình yêu thương được ghi lại trọn vẹn.
         </p>
-        <div class="mt-6 max-w-xs mx-auto text-left">
+
+        {/* Ảnh bé (tuỳ chọn) — preview tròn ngay, dùng cho khung tròn certificate */}
+        <div class="mt-6 flex flex-col items-center">
+          <label class="relative cursor-pointer">
+            <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="pickPhoto($event)" />
+            <span class="block w-24 h-24 rounded-full overflow-hidden flex items-center justify-center bg-white transition"
+                  style="box-shadow: 0 0 0 3px #d8b25a, 0 0 0 4.5px rgba(236,199,199,.6);">
+              <template x-if="photoPreview"><img :src="photoPreview" alt="" class="w-full h-full object-cover" /></template>
+              <template x-if="!photoPreview">
+                <span class="text-mmp-ink/40">
+                  <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </span>
+              </template>
+            </span>
+            <span class="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-mmp-ink text-white flex items-center justify-center text-sm shadow-md">+</span>
+          </label>
+          <p class="mt-2 text-xs text-mmp-ink/55" x-text="photoPreview ? 'Ảnh của bé 💛 (chạm để đổi)' : 'Thêm ảnh bé (tuỳ chọn)'"></p>
+        </div>
+
+        <div class="mt-5 max-w-xs mx-auto text-left">
           <label class="block text-sm font-medium text-mmp-ink/80 mb-1.5">Bé tên là gì?</label>
           <input type="text" x-model="pet.name" maxlength="100" placeholder="VD: Mun, Mít, Bông"
                  @keydown.enter="startPledge()"
                  class="w-full px-4 py-3 rounded-xl border border-mmp-ink/15 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 text-mmp-ink" />
         </div>
         <button type="button" @click="startPledge()" :disabled="!pet.name.trim()"
-                class="mt-5 inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition"
+                class="mt-5 inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition"
                 :class="pet.name.trim() ? 'bg-mmp-ink text-white hover:bg-mmp-ink/90 shadow-lg' : 'bg-mmp-ink/15 text-mmp-ink/40 cursor-not-allowed'">
           Bắt đầu cam kết
           <span>→</span>
@@ -132,6 +152,8 @@ const userNameJson = JSON.stringify(userName);
   </main>
 </Layout>
 
+<script is:inline src="/image-compress.js"></script>
+
 <script is:inline>
   function newPetForm(dogBreeds, catBreeds, userName) {
     return {
@@ -140,6 +162,10 @@ const userNameJson = JSON.stringify(userName);
       loading: false,
       error: "",
       pet: { name: "", species: "", breed: "", dob: "", gender: "", weight_kg: null },
+      // Ảnh bé (tuỳ chọn) — nén rồi giữ File để upload lúc submit; preview cho khung tròn cert
+      photoFile: null,
+      photoPreview: "",
+      photoError: "",
       // === Cam kết (bước 2) ===
       certTicked: false,
       stamping: false,
@@ -150,6 +176,21 @@ const userNameJson = JSON.stringify(userName);
         return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
       },
       startPledge() { if (this.pet.name.trim()) this.step = "pledge"; },
+      async pickPhoto(event) {
+        var input = event.target;
+        var file = input && input.files && input.files[0];
+        if (!file) return;
+        this.photoError = "";
+        try {
+          var compressed = (window.compressImage ? await window.compressImage(file) : file) || file;
+          this.photoFile = compressed;
+          if (this.photoPreview) { try { URL.revokeObjectURL(this.photoPreview); } catch (e) {} }
+          this.photoPreview = URL.createObjectURL(compressed);
+        } catch (e) {
+          this.photoFile = file;
+          this.photoPreview = URL.createObjectURL(file);
+        }
+      },
       confirmPledge() {
         if (!this.certTicked || this.stamping) return;
         this.stamping = true;
@@ -185,6 +226,14 @@ const userNameJson = JSON.stringify(userName);
           var petId = json.pet.id;
           // User đã cam kết ở bước 2 → ghi pledge cho pet vừa tạo
           try { await fetch("/api/v1/pets/" + petId + "/pledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }); } catch (e) { /* không chặn flow */ }
+          // v270: upload ảnh bé nếu có — tái dùng cơ chế R2 (POST /pets/:id/photo, field 'photo')
+          if (this.photoFile) {
+            try {
+              var photoForm = new FormData();
+              photoForm.append("photo", this.photoFile);
+              await fetch("/api/v1/pets/" + petId + "/photo", { method: "POST", body: photoForm });
+            } catch (e) { /* không chặn flow */ }
+          }
           // v269: đánh dấu onboarded (re-sign JWT) → vào /pets/[id] không bị middleware bounce về onboarding
           try { await fetch("/api/v1/users/me/complete-onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }); } catch (e) { /* không chặn flow */ }
           window.location.href = "/pets/" + petId;
