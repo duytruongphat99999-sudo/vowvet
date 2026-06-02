@@ -5,6 +5,10 @@ import FeatureIcon from "../../components/FeatureIcon.astro";
 import { fetchPet, fetchCompletion } from "../../lib/api-client.ts";
 import { formatAge } from "../../lib/age.ts";
 import { DOG_BREEDS_VN, CAT_BREEDS_VN } from "../../lib/breeds.ts";
+import {
+  HEALTH_CONDITIONS, TIER_META, CONDITION_STATUSES,
+  COAT_CONDITIONS, DENTAL_STATUSES, ACTIVITY_LEVELS, LIFE_STAGES,
+} from "@shared/health-conditions.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 const petId = Number(Astro.params.id);
@@ -71,6 +75,16 @@ const personalityRatings = {
 };
 
 const initialJson = JSON.stringify(pet);
+// Đợt 2a: cấu hình bệnh sử y khoa truyền vào Alpine petDetail
+const healthConfigJson = JSON.stringify({
+  conditions: HEALTH_CONDITIONS,
+  tiers: TIER_META,
+  statuses: CONDITION_STATUSES,
+  coats: COAT_CONDITIONS,
+  dentals: DENTAL_STATUSES,
+  activities: ACTIVITY_LEVELS,
+  lifeStages: LIFE_STAGES,
+});
 const dogBreedsJson = JSON.stringify(DOG_BREEDS_VN);
 const catBreedsJson = JSON.stringify(CAT_BREEDS_VN);
 const appUrl = import.meta.env.APP_URL || "https://vowvet.monminpet.com";
@@ -184,7 +198,7 @@ const storyExcerpt = hasStory
     </div>
     <div
       class="max-w-5xl mx-auto pet-detail-tabs"
-      x-data={`petDetail(${initialJson}, ${dogBreedsJson}, ${catBreedsJson}, "${appUrl}")`}
+      x-data={`petDetail(${initialJson}, ${dogBreedsJson}, ${catBreedsJson}, "${appUrl}", ${healthConfigJson})`}
       :data-active="pageTab"
     >
       <!-- Top bar -->
@@ -1131,6 +1145,128 @@ const storyExcerpt = hasStory
       <!-- M3.5: 8 accordion sections (Profile detail view) -->
       <div data-page-tab="profile" class="mt-8" x-data="{ openSections: new Set() }">
         <h2 class="text-lg font-semibold text-slate-900 mb-3">Hồ sơ chi tiết</h2>
+
+        {/* Đợt 2a: BỆNH SỬ Y KHOA — interactive, lưu Baserow qua API (medForm trong petDetail) */}
+        <div class="bg-white border border-mmp-ink/12 rounded-2xl p-5 sm:p-6 mb-4 shadow-sm">
+          <div class="flex items-start gap-3">
+            <span class="shrink-0 w-9 h-9 rounded-full bg-mmp-cream flex items-center justify-center text-mmp-ink"><FeatureIcon name="stethoscope" class="w-5 h-5" /></span>
+            <div class="min-w-0">
+              <h3 class="font-display italic text-xl font-semibold text-mmp-ink leading-tight">Bệnh sử của bé</h3>
+              <p class="text-[11px] text-mmp-ink/60 leading-relaxed mt-0.5">Khai càng đầy đủ và chính xác, VowVet càng đưa ra gợi ý dinh dưỡng sát với bé. Thông tin sai lệch có thể dẫn đến khuyến nghị không phù hợp.</p>
+            </div>
+          </div>
+
+          {/* NHÓM 1: SINH LÝ */}
+          <div class="mt-4 pt-4 border-t border-mmp-ink/8">
+            <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60 mb-2 inline-flex items-center gap-1"><FeatureIcon name="paw" class="w-3 h-3" /> Sinh lý cơ bản</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-mmp-cream/40 border border-mmp-ink/10 cursor-pointer">
+                <span class="text-sm font-medium text-mmp-ink">Đã triệt sản</span>
+                <input type="checkbox" x-model="medForm.neutered" class="rounded" style="accent-color: var(--c-gold);" />
+              </label>
+              <label class="block">
+                <span class="text-[11px] text-mmp-ink/60">Mức vận động</span>
+                <select x-model="medForm.activity_level" class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                  <option value="">— Chọn —</option>
+                  <template x-for="a in healthConfig.activities" :key="a.value"><option :value="a.value" x-text="a.label"></option></template>
+                </select>
+              </label>
+            </div>
+            <p class="text-[11px] text-mmp-ink/60 mt-2 inline-flex items-center gap-1">
+              <FeatureIcon name="info" class="w-3 h-3 shrink-0" />
+              Giai đoạn sống (tự suy từ ngày sinh):
+              <span class="font-semibold text-mmp-ink ml-0.5" x-text="medDerivedLifeStage ? medLifeStageLabel(medDerivedLifeStage) : 'Chưa có ngày sinh'"></span>
+            </p>
+          </div>
+
+          {/* NHÓM 2: TÌNH TRẠNG SỨC KHỎE — 3 tầng */}
+          <div class="mt-4 pt-4 border-t border-mmp-ink/8">
+            <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60 mb-2 inline-flex items-center gap-1"><FeatureIcon name="stethoscope" class="w-3 h-3" /> Tình trạng sức khỏe</p>
+            <template x-for="tier in [1,2,3]" :key="tier">
+              <div class="mb-3">
+                <p class="text-[11px] font-bold mb-1.5" :class="tier===1 ? 'text-amber-700' : tier===2 ? 'text-blue-700' : 'text-red-700'">
+                  <span x-text="healthConfig.tiers[tier] && healthConfig.tiers[tier].label"></span>
+                  <span class="font-normal text-mmp-ink/50" x-text="healthConfig.tiers[tier] ? '· ' + healthConfig.tiers[tier].desc : ''"></span>
+                </p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="c in medConditionsByTier(tier)" :key="c.code">
+                    <button type="button" @click="medToggleCondition(c.code)"
+                            :class="medTierClasses(tier, medHasCondition(c.code))"
+                            class="text-[11px] font-semibold px-2.5 py-1 rounded-full border transition"
+                            x-text="c.label"></button>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="medForm.conditions.length > 0">
+              <div class="mt-1 space-y-2">
+                <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60">Chi tiết tình trạng đã chọn</p>
+                <template x-for="entry in medForm.conditions" :key="entry.code">
+                  <div class="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-mmp-cream/40 border border-mmp-ink/10">
+                    <span class="text-sm font-medium text-mmp-ink flex-1 min-w-[120px]" x-text="medLabel(entry.code)"></span>
+                    <select x-model="entry.status" class="text-xs bg-white border border-mmp-ink/10 rounded-lg px-2 py-1 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                      <template x-for="s in healthConfig.statuses" :key="s.value"><option :value="s.value" x-text="s.label"></option></template>
+                    </select>
+                    <input type="month" x-model="entry.since" title="Tháng phát hiện (tùy chọn)"
+                           class="text-xs bg-white border border-mmp-ink/10 rounded-lg px-2 py-1 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300" />
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          {/* PROGRESSIVE: khai chi tiết hơn */}
+          <button type="button" @click="medExpanded = !medExpanded"
+                  class="mt-4 w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-mmp-ink/70 hover:text-mmp-ink py-2 rounded-xl bg-mmp-cream/40 hover:bg-mmp-cream/70 transition">
+            <FeatureIcon name="edit-pencil" class="w-3.5 h-3.5" />
+            <span x-text="medExpanded ? 'Thu gọn' : 'Khai chi tiết hơn (khuyến khích)'"></span>
+          </button>
+          <div x-show="medExpanded" x-collapse style="display:none;" class="mt-3 space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="block">
+                <span class="text-[11px] text-mmp-ink/60">Tình trạng lông / da</span>
+                <select x-model="medForm.coat_condition" class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                  <option value="">— Chọn —</option>
+                  <template x-for="o in healthConfig.coats" :key="o.value"><option :value="o.value" x-text="o.label"></option></template>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-[11px] text-mmp-ink/60">Tình trạng răng</span>
+                <select x-model="medForm.dental_status" class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                  <option value="">— Chọn —</option>
+                  <template x-for="o in healthConfig.dentals" :key="o.value"><option :value="o.value" x-text="o.label"></option></template>
+                </select>
+              </label>
+            </div>
+            <label class="block">
+              <span class="text-[11px] text-mmp-ink/60">Thuốc đang dùng</span>
+              <textarea x-model="medForm.current_medications" rows="2" placeholder="VD: Insulin 2 đơn vị/ngày, thuốc tim mạch…"
+                        class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300 leading-relaxed"></textarea>
+            </label>
+            <label class="block">
+              <span class="text-[11px] text-mmp-ink/60">Bệnh sử / phẫu thuật trước đây</span>
+              <textarea x-model="medForm.health_history" rows="2" placeholder="VD: Mổ lấy dị vật 2024, từng viêm tụy…"
+                        class="mt-1 w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300 leading-relaxed"></textarea>
+            </label>
+          </div>
+
+          {/* SAVE */}
+          <div class="mt-4 flex items-center gap-3 flex-wrap">
+            <button type="button" @click="saveMedical()" :disabled="medSaving"
+                    class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-mmp-ink text-white font-bold text-sm transition hover:bg-mmp-ink/90 disabled:opacity-60">
+              <FeatureIcon name="check" class="w-4 h-4" />
+              <span x-text="medSaving ? 'Đang lưu…' : 'Lưu bệnh sử'"></span>
+            </button>
+            <span x-show="medSaved" style="display:none;" class="text-sm font-semibold text-emerald-600 inline-flex items-center gap-1"><FeatureIcon name="check" class="w-4 h-4" /> Đã lưu</span>
+            <span x-show="medError" style="display:none;" class="text-sm text-red-600" x-text="medError"></span>
+          </div>
+          <p class="text-[10px] text-mmp-ink/55 italic mt-2 inline-flex items-start gap-1">
+            <FeatureIcon name="info" class="w-3 h-3 shrink-0 translate-y-0.5" />
+            <span>Thông tin tham khảo cho gợi ý dinh dưỡng. Với tình trạng nghiêm trọng, hãy hỏi bác sĩ thú y trước khi thay đổi chế độ ăn của bé.</span>
+          </p>
+        </div>
+
         <div class="space-y-2">
 
           {/* SECTION 1: IDENTITY */}
@@ -2464,9 +2600,25 @@ const storyExcerpt = hasStory
 <script is:inline src="/image-compress.js"></script>
 <script is:inline src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script is:inline>
-  function petDetail(initialPet, dogBreeds, catBreeds, appUrl) {
+  function petDetail(initialPet, dogBreeds, catBreeds, appUrl, healthConfig) {
+    const _mc = Array.isArray(initialPet.health_conditions) ? initialPet.health_conditions : [];
     return {
       pet: initialPet,
+      // ===== Đợt 2a: bệnh sử y khoa =====
+      healthConfig: healthConfig || { conditions: [], tiers: {}, statuses: [], coats: [], dentals: [], activities: [], lifeStages: [] },
+      medForm: {
+        neutered: !!initialPet.neutered,
+        activity_level: initialPet.activity_level || "",
+        coat_condition: initialPet.coat_condition || "",
+        dental_status: initialPet.dental_status || "",
+        current_medications: initialPet.current_medications || "",
+        health_history: initialPet.health_history || "",
+        conditions: _mc.map((c) => ({ code: c.code, status: c.status || "active", since: c.since || null })),
+      },
+      medSaving: false,
+      medSaved: false,
+      medError: "",
+      medExpanded: false,
       appUrl,
       activeTab: "care",
       tabs: [
@@ -2748,6 +2900,79 @@ const storyExcerpt = hasStory
           this.editError = "Lỗi kết nối. Thử lại nhé";
         } finally {
           this.editLoading = false;
+        }
+      },
+
+      // ===== Đợt 2a: bệnh sử y khoa — helpers + save =====
+      get medSpecies() { return this.pet.species === "Mèo" ? "cat" : "dog"; },
+      medConditionsByTier(tier) {
+        const isCat = this.medSpecies === "cat";
+        return (this.healthConfig.conditions || []).filter((c) => c.tier === tier && (!c.catOnly || isCat));
+      },
+      medLabel(code) {
+        const c = (this.healthConfig.conditions || []).find((x) => x.code === code);
+        return c ? c.label : code;
+      },
+      medHasCondition(code) { return this.medForm.conditions.some((c) => c.code === code); },
+      medToggleCondition(code) {
+        const i = this.medForm.conditions.findIndex((c) => c.code === code);
+        if (i >= 0) this.medForm.conditions.splice(i, 1);
+        else this.medForm.conditions.push({ code, status: "active", since: null });
+      },
+      medTierClasses(tier, selected) {
+        const map = {
+          1: selected ? "bg-amber-500 text-white border-amber-500" : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100",
+          2: selected ? "bg-blue-500 text-white border-blue-500" : "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100",
+          3: selected ? "bg-red-600 text-white border-red-600" : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
+        };
+        return map[tier] || "";
+      },
+      get medDerivedLifeStage() {
+        const dob = this.pet.dob;
+        if (!dob) return null;
+        const birth = new Date(dob);
+        if (isNaN(birth.getTime())) return null;
+        const months = (Date.now() - birth.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+        if (months < 0) return null;
+        if (months < 12) return "puppy";
+        if (months < 24) return "junior";
+        if (months < 84) return "adult";
+        if (months < 132) return "senior";
+        return "geriatric";
+      },
+      medLifeStageLabel(code) {
+        const f = (this.healthConfig.lifeStages || []).find((x) => x.value === code);
+        return f ? f.label : "—";
+      },
+      async saveMedical() {
+        this.medSaving = true; this.medError = ""; this.medSaved = false;
+        const payload = {
+          neutered: !!this.medForm.neutered,
+          activity_level: this.medForm.activity_level || null,
+          life_stage: this.medDerivedLifeStage || null,
+          coat_condition: this.medForm.coat_condition || null,
+          dental_status: this.medForm.dental_status || null,
+          current_medications: (this.medForm.current_medications || "").trim() || null,
+          health_history: (this.medForm.health_history || "").trim() || null,
+          health_conditions: this.medForm.conditions.map((c) => ({
+            code: c.code, status: c.status || "active", since: c.since || null,
+          })),
+        };
+        try {
+          const res = await fetch(`/api/v1/pets/${this.pet.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json();
+          if (!res.ok) { this.medError = json.error?.message || "Có lỗi khi lưu"; return; }
+          this.pet = json.pet;
+          this.medSaved = true;
+          setTimeout(() => { this.medSaved = false; }, 2500);
+        } catch (err) {
+          this.medError = "Lỗi kết nối. Thử lại nhé";
+        } finally {
+          this.medSaving = false;
         }
       },
 

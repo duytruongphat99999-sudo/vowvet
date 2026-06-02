@@ -24,6 +24,7 @@ import {
   ALL_SYMPTOMS_EN,
   stoolEnToVi,
 } from "@shared/enum-mappers.ts";
+import { parseHealthConditions } from "@shared/health-conditions.ts";
 import { uploadObject, imageExtFromMime } from "@shared/r2.ts";
 import {
   listPetPhotos,
@@ -102,6 +103,9 @@ export function toApiPet(p: BaserowPet) {
     if (typeof raw !== "string" || !raw) return [];
     try { const v = JSON.parse(raw); return Array.isArray(v) ? v : []; } catch { return []; }
   };
+  // Đợt 2a: single_select Baserow → value string
+  const extractSel = (v: any): string | null =>
+    v && typeof v === "object" && "value" in v ? v.value : typeof v === "string" ? v : null;
   return {
     id: p.id,
     name: p.name,
@@ -121,6 +125,15 @@ export function toApiPet(p: BaserowPet) {
     environmentals: parseJsonArray(p.environmentals),
     origin_certificate_url: p.origin_certificate_url ?? null,
     is_verified: Boolean(p.is_verified),
+    // Đợt 2a: sinh lý (field có sẵn) + bệnh sử y khoa (field mới)
+    neutered: Boolean((p as any).neutered),
+    activity_level: extractSel((p as any).activity_level),
+    life_stage: extractSel((p as any).life_stage),
+    coat_condition: extractSel((p as any).coat_condition),
+    dental_status: extractSel((p as any).dental_status),
+    health_conditions: parseHealthConditions((p as any).health_conditions),
+    current_medications: (p as any).current_medications ?? null,
+    health_history: (p as any).health_history ?? null,
   };
 }
 
@@ -202,6 +215,24 @@ const petPatchSchema = z.object({
   environmentals: z.array(z.string().max(50)).max(20).optional(),
   origin_certificate_url: z.string().url().nullable().optional(),
   is_verified: z.boolean().optional(),
+  // Đợt 2a: sinh lý (field Baserow có sẵn) + bệnh sử y khoa (field mới)
+  neutered: z.boolean().optional(),
+  activity_level: z.enum(["sedentary", "low", "moderate", "active", "very_active"]).nullable().optional(),
+  life_stage: z.enum(["puppy", "junior", "adult", "senior", "geriatric"]).nullable().optional(),
+  coat_condition: z.enum(["normal", "dry", "shedding", "oily"]).nullable().optional(),
+  dental_status: z.enum(["good", "tartar", "missing_teeth", "under_treatment"]).nullable().optional(),
+  health_conditions: z
+    .array(
+      z.object({
+        code: z.string().max(50),
+        status: z.enum(["active", "managed", "resolved"]).default("active"),
+        since: z.string().regex(/^\d{4}-\d{2}$/).nullable().optional(),
+      })
+    )
+    .max(30)
+    .optional(),
+  current_medications: z.string().max(2000).nullable().optional(),
+  health_history: z.string().max(2000).nullable().optional(),
 });
 
 petsRoute.patch("/:id{[0-9]+}", zValidator("json", petPatchSchema), async (c) => {
@@ -226,6 +257,19 @@ petsRoute.patch("/:id{[0-9]+}", zValidator("json", petPatchSchema), async (c) =>
     if (data.environmentals !== undefined) update.environmentals = JSON.stringify(data.environmentals);
     if (data.origin_certificate_url !== undefined) update.origin_certificate_url = data.origin_certificate_url;
     if (data.is_verified !== undefined) update.is_verified = data.is_verified;
+    // Đợt 2a: sinh lý + bệnh sử y khoa
+    if (data.neutered !== undefined) update.neutered = data.neutered;
+    if (data.activity_level !== undefined) update.activity_level = data.activity_level;
+    if (data.life_stage !== undefined) update.life_stage = data.life_stage;
+    if (data.coat_condition !== undefined) update.coat_condition = data.coat_condition;
+    if (data.dental_status !== undefined) update.dental_status = data.dental_status;
+    if (data.health_conditions !== undefined) {
+      update.health_conditions = JSON.stringify(
+        data.health_conditions.map((h) => ({ code: h.code, status: h.status, since: h.since ?? null }))
+      );
+    }
+    if (data.current_medications !== undefined) update.current_medications = data.current_medications;
+    if (data.health_history !== undefined) update.health_history = data.health_history;
 
     const updated = await patchPet(petId, update);
     return c.json({ pet: toApiPet(updated) });
