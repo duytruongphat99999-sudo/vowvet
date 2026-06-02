@@ -59,7 +59,7 @@
       </div>
 
       {/* CON MỘC GOLD — đóng xuống giữa khu chữ ký */}
-      <span class="vvcert-stamp" :class="{ 'is-stamping': stamping }" x-show="stamping" style="display:none;" aria-hidden="true">
+      <span class="vvcert-stamp" :class="{ 'is-stamping': stamping }" aria-hidden="true">
         <span class="vvcert-ripple" :class="{ 'go': stamping }"></span>
         <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mon Min Pet Cam Kết Trọn Đời">
           <defs>
@@ -140,8 +140,10 @@
   /* Con mộc — đóng đè lên khu chữ ký (giữa) */
   .vvcert-stamp {
     position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
-    width: 132px; height: 132px; pointer-events: none; z-index: 5;
+    width: 150px; height: 150px; pointer-events: none; z-index: 5;
+    opacity: 0;  /* v268: LUÔN trong layout (KHÔNG display:none) để <textPath> chữ vòng render đúng; ẩn bằng opacity */
   }
+  .vvcert-stamp.is-stamping { opacity: 1; }
   .vvcert-stamp svg { width: 100%; height: 100%; filter: drop-shadow(0 6px 14px rgba(0,0,0,.35)); transform: rotate(-8deg); }
   .vvcert-stamp.is-stamping svg { animation: vvcert-stamp-down .85s cubic-bezier(.3,.7,.4,1) both; }
   @keyframes vvcert-stamp-down {
