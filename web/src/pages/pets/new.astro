@@ -6,15 +6,10 @@ import { DOG_BREEDS_VN, CAT_BREEDS_VN } from "../../lib/breeds.ts";
 const dogBreedsJson = JSON.stringify(DOG_BREEDS_VN);
 const catBreedsJson = JSON.stringify(CAT_BREEDS_VN);
 
-// BƯỚC 2-fix: lấy tên người dùng cho khu chữ ký certificate
-const cookieHeader = Astro.request.headers.get("cookie") || "";
-const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
-let userName = "";
-try {
-  const meRes = await fetch(`${API_INTERNAL}/api/v1/auth/me`, { headers: { cookie: cookieHeader } });
-  if (meRes.ok) { const me = await meRes.json(); userName = (me.user && me.user.name) || ""; }
-} catch (_) {}
-const userNameJson = JSON.stringify(userName);
+// v273 (tối ưu loading): KHÔNG fetch /auth/me ở SSR nữa — nó query Baserow user+pets
+// (~1.3s ấm, ~5.5s lạnh) và CHẶN render cả trang. userName chỉ dùng cho chữ ký cert ở
+// bước pledge (vài giây sau) → load CLIENT-side trong init() là kịp, trang mở tức thì.
+const userNameJson = '""';
 ---
 
 <Layout title="Lập hồ sơ bé · VowVet">
@@ -102,18 +97,18 @@ const userNameJson = JSON.stringify(userName);
               <button type="button" @click="pet.species = 'Chó'; pet.breed = ''"
                 :class="pet.species === 'Chó' ? 'border-mmp-gold bg-mmp-gold/10 ring-2 ring-mmp-gold/30' : 'border-mmp-ink/15 hover:border-mmp-gold/50'"
                 class="border-2 rounded-xl py-5 px-4 transition flex flex-col items-center gap-2">
-                <span class="text-4xl">🐶</span><span class="font-medium text-mmp-ink">Chó</span>
+                <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#B48608" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 13c-4-1.5-7 0-7.5 5-.4 4 .5 7 2.5 9"/><path d="M32 13c4-1.5 7 0 7.5 5 .4 4-.5 7-2.5 9"/><path d="M24 14c-5.5 0-9.5 4-9.5 9.5 0 6 4.5 10.5 9.5 10.5s9.5-4.5 9.5-10.5C33.5 18 29.5 14 24 14Z"/><circle cx="19.5" cy="23" r="1.3" fill="#B48608" stroke="none"/><circle cx="28.5" cy="23" r="1.3" fill="#B48608" stroke="none"/><path d="M24 27.5v2"/><path d="M21 30c.7 1.1 1.8 1.7 3 1.7s2.3-.6 3-1.7"/><ellipse cx="24" cy="27.3" rx="1.8" ry="1.3" fill="#B48608" stroke="none"/></svg><span class="font-medium text-mmp-ink">Chó</span>
               </button>
               <button type="button" @click="pet.species = 'Mèo'; pet.breed = ''"
                 :class="pet.species === 'Mèo' ? 'border-mmp-gold bg-mmp-gold/10 ring-2 ring-mmp-gold/30' : 'border-mmp-ink/15 hover:border-mmp-gold/50'"
                 class="border-2 rounded-xl py-5 px-4 transition flex flex-col items-center gap-2">
-                <span class="text-4xl">🐱</span><span class="font-medium text-mmp-ink">Mèo</span>
+                <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#B48608" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 16.5 13 9.5l7.5 4.2"/><path d="M31.5 16.5 35 9.5l-7.5 4.2"/><path d="M24 14c-5.5 0-9.5 4-9.5 9.5 0 6 4.5 10.5 9.5 10.5s9.5-4.5 9.5-10.5C33.5 18 29.5 14 24 14Z"/><circle cx="19.5" cy="23" r="1.3" fill="#B48608" stroke="none"/><circle cx="28.5" cy="23" r="1.3" fill="#B48608" stroke="none"/><path d="M22.6 27.4h2.8L24 28.9z" fill="#B48608" stroke="none"/><path d="M24 29v1.6"/><path d="M14 24l-5.5-1M14 27l-5.5 1.4M34 24l5.5-1M34 27l5.5 1.4" stroke-opacity=".7"/></svg><span class="font-medium text-mmp-ink">Mèo</span>
               </button>
             </div>
           </div>
           {/* Giống */}
           <div>
-            <label class="block text-sm font-medium text-mmp-ink/80 mb-2">Giống (không bắt buộc)</label>
+            <label class="block text-sm font-medium text-mmp-ink/80 mb-2">Giống <span class="text-mmp-ink/45 font-normal">(khuyến khích)</span></label>
             <input type="text" x-model="pet.breed" list="breed-list" maxlength="100" :disabled="!pet.species"
                    :placeholder="pet.species === 'Chó' ? 'VD: Phú Quốc' : pet.species === 'Mèo' ? 'VD: Mèo ta' : 'Chọn loài trước'"
                    class="w-full px-4 py-3 rounded-xl border border-mmp-ink/15 focus:outline-none focus:ring-2 focus:ring-amber-300 text-mmp-ink disabled:bg-mmp-cream/40 disabled:text-mmp-ink/40" />
@@ -123,13 +118,13 @@ const userNameJson = JSON.stringify(userName);
           </div>
           {/* DOB */}
           <div>
-            <label class="block text-sm font-medium text-mmp-ink/80 mb-2">Ngày sinh (không bắt buộc)</label>
+            <label class="block text-sm font-medium text-mmp-ink/80 mb-2">Ngày sinh <span class="text-mmp-ink/45 font-normal">(khuyến khích — giúp ước lượng tuổi)</span></label>
             <input type="date" x-model="pet.dob" :max="todayIso"
                    class="w-full px-4 py-3 rounded-xl border border-mmp-ink/15 focus:outline-none focus:ring-2 focus:ring-amber-300 text-mmp-ink" />
           </div>
           {/* Gender */}
           <div>
-            <label class="block text-sm font-medium text-mmp-ink/80 mb-3">Giới tính (không bắt buộc)</label>
+            <label class="block text-sm font-medium text-mmp-ink/80 mb-3">Giới tính <span style="color:#B48608;">*</span></label>
             <div class="grid grid-cols-2 gap-2">
               <template x-for="g in ['Đực', 'Cái']" :key="g">
                 <button type="button" @click="pet.gender = (pet.gender === g ? '' : g)"
@@ -140,13 +135,13 @@ const userNameJson = JSON.stringify(userName);
           </div>
           {/* Weight */}
           <div>
-            <label class="block text-sm font-medium text-mmp-ink/80 mb-2">Cân nặng kg (không bắt buộc)</label>
+            <label class="block text-sm font-medium text-mmp-ink/80 mb-2">Cân nặng (kg) <span style="color:#B48608;">*</span></label>
             <input type="number" inputmode="decimal" step="0.1" min="0" max="200" x-model.number="pet.weight_kg" placeholder="VD: 4.2"
                    class="w-full px-4 py-3 rounded-xl border border-mmp-ink/15 focus:outline-none focus:ring-2 focus:ring-amber-300 text-mmp-ink" />
           </div>
           <div x-show="error" class="text-sm text-red-600" x-text="error"></div>
           <div class="flex gap-3 pt-2">
-            <button type="submit" :disabled="loading || !pet.name.trim() || !pet.species"
+            <button type="submit" :disabled="loading || !pet.name.trim() || !pet.species || !pet.gender || !pet.weight_kg"
               class="flex-1 bg-mmp-ink hover:bg-mmp-ink/90 disabled:bg-mmp-ink/20 disabled:text-mmp-ink/40 text-white font-semibold py-3 rounded-xl transition">
               <span x-show="!loading">Hoàn tất hồ sơ</span>
               <span x-show="loading" style="display:none;">Đang lưu…</span>
@@ -166,6 +161,14 @@ const userNameJson = JSON.stringify(userName);
     return {
       step: "welcome",       // welcome → pledge → form
       userName: userName || "",
+      // v273: load userName CLIENT-side (đã bỏ SSR fetch /auth/me chặn render). Alpine tự gọi init().
+      init() {
+        var self = this;
+        fetch("/api/v1/auth/me", { credentials: "include" })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { if (j && j.user && j.user.name) self.userName = j.user.name; })
+          .catch(function () {});
+      },
       loading: false,
       error: "",
       pet: { name: "", species: "", breed: "", dob: "", gender: "", weight_kg: null },
@@ -205,7 +208,7 @@ const userNameJson = JSON.stringify(userName);
         var self = this;
         setTimeout(function () {
           self.stampDone = true;
-          setTimeout(function () { self.step = "form"; }, reduce ? 0 : 650);
+          setTimeout(function () { self.step = "form"; }, reduce ? 0 : 3000); // ~3s ngắm con dấu hoàn chỉnh rồi mới vào form
         }, reduce ? 0 : 900);
       },
       get breedOptions() {
@@ -216,7 +219,10 @@ const userNameJson = JSON.stringify(userName);
       get todayIso() { return new Date().toISOString().slice(0, 10); },
       async submit() {
         this.error = "";
-        if (!this.pet.name.trim() || !this.pet.species) { this.error = "Vui lòng nhập tên và chọn loài"; return; }
+        if (!this.pet.name.trim()) { this.error = "Vui lòng nhập tên bé"; return; }
+        if (!this.pet.species) { this.error = "Vui lòng chọn loài (Chó hoặc Mèo)"; return; }
+        if (!this.pet.gender) { this.error = "Vui lòng chọn giới tính cho bé"; return; }
+        if (!this.pet.weight_kg) { this.error = "Cân nặng giúp VowVet tính khẩu phần chính xác cho bé"; return; }
         this.loading = true;
         var payload = {
           name: this.pet.name.trim(),
