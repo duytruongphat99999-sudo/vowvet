@@ -23,7 +23,14 @@ const userNameJson = JSON.stringify(userName);
 
       {/* ① MÀN CHÀO HỎI — lời chào mềm + ảnh bé (tuỳ chọn) + tên */}
       <div x-show="step === 'welcome'" class="text-center py-6">
-        <div class="text-5xl mb-3">🌸</div>
+        <div class="mb-3 flex justify-center">
+          <svg width="56" height="56" viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M24 30v6M24 32.5c-1.8-1.1-4.3-1-5.9.5M24 34.5c1.8-1.1 4.3-1 5.9.5" stroke="#9bbf8f" stroke-width="1.8"/>
+            <path d="M24 12c-4.3 0-7.5 3-7.5 7 0 5.3 4.3 10.1 7.5 12.6 3.2-2.5 7.5-7.3 7.5-12.6 0-4-3.2-7-7.5-7Z" fill="#f3dada" fill-opacity=".55" stroke="#c98b8b" stroke-width="1.7"/>
+            <path d="M24 15.5c-2.5 0-4.3 1.9-4.3 4.1 0 2.8 2.2 5.4 4.3 7 2.1-1.6 4.3-4.2 4.3-7 0-2.2-1.8-4.1-4.3-4.1Z" stroke="#c98b8b" stroke-width="1.6"/>
+            <circle cx="24" cy="20.5" r="2.1" fill="#e3a9a9"/>
+          </svg>
+        </div>
         <h1 class="font-display italic text-2xl sm:text-3xl font-semibold text-mmp-ink leading-tight">Chào mừng bạn đến với VowVet</h1>
         <p class="text-sm text-mmp-ink/75 leading-relaxed mt-3 max-w-md mx-auto">
           Có một sinh linh nhỏ đã chọn bạn làm cả thế giới của nó.<br class="hidden sm:block" />
@@ -170,7 +177,7 @@ const userNameJson = JSON.stringify(userName);
       certTicked: false,
       stamping: false,
       stampDone: false,
-      get certNumber() { return "VV-•••••"; },  // số hiệu thật cấp khi tạo hồ sơ (#VV-{id} hiện ở passport)
+      get certNumber() { return ""; },  // wizard chưa có id → cert ghi 'cấp sau khi hoàn tất'; #VV-{id} hiện ở passport sau
       get todayDisplay() {
         const d = new Date();
         return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
