@@ -7,6 +7,7 @@
  * Client-side filter qua Alpine.js (14 brands → moot pagination).
  */
 import Layout from "../layouts/Layout.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
 
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 let brands: any[] = [];
@@ -93,24 +94,24 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
     <!-- v44: x-data hoisted to wrap nav so Alpine directives work in nav avatar -->
     <div x-data={`brandsCatalog(${brandsJson}, ${userPetsJson}, ${initialBcsScoreJson})`}>
     <!-- v44: Public top nav — auth-aware avatar (logged-in) vs login button (guest) -->
-    <nav class="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
+    <nav class="bg-white border-b border-mmp-ink/8 sticky top-0 z-30 shadow-sm">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         <!-- v44: Logo image — dùng /logo-mmp.png thay emoji 🐾 -->
         <a href="/" class="flex items-center gap-2.5 group shrink-0">
           <img src="/logo-mmp.png" alt="VowVet logo" class="h-12 w-12 object-contain" />
           <div>
-            <p class="font-bold text-slate-900 leading-none">VowVet</p>
-            <p class="text-[10px] text-slate-500 leading-none">by Mon Min Pet</p>
+            <p class="font-bold text-mmp-ink leading-none">VowVet</p>
+            <p class="text-[10px] text-mmp-ink/50 leading-none">by Mon Min Pet</p>
           </div>
         </a>
         <div class="flex items-center gap-3 text-sm">
           <a href="/food-brands" class="text-mmp-ink font-semibold hover:underline">Dinh dưỡng</a>
-          <span class="text-slate-300 hidden sm:inline">·</span>
+          <span class="text-mmp-ink/25 hidden sm:inline">·</span>
 
           <!-- v44: Logged-in branch — avatar pill linking to dashboard -->
           <a x-show="userPets.length > 0" style="display:none;"
              href="/dashboard"
-             class="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full hover:bg-slate-50 transition group">
+             class="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full hover:bg-mmp-cream/60 transition group">
             <span class="shrink-0 w-9 h-9 rounded-full overflow-hidden ring-1 ring-amber-200/60 bg-mmp-cream/60 flex items-center justify-center">
               <template x-if="profile.petImage">
                 <img :src="profile.petImage" :alt="profile.petName"
@@ -122,15 +123,15 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               </template>
             </span>
             <div class="hidden sm:block min-w-0 text-left">
-              <p class="font-bold text-slate-900 leading-tight truncate max-w-[100px]" x-text="profile.petName || 'bé'"></p>
-              <p class="text-[10px] text-slate-500 leading-tight truncate" x-text="getBreedName(profile.breed) || 'Pet của bạn'"></p>
+              <p class="font-bold text-mmp-ink leading-tight truncate max-w-[100px]" x-text="profile.petName || 'bé'"></p>
+              <p class="text-[10px] text-mmp-ink/50 leading-tight truncate" x-text="getBreedName(profile.breed) || 'Pet của bạn'"></p>
             </div>
           </a>
 
           <!-- v44: Guest branch — login button -->
           <a x-show="userPets.length === 0" style="display:none;"
              href="/login"
-             class="bg-mmp-ink hover:bg-slate-800 text-white font-semibold px-3 py-1.5 rounded-lg transition">
+             class="bg-mmp-ink hover:bg-mmp-ink/90 text-white font-semibold px-3 py-1.5 rounded-lg transition">
             Đăng nhập
           </a>
         </div>
@@ -146,7 +147,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
       <h1 class="font-display italic text-3xl sm:text-5xl font-semibold text-mmp-ink mb-3 leading-tight">
         Chọn thức ăn đúng cho bé
       </h1>
-      <p class="text-base sm:text-lg text-slate-600 max-w-2xl">
+      <p class="text-base sm:text-lg text-mmp-ink/70 max-w-2xl">
         So sánh <span class="font-semibold text-mmp-ink">{totalCount}+ thương hiệu</span> thức ăn cho chó mèo tại Việt Nam.
         Khuyến nghị bởi bác sĩ Mon Min Pet.
       </p>
@@ -160,7 +161,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         <aside class="lg:sticky lg:top-20 lg:self-start mb-4 lg:mb-0 space-y-3">
 
           <!-- WIDGET 1: HỒ SƠ BÉ (Premium Quick-Profile Matcher) -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-5">
+          <div class="bg-white border border-mmp-ink/8 rounded-2xl p-5">
             <!-- v38: Breed sticker swaps into heading when breed selected -->
             <div class="mb-4">
               <!-- v40: Personalized header — pet portrait + dynamic title + quick stats -->
@@ -185,11 +186,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                     <span x-text="'Dinh dưỡng cho ' + (profile.petName || 'bé cưng của bạn')"></span>
                     <template x-if="profile.is_verified">
                       <span class="ml-1 align-middle inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 not-italic" title="Đã thẩm định bởi BS Mon Min">
-                        ✓
+                        <FeatureIcon name="check" class="w-2.5 h-2.5" />
                       </span>
                     </template>
                   </h2>
-                  <p class="text-[11px] text-slate-500 leading-tight mt-0.5 truncate"
+                  <p class="text-[11px] text-mmp-ink/50 leading-tight mt-0.5 truncate"
                      x-text="profile.weight.toFixed(1) + ' kg' + (getBreedName(profile.breed) ? ' · ' + getBreedName(profile.breed) : '')"></p>
                   <div x-show="filters.breed && filters.breed !== 'khac'" style="display:none;" class="mt-1">
                     <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full"
@@ -207,7 +208,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               <div class="mb-3">
                 <select :value="profile.selectedPetId || ''"
                         @change="selectPet($event.target.value)"
-                        class="w-full text-sm bg-mmp-cream/40 border border-slate-200 rounded-xl px-3 py-2 font-semibold text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
+                        class="w-full text-sm bg-mmp-cream/40 border border-mmp-ink/10 rounded-xl px-3 py-2 font-semibold text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300">
                   <option value="">— Nhập thủ công —</option>
                   <template x-for="p in userPets" :key="p.id">
                     <option :value="p.id" x-text="p.name"></option>
@@ -222,7 +223,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <!-- v35: Locked indicator (read-only mode khi pet selected — Data Enforcement) -->
             <template x-if="isProfileLocked">
               <div class="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200/70 text-[10px] leading-relaxed text-amber-800 inline-flex items-start gap-1.5 w-full">
-                <span class="shrink-0 mt-0.5">🔒</span>
+                <FeatureIcon name="lock" class="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span><strong class="font-bold">Đồng bộ từ hồ sơ bé.</strong> Chọn <em>"Nhập thủ công"</em> để giả lập dinh dưỡng tự do.</span>
               </div>
             </template>
@@ -230,9 +231,9 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <!-- v48: Sửa hồ sơ CTA — link sang Profile page để edit Poop Score / Allergens / Tên / Scan giấy tờ -->
             <template x-if="isProfileLocked && profile.selectedPetId">
               <a :href="'/pets/' + profile.selectedPetId + '/profile/complete'"
-                 class="group mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[11px] leading-relaxed text-slate-700 inline-flex items-center justify-between w-full transition">
+                 class="group mb-3 px-3 py-2 rounded-xl border border-mmp-ink/10 bg-white hover:bg-mmp-cream/40 text-[11px] leading-relaxed text-mmp-ink/70 inline-flex items-center justify-between w-full transition">
                 <span class="inline-flex items-center gap-1.5">
-                  <span>✏️</span>
+                  <FeatureIcon name="edit-pencil" class="w-3.5 h-3.5" />
                   <span>Sửa hồ sơ bé</span>
                 </span>
                 <span class="text-mmp-ink font-semibold transition-transform group-hover:translate-x-0.5">→</span>
@@ -243,13 +244,13 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <template x-if="userPets.length === 0">
               <div class="mb-3 px-3 py-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/70 text-[11px] leading-relaxed text-emerald-800 flex items-start gap-2 w-full">
                 <span class="shrink-0 text-base leading-none mt-0.5">👋</span>
-                <span><strong class="font-semibold">Chào bạn!</strong> Hãy nhập nhanh thông tin bé để AI của VowVet tính khẩu phần chính xác nhất.</span>
+                <span><strong class="font-semibold">Chào bạn!</strong> Hãy nhập nhanh thông tin bé để VowVet tính khẩu phần chính xác nhất.</span>
               </div>
             </template>
 
             <!-- Species toggle (v35: locked when pet selected) -->
             <div class="mb-3">
-              <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Loài</p>
+              <p class="text-[10px] font-semibold text-mmp-ink/50 uppercase tracking-widest mb-1.5">Loài</p>
               <div class="grid grid-cols-2 gap-1.5">
                 <!-- v39: Lock affordance — title tooltip + 🔒 hint khi locked -->
                 <button type="button" :disabled="isProfileLocked"
@@ -257,7 +258,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         :class="btnClass(profile.species === 'dog', isProfileLocked)"
                         :title="isProfileLocked ? `Read-only · chọn 'Nhập thủ công' để đổi loài` : ''"
                         class="text-xs font-semibold py-2 rounded-xl transition inline-flex items-center justify-center gap-1">
-                  <span x-show="isProfileLocked && profile.species !== 'dog'" class="text-[10px] opacity-60" style="display:none;">🔒</span>
+                  <span x-show="isProfileLocked && profile.species !== 'dog'" class="opacity-60 inline-flex items-center" style="display:none;"><FeatureIcon name="lock" class="w-2.5 h-2.5" /></span>
                   <span>🐶 Chó</span>
                 </button>
                 <button type="button" :disabled="isProfileLocked"
@@ -265,7 +266,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         :class="btnClass(profile.species === 'cat', isProfileLocked)"
                         :title="isProfileLocked ? `Read-only · chọn 'Nhập thủ công' để đổi loài` : ''"
                         class="text-xs font-semibold py-2 rounded-xl transition inline-flex items-center justify-center gap-1">
-                  <span x-show="isProfileLocked && profile.species !== 'cat'" class="text-[10px] opacity-60" style="display:none;">🔒</span>
+                  <span x-show="isProfileLocked && profile.species !== 'cat'" class="opacity-60 inline-flex items-center" style="display:none;"><FeatureIcon name="lock" class="w-2.5 h-2.5" /></span>
                   <span>🐱 Mèo</span>
                 </button>
               </div>
@@ -274,10 +275,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <!-- v36: BCS 9-level slider + Tap-to-Answer (replaces 3-pill toggle) -->
             <div class="mb-3">
               <div class="flex items-baseline justify-between mb-1.5">
-                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Thể trạng (BCS 1-9)</p>
+                <p class="text-[10px] font-semibold text-mmp-ink/50 uppercase tracking-widest">Thể trạng (BCS 1-9)</p>
                 <p class="text-[10px] font-bold tabular-nums"
                    :class="{
-                     'text-slate-500': currentBcs.tier === 'under-critical' || currentBcs.tier === 'under',
+                     'text-mmp-ink/50': currentBcs.tier === 'under-critical' || currentBcs.tier === 'under',
                      'text-emerald-700': currentBcs.tier === 'ideal',
                      'text-orange-600': currentBcs.tier === 'over',
                      'text-red-600': currentBcs.tier === 'obese' || currentBcs.tier === 'obese-critical'
@@ -293,7 +294,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                        'accent-orange-500': currentBcs.tier === 'over',
                        'accent-red-500': currentBcs.tier === 'obese' || currentBcs.tier === 'obese-critical'
                      }" />
-              <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+              <div class="flex justify-between text-[9px] text-mmp-ink/45 mt-1">
                 <span>1 · Gầy</span><span>5 · Chuẩn</span><span>9 · Béo phì</span>
               </div>
               <!-- v38: BCS Visual Avatar — fixed w-14 h-14 → zero layout shift -->
@@ -306,7 +307,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         x-text="bcsAvatar.emoji"></span>
                 </div>
                 <div class="flex-1 min-w-0 pt-0.5">
-                  <p class="text-[10px] text-slate-600 italic leading-relaxed" x-text="currentBcs.description"></p>
+                  <p class="text-[10px] text-mmp-ink/70 italic leading-relaxed" x-text="currentBcs.description"></p>
                   <p class="text-[10px] font-bold mt-1 leading-tight"
                      x-show="bcsAvatar.warn"
                      :class="bcsAvatar.warnColor"
@@ -316,10 +317,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               </div>
               <template x-if="!isProfileLocked">
                 <div class="mt-3">
-                  <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">⚡ Chạm nhanh để chọn</p>
+                  <p class="text-[9px] font-semibold text-mmp-ink/45 uppercase tracking-widest mb-1.5 inline-flex items-center gap-1"><FeatureIcon name="lightning" class="w-3 h-3" /> Chạm nhanh để chọn</p>
                   <div class="grid grid-cols-1 gap-1.5">
                     <button type="button" @click="profile.bcs = 2"
-                            class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition">
+                            class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-mmp-cream/40 hover:bg-mmp-cream/70 text-mmp-ink/70 transition">
                       🦴 Chỉ thấy xương cứng
                     </button>
                     <button type="button" @click="profile.bcs = 5"
@@ -340,11 +341,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <template x-if="poopScore > 0">
               <div class="mb-4">
                 <div class="flex items-baseline justify-between mb-1">
-                  <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Poop Score</p>
+                  <p class="text-[10px] font-semibold text-mmp-ink/50 uppercase tracking-widest">Poop Score</p>
                   <p class="text-[10px] font-bold tabular-nums" :class="poopScoreLabel.tone" x-text="poopScore + '/5 · ' + poopScoreLabel.text"></p>
                 </div>
                 <p x-show="poopScore >= 4" style="display:none;" class="text-[10px] leading-relaxed text-rose-700 font-medium">
-                  🚨 AI giảm trần %Fat về <span class="font-bold tabular-nums" x-text="poopFatCap"></span>%.
+                  <FeatureIcon name="alert-triangle" class="w-3 h-3 inline align-[-2px]" /> Hệ thống giảm trần %Fat về <span class="font-bold tabular-nums" x-text="poopFatCap"></span>%.
                 </p>
               </div>
             </template>
@@ -352,15 +353,15 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <!-- Weight slider (v35: locked + breed weight hint in manual mode) -->
             <div class="mb-4">
               <div class="flex items-baseline justify-between mb-1.5">
-                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Cân nặng</p>
+                <p class="text-[10px] font-semibold text-mmp-ink/50 uppercase tracking-widest">Cân nặng</p>
                 <p class="font-bold text-mmp-ink tabular-nums" style="min-width: 5ch; text-align: right;">
-                  <span class="text-sm" x-text="profile.weight.toFixed(1)"></span><span class="text-xs font-normal text-slate-400 ml-0.5">kg</span>
+                  <span class="text-sm" x-text="profile.weight.toFixed(1)"></span><span class="text-xs font-normal text-mmp-ink/45 ml-0.5">kg</span>
                 </p>
               </div>
               <input type="range" min="0.5" max="50" step="0.1" x-model.number="profile.weight"
                      :disabled="isProfileLocked"
                      class="w-full accent-mmp-ink disabled:cursor-not-allowed disabled:opacity-60" />
-              <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+              <div class="flex justify-between text-[9px] text-mmp-ink/45 mt-1">
                 <span>0.5</span><span>50kg</span>
               </div>
               <!-- v35: Breed standard weight hint (manual mode only, when breed selected) -->
@@ -372,14 +373,14 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <!-- v36: Free-text NLP input (manual mode only) -->
             <template x-if="!isProfileLocked">
               <div class="mb-3">
-                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Mô tả thêm (tùy chọn)</p>
+                <p class="text-[10px] font-semibold text-mmp-ink/50 uppercase tracking-widest mb-1.5">Mô tả thêm (tùy chọn)</p>
                 <textarea x-model="freeText" @input.debounce.300ms="parseFreeText(freeText)"
                           placeholder="VD: bé ăn hạt gà hay gãi, ở chung cư phòng kín..."
                           rows="2"
-                          class="w-full text-xs px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-300 resize-none leading-snug"></textarea>
+                          class="w-full text-xs px-3 py-2 rounded-xl bg-mmp-cream/40 border border-mmp-ink/10 focus:outline-none focus:ring-1 focus:ring-amber-300 resize-none leading-snug"></textarea>
                 <template x-if="nlpSuggestions.length > 0">
                   <div class="mt-2 space-y-1">
-                    <p class="text-[9px] text-slate-400 uppercase tracking-widest">Đề xuất từ AI (chạm để thêm)</p>
+                    <p class="text-[9px] text-mmp-ink/45 uppercase tracking-widest">Gợi ý (chạm để thêm)</p>
                     <div class="flex flex-wrap gap-1.5">
                       <template x-for="sug in nlpSuggestions" :key="sug.code">
                         <button type="button" @click="applySuggestion(sug)"
@@ -396,8 +397,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
             <!-- v36: Allergen Matrix display (3 tiers) -->
             <template x-if="hasAnyAllergen">
-              <div class="mb-3 pt-3 border-t border-slate-100">
-                <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Hồ sơ rủi ro</p>
+              <div class="mb-3 pt-3 border-t border-mmp-ink/8">
+                <p class="text-[10px] font-semibold text-mmp-ink/50 uppercase tracking-widest mb-1.5">Hồ sơ rủi ro</p>
                 <div class="flex flex-wrap gap-1.5">
                   <template x-for="tag in activeAllergenTags" :key="tag.code">
                     <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border"
@@ -418,35 +419,35 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <!-- v36: Odor filter indicator (NLP-triggered) -->
             <template x-if="odorFilterActive">
               <div class="mb-3 px-3 py-2 rounded-xl bg-teal-50 border border-teal-200 text-[10px] text-teal-800 inline-flex items-start gap-1.5 w-full">
-                <span class="shrink-0 mt-0.5">🏢</span>
+                <FeatureIcon name="building" class="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span><strong class="font-bold">Bộ lọc khử mùi đang bật.</strong> Ưu tiên hạt chứa Yucca Schidigera + Bacillus subtilis (giảm mùi phân ~60%).</span>
               </div>
             </template>
 
             <!-- DER computed hairline card -->
-            <div class="rounded-xl border border-slate-100 bg-mmp-cream/40 p-3.5">
-              <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Năng lượng cần</p>
+            <div class="rounded-xl border border-mmp-ink/8 bg-mmp-cream/40 p-3.5">
+              <p class="text-[10px] font-semibold text-mmp-ink/50 uppercase tracking-widest mb-1">Năng lượng cần</p>
               <p class="leading-tight">
-                <span class="text-2xl font-bold text-mmp-ink tabular-nums" style="min-width: 5ch; display: inline-block;" x-text="der"></span>
-                <span class="text-xs text-slate-500 ml-1">kcal/ngày</span>
+                <span class="text-2xl font-bold text-mmp-ink tabular-nums" style="min-width: 5ch; display: inline-block;" x-text="der" data-vv-pop></span>
+                <span class="text-xs text-mmp-ink/50 ml-1">kcal/ngày</span>
               </p>
-              <p class="text-[10px] text-slate-500 mt-1 tabular-nums" x-text="derMultiplierLabel"></p>
+              <p class="text-[10px] text-mmp-ink/50 mt-1 tabular-nums" x-text="derMultiplierLabel"></p>
             </div>
           </div>
 
           <!-- WIDGET 2: FILTERS (existing — wrapped) -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-5">
+          <div class="bg-white border border-mmp-ink/8 rounded-2xl p-5">
             <div class="flex items-center justify-between mb-3 lg:mb-4">
-              <h2 class="font-semibold text-slate-900">Bộ lọc</h2>
-              <button @click="resetFilters()" class="text-xs text-mmp-ink hover:text-mmp-ink font-medium">↺ Reset</button>
+              <h2 class="font-semibold text-mmp-ink">Bộ lọc</h2>
+              <button @click="resetFilters()" class="text-xs text-mmp-ink hover:text-mmp-ink font-medium inline-flex items-center gap-1"><FeatureIcon name="refresh" class="w-3 h-3" /> Reset</button>
             </div>
 
             <!-- v35: Breed dropdown (replaces deprecated species filter) -->
             <div class="mb-4">
-              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Chủng tộc</p>
+              <p class="text-xs font-semibold text-mmp-ink/70 uppercase tracking-wider mb-2">Chủng tộc</p>
               <select x-model="filters.breed"
                       :disabled="isProfileLocked"
-                      class="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-60 disabled:cursor-not-allowed">
+                      class="w-full text-sm bg-white border border-mmp-ink/10 rounded-xl px-3 py-2 text-mmp-ink focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-60 disabled:cursor-not-allowed">
                 <option value="">— Mọi giống —</option>
                 <template x-for="opt in currentBreedOptions" :key="opt.code">
                   <option :value="opt.code" x-text="opt.name"></option>
@@ -456,30 +457,30 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
             <!-- Life stage (v35: full Vietnamese) -->
             <div class="mb-4">
-              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Giai đoạn phát triển</p>
+              <p class="text-xs font-semibold text-mmp-ink/70 uppercase tracking-wider mb-2">Giai đoạn phát triển</p>
               <div class="space-y-1">
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="life_stage" value="" x-model="filters.lifeStage" class="text-mmp-ink" />
-                  <span class="text-sm text-slate-700">Tất cả</span>
+                  <span class="text-sm text-mmp-ink/70">Tất cả</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="life_stage" value="puppy" x-model="filters.lifeStage" class="text-mmp-ink" />
-                  <span class="text-sm text-slate-700">Thú non (Dưới 1 tuổi)</span>
+                  <span class="text-sm text-mmp-ink/70">Thú non (Dưới 1 tuổi)</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="life_stage" value="adult" x-model="filters.lifeStage" class="text-mmp-ink" />
-                  <span class="text-sm text-slate-700">Trưởng thành</span>
+                  <span class="text-sm text-mmp-ink/70">Trưởng thành</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="life_stage" value="senior" x-model="filters.lifeStage" class="text-mmp-ink" />
-                  <span class="text-sm text-slate-700">Lớn tuổi (Trên 7 tuổi)</span>
+                  <span class="text-sm text-mmp-ink/70">Lớn tuổi (Trên 7 tuổi)</span>
                 </label>
               </div>
             </div>
 
             <!-- v47: Unified 4-tier Allergen Matrix selector (replace checkbox list + dark-yellow chip) -->
             <div class="mb-4">
-              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Hồ sơ dị ứng · 4 cấp</p>
+              <p class="text-xs font-semibold text-mmp-ink/70 uppercase tracking-wider mb-2">Hồ sơ dị ứng · 4 cấp</p>
 
               <!-- v48: TIER 1 RED — disabled khi pet selected (profile-driven). Guests vẫn dùng được. -->
               <div class="mb-2">
@@ -499,8 +500,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                               }
                             "
                             :class="[
-                              profile.allergens.includes(a.brandKey) ? 'bg-red-100 text-red-800 border-red-300 font-bold' : 'bg-slate-50 text-slate-500 border-slate-200',
-                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-slate-100'
+                              profile.allergens.includes(a.brandKey) ? 'bg-red-100 text-red-800 border-red-300 font-bold' : 'bg-mmp-cream/40 text-mmp-ink/50 border-mmp-ink/10',
+                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-mmp-cream/70'
                             ]"
                             class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
                       <span x-text="a.emoji"></span>
@@ -519,8 +520,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                             :disabled="isProfileLocked"
                             @click="if (!isProfileLocked) { profile.sensitivities.includes(s.code) ? (profile.sensitivities = profile.sensitivities.filter(x => x !== s.code)) : profile.sensitivities.push(s.code); }"
                             :class="[
-                              profile.sensitivities.includes(s.code) ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-500 border-slate-200',
-                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-slate-100'
+                              profile.sensitivities.includes(s.code) ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-mmp-cream/40 text-mmp-ink/50 border-mmp-ink/10',
+                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-mmp-cream/70'
                             ]"
                             class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
                       <span x-text="s.emoji"></span>
@@ -554,8 +555,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                             :disabled="isProfileLocked"
                             @click="if (!isProfileLocked) { profile.environmentals.includes(env.code) ? (profile.environmentals = profile.environmentals.filter(e => e !== env.code)) : profile.environmentals.push(env.code); }"
                             :class="[
-                              profile.environmentals.includes(env.code) ? 'bg-yellow-100 text-yellow-900 border-yellow-300' : 'bg-slate-50 text-slate-500 border-slate-200',
-                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-slate-100'
+                              profile.environmentals.includes(env.code) ? 'bg-yellow-100 text-yellow-900 border-yellow-300' : 'bg-mmp-cream/40 text-mmp-ink/50 border-mmp-ink/10',
+                              isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-mmp-cream/70'
                             ]"
                             class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
                       <span x-text="env.emoji"></span>
@@ -576,11 +577,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
             <!-- Price range -->
             <div class="mb-2">
-              <p class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+              <p class="text-xs font-semibold text-mmp-ink/70 uppercase tracking-wider mb-2">
                 Giá tối đa: <span class="text-mmp-ink" x-text="formatVnd(filters.maxPrice) + '/kg'"></span>
               </p>
               <input type="range" min="50000" max="1000000" step="10000" x-model.number="filters.maxPrice" class="w-full accent-mmp-ink" />
-              <div class="flex justify-between text-[10px] text-slate-400">
+              <div class="flex justify-between text-[10px] text-mmp-ink/45">
                 <span>50k</span>
                 <span>1tr</span>
               </div>
@@ -598,11 +599,65 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
               <!-- v39: Editorial Clinical CTA → Digital Prescription -->
               <a href="#dinh-duong-pet"
-                 class="group mt-3 inline-flex items-baseline gap-1 text-[12px] italic text-mmp-ink/80 hover:text-mmp-ink underline decoration-slate-300 decoration-[0.5px] underline-offset-[3px] hover:decoration-mmp-ink/60 transition-colors">
+                 class="group mt-3 inline-flex items-baseline gap-1 text-[12px] italic text-mmp-ink/80 hover:text-mmp-ink underline decoration-mmp-ink/20 decoration-[0.5px] underline-offset-[3px] hover:decoration-mmp-ink/60 transition-colors">
                 Dinh dưỡng phù hợp cho Pet của bạn? Xem chi tiết tại đây
                 <span aria-hidden="true" class="not-italic transition-transform group-hover:translate-y-0.5">↓</span>
               </a>
             </div>
+          </div>
+
+          <!-- WIDGET 3: Smart Label Scanner (Đợt 1 — moved from right column) -->
+          <div class="bg-white border border-mmp-ink/8 rounded-2xl p-5">
+            <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/50 mb-1 inline-flex items-center gap-1"><FeatureIcon name="home" class="w-3 h-3" /> Cấu hình hạt tại nhà</p>
+            <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Smart Label Scanner</h3>
+            <p class="text-sm text-mmp-ink/70 mb-3 leading-relaxed">Đã có hạt sẵn ở nhà? Nhập kcal/100g đọc trên bao bì để hệ thống tính lại khẩu phần riêng cho bé mà không ép đổi hạt.</p>
+            <template x-if="!homeScanMode">
+              <button type="button" @click="homeScanMode = true"
+                      class="w-full bg-mmp-cream/70 hover:bg-mmp-ink/10 text-mmp-ink font-semibold text-sm px-4 py-2.5 rounded-xl transition inline-flex items-center justify-center gap-1.5">
+                <FeatureIcon name="microscope" class="w-4 h-4" /> Bật Smart Label Scanner
+              </button>
+            </template>
+            <template x-if="homeScanMode">
+              <div class="space-y-3">
+                <label class="block">
+                  <span class="text-xs font-semibold text-mmp-ink/70 uppercase tracking-wider">Kcal / 100g (đọc trên bao bì)</span>
+                  <input type="number" x-model.number="homeKcal" min="200" max="600" placeholder="vd: 380"
+                         class="mt-1 w-full px-3 py-2 rounded-xl border border-mmp-ink/10 focus:outline-none focus:ring-1 focus:ring-amber-300 font-mono tabular-nums" />
+                </label>
+                <label class="block">
+                  <span class="text-xs font-semibold text-mmp-ink/70 uppercase tracking-wider">Bảng thành phần (Ingredients)</span>
+                  <textarea x-model="homeIngredients" rows="3" placeholder="Paste hoặc gõ tay: VD: Gà, gạo lứt, dầu cá hồi, men bia..."
+                            class="mt-1 w-full px-3 py-2 rounded-xl border border-mmp-ink/10 focus:outline-none focus:ring-1 focus:ring-amber-300 text-sm leading-relaxed"></textarea>
+                </label>
+                <template x-if="homeIngredientAlerts.length > 0">
+                  <div class="rounded-xl border border-red-200 bg-red-50 p-3">
+                    <p class="text-[11px] font-bold text-red-800 uppercase tracking-wider mb-1.5 inline-flex items-center gap-1"><FeatureIcon name="alert-triangle" class="w-3 h-3" /> Cảnh báo allergen</p>
+                    <ul class="text-xs text-red-700 space-y-0.5">
+                      <template x-for="alert in homeIngredientAlerts" :key="alert">
+                        <li>• <span x-text="alert"></span></li>
+                      </template>
+                    </ul>
+                  </div>
+                </template>
+                <template x-if="homeIngredients.length > 10 && homeIngredientAlerts.length === 0">
+                  <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                    <p class="text-[11px] font-medium text-emerald-800">✅ Không phát hiện allergen trong profile của bé.</p>
+                  </div>
+                </template>
+                <template x-if="homeKcal > 0">
+                  <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                    <p class="text-xs font-bold text-emerald-800 uppercase tracking-widest">Khẩu phần tính lại</p>
+                    <p class="font-mono tabular-nums text-xl font-bold text-emerald-900 mt-1">
+                      <span x-text="Math.round((der/homeKcal)*100)"></span>g/ngày
+                    </p>
+                  </div>
+                </template>
+                <button type="button" @click="homeScanMode = false; homeKcal = 0; homeIngredients = ''"
+                        class="w-full text-xs text-mmp-ink/50 hover:text-mmp-ink/70 underline transition">
+                  Tắt scanner
+                </button>
+              </div>
+            </template>
           </div>
         </aside>
 
@@ -616,20 +671,20 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <section class="rounded-3xl p-6 border border-[#1A1814]/15" style="background: #F3EFE7; color: #1A1814;">
               <div class="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">Đơn thuốc số · Mô-đun 1</p>
+                  <p class="text-[10px] uppercase tracking-widest font-bold opacity-60 inline-flex items-center gap-1.5"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-mmp-gold text-mmp-ink text-[10px] font-bold not-italic shrink-0">1</span> Đơn thuốc số · Khẩu phần</p>
                   <h2 class="font-display italic text-2xl font-semibold mt-1 leading-tight">Định lượng khẩu phần</h2>
                   <!-- v47: 30-day re-eval alert — fire khi dayProgress >= 30 -->
                   <template x-if="dietStartDate && dayProgress >= 30">
                     <div class="mt-3 px-3 py-2 rounded-xl bg-amber-100 border border-amber-300 text-[11px] text-amber-900 inline-flex items-start gap-1.5">
-                      <span class="shrink-0">🔔</span>
-                      <span><strong>Tái đánh giá y khoa</strong> — 30 ngày đã qua. Cập nhật Poop Score ở sidebar để AI tinh chỉnh lượng béo cho chu kỳ mới.</span>
+                      <FeatureIcon name="bell" class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span><strong>Tái đánh giá y khoa</strong> — 30 ngày đã qua. Cập nhật Poop Score ở sidebar để hệ thống tinh chỉnh lượng béo cho chu kỳ mới.</span>
                     </div>
                   </template>
                 </div>
                 <div class="text-right shrink-0">
                   <p class="text-[10px] uppercase tracking-widest opacity-60">Tổng năng lượng</p>
                   <p class="font-mono tabular-nums text-3xl font-bold leading-none mt-0.5">
-                    <span x-text="der"></span><span class="text-sm font-normal ml-1">kcal/ngày</span>
+                    <span x-text="der" data-vv-pop></span><span class="text-sm font-normal ml-1">kcal/ngày</span>
                   </p>
                 </div>
               </div>
@@ -637,7 +692,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               <div class="mb-4 px-4 py-3 rounded-2xl border border-[#1A1814]/12"
                    style="background: rgba(255,255,255,0.55);">
                 <p class="text-[11px] leading-relaxed" style="color: #1A1814; opacity: 0.85;">
-                  💡 <strong class="font-bold">Thực đơn phối trộn:</strong>
+                  <FeatureIcon name="lightbulb" class="w-3 h-3 inline align-[-1px]" /> <strong class="font-bold">Thực đơn phối trộn:</strong>
                   Đơn thuốc số này được thiết kế kết hợp hoàn hảo (70% Hạt + 30% Pate).
                   Vui lòng cho bé ăn <strong class="font-bold">KẾT HỢP</strong> cả hai loại hằng ngày
                   theo lịch trình Sáng-Trưa-Tối nêu trên để đạt hiệu quả chuyển hóa tốt nhất,
@@ -648,65 +703,50 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                 <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
                   <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">☀️ Bữa Sáng & Bữa Trưa (Hạt khô)</p>
                   <p class="font-mono tabular-nums text-2xl font-bold mt-1">
-                    <span x-text="dryFoodGrams"></span><span class="text-sm font-normal ml-1">g/ngày</span>
+                    <span x-text="dryFoodGrams" data-vv-pop></span><span class="text-sm font-normal ml-1">g/ngày</span>
                   </p>
                   <p class="text-[10px] opacity-70 mt-1 italic leading-snug">Khoảng 1/2 chén ăn tiêu chuẩn hoặc 3 muỗng gạt.</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
                   <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">🌙 Bữa Tối Bù Nước (Pate tươi)</p>
                   <p class="font-mono tabular-nums text-2xl font-bold mt-1">
-                    <span x-text="wetFoodGrams"></span><span class="text-sm font-normal ml-1">g/ngày</span>
+                    <span x-text="wetFoodGrams" data-vv-pop></span><span class="text-sm font-normal ml-1">g/ngày</span>
                   </p>
                   <p class="text-[10px] opacity-70 mt-1 italic leading-snug">Ăn vào bữa tối để bù nước.</p>
                 </div>
               </div>
-              <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
-                <div class="flex items-center justify-between mb-2">
-                  <p class="text-[10px] uppercase tracking-widest font-bold opacity-60">📅 Hành trình 30 ngày</p>
-                  <p class="font-mono tabular-nums text-sm font-bold">
-                    Ngày <span x-text="dayProgress"></span> / 30
-                  </p>
-                </div>
-                <div class="h-2 bg-[#1A1814]/10 rounded-full overflow-hidden mb-3">
-                  <div class="h-full rounded-full transition-all duration-700" style="background: #1A1814;" :style="`width: ${Math.min(100, (dayProgress/30)*100)}%; background: #1A1814;`"></div>
-                </div>
-                <button type="button" @click="markFedToday()"
-                        :disabled="fedToday"
-                        :class="fedToday ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed' : 'text-white border border-transparent hover:opacity-90'"
-                        :style="fedToday ? '' : 'background: #1A1814;'"
-                        class="w-full px-4 py-3 rounded-xl font-bold text-sm transition">
-                  <span x-show="!fedToday">✓ Đã cho ăn hôm nay</span>
-                  <span x-show="fedToday">✓ Đã đánh dấu hôm nay</span>
-                </button>
-              </div>
+              <p class="text-[10px] italic opacity-60 inline-flex items-start gap-1" style="color: #1A1814;">
+                <FeatureIcon name="info" class="w-3 h-3 shrink-0 translate-y-0.5" />
+                <span>Khuyến nghị mang tính tham khảo. Vui lòng hỏi bác sĩ thú y trước khi thay đổi chế độ ăn của bé.</span>
+              </p>
             </section>
 
             <!-- MÔ-ĐUN 2: THE CONDITION RULES -->
-            <section class="bg-white rounded-3xl p-6 border border-slate-100">
-              <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500">Đơn thuốc số · Mô-đun 2</p>
+            <section class="bg-white rounded-3xl p-6 border border-mmp-ink/8">
+              <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/50 inline-flex items-center gap-1.5"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-mmp-gold text-mmp-ink text-[10px] font-bold not-italic shrink-0">2</span> Đơn thuốc số · Quy luật</p>
               <h2 class="font-display italic text-2xl font-semibold mt-1 mb-4 text-mmp-ink leading-tight">Quy luật điều kiện</h2>
               <div class="space-y-3">
                 <!-- v47: Mục tiêu ĐẠT — dynamic theo currentBcs.tier -->
                 <div class="rounded-2xl p-4 border-l-4 transition-colors"
-                     :class="currentBcs.tier === 'ideal' ? 'border-emerald-500 bg-emerald-50/60' : 'border-slate-300 bg-slate-50/40'">
-                  <p class="text-xs font-bold uppercase tracking-widest mb-1"
-                     :class="currentBcs.tier === 'ideal' ? 'text-emerald-800' : 'text-slate-600'">🎯 Mục tiêu ĐẠT</p>
+                     :class="currentBcs.tier === 'ideal' ? 'border-emerald-500 bg-emerald-50/60' : 'border-mmp-ink/10 bg-mmp-cream/40'">
+                  <p class="text-xs font-bold uppercase tracking-widest mb-1 inline-flex items-center gap-1"
+                     :class="currentBcs.tier === 'ideal' ? 'text-emerald-800' : 'text-mmp-ink/70'"><FeatureIcon name="target" class="w-3 h-3" /> Mục tiêu ĐẠT</p>
                   <template x-if="currentBcs.tier === 'ideal'">
                     <p class="text-sm text-emerald-900 leading-relaxed">
                       BCS lý tưởng ✓ — <strong>khoá đơn giảm cân</strong>, tự động mở Đơn <strong>giữ dáng cân bằng</strong> để duy trì lâu dài.
                     </p>
                   </template>
                   <template x-if="currentBcs.tier !== 'ideal'">
-                    <p class="text-sm text-slate-700 leading-relaxed">
-                      Đang chưa đạt BCS 4-5 lý tưởng. AI tiếp tục đề xuất công thức điều chỉnh để chạm mốc chuẩn.
+                    <p class="text-sm text-mmp-ink/70 leading-relaxed">
+                      Đang chưa đạt BCS 4-5 lý tưởng. Hệ thống tiếp tục đề xuất công thức điều chỉnh để chạm mốc chuẩn.
                     </p>
                   </template>
                 </div>
                 <!-- v47: Mục tiêu ĐỔI — show current Poop Score progress -->
                 <div class="rounded-2xl p-4 border-l-4 border-amber-500 bg-amber-50/40">
-                  <p class="text-xs font-bold text-amber-800 uppercase tracking-widest mb-1">📅 Mục tiêu ĐỔI</p>
+                  <p class="text-xs font-bold text-amber-800 uppercase tracking-widest mb-1 inline-flex items-center gap-1"><FeatureIcon name="calendar" class="w-3 h-3" /> Mục tiêu ĐỔI</p>
                   <p class="text-sm text-amber-900 leading-relaxed">
-                    Nhắc <strong>Poop Score</strong> hằng tuần để AI tinh chỉnh % Fat.
+                    Nhắc <strong>Poop Score</strong> hằng tuần để hệ thống tinh chỉnh % Fat.
                     <span x-show="poopScore > 0" class="font-bold ml-1" x-text="'Tuần này: ' + poopScore + '/5 (' + poopScoreLabel.text + ')'"></span>
                     <span x-show="poopScore === 0" class="text-amber-700 italic ml-1">Chưa có điểm tuần này — cập nhật ở sidebar.</span>
                   </p>
@@ -714,103 +754,20 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               </div>
             </section>
 
-            <!-- MÔ-ĐUN 3: THREE-TIERED RECOMMENDATION -->
-            <div class="space-y-3">
-              <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500 px-1">Đơn thuốc số · Mô-đun 3 · 3 tầng đề xuất</p>
-
-              <!-- Tier 1: MonMin recommended cart -->
-              <section class="rounded-3xl p-6 border-2" style="border-color: #1A1814; background: #F3EFE7;">
-                <p class="text-[10px] uppercase tracking-widest font-bold mb-1">✨ Tầng 1 · Gợi ý phối trộn</p>
-                <h3 class="font-display italic text-lg font-semibold mb-3 leading-tight" style="color: #1A1814;">Combo 30 ngày — đơn thuốc số</h3>
-                <ul class="space-y-2 mb-4 font-mono text-sm" style="color: #1A1814;">
-                  <li class="flex justify-between"><span>1× Hạt MonMin Light 1.5kg</span><span class="font-bold tabular-nums">~ 450,000đ</span></li>
-                  <li class="flex justify-between"><span>15× Pate MonMin (lon 85g)</span><span class="font-bold tabular-nums">~ 450,000đ</span></li>
-                  <li class="flex justify-between pt-2 border-t" style="border-color: rgba(26,24,20,0.2);"><strong>Tổng cộng</strong><strong class="tabular-nums">~ 900,000đ</strong></li>
-                </ul>
-                <a href="https://zalo.me/1136810892220003266" target="_blank" rel="noopener"
-                   class="w-full block text-center text-white font-bold px-4 py-3 rounded-xl transition hover:opacity-85"
-                   style="background: #1A1814;">
-                  💬 Tư vấn đặt hàng qua Zalo
-                </a>
-              </section>
-
-              <!-- Tier 2: Market search -->
-              <section class="rounded-3xl p-5 border border-slate-200 bg-white">
-                <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">🔍 Tầng 2 · Tìm trên thị trường</p>
-                <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Từ khoá AI gợi ý</h3>
-                <p class="text-sm text-slate-700 mb-3 leading-relaxed">Sao chép từ khoá dưới đây, dán vào Shopee / Lazada / TikTok Shop để tìm hạt ngoại đặc trị nếu MonMin chưa phân phối dòng bệnh lý này:</p>
-                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3 font-mono text-xs text-slate-700 break-words leading-relaxed" x-text="marketSearchKeywords"></div>
-                <button type="button" @click="copyToClipboard(marketSearchKeywords)"
-                        class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm px-4 py-2.5 rounded-xl transition">
-                  📋 Sao chép từ khoá
-                </button>
-              </section>
-
-              <!-- Tier 3: Smart Label Scanner -->
-              <section class="rounded-3xl p-5 border border-slate-200 bg-white">
-                <p class="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">🏠 Tầng 3 · Cấu hình hạt tại nhà</p>
-                <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Smart Label Scanner</h3>
-                <p class="text-sm text-slate-700 mb-3 leading-relaxed">Đã có hạt sẵn ở nhà? Nhập kcal/100g đọc trên bao bì để AI tính lại khẩu phần riêng cho bé mà không ép đổi hạt.</p>
-                <template x-if="!homeScanMode">
-                  <button type="button" @click="homeScanMode = true"
-                          class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm px-4 py-2.5 rounded-xl transition">
-                    🔬 Bật Smart Label Scanner
-                  </button>
-                </template>
-                <template x-if="homeScanMode">
-                  <div class="space-y-3">
-                    <label class="block">
-                      <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Kcal / 100g (đọc trên bao bì)</span>
-                      <input type="number" x-model.number="homeKcal" min="200" max="600" placeholder="vd: 380"
-                             class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-300 font-mono tabular-nums" />
-                    </label>
-                    <!-- v46: Ingredient text input + real-time allergen scan -->
-                    <label class="block">
-                      <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Bảng thành phần (Ingredients)</span>
-                      <textarea x-model="homeIngredients" rows="3" placeholder="Paste hoặc gõ tay: VD: Gà, gạo lứt, dầu cá hồi, men bia..."
-                                class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-300 text-sm leading-relaxed"></textarea>
-                    </label>
-                    <template x-if="homeIngredientAlerts.length > 0">
-                      <div class="rounded-xl border border-red-200 bg-red-50 p-3">
-                        <p class="text-[11px] font-bold text-red-800 uppercase tracking-wider mb-1.5">🚨 Cảnh báo allergen</p>
-                        <ul class="text-xs text-red-700 space-y-0.5">
-                          <template x-for="alert in homeIngredientAlerts" :key="alert">
-                            <li>• <span x-text="alert"></span></li>
-                          </template>
-                        </ul>
-                      </div>
-                    </template>
-                    <template x-if="homeIngredients.length > 10 && homeIngredientAlerts.length === 0">
-                      <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                        <p class="text-[11px] font-medium text-emerald-800">✅ Không phát hiện allergen trong profile của bé.</p>
-                      </div>
-                    </template>
-                    <template x-if="homeKcal > 0">
-                      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                        <p class="text-xs font-bold text-emerald-800 uppercase tracking-widest">Khẩu phần tính lại</p>
-                        <p class="font-mono tabular-nums text-xl font-bold text-emerald-900 mt-1">
-                          <span x-text="Math.round((der/homeKcal)*100)"></span>g/ngày
-                        </p>
-                      </div>
-                    </template>
-                    <button type="button" @click="homeScanMode = false; homeKcal = 0; homeIngredients = ''"
-                            class="w-full text-xs text-slate-500 hover:text-slate-700 underline transition">
-                      Tắt scanner
-                    </button>
-                  </div>
-                </template>
-              </section>
+            <!-- ③ BRAND PHÙ HỢP (header — grid + market nằm dưới) -->
+            <div>
+              <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/50 px-1 inline-flex items-center gap-1.5"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-mmp-gold text-mmp-ink text-[10px] font-bold not-italic shrink-0">3</span> Brand phù hợp với bé</p>
             </div>
           </div>
 
           <!-- Grid header (v36: dual experience — duyệt thêm brands khác) -->
           <div class="flex items-center justify-between mb-3">
-            <p class="text-sm text-slate-600">
+            <p class="text-sm text-mmp-ink/70">
               Hoặc duyệt <span class="font-bold text-mmp-ink tabular-nums" x-text="filtered.length"></span> công thức dinh dưỡng phù hợp khác
             </p>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 vv-cards">
             <template x-for="(b, idx) in filtered" :key="b.brand_id">
               <div class="relative">
 
@@ -824,7 +781,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                 <article class="relative bg-white rounded-2xl border overflow-hidden flex flex-col h-full transition"
                          :class="isMismatch(b)
                            ? 'border-rose-200 bg-rose-50/10'
-                           : (b.mon_min_recommended ? 'border-amber-200/60 shadow-sm' : 'border-slate-100 hover:shadow-md')">
+                           : (b.mon_min_recommended ? 'border-amber-200/60 shadow-sm' : 'border-mmp-ink/8 hover:shadow-md')">
 
                   <!-- Image header -->
                   <div class="aspect-[3/2] bg-mmp-cream flex items-center justify-center relative">
@@ -842,18 +799,18 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                     <!-- Brand identity -->
                     <div>
                       <h3 class="font-display italic text-lg font-semibold text-mmp-ink leading-tight" x-text="b.brand_name"></h3>
-                      <p class="text-xs text-slate-500 mt-0.5" x-text="b.product_line"></p>
+                      <p class="text-xs text-mmp-ink/50 mt-0.5" x-text="b.product_line"></p>
                       <div class="flex gap-1 mt-2 flex-wrap">
-                        <span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full" x-text="speciesLabel(b.species)"></span>
-                        <span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full" x-text="lifeStageLabel(b.life_stage)"></span>
+                        <span class="text-[10px] bg-mmp-cream/70 text-mmp-ink/70 px-2 py-0.5 rounded-full" x-text="speciesLabel(b.species)"></span>
+                        <span class="text-[10px] bg-mmp-cream/70 text-mmp-ink/70 px-2 py-0.5 rounded-full" x-text="lifeStageLabel(b.life_stage)"></span>
                         <!-- v45: Trust badges — graceful render khi API trả field -->
                         <template x-if="b.is_verified">
                           <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200" title="Đã thẩm định bởi BS Mon Min">
-                            ✓ Verified
+                            <FeatureIcon name="check" class="w-3 h-3" /> Verified
                           </span>
                         </template>
                         <template x-if="b.origin_certificate">
-                          <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200"
+                          <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-mmp-cream/70 text-mmp-ink/70 border border-mmp-ink/10"
                                 :title="'Chứng chỉ xuất xứ: ' + b.origin_certificate"
                                 x-text="'📜 ' + b.origin_certificate"></span>
                         </template>
@@ -873,7 +830,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                       <div class="text-[10px] flex flex-wrap gap-1">
                         <template x-for="a in b.contains_allergens" :key="a">
                           <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border"
-                                :class="profile.allergens.includes(a) ? 'bg-red-50 text-red-700 border-red-300 font-bold line-through decoration-2 decoration-red-600' : 'bg-slate-50 text-slate-500 border-slate-200'"
+                                :class="profile.allergens.includes(a) ? 'bg-red-50 text-red-700 border-red-300 font-bold line-through decoration-2 decoration-red-600' : 'bg-mmp-cream/40 text-mmp-ink/50 border-mmp-ink/10'"
                                 x-text="(profile.allergens.includes(a) ? '⚠️ ' : '') + allergenLabel(a)"></span>
                         </template>
                       </div>
@@ -888,43 +845,43 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
                     <!-- Outcome row: Khẩu phần + Chi phí (combined) -->
                     <div style="min-height: 3rem;">
-                      <p class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Khẩu phần ngày</p>
+                      <p class="text-[10px] uppercase tracking-wider text-mmp-ink/50 font-semibold mb-0.5">Khẩu phần ngày</p>
                       <p class="text-mmp-ink leading-tight">
                         <span class="font-bold text-xl tabular-nums" x-text="gramsPerDay(b) != null ? gramsPerDay(b) + 'g' : '—'"></span>
                         <template x-if="costPerDay(b) != null">
-                          <span class="text-sm text-slate-500 ml-1">· <span class="tabular-nums font-semibold text-slate-700" x-text="formatVnd(costPerDay(b))"></span> đ/ngày</span>
+                          <span class="text-sm text-mmp-ink/50 ml-1">· <span class="tabular-nums font-semibold text-mmp-ink/70" x-text="formatVnd(costPerDay(b))"></span> đ/ngày</span>
                         </template>
                       </p>
                     </div>
 
                     <!-- Compatibility bar + tagline -->
                     <div style="min-height: 3.5rem;">
-                      <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                      <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-mmp-ink/50 font-semibold mb-1">
                         <span>Độ tương thích</span>
-                        <span class="tabular-nums"
+                        <span class="tabular-nums transition-colors duration-500"
                               :class="compatTone(b) === 'emerald' ? 'text-emerald-700' : compatTone(b) === 'amber' ? 'text-amber-700' : 'text-rose-700'">
                           <span x-text="compatScore(b)"></span>%
                         </span>
                       </div>
-                      <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div class="h-1.5 bg-mmp-cream/70 rounded-full overflow-hidden">
                         <div class="h-full rounded-full transition-all duration-700"
                              :class="compatTone(b) === 'emerald' ? 'bg-emerald-500' : compatTone(b) === 'amber' ? 'bg-amber-400' : 'bg-rose-300'"
                              :style="`width: ${compatScore(b)}%;`"></div>
                       </div>
-                      <p class="text-xs text-slate-600 italic mt-1.5" x-text="compatTagline(b)"></p>
+                      <p class="text-xs text-mmp-ink/70 italic mt-1.5" x-text="compatTagline(b)"></p>
                     </div>
 
                     <!-- Footer: price + disclosure -->
-                    <div class="mt-auto pt-3 border-t border-slate-100">
+                    <div class="mt-auto pt-3 border-t border-mmp-ink/8">
                       <div class="flex items-center justify-between text-sm">
-                        <span class="text-slate-500">Giá</span>
-                        <span class="font-semibold text-slate-700 tabular-nums" x-text="b.price_vnd_per_kg ? formatVnd(b.price_vnd_per_kg) + ' /kg' : 'Liên hệ'"></span>
+                        <span class="text-mmp-ink/50">Giá</span>
+                        <span class="font-semibold text-mmp-ink/70 tabular-nums" x-text="b.price_vnd_per_kg ? formatVnd(b.price_vnd_per_kg) + ' /kg' : 'Liên hệ'"></span>
                       </div>
 
                       <!-- Disclosure chevron — raw specs -->
                       <button type="button"
                               @click="toggleRawSpecs(idx)"
-                              class="w-full inline-flex items-center justify-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 font-medium transition py-1.5 mt-1">
+                              class="w-full inline-flex items-center justify-center gap-1 text-[11px] text-mmp-ink/45 hover:text-mmp-ink/70 font-medium transition py-1.5 mt-1">
                         <svg class="w-3 h-3 transition-transform duration-200"
                              :class="expandedRawIdx === idx ? 'rotate-180' : ''"
                              viewBox="0 0 20 20" fill="currentColor">
@@ -942,7 +899,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                            style="display: none;">
                         <div class="bg-mmp-cream text-mmp-ink px-2 py-1.5 rounded-lg text-center">
                           <span class="block font-bold tabular-nums" x-text="b.protein_pct + '%'"></span>
-                          <span class="block text-slate-500 mt-0.5">Đạm</span>
+                          <span class="block text-mmp-ink/50 mt-0.5">Đạm</span>
                         </div>
                         <div class="bg-amber-50 text-amber-800 px-2 py-1.5 rounded-lg text-center">
                           <span class="block font-bold tabular-nums" x-text="b.fat_pct + '%'"></span>
@@ -971,26 +928,93 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             </template>
           </div>
 
-          <!-- Empty state (v46: + Tìm bằng AI external search) -->
+          <!-- Empty state (v46: + tìm trên thị trường / Google) -->
           <template x-if="filtered.length === 0">
-            <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center mt-4">
-              <p class="text-5xl mb-3">🔍</p>
-              <p class="text-slate-700 font-medium mb-1">Không có brand nào khớp filter</p>
-              <p class="text-sm text-slate-500 mb-4">Thử bỏ bớt điều kiện, reset filter, hoặc để AI tìm online giúp bạn.</p>
+            <div class="bg-white rounded-2xl border border-mmp-ink/8 p-12 text-center mt-4">
+              <div class="flex justify-center mb-3"><FeatureIcon name="search" class="w-12 h-12 text-mmp-ink/30" /></div>
+              <p class="text-mmp-ink/70 font-medium mb-1">Không có brand nào khớp filter</p>
+              <p class="text-sm text-mmp-ink/50 mb-4">Thử bỏ bớt điều kiện, reset filter, hoặc tìm trên Google (MonMin, Shopee, Lazada).</p>
               <div class="flex flex-col sm:flex-row gap-2 justify-center">
-                <button @click="resetFilters()" class="text-sm bg-mmp-ink hover:bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg transition">
+                <button @click="resetFilters()" class="text-sm bg-mmp-ink hover:bg-mmp-ink/90 text-white font-semibold px-4 py-2 rounded-lg transition">
                   Reset filter
                 </button>
-                <!-- v46: AI search → open Google search với marketSearchKeywords prefilled + site: ưu tiên monminpet.com -->
+                <!-- v46: market search → open Google search với marketSearchKeywords prefilled + site: ưu tiên monminpet.com -->
                 <a :href="'https://www.google.com/search?q=' + encodeURIComponent('site:monminpet.com OR site:shopee.vn OR site:lazada.vn ' + marketSearchKeywords)"
                    target="_blank" rel="noopener"
                    class="text-sm bg-mmp-cream hover:bg-amber-50 border border-amber-200 text-mmp-ink font-semibold px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-1.5">
-                  🤖 Tìm bằng AI (ưu tiên MonMin)
+                  <FeatureIcon name="search" class="w-4 h-4" /> Tìm trên thị trường (ưu tiên MonMin)
                 </a>
               </div>
-              <p class="text-[10px] text-slate-400 mt-3">AI dùng từ khoá y khoa từ profile của bé · Mở Google trong tab mới</p>
+              <p class="text-[10px] text-mmp-ink/45 mt-3">Dùng từ khoá y khoa từ hồ sơ của bé · Mở Google trong tab mới</p>
             </div>
           </template>
+
+          <!-- ③ (tiếp) — Tìm trên thị trường nếu chưa có brand phù hợp -->
+          <section class="rounded-3xl p-5 border border-mmp-ink/10 bg-white mt-5">
+            <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/50 mb-1 inline-flex items-center gap-1"><FeatureIcon name="search" class="w-3 h-3" /> Tìm trên thị trường</p>
+            <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Từ khoá gợi ý</h3>
+            <p class="text-sm text-mmp-ink/70 mb-3 leading-relaxed">Sao chép từ khoá dưới đây, dán vào Shopee / Lazada / TikTok Shop để tìm hạt ngoại đặc trị nếu MonMin chưa phân phối dòng bệnh lý này:</p>
+            <div class="bg-mmp-cream/40 border border-mmp-ink/10 rounded-xl p-3 mb-3 font-mono text-xs text-mmp-ink/70 break-words leading-relaxed" x-text="marketSearchKeywords"></div>
+            <button type="button" @click="copyToClipboard(marketSearchKeywords)"
+                    class="w-full bg-mmp-cream/70 hover:bg-mmp-ink/10 text-mmp-ink font-semibold text-sm px-4 py-2.5 rounded-xl transition inline-flex items-center justify-center gap-1.5">
+              <FeatureIcon name="clipboard" class="w-4 h-4" /> Sao chép từ khoá
+            </button>
+          </section>
+
+          <!-- ③ disclaimer y khoa -->
+          <p class="text-[10px] text-mmp-ink/45 italic mt-3 inline-flex items-start gap-1">
+            <FeatureIcon name="info" class="w-3 h-3 shrink-0 translate-y-0.5" />
+            <span>Khuyến nghị mang tính tham khảo. Vui lòng hỏi bác sĩ thú y trước khi thay đổi chế độ ăn của bé.</span>
+          </p>
+
+          <!-- ④ COMBO 30 NGÀY + THEO DÕI -->
+          <div class="mt-6 space-y-3">
+            <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/50 px-1 inline-flex items-center gap-1.5"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-mmp-gold text-mmp-ink text-[10px] font-bold not-italic shrink-0">4</span> Combo 30 ngày &amp; theo dõi</p>
+
+            <!-- Combo MonMin recommended cart -->
+            <section class="rounded-3xl p-6 border-2" style="border-color: #1A1814; background: #F3EFE7;">
+              <p class="text-[10px] uppercase tracking-widest font-bold mb-1">✨ Gợi ý phối trộn</p>
+              <h3 class="font-display italic text-lg font-semibold mb-3 leading-tight" style="color: #1A1814;">Combo 30 ngày — đơn thuốc số</h3>
+              <ul class="space-y-2 mb-4 font-mono text-sm" style="color: #1A1814;">
+                <li class="flex justify-between"><span>1× Hạt MonMin Light 1.5kg</span><span class="font-bold tabular-nums">~ 450,000đ</span></li>
+                <li class="flex justify-between"><span>15× Pate MonMin (lon 85g)</span><span class="font-bold tabular-nums">~ 450,000đ</span></li>
+                <li class="flex justify-between pt-2 border-t" style="border-color: rgba(26,24,20,0.2);"><strong>Tổng cộng</strong><strong class="tabular-nums">~ 900,000đ</strong></li>
+              </ul>
+              <a href="https://zalo.me/1136810892220003266" target="_blank" rel="noopener"
+                 class="w-full inline-flex items-center justify-center gap-1.5 text-center text-white font-bold px-4 py-3 rounded-xl transition hover:opacity-85"
+                 style="background: #1A1814;">
+                <FeatureIcon name="message-circle" class="w-4 h-4" /> Tư vấn đặt hàng qua Zalo
+              </a>
+            </section>
+
+            <!-- 30-day journey tracker (moved from ①) -->
+            <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-[10px] uppercase tracking-widest font-bold opacity-60 inline-flex items-center gap-1"><FeatureIcon name="calendar" class="w-3 h-3" /> Hành trình 30 ngày</p>
+                <p class="font-mono tabular-nums text-sm font-bold">
+                  Ngày <span x-text="dayProgress"></span> / 30
+                </p>
+              </div>
+              <div class="h-2 bg-[#1A1814]/10 rounded-full overflow-hidden mb-3">
+                <div class="h-full rounded-full transition-all duration-700" style="background: #1A1814;" :style="`width: ${Math.min(100, (dayProgress/30)*100)}%; background: #1A1814;`"></div>
+              </div>
+              <button type="button" @click="markFedToday()"
+                      :disabled="fedToday"
+                      :class="fedToday ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed' : 'text-white border border-transparent hover:opacity-90'"
+                      :style="fedToday ? '' : 'background: #1A1814;'"
+                      class="w-full px-4 py-3 rounded-xl font-bold text-sm transition inline-flex items-center justify-center gap-1.5">
+                <span x-show="!fedToday" class="inline-flex items-center gap-1.5"><FeatureIcon name="check" class="w-4 h-4" /> Đã cho ăn hôm nay</span>
+                <span x-show="fedToday" class="inline-flex items-center gap-1.5"><FeatureIcon name="check" class="w-4 h-4" /> Đã đánh dấu hôm nay</span>
+              </button>
+            </div>
+
+            <!-- CTA: Theo dõi hàng ngày → Care Plan -->
+            <a :href="profile.selectedPetId ? ('/pets/' + profile.selectedPetId + '/care-plan') : '/login'"
+               class="group w-full inline-flex items-center justify-between gap-2 px-5 py-4 rounded-2xl bg-mmp-ink text-white font-bold text-sm transition hover:bg-mmp-ink/90">
+              <span class="inline-flex items-center gap-2"><FeatureIcon name="calendar" class="w-4 h-4 text-mmp-gold" /> Theo dõi hàng ngày trong Care Plan</span>
+              <span class="transition-transform group-hover:translate-x-0.5">→</span>
+            </a>
+          </div>
         </section>
       </div>
     </div>
@@ -1008,7 +1032,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         <h2 class="font-display italic text-2xl sm:text-3xl font-semibold mb-3">Bạn cần meal plan riêng cho bé?</h2>
         {userPets.length > 0 ? (
           <>
-            <p class="text-white/75 mb-6">Đã có hồ sơ bé. Vào Care Plan để AI tự động tính khẩu phần riêng cho bé yêu.</p>
+            <p class="text-white/75 mb-6">Đã có hồ sơ bé. Vào Care Plan để VowVet tự động tính khẩu phần riêng cho bé yêu.</p>
             <a href={`/pets/${userPets[0].id}/care-plan`}
                class="inline-block bg-[#ecb921] hover:bg-[#d4a417] text-mmp-ink font-semibold px-6 py-3 rounded-xl shadow-lg transition">
               Thiết lập Meal Plan ngay ➔
@@ -1016,7 +1040,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           </>
         ) : (
           <>
-            <p class="text-white/75 mb-6">Tạo tài khoản VowVet — AI tính calo, gợi ý brand phù hợp với pet, cảnh báo dị ứng.</p>
+            <p class="text-white/75 mb-6">Tạo tài khoản VowVet — tự động tính calo, gợi ý brand phù hợp với pet, cảnh báo dị ứng.</p>
             <a href="/login"
                class="inline-block bg-[#ecb921] hover:bg-[#d4a417] text-mmp-ink font-semibold px-6 py-3 rounded-xl shadow-lg transition">
               Bắt đầu miễn phí →
@@ -1026,8 +1050,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
       </div>
     </section>
 
-    <footer class="bg-white border-t border-slate-100 py-6 px-4 sm:px-6 text-center text-xs text-slate-500">
-      <p>VowVet © 2026 — <a href="/" class="hover:text-mmp-ink">Trang chủ</a> · <a href="/health" class="hover:text-mmp-ink">Trạng thái</a> · <span class="text-slate-400">Powered by Mon Min Pet</span></p>
+    <footer class="bg-white border-t border-mmp-ink/8 py-6 px-4 sm:px-6 text-center text-xs text-mmp-ink/50">
+      <p>VowVet © 2026 — <a href="/" class="hover:text-mmp-ink">Trang chủ</a> · <a href="/health" class="hover:text-mmp-ink">Trạng thái</a> · <span class="text-mmp-ink/45">Powered by Mon Min Pet</span></p>
     </footer>
     </div><!-- /v44 x-data wrapper -->
   </main>
@@ -1341,9 +1365,9 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
         btnClass(active, locked) {
           if (locked) {
-            return active ? 'bg-mmp-ink/60 text-white cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed';
+            return active ? 'bg-mmp-ink/60 text-white cursor-not-allowed' : 'bg-mmp-cream/70 text-mmp-ink/45 cursor-not-allowed';
           }
-          return active ? 'bg-mmp-ink text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100';
+          return active ? 'bg-mmp-ink text-white' : 'bg-mmp-cream/40 text-mmp-ink/70 hover:bg-mmp-cream/70';
         },
 
         // === RER / DER (v36: 9-level BCS switch) ===
@@ -1381,13 +1405,13 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           const isCat = this.profile.species === "cat";
           if (bcs <= 2) return {
             emoji: isCat ? "😿" : "🦴",
-            bg: "bg-slate-100", ring: "ring-slate-300", anim: "",
-            warn: "🦴 Suy dinh dưỡng nghiêm trọng", warnColor: "text-slate-500",
+            bg: "bg-mmp-cream/70", ring: "ring-mmp-ink/15", anim: "",
+            warn: "🦴 Suy dinh dưỡng nghiêm trọng", warnColor: "text-mmp-ink/50",
             shapeW: "26px", shapeH: "44px", shapeColor: "#94a3b8",
           };
           if (bcs <= 4) return {
             emoji: isCat ? "🐱" : "🐶",
-            bg: "bg-slate-50", ring: "ring-slate-200", anim: "",
+            bg: "bg-mmp-cream/40", ring: "ring-mmp-ink/10", anim: "",
             warn: "", warnColor: "",
             shapeW: "30px", shapeH: "40px", shapeColor: "#94a3b8",
           };
@@ -1717,7 +1741,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         // v46: Poop Score AI helpers
         get poopScoreLabel() {
           const map = {
-            0: { text: "Chưa đánh giá", tone: "text-slate-400" },
+            0: { text: "Chưa đánh giá", tone: "text-mmp-ink/45" },
             1: { text: "Cứng (táo bón)", tone: "text-amber-700" },
             2: { text: "Chắc, có hình", tone: "text-emerald-600" },
             3: { text: "Lý tưởng", tone: "text-emerald-700" },
@@ -1792,5 +1816,50 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         },
       };
     }
+  </script>
+
+  <style is:global>
+    /* Đợt 1 — entrance + value-pop (reduced-motion safe). Tên keyframe/class riêng cho /food-brands. */
+    @keyframes vv-enter-kf { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes vv-pop-kf { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 100% { transform: scale(1); } }
+    #dinh-duong-pet > * { animation: vv-enter-kf .55s cubic-bezier(.22,.61,.36,1) both; }
+    #dinh-duong-pet > *:nth-child(2) { animation-delay: .06s; }
+    #dinh-duong-pet > *:nth-child(3) { animation-delay: .12s; }
+    .vv-cards > * { animation: vv-enter-kf .5s cubic-bezier(.22,.61,.36,1) both; }
+    .vv-cards > *:nth-child(1) { animation-delay: .04s; }
+    .vv-cards > *:nth-child(2) { animation-delay: .10s; }
+    .vv-cards > *:nth-child(3) { animation-delay: .16s; }
+    .vv-cards > *:nth-child(4) { animation-delay: .22s; }
+    .vv-cards > *:nth-child(5) { animation-delay: .28s; }
+    .vv-cards > *:nth-child(6) { animation-delay: .34s; }
+    .vv-cards > *:nth-child(n+7) { animation-delay: .40s; }
+    .vv-value-pop { display: inline-block; animation: vv-pop-kf .42s ease; }
+    @media (prefers-reduced-motion: reduce) {
+      #dinh-duong-pet > *, .vv-cards > *, .vv-value-pop { animation: none !important; }
+    }
+  </style>
+
+  <script is:inline>
+    // Đợt 1: "count-up" pop khi số kcal/gram đổi profile — CHỈ phản ứng DOM, KHÔNG đụng giá trị (Alpine render số). reduced-motion safe.
+    (function () {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      function pop(el) { el.classList.remove('vv-value-pop'); void el.offsetWidth; el.classList.add('vv-value-pop'); }
+      function wire() {
+        document.querySelectorAll('[data-vv-pop]').forEach(function (el) {
+          if (el.__vvPopWired) return;
+          el.__vvPopWired = true;
+          var last = el.textContent;
+          var mo = new MutationObserver(function () {
+            if (el.textContent !== last) { last = el.textContent; pop(el); }
+          });
+          mo.observe(el, { characterData: true, childList: true, subtree: true });
+        });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wire);
+      } else {
+        wire();
+      }
+    })();
   </script>
 </Layout>
