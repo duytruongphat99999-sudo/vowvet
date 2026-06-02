@@ -234,9 +234,69 @@ const showDevTools = import.meta.env.DEV && !!Astro.locals.user;
         });
       })();
     </script>
+
+    <!-- v276: SKELETON chuyển trang (perceived perf) — hiện khi tap link nội bộ, ẩn khi trang mới render. Tông brand cream/gold. -->
+    <div id="nav-skeleton" class="nav-skeleton no-print" aria-hidden="true" hidden>
+      <div class="nav-skeleton__inner">
+        <div class="sk-bar"></div>
+        <div class="sk-card sk-hero"></div>
+        <div class="sk-card"></div>
+        <div class="sk-grid">
+          <div class="sk-tile"></div><div class="sk-tile"></div><div class="sk-tile"></div>
+        </div>
+        <div class="sk-card"></div>
+      </div>
+    </div>
+    <script is:inline>
+      (() => {
+        const sk = document.getElementById("nav-skeleton");
+        if (!sk) return;
+        let showT = null, hideT = null;
+        const hide = () => { clearTimeout(showT); clearTimeout(hideT); sk.hidden = true; };
+        const show = () => { clearTimeout(hideT); sk.hidden = false; hideT = setTimeout(hide, 10000); };
+        // Trang mới render / bfcache restore → ẩn skeleton
+        window.addEventListener("pageshow", hide);
+        // Tap link nội bộ → hiện skeleton sau 120ms (tránh nháy khi điều hướng tức thì)
+        document.addEventListener("click", (e) => {
+          const a = e.target && e.target.closest && e.target.closest("a[href]");
+          if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          if (a.getAttribute("target") === "_blank" || a.hasAttribute("download")) return;
+          const href = a.getAttribute("href") || "";
+          if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("#")) return;
+          if (href === location.pathname + location.search) return;
+          clearTimeout(showT);
+          showT = setTimeout(show, 120);
+        }, true);
+      })();
+    </script>
   </body>
 </html>
 
 <style is:global>
   @import "../styles/global.css";
+</style>
+
+<style>
+  /* v276: skeleton chuyển trang — tông brand cream/gold, shimmer; reduced-motion → tĩnh */
+  .nav-skeleton { position: fixed; inset: 0; z-index: 9998; background: #faf6ee; overflow: hidden; padding: 16px; }
+  .nav-skeleton[hidden] { display: none; }
+  .nav-skeleton__inner { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; padding-top: 10px; }
+  .nav-skeleton .sk-bar { height: 44px; border-radius: 14px; }
+  .nav-skeleton .sk-card { height: 92px; border-radius: 20px; }
+  .nav-skeleton .sk-hero { height: 150px; }
+  .nav-skeleton .sk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .nav-skeleton .sk-tile { height: 78px; border-radius: 16px; }
+  .nav-skeleton .sk-bar,
+  .nav-skeleton .sk-card,
+  .nav-skeleton .sk-tile {
+    background: linear-gradient(100deg, rgba(180,134,8,.07) 30%, rgba(180,134,8,.17) 50%, rgba(180,134,8,.07) 70%);
+    background-size: 200% 100%;
+    animation: sk-shimmer 1.3s ease-in-out infinite;
+  }
+  @keyframes sk-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-skeleton .sk-bar,
+    .nav-skeleton .sk-card,
+    .nav-skeleton .sk-tile { animation: none; background: rgba(180,134,8,.11); }
+  }
 </style>

@@ -27,7 +27,10 @@ import { authGoogleRoute, googleLinkRoute } from "./routes/auth-google.ts";
 import { authEmailRoute } from "./routes/auth-email.ts";
 import { adminRoute } from "./routes/admin.ts";
 import { devRoute } from "./routes/dev.ts";
-import { invalidateMeCache } from "./lib/me-cache.ts";
+import { cacheGet, cacheSet, invalidateUser } from "./lib/me-cache.ts";
+import { verifySession } from "@shared/jwt.ts";
+import { SESSION_COOKIE } from "@shared/auth.ts";
+import { getCookie } from "hono/cookie";
 import {
   triageSymptomsRoute,
   petTriageRoute,
@@ -89,14 +92,34 @@ app.use(
   })
 );
 
-// v275: bust cache /auth/me khi user GHI (non-GET) → không trả pet/user cũ sau khi sửa.
+// v276: CACHE GET đọc-nhiều theo user (key = path+query, TTL 20s) — short-circuit Baserow ~1.3-3s.
+const CACHEABLE_RE = /^\/api\/v1\/(mood\/pets\/\d+|nudges\/pets\/\d+|alerts\/urgent\/\d+|pets\/\d+\/pet-score|pets\/\d+\/profile|pets\/\d+\/care-plan\/(completions\/summary|v2\/preview))(\/|$)/;
+app.use("/api/v1/*", async (c, next) => {
+  if (c.req.method !== "GET") { await next(); return; }
+  const path = c.req.path;
+  if (!CACHEABLE_RE.test(path)) { await next(); return; }
+  const session = verifySession(getCookie(c, SESSION_COOKIE));
+  if (!session?.sub) { await next(); return; }
+  const key = c.req.url.split("/api/v1")[1] || path; // path + query
+  const hit = cacheGet(session.sub, key);
+  if (hit !== null) { c.header("x-cache", "HIT"); return c.json(hit); }
+  await next();
+  try {
+    if (c.res.status === 200) {
+      const body = await c.res.clone().json();
+      cacheSet(session.sub, key, body, 20_000);
+    }
+  } catch { /* không cache nếu không phải JSON 200 */ }
+});
+
+// v275/276: bust TOÀN BỘ cache của user khi GHI (non-GET) → không trả data cũ sau khi sửa.
 app.use("*", async (c, next) => {
   await next();
   try {
     const m = c.req.method;
     if (m !== "GET" && m !== "HEAD" && m !== "OPTIONS") {
       const u = c.get("user") as any;
-      if (u?.sub) invalidateMeCache(u.sub);
+      if (u?.sub) invalidateUser(u.sub);
     }
   } catch {}
 });

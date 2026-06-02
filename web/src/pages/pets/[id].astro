@@ -17,8 +17,19 @@ if (!Number.isFinite(petId) || petId <= 0) {
   return Astro.redirect("/dashboard");
 }
 
-const { pet, status } = await fetchPet(petId, cookieHeader);
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
+// v276: 3 fetch SSR độc lập (đều theo petId từ URL) → chạy SONG SONG thay vì tuần tự
+// (trước: fetchPet→completion→profile ~6s; sau: ~2s).
+const [petResult, completion, profileJson] = await Promise.all([
+  fetchPet(petId, cookieHeader),
+  fetchCompletion(petId, cookieHeader),
+  fetch(`${API_INTERNAL}/api/v1/pets/${petId}/profile`, { headers: { cookie: cookieHeader } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null),
+]);
+
+const { pet, status } = petResult;
 if (status === 401) return Astro.redirect("/login");
 if (status === 404) return Astro.redirect("/dashboard");
 if (status === 403) {
@@ -26,21 +37,11 @@ if (status === 403) {
 }
 if (!pet) return Astro.redirect("/dashboard");
 
-// M3.5: fetch completion + full profile để hiển thị bar + badge + accordion sections
-const completion = await fetchCompletion(petId, cookieHeader);
+// M3.5: completion + full profile để hiển thị bar + badge + accordion sections
 const completionPct = completion?.pct ?? 0;
 const completionBadge = completion?.badge ?? null;
 const isLegacy = completionPct < 30;
-
-// Fetch FULL profile (50+ fields) — fallback empty nếu fail
-const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
-let profile: any = {};
-try {
-  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/profile`, {
-    headers: { cookie: cookieHeader },
-  });
-  if (res.ok) profile = (await res.json()).pet || {};
-} catch (_) {}
+const profile: any = profileJson?.pet || {};
 
 // BƯỚC 2: cam kết hồ sơ trọn đời — chặn đầu khi chưa cam kết HOẶC pledge > 6 tháng (re-confirm)
 const _pledgeRaw = (pet as any)?.pledge_at || null;
