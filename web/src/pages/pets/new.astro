@@ -185,6 +185,8 @@ const userNameJson = JSON.stringify(userName);
           var petId = json.pet.id;
           // User đã cam kết ở bước 2 → ghi pledge cho pet vừa tạo
           try { await fetch("/api/v1/pets/" + petId + "/pledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }); } catch (e) { /* không chặn flow */ }
+          // v269: đánh dấu onboarded (re-sign JWT) → vào /pets/[id] không bị middleware bounce về onboarding
+          try { await fetch("/api/v1/users/me/complete-onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }); } catch (e) { /* không chặn flow */ }
           window.location.href = "/pets/" + petId;
         } catch (err) {
           this.error = "Lỗi kết nối. Thử lại nhé";

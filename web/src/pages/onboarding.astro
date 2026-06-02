@@ -27,6 +27,8 @@ if (!user) {
 if (user.is_onboarded === true) {
   return Astro.redirect("/dashboard");
 }
+// v269: onboarding dùng luồng cert ở /pets/new (chào hỏi → certificate cam kết → form). Form M21 cũ bỏ.
+return Astro.redirect("/pets/new");
 
 const phoneDisplay = user?.phone || "";
 

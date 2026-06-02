@@ -96,6 +96,7 @@ const PROTECTED_OVERRIDES = new Set<string>([
 // ────────────────────────────────────────────────────────────
 const ALLOW_NOT_ONBOARDED_EXACT = new Set<string>([
   "/onboarding",
+  "/pets/new",                        // v269: luồng tạo bé + cam kết (cert) — user chưa onboarded vào đây
   "/settings",
   "/logout",
 ]);
