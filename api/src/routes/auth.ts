@@ -215,6 +215,8 @@ authRoute.get("/me", requireAuth, async (c) => {
       phone: user.phone,
       name: user.name,
       onboarding_completed: is_onboarded,
+      // Đợt 2b: popup nhắc cân 1 lần/ngày/user (food-brands đọc + so sánh ngày)
+      last_seen_food_brands: (user as any).last_seen_food_brands ?? null,
     },
     pets: pets.map(toApiPet),    // v49: share mapper với /pets routes (single source of truth)
   });

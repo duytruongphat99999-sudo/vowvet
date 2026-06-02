@@ -96,6 +96,40 @@ export const LIFE_STAGES: Array<{ value: string; label: string }> = [
   { value: "geriatric", label: "Cao niên" },
 ];
 
+/**
+ * TẦNG 1 — gợi ý dinh dưỡng theo bệnh (food-brands: re-rank + banner + lý do card).
+ * CHỈ phục vụ XẾP HẠNG / HIỂN THỊ — KHÔNG đổi kcal/gram (số do Đợt 3 duyệt).
+ * attr (protein/fat/carb/calories) = thuộc tính brand nên ƯU TIÊN; keywords khớp brand_name/product_line.
+ */
+export interface ConditionNutrition {
+  focus: string;
+  keywords: string[];
+  protein?: "low" | "high";
+  fat?: "low" | "high";
+  carb?: "low";
+  calories?: "low" | "high";
+}
+export const CONDITION_NUTRITION: Record<string, ConditionNutrition> = {
+  kidney_ckd:          { focus: "đạm vừa-thấp chất lượng cao, phốt-pho thấp", keywords: ["renal", "thận", "kidney", "k/d"], protein: "low" },
+  diabetes_endocrine:  { focus: "ít tinh bột, đạm cao", keywords: ["diabetic", "tiểu đường", "glyco"], carb: "low", protein: "high" },
+  liver_biliary:       { focus: "đạm dễ hấp thu, ít béo, hỗ trợ gan", keywords: ["hepatic", "gan", "l/d"], fat: "low" },
+  gi_ibd:              { focus: "dễ tiêu, ít béo, chất xơ phù hợp", keywords: ["gastro", "digestive", "tiêu hóa", "sensitive", "i/d"], fat: "low" },
+  cardiac:             { focus: "ít natri, ít béo, hỗ trợ tim", keywords: ["cardiac", "tim", "c/d"], fat: "low" },
+  urinary_stones:      { focus: "kiểm soát khoáng, tăng uống nước (ưu tiên pate)", keywords: ["urinary", "struvite", "tiết niệu", "s/o", "c/d"] },
+  obesity_weightloss:  { focus: "ít béo, ít calo, nhiều xơ tạo no", keywords: ["light", "weight", "giảm cân", "metabolic", "satiety", "r/d"], fat: "low", calories: "low" },
+  skin_allergy:        { focus: "đạm thủy phân / đạm mới + Omega-3 cho da-lông", keywords: ["hydrolyzed", "thủy phân", "sensitive", "derma", "skin", "novel", "z/d"] },
+  musculoskeletal:     { focus: "bổ sung glucosamine/chondroitin, kiểm soát cân", keywords: ["joint", "mobility", "khớp", "j/d", "glucosamine"] },
+  pregnancy_lactation: { focus: "năng lượng & đạm cao cho thai kỳ / tiết sữa", keywords: ["puppy", "kitten", "growth", "mang thai", "mẹ"], protein: "high", calories: "high" },
+};
+
+/** TẦNG 2 — gợi ý KẾT CẤU / cách cho ăn (chỉ banner; KHÔNG re-rank dinh dưỡng). */
+export const CONDITION_TEXTURE: Record<string, string> = {
+  dental_loss:    "ưu tiên thức ăn mềm / pate, ngâm mềm hạt, tránh hạt cứng to",
+  post_surgery:   "chia nhỏ nhiều bữa, thức ăn dễ tiêu, đảm bảo đủ nước",
+  senior_chewing: "hạt nhỏ-mềm hoặc pate, dễ nhai nuốt",
+  dysphagia:      "thức ăn dạng sệt / viên nhỏ, cho ăn tư thế cao đầu, chia bữa nhỏ",
+};
+
 const _byCode = new Map(HEALTH_CONDITIONS.map((c) => [c.code, c]));
 
 export function getConditionDef(code: string): HealthConditionDef | undefined {

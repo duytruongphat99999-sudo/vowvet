@@ -153,6 +153,16 @@ usersRoute.post(
   }
 );
 
+// ===== POST /users/me/seen-food-brands (Đợt 2b) =====
+// Đánh dấu user đã xem trang food-brands hôm nay → popup nhắc cân chỉ hiện 1 lần/ngày/user.
+// Lưu ngày theo giờ VN (UTC+7) để khớp "hôm nay" của người dùng.
+usersRoute.post("/me/seen-food-brands", async (c) => {
+  const session = c.get("user");
+  const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  await updateRow("users", session.sub, { last_seen_food_brands: today });
+  return c.json({ success: true, date: today });
+});
+
 // ===== POST /users/me/city =====
 usersRoute.post("/me/city", zValidator("json", UpdateCitySchema), async (c) => {
   const session = c.get("user");

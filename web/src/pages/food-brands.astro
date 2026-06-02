@@ -8,6 +8,9 @@
  */
 import Layout from "../layouts/Layout.astro";
 import FeatureIcon from "../components/FeatureIcon.astro";
+import {
+  HEALTH_CONDITIONS, TIER_META, CONDITION_NUTRITION, CONDITION_TEXTURE,
+} from "@shared/health-conditions.ts";
 
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 let brands: any[] = [];
@@ -28,6 +31,7 @@ try {
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 let userPets: any[] = [];
 let initialBcsScore: number | null = null;
+let meUser: any = null;   // Đợt 2b: user record (đọc last_seen_food_brands cho popup)
 
 try {
   // v43-fix: endpoint thật là /api/v1/auth/me (mount tại app.route("/api/v1/auth", authRoute)).
@@ -42,6 +46,7 @@ try {
   if (meRes.ok) {
     const meData = await meRes.json();
     userPets = meData.pets || [];
+    meUser = meData.user || null;
     if (userPets.length > 0) {
       try {
         // v43-fix: endpoint thật là /bcs/latest (BCS routes có 4 sub: /assess, /history, /latest, /:assessId — không có trần /bcs)
@@ -71,6 +76,16 @@ try {
 const brandsJson = JSON.stringify(brands);
 const userPetsJson = JSON.stringify(userPets);
 const initialBcsScoreJson = JSON.stringify(initialBcsScore);
+// Đợt 2b: cấu hình dẫn luồng bệnh sử (tầng + dinh dưỡng + kết cấu) + cờ popup nhắc cân
+const conditionConfigJson = JSON.stringify({
+  defs: HEALTH_CONDITIONS,
+  tiers: TIER_META,
+  nutrition: CONDITION_NUTRITION,
+  texture: CONDITION_TEXTURE,
+});
+const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+const showWeightPopup = !!meUser && userPets.length > 0 && String(meUser.last_seen_food_brands || "").slice(0, 10) !== todayVN;
+const showWeightPopupJson = JSON.stringify(showWeightPopup);
 const pageUrl = "https://vowvet.monminpet.com/food-brands";
 const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — production sẽ có ảnh real
 ---
@@ -92,7 +107,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
   <main class="min-h-screen bg-mmp-cream">
     <!-- v44: x-data hoisted to wrap nav so Alpine directives work in nav avatar -->
-    <div x-data={`brandsCatalog(${brandsJson}, ${userPetsJson}, ${initialBcsScoreJson})`}>
+    <div x-data={`brandsCatalog(${brandsJson}, ${userPetsJson}, ${initialBcsScoreJson}, ${conditionConfigJson}, ${showWeightPopupJson})`}>
     <!-- v44: Public top nav — auth-aware avatar (logged-in) vs login button (guest) -->
     <nav class="bg-white border-b border-mmp-ink/12 sticky top-0 z-30 shadow-sm">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
@@ -395,6 +410,31 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               </div>
             </template>
 
+            <!-- Đợt 2b: BỆNH SỬ (read-only, từ profile) -->
+            <template x-if="profile.selectedPetId">
+              <div class="mb-3 pt-3 border-t border-mmp-ink/12">
+                <p class="text-[10px] font-semibold text-mmp-ink/60 uppercase tracking-widest mb-1.5 inline-flex items-center gap-1"><FeatureIcon name="stethoscope" class="w-3 h-3" /> Tình trạng sức khỏe</p>
+                <template x-if="activeConditions.length > 0">
+                  <div class="flex flex-wrap gap-1.5">
+                    <template x-for="c in activeConditions" :key="c.code">
+                      <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border" :class="tierChipClass(c.tier)">
+                        <span x-text="c.label"></span>
+                        <span class="opacity-60 font-normal" x-show="c.status === 'managed'">· đã kiểm soát</span>
+                      </span>
+                    </template>
+                  </div>
+                </template>
+                <template x-if="resolvedConditions.length > 0">
+                  <p class="text-[10px] text-mmp-ink/45 italic mt-1">Đã khỏi (không tính luồng): <span x-text="resolvedConditions.join(', ')"></span></p>
+                </template>
+                <template x-if="activeConditions.length === 0 && resolvedConditions.length === 0">
+                  <a :href="'/pets/' + profile.selectedPetId" class="inline-flex items-center gap-1 text-[11px] font-semibold text-mmp-ink hover:underline">
+                    <FeatureIcon name="plus" class="w-3 h-3" /> Thêm tình trạng sức khỏe
+                  </a>
+                </template>
+              </div>
+            </template>
+
             <!-- v36: Allergen Matrix display (3 tiers) -->
             <template x-if="hasAnyAllergen">
               <div class="mb-3 pt-3 border-t border-mmp-ink/12">
@@ -667,6 +707,23 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           <!-- v39: id="dinh-duong-pet" + scroll-mt for sidebar CTA anchor -->
           <div id="dinh-duong-pet" class="mb-6 space-y-4 scroll-mt-24">
 
+            <!-- Đợt 2b: BANNER DẪN LUỒNG theo bệnh sử (tầng 3 trên cùng) -->
+            <template x-if="activeConditions.length > 0">
+              <div class="space-y-2">
+                <template x-for="bn in conditionBanners" :key="bn.tier + bn.title">
+                  <div class="rounded-2xl border p-3 flex items-start gap-2"
+                       :class="bn.tier === 3 ? 'bg-red-50 border-red-200' : bn.tier === 1 ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'">
+                    <svg class="w-4 h-4 shrink-0 mt-0.5" :class="bn.tier === 3 ? 'text-red-600' : bn.tier === 1 ? 'text-amber-600' : 'text-blue-600'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                    <p class="text-[12px] leading-relaxed" :class="bn.tier === 3 ? 'text-red-800' : bn.tier === 1 ? 'text-amber-900' : 'text-blue-900'">
+                      <strong x-text="bn.title"></strong> — <span x-text="bn.text"></span>
+                    </p>
+                  </div>
+                </template>
+                <p class="text-[10px] text-mmp-ink/50 italic px-1">Đây là gợi ý lọc / xếp hạng theo tình trạng — số khẩu phần (kcal/gram) chưa thay đổi ở bước này.</p>
+              </div>
+            </template>
+
+
             <!-- MÔ-ĐUN 1: THE DIET BREAKDOWN -->
             <section class="rounded-3xl p-6 border border-[#1A1814]/15" style="background: #F3EFE7; color: #1A1814;">
               <div class="flex items-start justify-between gap-3 mb-4">
@@ -869,6 +926,16 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                              :style="`width: ${compatScore(b)}%;`"></div>
                       </div>
                       <p class="text-xs text-mmp-ink/80 italic mt-1.5" x-text="compatTagline(b)"></p>
+                      <!-- Đợt 2b: lý do theo bệnh tầng 1 -->
+                      <template x-if="conditionNotes(b).length > 0">
+                        <div class="flex flex-wrap gap-1 mt-1.5">
+                          <template x-for="note in conditionNotes(b)" :key="note.label">
+                            <span class="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                                  :class="note.good ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'"
+                                  x-text="note.label"></span>
+                          </template>
+                        </div>
+                      </template>
                     </div>
 
                     <!-- Footer: price + disclosure -->
@@ -1060,14 +1127,38 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
       <FeatureIcon name="microscope" class="w-5 h-5 text-mmp-gold" />
       Quét nhãn
     </button>
+    <!-- Đợt 2b: Popup nhắc cân (1 lần/ngày/user, 3s tự mờ hoặc đóng tay). Trong x-data nên Alpine an toàn. -->
+    <div x-show="weightPopupOpen" style="display:none;"
+         class="fixed inset-0 z-50 flex items-center justify-center px-4 vv-popup-backdrop"
+         @click="weightPopupOpen = false">
+      <div class="bg-white rounded-2xl shadow-2xl border border-mmp-ink/10 max-w-sm w-full p-5 text-center vv-popup-card" @click.stop>
+        <span class="inline-flex w-12 h-12 rounded-full bg-mmp-cream items-center justify-center text-mmp-ink mb-2 mx-auto"><FeatureIcon name="activity" class="w-6 h-6" /></span>
+        <h3 class="font-display italic text-lg font-semibold text-mmp-ink">Đã ghi cân nặng hôm nay chưa?</h3>
+        <p class="text-sm text-mmp-ink/70 mt-1 leading-relaxed">
+          Theo dõi cân nặng <span class="font-semibold text-mmp-ink" x-text="profile.petName || 'cho bé'"></span> giúp VowVet điều chỉnh khẩu phần chính xác hơn.
+        </p>
+        <div class="mt-4 flex flex-col gap-2">
+          <a :href="profile.selectedPetId ? ('/pets/' + profile.selectedPetId + '/care-plan') : '/login'"
+             class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-mmp-ink text-white font-bold text-sm hover:bg-mmp-ink/90 transition">
+            <FeatureIcon name="activity" class="w-4 h-4 text-mmp-gold" /> Ghi cân nặng ngay
+          </a>
+          <button type="button" @click="weightPopupOpen = false" class="text-xs text-mmp-ink/60 hover:text-mmp-ink py-1">Để sau</button>
+        </div>
+      </div>
+    </div>
     </div><!-- /v44 x-data wrapper -->
   </main>
 
   <script is:inline>
-    function brandsCatalog(initialBrands, initialUserPets, initialBcsScore) {
+    function brandsCatalog(initialBrands, initialUserPets, initialBcsScore, conditionConfig, showWeightPopup) {
       return {
         brands: initialBrands,
         userPets: initialUserPets || [],
+
+        // === Đợt 2b: dẫn luồng bệnh sử + popup nhắc cân ===
+        conditionConfig: conditionConfig || { defs: [], tiers: {}, nutrition: {}, texture: {} },
+        showWeightPopup: !!showWeightPopup,
+        weightPopupOpen: false,
 
         // === User profile (v36: bcs · v40: petImage · v45: environmentals dark-yellow tier) ===
         profile: {
@@ -1083,6 +1174,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           environmentals: [],   // v45: dark yellow tier — yếu tố môi trường sống
           origin_certificate_url: "",   // v47: ảnh giấy tờ uploaded (URL R2)
           is_verified: false,           // v47: BS thẩm định hồ sơ pet
+          // Đợt 2b: bệnh sử y khoa + sinh lý (đọc từ /auth/me)
+          health_conditions: [],
+          neutered: false,
+          activity_level: "",
+          life_stage: "",
         },
 
         expandedRawIdx: null,
@@ -1222,6 +1318,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             }
           });
           this.loadDietTimeline();
+          // Đợt 2b: popup nhắc cân 1 lần/ngày/user (SSR đã lọc: logged-in + có pet + chưa xem hôm nay)
+          if (this.showWeightPopup) {
+            this.$nextTick(() => { this.weightPopupOpen = true; });
+            this.markFoodBrandsSeen();
+            setTimeout(() => { this.weightPopupOpen = false; }, 3000);
+          }
         },
 
         selectPet(petId) {
@@ -1272,10 +1374,90 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                                   : [];
           this.profile.sensitivities = Array.isArray(p.sensitivities) ? p.sensitivities : [];
           this.profile.environmentals = Array.isArray(p.environmentals) ? p.environmentals : [];
+          // Đợt 2b: bệnh sử + sinh lý từ profile (/auth/me toApiPet đã parse)
+          this.profile.health_conditions = Array.isArray(p.health_conditions) ? p.health_conditions : [];
+          this.profile.neutered = Boolean(p.neutered);
+          this.profile.activity_level = (typeof p.activity_level === "string" ? p.activity_level : "") || "";
+          this.profile.life_stage = (typeof p.life_stage === "string" ? p.life_stage : "") || "";
           // v49: Sync excludeAllergens filter với profile.allergens (Tier 1 Red ↔ brand filter)
           for (const a of this.profile.allergens) {
             if (!this.filters.excludeAllergens.includes(a)) this.filters.excludeAllergens.push(a);
           }
+        },
+
+        // === Đợt 2b: dẫn luồng bệnh sử (XẾP HẠNG/HIỂN THỊ — KHÔNG đổi kcal/gram) ===
+        _condDef(code) { return (this.conditionConfig.defs || []).find((d) => d.code === code) || null; },
+        get activeConditions() {
+          return (this.profile.health_conditions || [])
+            .filter((c) => c && c.code && c.status !== "resolved")
+            .map((c) => { const d = this._condDef(c.code); return d ? { code: c.code, label: d.label, tier: d.tier, status: c.status } : null; })
+            .filter(Boolean);
+        },
+        get resolvedConditions() {
+          return (this.profile.health_conditions || [])
+            .filter((c) => c && c.code && c.status === "resolved")
+            .map((c) => { const d = this._condDef(c.code); return d ? d.label : null; })
+            .filter(Boolean);
+        },
+        get tier1ActiveCodes() { return this.activeConditions.filter((c) => c.tier === 1).map((c) => c.code); },
+        tierChipClass(tier) {
+          return tier === 1 ? "bg-amber-50 text-amber-800 border-amber-200"
+               : tier === 2 ? "bg-blue-50 text-blue-800 border-blue-200"
+               : "bg-red-50 text-red-700 border-red-200";
+        },
+        get conditionBanners() {
+          const out = [];
+          const ac = this.activeConditions;
+          const t3 = ac.filter((c) => c.tier === 3);
+          if (t3.length) out.push({ tier: 3, title: "Cần theo dõi y khoa", text: "Bé có " + t3.map((c) => c.label).join(", ") + ". Gợi ý dinh dưỡng dưới đây chỉ mang tính tham khảo — vui lòng để bác sĩ thú y quyết định khẩu phần." });
+          for (const c of ac.filter((c) => c.tier === 1)) {
+            const n = (this.conditionConfig.nutrition || {})[c.code];
+            out.push({ tier: 1, title: "Đang lọc theo: " + c.label, text: n ? "ưu tiên " + n.focus + "." : "ưu tiên công thức phù hợp tình trạng." });
+          }
+          for (const c of ac.filter((c) => c.tier === 2)) {
+            const tx = (this.conditionConfig.texture || {})[c.code];
+            out.push({ tier: 2, title: "Bé " + c.label, text: tx ? tx + "." : "ưu tiên thức ăn dễ ăn, chia nhỏ bữa." });
+          }
+          return out;
+        },
+        // Điều chỉnh điểm xếp hạng theo tình trạng tầng 1 (CHỈ hiển thị — KHÔNG kcal)
+        conditionDelta(b) {
+          let d = 0;
+          const text = ((b.brand_name || "") + " " + (b.product_line || "")).toLowerCase();
+          for (const code of this.tier1ActiveCodes) {
+            const n = (this.conditionConfig.nutrition || {})[code];
+            if (!n) continue;
+            if (n.keywords && n.keywords.some((k) => text.includes(String(k).toLowerCase()))) d += 12;
+            const prot = Number(b.protein_pct) || 0, fat = Number(b.fat_pct) || 0, cal = Number(b.calories_per_100g) || 0, carb = this.estimatedCarb(b);
+            if (n.protein === "low") d += prot && prot <= 26 ? 6 : prot >= 32 ? -8 : 0;
+            if (n.protein === "high") d += prot >= 30 ? 6 : prot && prot <= 22 ? -6 : 0;
+            if (n.fat === "low") d += fat && fat <= 12 ? 6 : fat >= 18 ? -8 : 0;
+            if (n.carb === "low") d += carb <= 15 ? 6 : carb >= 30 ? -6 : 0;
+            if (n.calories === "low") d += cal && cal <= 350 ? 6 : cal >= 400 ? -6 : 0;
+            if (n.calories === "high") d += cal >= 380 ? 6 : 0;
+          }
+          return Math.max(-25, Math.min(20, d));
+        },
+        conditionNotes(b) {
+          const notes = [];
+          const text = ((b.brand_name || "") + " " + (b.product_line || "")).toLowerCase();
+          for (const code of this.tier1ActiveCodes) {
+            const def = this._condDef(code), n = (this.conditionConfig.nutrition || {})[code];
+            if (!def || !n) continue;
+            let good = false, bad = false, why = "";
+            if (n.keywords && n.keywords.some((k) => text.includes(String(k).toLowerCase()))) { good = true; why = "công thức chuyên biệt"; }
+            const prot = Number(b.protein_pct) || 0, fat = Number(b.fat_pct) || 0;
+            if (!good && n.protein === "low" && prot >= 32) { bad = true; why = "đạm cao"; }
+            else if (!good && n.protein === "low" && prot && prot <= 26) { good = true; why = "đạm vừa-thấp"; }
+            if (!good && !bad && n.fat === "low" && fat >= 18) { bad = true; why = "béo cao"; }
+            else if (!good && !bad && n.fat === "low" && fat && fat <= 12) { good = true; why = "ít béo"; }
+            if (good) notes.push({ label: "Hợp " + def.label + (why ? " · " + why : ""), good: true });
+            else if (bad) notes.push({ label: "Cân nhắc " + def.label + " · " + why, good: false });
+          }
+          return notes;
+        },
+        async markFoodBrandsSeen() {
+          try { await fetch("/api/v1/users/me/seen-food-brands", { method: "POST", credentials: "same-origin" }); } catch (e) { /* silent */ }
         },
 
         get isProfileLocked() {
@@ -1669,7 +1851,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           if (bcs >= 8 && b.fat_pct > 12) s -= 15;
           if (bcs <= 3 && (b.calories_per_100g || 0) < 350) s -= 15;
           if (bcs >= 4 && bcs <= 5 && (b.fat_pct < 10 || b.fat_pct > 18)) s -= 10;
-          return Math.max(0, s);
+          s += this.conditionDelta(b);  // Đợt 2b: điểm xếp hạng theo bệnh tầng 1 (KHÔNG đụng kcal)
+          return Math.max(0, Math.min(100, s));
         },
         compatTone(b) {
           const s = this.compatScore(b);
@@ -1798,8 +1981,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             }
             return true;
           });
-          // v47: Sort MonMin recommended lên trên cùng (stable secondary sort)
-          return _list.sort((a, b) => (b.mon_min_recommended ? 1 : 0) - (a.mon_min_recommended ? 1 : 0));
+          // v47: MonMin lên đầu. Đợt 2b: có bệnh tầng 1 → ưu tiên brand phù hợp tình trạng (compatScore condition-aware), MonMin tiebreak.
+          const hasTier1 = this.tier1ActiveCodes.length > 0;
+          return _list.sort((a, b) => {
+            if (hasTier1) { const d = this.compatScore(b) - this.compatScore(a); if (d) return d; }
+            return (b.mon_min_recommended ? 1 : 0) - (a.mon_min_recommended ? 1 : 0);
+          });
         },
         resetFilters() {
           this.filters = { lifeStage: "", excludeAllergens: [], monMin: false, maxPrice: 1000000, breed: "" };
@@ -1841,6 +2028,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
     .vv-cards > *:nth-child(6) { animation-delay: .40s; }
     .vv-cards > *:nth-child(n+7) { animation-delay: .48s; }
     .vv-value-pop { display: inline-block; animation: vv-pop-kf .42s ease; }
+    /* Đợt 2b: popup nhắc cân */
+    .vv-popup-backdrop { background: rgba(10,10,10,.45); animation: vv-fade-in .25s ease both; }
+    .vv-popup-card { animation: vv-pop-in .3s cubic-bezier(.22,.61,.36,1) both; }
+    @keyframes vv-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes vv-pop-in { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .vv-popup-backdrop, .vv-popup-card { animation: none !important; } }
     @media (prefers-reduced-motion: reduce) {
       #dinh-duong-pet > *, .vv-cards > *, .vv-value-pop { animation: none !important; }
     }
