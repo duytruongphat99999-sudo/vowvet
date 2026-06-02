@@ -815,7 +815,8 @@ const storyExcerpt = hasStory
 
           <!-- v62: STICKY PAGE TAB NAV — luxury European feel -->
           <nav id="pet-page-nav" class="sticky top-0 z-20 bg-mmp-cream/95 backdrop-blur border-b border-slate-200 -mx-4 sm:-mx-6 px-4 sm:px-6 no-print" aria-label="Pet page sections">
-            <div class="flex items-center gap-1 overflow-x-auto py-2">
+            <div class="relative" x-data="{ atStart: true, atEnd: false, syncScroll(el) { this.atStart = el.scrollLeft <= 4; this.atEnd = (el.scrollLeft + el.clientWidth) >= (el.scrollWidth - 4); } }" x-init="$nextTick(() => syncScroll($refs.petTabScroll))">
+            <div class="flex items-center gap-1 overflow-x-auto py-2" x-ref="petTabScroll" @scroll="syncScroll($event.target)">
               <template x-for="t in PAGE_TABS" :key="t.key">
                 <button type="button" @click="setPageTab(t.key)"
                         :aria-current="pageTab === t.key ? 'page' : false"
@@ -833,6 +834,12 @@ const storyExcerpt = hasStory
                   <span x-text="t.label"></span>
                 </button>
               </template>
+            </div>
+            {/* P3: gợi ý cuộn ngang — fade mép phải khi còn tab bên phải, mép trái khi đã cuộn. Tĩnh (reduced-motion safe) */}
+            <div x-show="!atEnd" x-cloak class="pointer-events-none absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-mmp-cream via-mmp-cream/85 to-transparent flex items-center justify-end" aria-hidden="true">
+              <svg class="w-4 h-4 text-mmp-ink/45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+            </div>
+            <div x-show="!atStart" x-cloak class="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-mmp-cream to-transparent" aria-hidden="true"></div>
             </div>
           </nav>
 

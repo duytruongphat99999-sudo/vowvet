@@ -191,13 +191,16 @@ authRoute.post("/logout", (c) => {
 authRoute.get("/me", requireAuth, async (c) => {
   const session = c.get("user");
   // M8: lookup theo user_id thay vì phone (Google OAuth users không có phone)
-  const user = await findUserById(session.sub);
+  // v274 (tối ưu loading): chạy SONG SONG 2 query Baserow (cùng key = session.sub) thay vì
+  // tuần tự (findUserById ~0.36s + listUserPets ~1.4s = ~1.8s → còn ~1.4s). Mọi page dùng fetchMe nhanh hơn.
+  const [user, pets] = await Promise.all([
+    findUserById(session.sub),
+    listUserPets(session.sub),
+  ]);
   if (!user || (user as any).deleted_at) {
     clearSessionCookie(c);
     return c.json({ error: { code: "USER_NOT_FOUND", message: "Phiên đã hết hạn" } }, 401);
   }
-
-  const pets = await listUserPets(user.id);
   const is_onboarded = pets.length > 0;
 
   // Refresh-on-use: gia hạn cookie với is_onboarded mới nhất
