@@ -3,7 +3,7 @@
  * BottomNav — thanh điều hướng app-style (mobile only).
  *
  * Gắn 1 lần ở Layout.astro (sau <slot/>) → phủ mọi trang gated.
- * 5 ô: Trang chủ · Dinh dưỡng · QUÉT (giữa, nổi) · Theo dõi · Tôi.
+ * 5 ô: Trang chủ · Định vị pet (sắp có) · Tìm bạn chơi (giữa, nổi) · Vaccine · Tôi.
  * - lg:hidden (chỉ mobile) · print:hidden · z-40 (dưới modal z-60).
  * - petId fetch client-side /auth/me (pattern TopBar). Chưa có pet → 2 ô trỏ /dashboard.
  * - Active state tính SSR từ `path` (không nháy). Tông brand cream/gold/ink.
@@ -18,8 +18,8 @@ const { path = "" } = Astro.props;
 
 // Active state (server-side → no flash)
 const isHome = path === "/dashboard";
-const isNutrition = path.startsWith("/food-brands");
-const isCare = path.includes("/care-plan");
+const isPlaydate = path.startsWith("/playdate");
+const isVaccine = path.startsWith("/vaccines");
 const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính sub-page)
 ---
 
@@ -34,25 +34,21 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
     <span>Trang chủ</span>
   </a>
 
-  <a href="/food-brands" class:list={["vv-bn-item", isNutrition && "is-active"]} aria-label="Dinh dưỡng">
-    <FeatureIcon name="bowl" class="w-6 h-6" />
-    <span>Dinh dưỡng</span>
-  </a>
+  <!-- Định vị pet — CHƯA build → coming-soon (KHÔNG href chết, bấm hiện toast) -->
+  <button type="button" class="vv-bn-item is-pending" aria-label="Định vị pet (sắp có)" @click="pingSoon()">
+    <FeatureIcon name="map-pin" class="w-6 h-6" />
+    <span>Định vị</span>
+  </button>
 
-  <!-- QUÉT giữa — nút tròn gold nổi (deep-link scanner; camera = mạch sau) -->
-  <a href="/food-brands#smart-scanner" class="vv-bn-scan" aria-label="Quét nhãn hạt">
+  <!-- Ô GIỮA — Tìm bạn chơi (nút tròn gold nổi, giữ style nút Quét cũ) -->
+  <a href="/playdate" class:list={["vv-bn-scan", isPlaydate && "is-here"]} aria-label="Tìm bạn chơi">
     <span class="vv-bn-scan__btn"><FeatureIcon name="scan" class="w-7 h-7" /></span>
-    <span class="vv-bn-scan__label">Quét</span>
+    <span class="vv-bn-scan__label">Bạn chơi</span>
   </a>
 
-  <a
-    href="/dashboard"
-    :href="petId ? `/pets/${petId}/care-plan` : '/dashboard'"
-    class:list={["vv-bn-item", isCare && "is-active"]}
-    aria-label="Theo dõi"
-  >
-    <FeatureIcon name="chart" class="w-6 h-6" />
-    <span>Theo dõi</span>
+  <a href="/vaccines" class:list={["vv-bn-item", isVaccine && "is-active"]} aria-label="Lịch vaccine">
+    <FeatureIcon name="syringe" class="w-6 h-6" />
+    <span>Vaccine</span>
   </a>
 
   <a
@@ -64,12 +60,17 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
     <FeatureIcon name="user" class="w-6 h-6" />
     <span>Tôi</span>
   </a>
+
+  <!-- Toast "sắp có" cho Định vị pet (position:fixed → không chiếm slot flex) -->
+  <div x-show="soon" x-cloak class="vv-bn-toast" role="status" aria-live="polite">Định vị pet — sắp có</div>
 </nav>
 
 <script is:inline>
   function bottomNav() {
     return {
       petId: null,
+      soon: false,
+      _soonT: null,
       async loadPet() {
         try {
           const res = await fetch("/api/v1/auth/me", { credentials: "include" });
@@ -79,8 +80,14 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
             this.petId = d.pets[0].id;
           }
         } catch (_) {
-          /* fail-soft: 2 ô vẫn trỏ /dashboard */
+          /* fail-soft: ô "Tôi" vẫn trỏ /dashboard */
         }
+      },
+      pingSoon() {
+        // Định vị pet chưa build → toast "sắp có", KHÔNG điều hướng
+        this.soon = true;
+        clearTimeout(this._soonT);
+        this._soonT = setTimeout(() => { this.soon = false; }, 1800);
       },
     };
   }
@@ -130,6 +137,34 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
   .vv-bn-item.is-active {
     color: #b48608; /* gold-deep — contrast-safe trên cream */
   }
+  /* Định vị = <button> coming-soon → reset native button + dấu pending nhẹ */
+  button.vv-bn-item {
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font: inherit;
+  }
+  .vv-bn-item.is-pending {
+    opacity: 0.6;
+  }
+
+  /* Toast "sắp có" — nổi trên thanh, giữa; tự ẩn theo display (không phụ thuộc RAF) */
+  .vv-bn-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(4.5rem + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 41;
+    background: var(--color-mmp-ink, #0a0a0a);
+    color: var(--color-mmp-cream, #f5f1eb);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    box-shadow: 0 4px 14px rgba(10, 10, 10, 0.28);
+    pointer-events: none;
+  }
 
   /* QUÉT giữa — nút tròn gold nổi lên trên thanh */
   .vv-bn-scan {
@@ -159,6 +194,10 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
     color: var(--color-mmp-ink, #0a0a0a);
     border: 4px solid var(--color-mmp-cream, #f5f1eb);
     box-shadow: 0 4px 14px rgba(180, 134, 8, 0.4);
+  }
+  /* active theo path: đang ở /playdate → ring gold quanh nút giữa */
+  .vv-bn-scan.is-here .vv-bn-scan__btn {
+    box-shadow: 0 0 0 3px rgba(180, 134, 8, 0.5), 0 4px 14px rgba(180, 134, 8, 0.45);
   }
 
   @media (prefers-reduced-motion: no-preference) {
