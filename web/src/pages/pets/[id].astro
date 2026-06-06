@@ -1796,6 +1796,16 @@ const storyExcerpt = hasStory
                 </button>
               </div>
 
+              <!-- Lớp 2: banner nhắc cân (mềm, đóng được, KHÔNG chặn) -->
+              <template x-if="weighReminder().show">
+                <div class="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <FeatureIcon name="scale" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p class="text-xs text-amber-800 flex-1 leading-snug" x-text="weighReminder().message"></p>
+                  <button @click="nutrition.showLogForm = true" class="text-xs font-semibold text-sky-700 hover:underline shrink-0">Cân ngay</button>
+                  <button @click="nutrition.weighReminderDismissed = true" class="text-xs text-amber-500 hover:text-amber-700 shrink-0" aria-label="Bỏ qua">Bỏ qua</button>
+                </div>
+              </template>
+
               <!-- Insights summary -->
               <template x-if="nutrition.insights">
                 <div class="grid grid-cols-3 gap-2 mb-3">
@@ -1822,6 +1832,11 @@ const storyExcerpt = hasStory
                     </p>
                   </div>
                 </div>
+              </template>
+
+              <!-- Lớp 2: nhãn trung thực khi chưa đủ mốc -->
+              <template x-if="nutrition.insights && nutrition.insights.trend_30d.direction === 'insufficient_data'">
+                <p class="text-[11px] text-slate-400 mb-3">Chưa đủ mốc cân để tính xu hướng.</p>
               </template>
 
               <!-- Log form -->
@@ -2788,6 +2803,7 @@ const storyExcerpt = hasStory
         logForm: { weight_kg: null, body_condition_score: null, notes: "" },
         logSubmitting: false,
         logError: "",
+        weighReminderDismissed: false,   // Lớp 2: banner nhắc cân — đóng được, 1 lần/phiên
       },
 
       // ===== Care tab state (M4) =====
@@ -2965,6 +2981,7 @@ const storyExcerpt = hasStory
         if (!this.editForm.name?.trim()) { this.editError = "Tên không được trống"; return; }
         this.editLoading = true;
         this.editError = "";
+        const oldWeight = Number(this.pet.weight_kg) || null;   // Lớp 2: bắt thay đổi cân
         const payload = {
           name: this.editForm.name.trim(),
           breed: this.editForm.breed?.trim() || null,
@@ -2982,6 +2999,22 @@ const storyExcerpt = hasStory
           if (!res.ok) { this.editError = json.error?.message || "Có lỗi"; return; }
           this.pet = json.pet;
           this.showEdit = false;
+          // Lớp 2 — BỊT RÒ: đổi cân qua hồ sơ cũng phải ghi 1 mốc weight_logs + bust cache.
+          // Dùng đúng endpoint weight-log → logWeight (KHÔNG lặp logic, KHÔNG đổi công thức DER).
+          const newWeight = Number(this.pet.weight_kg) || null;
+          if (newWeight && newWeight !== oldWeight) {
+            try {
+              await fetch(`/api/v1/pets/${this.pet.id}/weight-log`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ weight_kg: newWeight, notes: "Cập nhật từ hồ sơ" }),
+              });
+            } catch (e) { /* non-fatal: PATCH đã lưu cân, chỉ thiếu mốc lịch sử */ }
+            // Tab Nutrition đã mở → refetch DER + insights (cân đổi → DER đổi)
+            if (this.nutrition.loaded) {
+              try { await Promise.all([this.fetchCalorieTarget(), this.fetchNutritionPlan(), this.fetchInsights()]); } catch (e) {}
+            }
+          }
         } catch (err) {
           this.editError = "Lỗi kết nối. Thử lại nhé";
         } finally {
@@ -3735,6 +3768,22 @@ const storyExcerpt = hasStory
         this.nutrition.calorie = null;
         this.nutrition.plan = null;
         await this.initNutritionTab();
+      },
+
+      // Lớp 2: trạng thái banner nhắc cân — tính client từ insights.recent_logs (KHÔNG cần field mới)
+      weighReminder() {
+        const ins = this.nutrition.insights;
+        if (!ins || this.nutrition.weighReminderDismissed) return { show: false };
+        const logs = ins.recent_logs || [];
+        if (logs.length === 0) {
+          return { show: true, kind: "first", message: "Cân bé lần đầu để theo dõi sức khỏe theo thời gian." };
+        }
+        const last = logs[0] && logs[0].logged_at ? new Date(logs[0].logged_at).getTime() : null;
+        if (last) {
+          const days = Math.floor((Date.now() - last) / 86400000);
+          if (days >= 30) return { show: true, kind: "stale", days, message: `Đã ${days} ngày chưa cân bé — cân lại để cập nhật khẩu phần nhé.` };
+        }
+        return { show: false };
       },
 
       async submitWeightLog() {
