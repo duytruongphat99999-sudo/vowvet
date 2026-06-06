@@ -8,6 +8,7 @@
  */
 import Layout from "../layouts/Layout.astro";
 import FeatureIcon from "../components/FeatureIcon.astro";
+import Logo from "../components/Logo.astro";
 import {
   HEALTH_CONDITIONS, TIER_META, CONDITION_NUTRITION, CONDITION_TEXTURE,
 } from "@shared/health-conditions.ts";
@@ -111,14 +112,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
     <!-- v44: Public top nav — auth-aware avatar (logged-in) vs login button (guest) -->
     <nav class="bg-white border-b border-mmp-ink/12 sticky top-0 z-30 shadow-sm">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-        <!-- v44: Logo image — dùng /logo-mmp.png thay emoji 🐾 -->
-        <a href="/" class="flex items-center gap-2.5 group shrink-0">
-          <img src="/logo-mmp.png" alt="VowVet logo" class="h-12 w-12 object-contain" />
-          <div>
-            <p class="font-bold text-mmp-ink leading-none">VowVet</p>
-            <p class="text-[10px] text-mmp-ink/60 leading-none">by Mon Min Pet</p>
-          </div>
-        </a>
+        <!-- v286: dùng Logo.astro (lockup chuẩn) thay img thủ công -->
+        <Logo variant="default" href="/" class="shrink-0" />
         <div class="flex items-center gap-3 text-sm">
           <a href="/food-brands" class="text-mmp-ink font-semibold hover:underline">Dinh dưỡng</a>
           <span class="text-mmp-ink/25 hidden sm:inline">·</span>
@@ -134,7 +129,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                      @error="profile.petImage = ''" />
               </template>
               <template x-if="!profile.petImage">
-                <span class="text-lg" x-text="breedSticker || (profile.species === 'cat' ? '🐱' : '🐶')"></span>
+                <span class="text-lg inline-flex items-center justify-center text-mmp-gold">
+                  <span x-show="breedSticker" x-text="breedSticker"></span>
+                  <span x-show="!breedSticker && profile.species === 'cat'"><FeatureIcon name="cat" class="w-5 h-5" /></span>
+                  <span x-show="!breedSticker && profile.species !== 'cat'"><FeatureIcon name="dog" class="w-5 h-5" /></span>
+                </span>
               </template>
             </span>
             <div class="hidden sm:block min-w-0 text-left">
@@ -177,12 +176,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         <aside class="order-2 lg:order-none lg:sticky lg:top-20 lg:self-start mb-4 lg:mb-0 space-y-3">
 
           <!-- WIDGET 1: HỒ SƠ BÉ (Premium Quick-Profile Matcher) -->
-          <button type="button" @click="openProfile=!openProfile" :aria-expanded="openProfile" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left">
+          <button type="button" @click="openProfile=!openProfile" :aria-expanded="openProfile" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left hover:bg-mmp-cream/40 motion-safe:transition">
             <span class="flex items-center gap-2 min-w-0">
               <span class="font-semibold text-sm text-mmp-ink">Chỉnh hồ sơ bé</span>
               <span x-show="autoProfile" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
             </span>
-            <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openProfile ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            <span class="inline-flex items-center gap-1 shrink-0 text-[10px] text-mmp-ink/50"><span x-text="openProfile ? 'Thu gọn' : 'Xem'"></span><svg class="w-4 h-4 motion-safe:transition-transform motion-safe:duration-200" :class="openProfile ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></span>
           </button>
           <div x-show="openProfile" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="bg-white border border-mmp-ink/12 rounded-2xl p-5">
             <!-- v38: Breed sticker swaps into heading when breed selected -->
@@ -197,9 +196,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                          @error="profile.petImage = ''" />
                   </template>
                   <template x-if="!profile.petImage">
-                    <span class="text-2xl transition-all duration-300"
-                          :style="breedSticker ? '' : 'color: var(--c-gold);'"
-                          x-text="breedSticker || (profile.species === 'cat' ? '🐱' : '🐶')"></span>
+                    <span class="text-2xl transition-all duration-300 inline-flex items-center justify-center"
+                          :style="breedSticker ? '' : 'color: var(--c-gold);'">
+                      <span x-show="breedSticker" x-text="breedSticker"></span>
+                      <span x-show="!breedSticker && profile.species === 'cat'"><FeatureIcon name="cat" class="w-6 h-6" /></span>
+                      <span x-show="!breedSticker && profile.species !== 'cat'"><FeatureIcon name="dog" class="w-6 h-6" /></span>
+                    </span>
                   </template>
                 </div>
                 <!-- Title block -->
@@ -208,7 +210,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                   <h2 class="font-display italic text-lg font-semibold text-mmp-ink leading-tight break-words">
                     <span x-text="'Dinh dưỡng cho ' + (profile.petName || 'bé cưng của bạn')"></span>
                     <template x-if="profile.is_verified">
-                      <span class="ml-1 align-middle inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 not-italic" title="Đã thẩm định bởi BS Mon Min">
+                      <span class="ml-1 align-middle inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-mmp-gold/15 text-mmp-ink border border-mmp-gold/40 not-italic" title="Đã thẩm định bởi BS Mon Min">
                         <FeatureIcon name="check" class="w-2.5 h-2.5" />
                       </span>
                     </template>
@@ -265,7 +267,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
             <!-- v42: Guest onboarding CTA — chỉ fire cho TRUE guest (chưa có pet nào trong account) -->
             <template x-if="userPets.length === 0">
-              <div class="mb-3 px-3 py-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/70 text-[11px] leading-relaxed text-emerald-800 flex items-start gap-2 w-full">
+              <div class="mb-3 px-3 py-2.5 rounded-xl bg-mmp-cream/60 border border-mmp-ink/10 text-[11px] leading-relaxed text-mmp-ink/80 flex items-start gap-2 w-full">
                 <span class="shrink-0 text-base leading-none mt-0.5">👋</span>
                 <span><strong class="font-semibold">Chào bạn!</strong> Hãy nhập nhanh thông tin bé để VowVet tính khẩu phần chính xác nhất.</span>
               </div>
@@ -282,7 +284,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         :title="isProfileLocked ? `Read-only · chọn 'Nhập thủ công' để đổi loài` : ''"
                         class="text-xs font-semibold py-2 rounded-xl transition inline-flex items-center justify-center gap-1">
                   <span x-show="isProfileLocked && profile.species !== 'dog'" class="opacity-60 inline-flex items-center" style="display:none;"><FeatureIcon name="lock" class="w-2.5 h-2.5" /></span>
-                  <span>🐶 Chó</span>
+                  <span class="inline-flex items-center gap-1"><FeatureIcon name="dog" class="w-3.5 h-3.5" /> Chó</span>
                 </button>
                 <button type="button" :disabled="isProfileLocked"
                         @click="if(!isProfileLocked) profile.species = 'cat'"
@@ -290,7 +292,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         :title="isProfileLocked ? `Read-only · chọn 'Nhập thủ công' để đổi loài` : ''"
                         class="text-xs font-semibold py-2 rounded-xl transition inline-flex items-center justify-center gap-1">
                   <span x-show="isProfileLocked && profile.species !== 'cat'" class="opacity-60 inline-flex items-center" style="display:none;"><FeatureIcon name="lock" class="w-2.5 h-2.5" /></span>
-                  <span>🐱 Mèo</span>
+                  <span class="inline-flex items-center gap-1"><FeatureIcon name="cat" class="w-3.5 h-3.5" /> Mèo</span>
                 </button>
               </div>
             </div>
@@ -302,7 +304,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                 <p class="text-[10px] font-bold tabular-nums"
                    :class="{
                      'text-mmp-ink/60': currentBcs.tier === 'under-critical' || currentBcs.tier === 'under',
-                     'text-emerald-700': currentBcs.tier === 'ideal',
+                     'text-[#B48608]': currentBcs.tier === 'ideal',
                      'text-orange-600': currentBcs.tier === 'over',
                      'text-red-600': currentBcs.tier === 'obese' || currentBcs.tier === 'obese-critical'
                    }"
@@ -313,7 +315,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                      class="w-full disabled:cursor-not-allowed disabled:opacity-50"
                      :class="{
                        'accent-slate-400': currentBcs.tier === 'under-critical' || currentBcs.tier === 'under',
-                       'accent-emerald-500': currentBcs.tier === 'ideal',
+                       'accent-[#ecb921]': currentBcs.tier === 'ideal',
                        'accent-orange-500': currentBcs.tier === 'over',
                        'accent-red-500': currentBcs.tier === 'obese' || currentBcs.tier === 'obese-critical'
                      }" />
@@ -347,8 +349,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                       🦴 Chỉ thấy xương cứng
                     </button>
                     <button type="button" @click="profile.bcs = 5"
-                            class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition">
-                      ✨ Sườn ẩn dưới lớp mỡ mỏng
+                            class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-mmp-gold/10 hover:bg-mmp-gold/20 text-mmp-ink/80 transition inline-flex items-center gap-1">
+                      <FeatureIcon name="sparkles" class="w-3 h-3 shrink-0" /> Sườn ẩn dưới lớp mỡ mỏng
                     </button>
                     <button type="button" @click="profile.bcs = 8"
                             class="text-[11px] font-semibold text-left px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 transition">
@@ -486,12 +488,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           </div>
 
           <!-- WIDGET 2: FILTERS (existing — wrapped) -->
-          <button type="button" @click="openFilter=!openFilter" :aria-expanded="openFilter" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left">
+          <button type="button" @click="openFilter=!openFilter" :aria-expanded="openFilter" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left hover:bg-mmp-cream/40 motion-safe:transition">
             <span class="flex items-center gap-2 min-w-0">
               <span class="font-semibold text-sm text-mmp-ink">Bộ lọc</span>
               <span x-show="autoFilter" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
             </span>
-            <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openFilter ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            <span class="inline-flex items-center gap-1 shrink-0 text-[10px] text-mmp-ink/50"><span x-text="openFilter ? 'Thu gọn' : 'Xem'"></span><svg class="w-4 h-4 motion-safe:transition-transform motion-safe:duration-200" :class="openFilter ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></span>
           </button>
           <div x-show="openFilter" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="bg-white border border-mmp-ink/12 rounded-2xl p-5">
             <div class="flex items-center justify-between mb-3 lg:mb-4">
@@ -536,12 +538,23 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             </div>
 
             <!-- v47: Unified 4-tier Allergen Matrix selector (replace checkbox list + dark-yellow chip) -->
-            <div class="mb-4">
-              <p class="text-xs font-semibold text-mmp-ink/80 uppercase tracking-wider mb-2">Hồ sơ dị ứng · 4 cấp</p>
+            <!-- v286 BƯỚC4: khi locked → 4 ma trận read-only gập "chỉ xem", mặc định ĐÓNG -->
+            <template x-if="isProfileLocked">
+              <button type="button" @click="openAllergyView=!openAllergyView" :aria-expanded="openAllergyView"
+                      class="w-full mb-2 flex items-center justify-between gap-2 text-left rounded-xl px-3 py-2 bg-mmp-cream/40 hover:bg-mmp-cream/70 motion-safe:transition">
+                <span class="text-xs font-semibold text-mmp-ink/80 uppercase tracking-wider">Hồ sơ dị ứng &amp; môi trường <span class="font-normal opacity-60 normal-case tracking-normal">(chỉ xem)</span></span>
+                <span class="inline-flex items-center gap-1 text-[10px] text-mmp-ink/50">
+                  <span x-text="openAllergyView ? 'Thu gọn' : 'Xem'"></span>
+                  <svg class="w-3.5 h-3.5 motion-safe:transition-transform motion-safe:duration-200" :class="openAllergyView ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                </span>
+              </button>
+            </template>
+            <div class="mb-4" x-show="!isProfileLocked || openAllergyView" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+              <p x-show="!isProfileLocked" class="text-xs font-semibold text-mmp-ink/80 uppercase tracking-wider mb-2">Hồ sơ dị ứng · 4 cấp</p>
 
               <!-- v48: TIER 1 RED — disabled khi pet selected (profile-driven). Guests vẫn dùng được. -->
               <div class="mb-2">
-                <p class="text-[10px] uppercase tracking-widest font-bold text-red-700 mb-1">🚨 Dị ứng xác định <span x-show="isProfileLocked" style="display:none;" class="font-normal opacity-60">(read-only · sửa ở Profile)</span></p>
+                <p class="text-[10px] uppercase tracking-widest font-bold text-red-700 mb-1 inline-flex items-center gap-1"><FeatureIcon name="alert-triangle" class="w-3 h-3" /> Dị ứng xác định <span x-show="isProfileLocked" style="display:none;" class="font-normal opacity-60">(read-only · sửa ở Profile)</span></p>
                 <div class="flex flex-wrap gap-1">
                   <template x-for="a in ALLERGEN_MATRIX.red" :key="a.code">
                     <button type="button"
@@ -561,7 +574,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                               isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-mmp-cream/70'
                             ]"
                             class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
-                      <span x-text="a.emoji"></span>
+                      <FeatureIcon name="alert-triangle" class="w-2.5 h-2.5" />
                       <span x-text="a.label"></span>
                     </button>
                   </template>
@@ -570,7 +583,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
               <!-- v48: TIER 2 ORANGE — disabled khi pet selected -->
               <div class="mb-2">
-                <p class="text-[10px] uppercase tracking-widest font-bold text-orange-700 mb-1">⚠️ Nhạy cảm <span x-show="isProfileLocked" style="display:none;" class="font-normal opacity-60">(read-only)</span></p>
+                <p class="text-[10px] uppercase tracking-widest font-bold text-orange-700 mb-1 inline-flex items-center gap-1"><FeatureIcon name="alert-triangle" class="w-3 h-3" /> Nhạy cảm <span x-show="isProfileLocked" style="display:none;" class="font-normal opacity-60">(read-only)</span></p>
                 <div class="flex flex-wrap gap-1">
                   <template x-for="s in ALLERGEN_MATRIX.orange" :key="s.code">
                     <button type="button"
@@ -581,7 +594,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                               isProfileLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-mmp-cream/70'
                             ]"
                             class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition">
-                      <span x-text="s.emoji"></span>
+                      <FeatureIcon name="alert-triangle" class="w-2.5 h-2.5" />
                       <span x-text="s.label"></span>
                     </button>
                   </template>
@@ -628,7 +641,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             <div class="mb-4">
               <label class="flex items-center gap-2 cursor-pointer bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg">
                 <input type="checkbox" x-model="filters.monMin" class="rounded" style="accent-color: var(--c-gold);" />
-                <span class="text-sm font-medium text-mmp-ink">✨ Chỉ Mon Min khuyến nghị</span>
+                <span class="text-sm font-medium text-mmp-ink inline-flex items-center gap-1"><FeatureIcon name="sparkles" class="w-3.5 h-3.5" /> Chỉ Mon Min khuyến nghị</span>
               </label>
             </div>
 
@@ -643,15 +656,15 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                 <span>1tr</span>
               </div>
               <!-- v37: Smart budget subtext — x-show = zero reflow khi kéo slider -->
-              <p class="text-[11px] mt-1.5 leading-relaxed font-medium"
+              <p class="text-[11px] mt-1.5 leading-relaxed font-medium inline-flex items-start gap-1"
                  x-show="filters.maxPrice >= 250000"
                  style="color: #9a7d2e; display: none;">
-                ✨ Đang mở rộng toàn bộ danh mục Đạm Thủy Phân và dinh dưỡng cao cấp của MonMin ở bên dưới.
+                <FeatureIcon name="sparkles" class="w-3 h-3 shrink-0 mt-0.5" /> <span>Đang mở rộng toàn bộ danh mục Đạm Thủy Phân và dinh dưỡng cao cấp của MonMin ở bên dưới.</span>
               </p>
-              <p class="text-[11px] mt-1.5 leading-relaxed font-medium text-amber-600"
+              <p class="text-[11px] mt-1.5 leading-relaxed font-medium text-amber-600 inline-flex items-start gap-1"
                  x-show="filters.maxPrice < 250000"
                  style="display: none;">
-                ⚠️ Mức giá này đang lọc bỏ các dòng công thức y khoa chuyên sâu của MonMin. Cân nhắc điều chỉnh tăng để xem đầy đủ giải pháp tối ưu cho bé.
+                <FeatureIcon name="alert-triangle" class="w-3 h-3 shrink-0 mt-0.5" /> <span>Mức giá này đang lọc bỏ các dòng công thức y khoa chuyên sâu của MonMin. Cân nhắc điều chỉnh tăng để xem đầy đủ giải pháp tối ưu cho bé.</span>
               </p>
 
               <!-- v39: Editorial Clinical CTA → Digital Prescription -->
@@ -664,9 +677,9 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           </div>
 
           <!-- WIDGET 3: Smart Label Scanner (Đợt 1 — moved from right column; Đợt 1.5 — id cho FAB mobile scroll) -->
-          <button type="button" @click="openScanner=!openScanner" :aria-expanded="openScanner" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left scroll-mt-20" id="smart-scanner">
+          <button type="button" @click="openScanner=!openScanner" :aria-expanded="openScanner" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left scroll-mt-20 hover:bg-mmp-cream/40 motion-safe:transition" id="smart-scanner">
             <span class="font-semibold text-sm text-mmp-ink">Quét nhãn hạt nhà</span>
-            <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openScanner ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            <span class="inline-flex items-center gap-1 shrink-0 text-[10px] text-mmp-ink/50"><span x-text="openScanner ? 'Thu gọn' : 'Xem'"></span><svg class="w-4 h-4 motion-safe:transition-transform motion-safe:duration-200" :class="openScanner ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></span>
           </button>
           <div x-show="openScanner" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="bg-white border border-mmp-ink/12 rounded-2xl p-5">
             <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60 mb-1 inline-flex items-center gap-1"><FeatureIcon name="home" class="w-3 h-3" /> Cấu hình hạt tại nhà</p>
@@ -701,14 +714,14 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                   </div>
                 </template>
                 <template x-if="homeIngredients.length > 10 && homeIngredientAlerts.length === 0">
-                  <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                    <p class="text-[11px] font-medium text-emerald-800">✅ Không phát hiện allergen trong profile của bé.</p>
+                  <div class="rounded-xl border border-mmp-gold/40 bg-mmp-gold/10 p-3">
+                    <p class="text-[11px] font-medium text-mmp-ink/80">✅ Không phát hiện allergen trong profile của bé.</p>
                   </div>
                 </template>
                 <template x-if="homeKcal > 0">
-                  <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                    <p class="text-xs font-bold text-emerald-800 uppercase tracking-widest">Khẩu phần tính lại</p>
-                    <p class="font-mono tabular-nums text-xl font-bold text-emerald-900 mt-1">
+                  <div class="bg-mmp-gold/10 border border-mmp-gold/40 rounded-xl p-3">
+                    <p class="text-xs font-bold text-mmp-ink/70 uppercase tracking-widest">Khẩu phần tính lại</p>
+                    <p class="font-mono tabular-nums text-xl font-bold text-mmp-ink mt-1">
                       <span x-text="derLoading ? '…' : Math.round((displayDer/homeKcal)*100)"></span>g/ngày
                     </p>
                   </div>
@@ -779,14 +792,14 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
-                  <p class="text-[10px] tracking-widest font-bold opacity-60">☀️ Sáng + trưa · hạt khô</p>
+                  <p class="text-[10px] tracking-widest font-bold opacity-60 inline-flex items-center gap-1"><FeatureIcon name="sun" class="w-3 h-3" /> Sáng + trưa · hạt khô</p>
                   <p class="font-mono tabular-nums text-2xl font-bold mt-1">
                     <span x-text="derLoading ? '…' : dryFoodGrams" data-vv-countup></span><span class="text-sm font-normal ml-1">g/ngày</span>
                   </p>
                   <p class="text-[10px] opacity-70 mt-1 italic leading-snug">Khoảng 1/2 chén ăn tiêu chuẩn hoặc 3 muỗng gạt.</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-[#1A1814]/10">
-                  <p class="text-[10px] tracking-widest font-bold opacity-60">🌙 Tối · pate tươi (thêm nước)</p>
+                  <p class="text-[10px] tracking-widest font-bold opacity-60 inline-flex items-center gap-1"><FeatureIcon name="moon" class="w-3 h-3" /> Tối · pate tươi (thêm nước)</p>
                   <p class="font-mono tabular-nums text-2xl font-bold mt-1">
                     <span x-text="derLoading ? '…' : wetFoodGrams" data-vv-countup></span><span class="text-sm font-normal ml-1">g/ngày</span>
                   </p>
@@ -804,12 +817,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             </section>
 
             <!-- MÔ-ĐUN 2: THE CONDITION RULES -->
-            <button type="button" @click="openGoal=!openGoal" :aria-expanded="openGoal" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-3xl px-6 py-3 text-left">
+            <button type="button" @click="openGoal=!openGoal" :aria-expanded="openGoal" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-3xl px-6 py-3 text-left hover:bg-mmp-cream/40 motion-safe:transition">
               <span class="flex items-center gap-2 min-w-0">
                 <span class="font-semibold text-sm text-mmp-ink">Mục tiêu sức khoẻ</span>
                 <span x-show="autoGoal" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
               </span>
-              <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openGoal ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+              <span class="inline-flex items-center gap-1 shrink-0 text-[10px] text-mmp-ink/50"><span x-text="openGoal ? 'Thu gọn' : 'Xem'"></span><svg class="w-4 h-4 motion-safe:transition-transform motion-safe:duration-200" :class="openGoal ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></span>
             </button>
             <section x-show="openGoal" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="bg-white rounded-3xl p-6 border border-mmp-ink/12">
               <p class="text-[10px] tracking-widest font-bold text-mmp-ink/60 inline-flex items-center gap-1.5"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-mmp-gold text-mmp-ink text-[10px] font-bold not-italic shrink-0">2</span> Mục tiêu sức khoẻ</p>
@@ -817,11 +830,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               <div class="space-y-3">
                 <!-- v47: Mục tiêu ĐẠT — dynamic theo currentBcs.tier -->
                 <div class="rounded-2xl p-4 border-l-4 transition-colors"
-                     :class="currentBcs.tier === 'ideal' ? 'border-emerald-500 bg-emerald-50/60' : 'border-mmp-ink/10 bg-mmp-cream/40'">
+                     :class="currentBcs.tier === 'ideal' ? 'border-mmp-gold bg-mmp-gold/10' : 'border-mmp-ink/10 bg-mmp-cream/40'">
                   <p class="text-xs font-bold tracking-widest mb-1 inline-flex items-center gap-1"
-                     :class="currentBcs.tier === 'ideal' ? 'text-emerald-800' : 'text-mmp-ink/80'"><FeatureIcon name="target" class="w-3 h-3" /> Đang ổn</p>
+                     :class="currentBcs.tier === 'ideal' ? 'text-[#B48608]' : 'text-mmp-ink/80'"><FeatureIcon name="target" class="w-3 h-3" /> Đang ổn</p>
                   <template x-if="currentBcs.tier === 'ideal'">
-                    <p class="text-sm text-emerald-900 leading-relaxed">
+                    <p class="text-sm text-mmp-ink/80 leading-relaxed">
                       BCS lý tưởng ✓ — <strong>khoá đơn giảm cân</strong>, tự động mở Đơn <strong>giữ dáng cân bằng</strong> để duy trì lâu dài.
                     </p>
                   </template>
@@ -850,9 +863,9 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           </div>
 
           <!-- Brand grid collapse toggle (mobile-first lát 1) -->
-          <button type="button" @click="openBrands=!openBrands" :aria-expanded="openBrands" class="w-full flex items-center justify-between gap-2 mb-3 text-left">
+          <button type="button" @click="openBrands=!openBrands" :aria-expanded="openBrands" class="w-full flex items-center justify-between gap-2 mb-3 text-left bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 hover:bg-mmp-cream/40 motion-safe:transition">
             <span class="font-semibold text-sm text-mmp-ink">Các loại hạt (<span x-text="filtered.length"></span>)</span>
-            <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openBrands ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            <span class="inline-flex items-center gap-1 shrink-0 text-[10px] text-mmp-ink/50"><span x-text="openBrands ? 'Thu gọn' : 'Xem'"></span><svg class="w-4 h-4 motion-safe:transition-transform motion-safe:duration-200" :class="openBrands ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></span>
           </button>
           <!-- Grid header (v36: dual experience — duyệt thêm brands khác) -->
           <div x-show="openBrands" x-cloak class="flex items-center justify-between mb-3">
@@ -874,15 +887,18 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                 <!-- Main card -->
                 <article class="relative bg-white rounded-2xl border overflow-hidden flex flex-col h-full transition"
                          :class="isMismatch(b)
-                           ? 'border-rose-200 bg-rose-50/10'
-                           : (b.mon_min_recommended ? 'border-amber-200/60 shadow-sm' : 'border-mmp-ink/12 hover:shadow-md')">
+                           ? 'border-amber-200/50 bg-amber-50/10'
+                           : (b.mon_min_recommended ? 'border-mmp-gold/50 shadow-sm' : 'border-mmp-ink/12 hover:shadow-md')">
 
                   <!-- Image header -->
                   <div class="aspect-[3/2] bg-mmp-cream flex items-center justify-center relative">
-                    <span class="text-5xl" x-text="b.species === 'cat' ? '🐱' : '🐶'"></span>
+                    <span class="text-mmp-ink/30">
+                      <span x-show="b.species === 'cat'"><FeatureIcon name="cat" class="w-14 h-14" /></span>
+                      <span x-show="b.species !== 'cat'"><FeatureIcon name="dog" class="w-14 h-14" /></span>
+                    </span>
                     <template x-if="b.mon_min_recommended">
-                      <span class="absolute top-2 left-2 bg-mmp-gold/15 backdrop-blur-sm text-mmp-ink text-[10px] font-bold px-2.5 py-1 rounded-full ring-1 ring-mmp-gold/40 inline-flex items-center gap-1">
-                        <span>✨</span><span>MON MIN</span>
+                      <span class="absolute top-2 left-2 bg-mmp-gold text-mmp-ink text-[10px] font-bold px-2.5 py-1 rounded-full ring-1 ring-mmp-gold/60 shadow-sm inline-flex items-center gap-1">
+                        <FeatureIcon name="sparkles" class="w-3 h-3" /><span>MON MIN</span>
                       </span>
                     </template>
                   </div>
@@ -892,14 +908,16 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
                     <!-- Brand identity -->
                     <div>
-                      <h3 class="font-display italic text-lg font-semibold text-mmp-ink leading-tight" x-text="b.brand_name"></h3>
+                      <h3 class="font-display leading-tight"
+                          :class="b.mon_min_recommended ? 'text-xl font-bold text-[#B48608]' : 'italic text-lg font-semibold text-mmp-ink'"
+                          x-text="b.brand_name"></h3>
                       <p class="text-xs text-mmp-ink/60 mt-0.5" x-text="b.product_line"></p>
                       <div class="flex gap-1 mt-2 flex-wrap">
                         <span class="text-[10px] bg-mmp-cream/70 text-mmp-ink/80 px-2 py-0.5 rounded-full" x-text="speciesLabel(b.species)"></span>
                         <span class="text-[10px] bg-mmp-cream/70 text-mmp-ink/80 px-2 py-0.5 rounded-full" x-text="lifeStageLabel(b.life_stage)"></span>
                         <!-- v45: Trust badges — graceful render khi API trả field -->
                         <template x-if="b.is_verified">
-                          <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200" title="Đã thẩm định bởi BS Mon Min">
+                          <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-mmp-gold/15 text-mmp-ink border border-mmp-gold/40" title="Đã thẩm định bởi BS Mon Min">
                             <FeatureIcon name="check" class="w-3 h-3" /> Verified
                           </span>
                         </template>
@@ -913,9 +931,9 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
                     <!-- Mismatch banner (Serif italic, soft Crimson) -->
                     <template x-if="isMismatch(b)">
-                      <p class="font-display italic text-[13px] text-rose-700 leading-snug inline-flex items-start gap-1.5" style="min-height: 2.4rem;">
-                        <span class="shrink-0 mt-0.5">🚨</span>
-                        <span><strong class="font-bold not-italic">Mismatch:</strong> <span x-text="mismatchReason(b)"></span></span>
+                      <p class="text-[11px] text-amber-700 leading-snug inline-flex items-start gap-1.5" style="min-height: 2.4rem;">
+                        <FeatureIcon name="alert-triangle" class="w-3 h-3 shrink-0 mt-0.5" />
+                        <span><strong class="font-semibold">Lưu ý:</strong> <span x-text="mismatchReason(b)"></span></span>
                       </p>
                     </template>
 
@@ -943,7 +961,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                       <p class="text-mmp-ink leading-tight">
                         <span class="font-bold text-xl tabular-nums" x-text="derLoading ? '…' : (gramsPerDay(b) != null ? gramsPerDay(b) + 'g' : '—')"></span>
                         <template x-if="!derLoading && costPerDay(b) != null">
-                          <span class="text-sm text-mmp-ink/60 ml-1">· <span class="tabular-nums font-semibold text-mmp-ink/80" x-text="formatVnd(costPerDay(b))"></span> đ/ngày</span>
+                          <span class="text-sm text-mmp-ink/80 ml-1">· <span class="tabular-nums font-bold text-mmp-ink" x-text="formatVnd(costPerDay(b))"></span> đ/ngày</span>
                         </template>
                       </p>
                     </div>
@@ -952,14 +970,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                     <div style="min-height: 3.5rem;">
                       <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-mmp-ink/60 font-semibold mb-1">
                         <span>Độ tương thích</span>
-                        <span class="tabular-nums transition-colors duration-500"
-                              :class="compatTone(b) === 'emerald' ? 'text-emerald-700' : compatTone(b) === 'amber' ? 'text-amber-700' : 'text-rose-700'">
+                        <span class="tabular-nums text-mmp-ink/45">
                           <span x-text="compatScore(b)"></span>%
                         </span>
                       </div>
                       <div class="h-1.5 bg-mmp-cream/70 rounded-full overflow-hidden">
-                        <div class="h-full rounded-full transition-all duration-700"
-                             :class="compatTone(b) === 'emerald' ? 'bg-emerald-500' : compatTone(b) === 'amber' ? 'bg-amber-400' : 'bg-rose-300'"
+                        <div class="h-full rounded-full transition-all duration-700 bg-mmp-ink/20"
                              :style="`width: ${compatScore(b)}%;`"></div>
                       </div>
                       <p class="text-xs text-mmp-ink/80 italic mt-1.5" x-text="compatTagline(b)"></p>
@@ -968,7 +984,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         <div class="flex flex-wrap gap-1 mt-1.5">
                           <template x-for="note in conditionNotes(b)" :key="note.label">
                             <span class="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border"
-                                  :class="note.good ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'"
+                                  :class="note.good ? 'bg-mmp-gold/10 text-mmp-ink border-mmp-gold/30' : 'bg-amber-50 text-amber-800 border-amber-200'"
                                   x-text="note.label"></span>
                           </template>
                         </div>
@@ -979,7 +995,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                     <div class="mt-auto pt-3 border-t border-mmp-ink/12">
                       <div class="flex items-center justify-between text-sm">
                         <span class="text-mmp-ink/60">Giá</span>
-                        <span class="font-semibold text-mmp-ink/80 tabular-nums" x-text="b.price_vnd_per_kg ? formatVnd(b.price_vnd_per_kg) + ' /kg' : 'Liên hệ'"></span>
+                        <span class="font-bold text-mmp-ink tabular-nums" x-text="b.price_vnd_per_kg ? formatVnd(b.price_vnd_per_kg) + ' /kg' : 'Liên hệ'"></span>
                       </div>
 
                       <!-- Disclosure chevron — raw specs -->
@@ -1009,9 +1025,9 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                           <span class="block font-bold tabular-nums" x-text="b.fat_pct + '%'"></span>
                           <span class="block text-amber-600 mt-0.5">Béo</span>
                         </div>
-                        <div class="bg-emerald-50 text-emerald-800 px-2 py-1.5 rounded-lg text-center">
+                        <div class="bg-mmp-gold/10 text-mmp-ink px-2 py-1.5 rounded-lg text-center">
                           <span class="block font-bold tabular-nums" x-text="b.calories_per_100g"></span>
-                          <span class="block text-emerald-600 mt-0.5">kcal/100g</span>
+                          <span class="block text-mmp-ink/60 mt-0.5">kcal/100g</span>
                         </div>
                       </div>
                     </div>
@@ -1055,12 +1071,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
           <!-- ③ (tiếp) — Tìm trên thị trường nếu chưa có brand phù hợp -->
           <!-- Mua & tìm thêm — collapse (mobile-first lát 1) -->
-          <button type="button" @click="openMore=!openMore" :aria-expanded="openMore" class="w-full flex items-center justify-between gap-2 mt-5 mb-1 text-left">
+          <button type="button" @click="openMore=!openMore" :aria-expanded="openMore" class="w-full flex items-center justify-between gap-2 mt-5 mb-1 text-left bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 hover:bg-mmp-cream/40 motion-safe:transition">
             <span class="flex items-center gap-2 min-w-0">
               <span class="font-semibold text-sm text-mmp-ink">Mua &amp; tìm thêm</span>
               <span x-show="autoMore" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
             </span>
-            <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openMore ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            <span class="inline-flex items-center gap-1 shrink-0 text-[10px] text-mmp-ink/50"><span x-text="openMore ? 'Thu gọn' : 'Xem'"></span><svg class="w-4 h-4 motion-safe:transition-transform motion-safe:duration-200" :class="openMore ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></span>
           </button>
           <section x-show="openMore" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="rounded-3xl p-5 border border-mmp-ink/10 bg-white mt-2">
             <p class="text-[10px] tracking-widest font-bold text-mmp-ink/60 mb-1 inline-flex items-center gap-1"><FeatureIcon name="search" class="w-3 h-3" /> Tìm thêm trên Shopee / Lazada</p>
@@ -1085,7 +1101,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
             <!-- Combo MonMin recommended cart -->
             <section x-show="openMore" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="rounded-3xl p-6 border-2" style="border-color: #1A1814; background: #F3EFE7;">
-              <p class="text-[10px] uppercase tracking-widest font-bold mb-1">✨ Gợi ý phối trộn</p>
+              <p class="text-[10px] uppercase tracking-widest font-bold mb-1 inline-flex items-center gap-1"><FeatureIcon name="sparkles" class="w-3 h-3" /> Gợi ý phối trộn</p>
               <h3 class="font-display italic text-lg font-semibold mb-3 leading-tight" style="color: #1A1814;">Combo 30 ngày — đơn thuốc số</h3>
               <ul class="space-y-2 mb-4 font-mono text-sm" style="color: #1A1814;">
                 <li class="flex justify-between"><span>1× Hạt MonMin Light 1.5kg</span><span class="font-bold tabular-nums">~ 450,000đ</span></li>
@@ -1112,7 +1128,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
               </div>
               <button type="button" @click="markFedToday()"
                       :disabled="fedToday"
-                      :class="fedToday ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed' : 'text-white border border-transparent hover:opacity-90'"
+                      :class="fedToday ? 'bg-mmp-gold/15 text-mmp-ink border border-mmp-gold/40 cursor-not-allowed' : 'text-white border border-transparent hover:opacity-90'"
                       :style="fedToday ? '' : 'background: #1A1814;'"
                       class="w-full px-4 py-3 rounded-xl font-bold text-sm transition inline-flex items-center justify-center gap-1.5">
                 <span x-show="!fedToday" class="inline-flex items-center gap-1.5"><FeatureIcon name="check" class="w-4 h-4" /> Đã cho ăn hôm nay</span>
@@ -1218,6 +1234,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         openGoal: false,
         openBrands: true,
         openMore: false,
+        openAllergyView: false,
         // Lát 2: cờ "vì sao auto-mở" (badge header "cần chú ý"). Chỉ bật, không tự tắt.
         autoProfile: false,
         autoFilter: false,
