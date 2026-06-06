@@ -1449,7 +1449,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           // v47: Origin certificate + verification status
           this.profile.origin_certificate_url = (typeof p.origin_certificate_url === "string" ? p.origin_certificate_url : "") || "";
           this.profile.is_verified = Boolean(p.is_verified);
-          this.profile.species = (typeof p.species === "object" ? p.species?.value : p.species) || "dog";
+          // v287: normalize VN label → enum (contract /auth/me trả "Mèo"/"Chó", filter/scoring dùng 'cat'/'dog').
+          // Phòng thủ 2 chiều như backend matchBrand + pets/[id].astro:medSpecies — nhận cả nhãn-VN lẫn enum.
+          const _spRaw = (typeof p.species === "object" ? p.species?.value : p.species) || "";
+          this.profile.species = (_spRaw === "Mèo" || _spRaw === "cat") ? "cat"
+                               : (_spRaw === "Chó" || _spRaw === "dog") ? "dog"
+                               : "dog";
           this.profile.weight  = Number(p.weight_kg ?? p.weight) || 5;
           this.profile.breed   = breedCode;                   // v39: mapped code (đồng bộ với filters.breed + breedSticker)
           this.filters.breed   = breedCode;
