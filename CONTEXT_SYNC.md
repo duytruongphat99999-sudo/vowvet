@@ -1,12 +1,113 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
+> 🆕 **cập nhật 2026-06-06 (MỚI NHẤT):** **Audit + sửa DER dinh dưỡng (Bước 3)** — engine A `shared/nutrition-engine.ts` về **AAHA/WSAVA** (default activity sedentary 1.2, bỏ phạt senior/geri →1.0, +`ageingNote`; RER KHÔNG đổi) · **HỢP NHẤT 1 NGUỒN DER**: food-brands pet-locked + pet page đều dùng engine qua endpoint `calorie-target` (hết lệch 302↔engine) · pet page `[id].astro` tách **Mức nền (`der_raw`) / Hôm nay (`der_final`)** + gram/treat cân-đong theo nền + dòng chênh thời tiết trung thực + gợi ý nước · **data-fix min (pet 12) activity moderate→sedentary** (der 346→**260** nền / 234 hôm-nay). **SW = `vowvet-v278-pet-base-today-split`** · HEAD `b1ab7b0` · **+5 commit local CHƯA push**. Xem **SESSION 2026-06-06** ngay dưới.
+> 🆕 **cập nhật 2026-06-03:** Onboarding guard · Certificate "Hồ sơ Trọn đời" (pastel/hoa lá/2 chữ ký/5 mục/con dấu) · Wizard tạo bé · **Tối ưu loading** (cache per-user + parallelize → dashboard 6.2s→1.5s, /pets/[id] 6.5s→1.6s) · **Skeleton** chuyển trang · Fix **quest trùng** (race) · **Nhãn AI trung tính** (giấu Gemini). **SW = `vowvet-v276-cache-parallel-skeleton`** · HEAD `e4c8bd1` · ~79 commit local CHƯA push. Xem **SESSION 2026-06-03** ngay dưới.
 > Snapshot kỹ thuật — cập nhật **2026-06-01**: 🛡️ **Admin duyệt place** (Phase 1 backend `a79b84b` + Phase 3 UI `8b5875f` → `/admin/places`) · 📅 diary year-range động [2026–2029] · 🎨 brand-sync **/playdate/setup** + **/share** (iconify emoji→FeatureIcon + sky/amber→ink/cream + thêm icon `download`) · 🔧 severityDot pain/mobility = cognitive (superset) · 🗺️ nhóm C playdate **ĐÃ QUYẾT giữ emoji** · 💾 git bundle backup · 🕯️🎂🚨 **brand-sync 3 trang cảm xúc** (memorial nến-động · birthday · lost — GIỮ palette+emoji thematic) · 🎂 **cụm BIRTHDAY hoàn tất** (chính + wall tông-ấm + party-nav-fix→`/birthday` + **bánh kem nến-động** v255 + confetti reduced-motion guard) · ⭐ **Achievements WOW** (`273f558`, v257 — entrance shimmer/ring/count-up/stagger + unlock glow/burst, reduced-motion safe) · 🔍 **recon /food-brands** (công thức RER/DER + data layer — chuẩn bị audit dinh dưỡng, CHƯA code). **SW hiện tại = `vowvet-v257-achievements-wow`** · **70 commit local, CHƯA push** (không remote). 〈Chi tiết: xem snapshot **2026-06-01** ngay dưới.〉 *Buổi trước — 2026-05-31 (buổi 3):* 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại) · 📔 **diary DONE ALL** (mood→face icon + UI emoji→icon + màu yearbook gold/cream; `10e15bc` + fix mic/màu `22dcc70`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v242-diary-yearbook-gold`** · ~51 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
 > Đọc TRƯỚC khi đụng pet-score.astro / dashboard. Xem **🌌 WOW ARC v197-205** · **🧭 TOPBAR + DASHBOARD WOW v206-210** · **🔒 SECURITY** · **🛠️ BÀI HỌC HẠ TẦNG** · **🚨 TOMORROW QUEUE**.
 
 ---
 
-## 🆕 SESSION MỚI NHẤT (2026-06-01, tiếp) — Achievements WOW + Food-brands recon
+## 🆕 SESSION MỚI NHẤT (2026-06-06) — Audit + sửa DER dinh dưỡng (Bước 3)
+
+> Arc: setup CLAUDE.md/lệnh/allowlist → recon nutrition (lộ 3 nguồn DER lệch) → sửa engine A chuẩn AAHA/WSAVA → hợp nhất nguồn cho pet thật → pet page base/today split + data-fix min. *(APPEND — KHÔNG ghi đè.)*
+
+### 📊 STATE
+- HEAD `b1ab7b0` · **SW `vowvet-v278-pet-base-today-split`** · **+5 commit local CHƯA push** (a8e61b7→b1ab7b0).
+- `CONTEXT_SYNC.md` + `.claude/launch.json` đang dirty/untracked (không commit).
+
+### ✅ ĐÃ XONG (5 commit)
+1. `a8e61b7` setup: tạo `vowvet/CLAUDE.md` + lệnh `/context-save` (`.claude/commands/context-save.md`) + allowlist `.claude/settings.local.json` (**gitignored**, local-only).
+2. `94390e7` docs: sửa path nutrition SAI trong CLAUDE.md (KHÔNG có `web/src/lib/nutrition.ts`; thật = `shared/nutrition-engine.ts` + `api/src/lib|routes/nutrition.ts` + DER client `food-brands.astro`) + ghi **ENGINE là chân lý DER**.
+3. `43e4b7e` **Cluster-1** fix engine A (`shared/nutrition-engine.ts`) chuẩn **AAHA/WSAVA**: default activity `moderate`→**`sedentary`** (1.6→1.2 khi null), bỏ phạt **senior 0.9→1.0 / geriatric 0.85→1.0**, thêm field **`ageingNote`** (senior/geri). **RER & generateMealPlan KHÔNG đổi**.
+4. `b59fc60` **Cluster-2 p1** food-brands: pet **đã chọn (locked)** dùng **engineDer** qua endpoint `calorie-target`; **manual mode** giữ `derClient` (BCS-only) + nhãn *"ước tính nhanh"*. Getter `displayDer` hợp nhất. (v277)
+5. `b1ab7b0` **Bước 3 đóng** pet page `[id].astro`: tách **Mức nền `der_raw` / Hôm nay `der_final`** + gram/treat **cân-đong theo nền** (×`der_raw/der_final` ở UI, KHÔNG lặp công thức/đụng engine) + dòng chênh thời tiết (chữ) + gợi ý nước (icon droplet) + nhãn *"Điểm khởi đầu…"*. **Data-fix: min (pet 12) `activity_level` moderate→sedentary** (PATCH API). (v278)
+
+### 🔢 SỐ THẬT min (sau fix, verify DOM)
+- der_raw **260** (Mức nền) / der_final **234** (Hôm nay = ×0.9 weather HCMC) · activity=sedentary · BCS=null.
+- ⚠️ task kỳ vọng 259 → thực **260** = rounding (engine nhân **RER chưa làm tròn** 216.28×1.2=259.5→260). Không phải lỗi.
+
+### 🧬 KIẾN TRÚC DER (chân lý — đọc trước khi đụng số)
+- **ENGINE `shared/nutrition-engine.ts` = CANONICAL.** `RER=70×kg^0.75` → `der_raw` (×activity×lifeStage×repro, **CHƯA weather/bcs**) → ×weather_adjust → ×bcs_adjust = `der_final`. **6 hệ số + der_raw + der_final đều là field breakdown** → tách lớp bằng field có sẵn.
+- "Nền" = `der_raw`. ⚠️ Puppy/junior: `base_multiplier` = override tăng trưởng (3.0/2.0), lifeStage/repro ép =1.0 → "nền bỏ vận động" vô nghĩa cho puppy.
+- gram/treat (generateMealPlan) bám **der_final** → dao động theo thời tiết. **Nước = `weight×50`** (engine), ngoài DER.
+
+### ⚠️ GOTCHA phiên này
+- **MSYS path conv**: `docker exec ... /app` bị git-bash đổi thành path Windows → dùng `MSYS_NO_PATHCONV=1` (và `MSYS2_ARG_CONV_EXCL='*'`).
+- **Mint session để verify trang login**: `signSession({sub,phone,is_onboarded})` (`shared/jwt.ts`, env `JWT_SECRET`) → cookie **`vowvet_session`** (`shared/auth.ts`); inject preview `document.cookie` trên origin rồi navigate (SSR forward cookie). Pet/user test: min id 12, user 10.
+- **Secret-scan**: grep từ "cookie/token/secret" KHỚP văn bản doc (false-positive) → quét theo **giá trị** (`sk-`/`AIza`/`eyJ`/`key=val`).
+- **`daily_calorie_target`**: chỉ `migrate-m7` ghi (skip-if-set), **KHÔNG runtime refresh** → đông cứng/stale; AI care-plan (`care-plan-engine.ts:240`) đọc nó (≈der_raw stale).
+- **food-brands** `isProfileLocked = selectedPetId!==null`; manual mode (slider BCS/weight) what-if = `derClient` BCS-only.
+- **Phân biệt user-set vs migrate-set "moderate": KHÔNG được** (không field nguồn, migrate không để dấu vết). Chỉ suy gián tiếp: `daily_calorie_target=null` ⇒ không migrate (vd min). 5 pet "moderate" / 7 null trong 12 pet.
+
+### 🎯 VIỆC ĐANG DỞ (Bồ giao tiếp)
+1. ⭐ **4 pet migrate "moderate"** (Beo id3 · Mon id5 · Mon id6 · Pugy id7) — chưa data-fix. Cụm DATA. Cảnh báo: không tách được user-chọn vs migrate-nhét → fix blunt (coi như chưa khai / re-prompt).
+2. ⭐ **gram_nền nên GIỮ BCS, chỉ bỏ weather**: hiện `×der_raw/der_final` bỏ **cả weather+bcs** → pet BCS≠5 (béo/gầy) gram về maintenance, **mất target giảm/tăng cân**. Cần der "no-weather-CÓ-bcs" = `der_final / weather_adjust` (tính ở UI từ field có sẵn) thay vì der_raw. min BCS=null nên hiện chưa lộ.
+3. **care-plan-engine dùng engine LIVE** thay field `daily_calorie_target` đông cứng (đụng `api/`, cụm riêng).
+4. **Bundle manual food-brands**: `derClient` BCS-only → import/gọi engine thật (reactive client, không cần lưu).
+5. **Nước 50 vs 55**: engine `weight×50` (pet page) vs `care-plan.astro:519` `weight×55 min50` vs field `daily_water_ml` lưu → thống nhất 1 nguồn.
+
+### 💾 BACKUP
+- Chưa tạo bundle mới phiên này (mốc 5 commit — nên `git bundle --all` off-machine).
+
+---
+
+## SESSION 2026-06-03 — Onboarding · Certificate · Tối ưu loading · Skeleton
+
+> ⚠️ **Đính chính khung "SEO/Schema":** Đây là **VowVet / Mon Min Pet — nền tảng chăm thú cưng** (Astro SSR + Bun + Hono + Baserow + R2 + Gemini), **KHÔNG phải dự án SEO/Schema**. Phiên này KHÔNG đụng SEO/Schema. SEO hiện trạng vẫn = **meta/OG cơ bản** ở `Layout.astro`, **CHƯA có Schema.org JSON-LD**. Arc thật phiên này = *onboarding guard → certificate cam kết → wizard tạo bé → tối ưu loading (cache+parallelize) → fix quest trùng → nhãn AI trung tính → skeleton*. *(APPEND — KHÔNG ghi đè, giữ ngữ cảnh ~79 commit.)*
+
+### 1️⃣ TRẠNG THÁI HIỆN TẠI — đã xong (9 commit v269→v276, local, CHƯA push)
+
+| HEAD | SW | Nội dung |
+|---|---|---|
+| `673a5bc`→`b9f067b` | v269 | **Onboarding guard**: chưa có pet → màn "Thêm bé đầu tiên" → /pets/new; nút **Reset test dev-only** |
+| `71c2548` | v270 | Certificate **làm mềm** (pastel rose/peach + hoa lá 4 góc) + **up ảnh pet** (R2) + lời chào mềm |
+| `06900bd` | v271 | **2 chữ ký việt hoá** (Dancing Script) + **5 điều khoản** + ghi **Kỷ niệm** (pet_photos) khi cam kết |
+| `0b59d9f` | v272 | Fix **5 icon rỗng** (width/height vào SVG + nền badge trắng) + emoji→line-art + ẩn số hiệu rỗng |
+| `1207657` | v273 | Icon loài (🐶🐱→line-art) + **field bắt buộc** (tên/loài/cân/giới tính) + delay mộc 3s + bỏ SSR /auth/me |
+| `65793d8` | v274 | Song song /auth/me + **tab scroll-hint** (fade gradient) + rà nhãn AI |
+| `f1bad97` | v275 | **Cache /auth/me** (TTL 12s + invalidate) + **fix quest trùng** (lock+dedup) + nhãn AI trung tính |
+| `e4c8bd1` | v276 | **Cache per-endpoint + parallelize /pets/[id]** + **skeleton chuyển trang** |
+
+**File chính đã đụng:**
+- `web/src/middleware.ts` — guard: chưa onboarded (`pets.length===0`) → `/onboarding`; `/pets/new` ∈ `ALLOW_NOT_ONBOARDED_EXACT`.
+- `web/src/pages/onboarding.astro` — màn "Thêm bé đầu tiên" (line-art paw/hoa, lời chào mềm, nút → /pets/new).
+- `web/src/pages/pets/new.astro` — wizard `welcome→pledge→form`: ô up ảnh, field bắt buộc tên/loài/cân/giới tính, icon loài line-art, submit (tạo→pledge→/photo→/photos kỷ niệm→complete-onboarding→redirect), `userName` load client-side `init()`, delay mộc 3s.
+- `web/src/components/PledgeCertificate.astro` — văn bằng pastel/gold/hoa lá; 5 mục (icon badge nền trắng); 2 chữ ký (Dancing Script); con dấu `vvp2-*` (copy passport `hsp-*`, chữ vòng verify OK); số hiệu conditional.
+- `web/src/pages/pets/[id].astro` — 3 fetch SSR → `Promise.all`; tab nav + fade gradient gợi ý cuộn.
+- `web/src/layouts/Layout.astro` — nút Reset dev (`import.meta.env.DEV`) + **skeleton overlay** (cream/gold shimmer, reduced-motion safe).
+- `api/src/routes/auth.ts` — /auth/me song song + cache. `api/src/lib/me-cache.ts` — cache per-user. `api/src/index.ts` — 2 middleware (cache GET + invalidate non-GET). `api/src/lib/daily-quests.ts` — lock + dedup. `api/src/routes/dev.ts` — dev reset. `web/src/components/care-plan/ConsentModal.astro` — "Gemini"→"AI".
+
+**Hiệu năng (đo trước→sau, warm/cached):** /dashboard 6.2s→**1.53s** · /pets/[id] 6.5s→**1.59s** · /auth/me 2.5s→**0.22s** (HIT) · endpoint nudges/mood/alerts 2–3s→~0.2s (HIT).
+
+### 2️⃣ CẤU TRÚC CỐT LÕI (quy chuẩn — KHÔNG phải "loại Schema")
+- **⚡ Cache (v275/276):** `me-cache.ts` = `Map<userId::key,{data,exp}>` + `byUser` Set. `cacheGet/cacheSet/invalidateUser` + wrapper `getMeCache/setMeCache`. 2 middleware ở `index.ts`: ① **cache GET** (`CACHEABLE_RE`: mood/nudges/alerts/pet-score/profile/care-plan, key=path+query, đọc cookie→`verifySession`→sub, TTL 20s, serve `c.json(hit)`) ② **invalidate** mọi **non-GET** có user → `invalidateUser(sub)` bust toàn bộ → **không stale** (verify: ghi→MISS/tươi). `/auth/me` cache TTL 12s.
+- **Bài học lặp-lỗi:** `<script is:inline>` = JS thuần (no TS, verify `node --check`) · SVG qua `set:html` phải gắn **width/height thẳng** (CSS scoped không áp) · **icon KHÔNG cùng hệ màu nền** (gold-trên-gold = tàng hình) · reduced-motion guard bắt buộc cho animation.
+- **Verify:** mint cookie `signSession` (shared/jwt.ts) để test authed · `curl -w time_starttransfer` · **Preview MCP `preview_eval`** chạy được (getBBox/computed) nhưng **`preview_screenshot` TIMEOUT** (env) → đo DOM thay ảnh · trang test tạm `/certtest` (tạo+public→verify→XÓA+revert).
+- **Dev gating:** api `NODE_ENV!=="production"` · web `import.meta.env.DEV`.
+- **Stack/Git:** Astro SSR :4322 · Hono+Bun · Baserow (token, `user_field_names=true`, **~1.3s/query bảng pets** — sàn) · R2 · Gemini (AI thật). Git local-only, co-author "Claude Opus 4.8 (1M context)", bump `sw.js` VERSION mỗi release.
+
+### 3️⃣ LỖI / TỒN ĐỌNG
+1. **Cold load ~3–4s** (cache miss lần đầu) — nền Baserow ~1.3s/query bảng pets (recompute formula/lookup, **bất kể số field** — slim đã đo VÔ DỤNG). Cache chỉ giúp lần 2+. Sàn chưa hạ.
+2. **Quest trùng** — race đã FIX (lock per user:pet:date + dedup-on-read) + dọn 6 dòng trùng user 18. **Chưa E2E** trên account mới toanh để chắc lock chịu 8-fetch song song.
+3. **Emoji fallback khung tròn certificate** (`🐾/🐱/🐶` x-text khi chưa up ảnh) — CHƯA iconify (đã flag, chờ duyệt).
+4. **Certificate chưa duyệt MẮT** end-to-end (screenshot tool timeout) — bồ mở `/pets/new` live hoặc tôi spin `/certtest`.
+5. **SW auto-reload loop** (skipWaiting+claim+controllerchange→reload, `Layout.astro`/`sw.js`) — chưa fix (MEMORY flag, từ nhiều phiên).
+6. **Baserow creds** rò rỉ `docs/archive/MIGRATION_REPORT.md` + `.env.backup` (đã gitignore, NÊN rotate hygiene).
+7. **Cache staleness 20s** nếu data đổi từ thiết bị khác/cron (không qua ghi của user) — chấp nhận được.
+
+### 4️⃣ NEXT STEPS (việc tiếp — chính xác)
+1. **Hạ sàn Baserow 1.3s/query** (gốc cold-load): điều tra field formula/lookup nặng bảng `pets`; cân nhắc tách field tính toán/bảng denormalized/cache-warming HOẶC mở rộng `CACHEABLE_RE` + cache trang dashboard.
+2. **E2E verify quest dedup** trên account mới (login fresh → dashboard → đúng 3 quest unique, lock chịu 8-fetch song song).
+3. **Iconify emoji fallback certificate** (`🐾/🐱/🐶`→line-art) cho đồng bộ — sau khi bồ duyệt.
+4. **Rotate Baserow credentials** rò rỉ + scrub git history nếu cần.
+5. **Fix SW auto-reload loop** (bỏ trifecta) — đóng dứt điểm flag tồn nhiều phiên.
+
+> *(Tồn từ phiên trước, CHƯA làm: Admin-place **Phase 2** (verified=cổng ẩn/hiện map) · **Audit công thức /food-brands** (RER/DER WSAVA) + brand-sync /food-brands · dọn Baserow test rows places id25/26/27 + user +84900000123. Nếu sang **SEO/Schema thật**: chưa có gì — cần JSON-LD cho /p/[qr], /heroes, /articles, landing.)*
+
+---
+
+## SESSION 2026-06-01 (tiếp) — Achievements WOW + Food-brands recon
 
 > ⚠️ **Đính chính khung "SEO/Schema":** Đây là **VowVet/Mon Min Pet — nền tảng chăm thú cưng** (Astro SSR + Bun + Hono + Baserow + R2 + Gemini), **KHÔNG phải dự án SEO/Schema**. Mục dưới ghi ĐÚNG việc thật của session (animation WOW + recon dinh dưỡng), KHÔNG bịa "tối ưu SEO/Schema". *(File APPEND theo session — KHÔNG ghi đè, để giữ ngữ cảnh 70 commit.)*
 
