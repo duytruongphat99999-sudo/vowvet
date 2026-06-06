@@ -178,7 +178,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
           <!-- WIDGET 1: HỒ SƠ BÉ (Premium Quick-Profile Matcher) -->
           <button type="button" @click="openProfile=!openProfile" :aria-expanded="openProfile" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left">
-            <span class="font-semibold text-sm text-mmp-ink">Chỉnh hồ sơ bé</span>
+            <span class="flex items-center gap-2 min-w-0">
+              <span class="font-semibold text-sm text-mmp-ink">Chỉnh hồ sơ bé</span>
+              <span x-show="autoProfile" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
+            </span>
             <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openProfile ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
           </button>
           <div x-show="openProfile" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="bg-white border border-mmp-ink/12 rounded-2xl p-5">
@@ -484,7 +487,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
           <!-- WIDGET 2: FILTERS (existing — wrapped) -->
           <button type="button" @click="openFilter=!openFilter" :aria-expanded="openFilter" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 text-left">
-            <span class="font-semibold text-sm text-mmp-ink">Bộ lọc</span>
+            <span class="flex items-center gap-2 min-w-0">
+              <span class="font-semibold text-sm text-mmp-ink">Bộ lọc</span>
+              <span x-show="autoFilter" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
+            </span>
             <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openFilter ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
           </button>
           <div x-show="openFilter" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="bg-white border border-mmp-ink/12 rounded-2xl p-5">
@@ -799,7 +805,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
             <!-- MÔ-ĐUN 2: THE CONDITION RULES -->
             <button type="button" @click="openGoal=!openGoal" :aria-expanded="openGoal" class="w-full flex items-center justify-between gap-2 bg-white border border-mmp-ink/12 rounded-3xl px-6 py-3 text-left">
-              <span class="font-semibold text-sm text-mmp-ink">Mục tiêu sức khoẻ</span>
+              <span class="flex items-center gap-2 min-w-0">
+                <span class="font-semibold text-sm text-mmp-ink">Mục tiêu sức khoẻ</span>
+                <span x-show="autoGoal" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
+              </span>
               <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openGoal ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
             </button>
             <section x-show="openGoal" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="bg-white rounded-3xl p-6 border border-mmp-ink/12">
@@ -1047,7 +1056,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           <!-- ③ (tiếp) — Tìm trên thị trường nếu chưa có brand phù hợp -->
           <!-- Mua & tìm thêm — collapse (mobile-first lát 1) -->
           <button type="button" @click="openMore=!openMore" :aria-expanded="openMore" class="w-full flex items-center justify-between gap-2 mt-5 mb-1 text-left">
-            <span class="font-semibold text-sm text-mmp-ink">Mua &amp; tìm thêm</span>
+            <span class="flex items-center gap-2 min-w-0">
+              <span class="font-semibold text-sm text-mmp-ink">Mua &amp; tìm thêm</span>
+              <span x-show="autoMore" x-cloak class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">cần chú ý</span>
+            </span>
             <svg class="w-4 h-4 text-mmp-ink/50 motion-safe:transition-transform motion-safe:duration-200" :class="openMore ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
           </button>
           <section x-show="openMore" x-cloak x-transition:enter="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="rounded-3xl p-5 border border-mmp-ink/10 bg-white mt-2">
@@ -1206,6 +1218,11 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         openGoal: false,
         openBrands: true,
         openMore: false,
+        // Lát 2: cờ "vì sao auto-mở" (badge header "cần chú ý"). Chỉ bật, không tự tắt.
+        autoProfile: false,
+        autoFilter: false,
+        autoGoal: false,
+        autoMore: false,
 
         // === Cluster-2: engine A DER cho pet ĐÃ CHỌN (locked) qua endpoint — manual mode giữ derClient ===
         engineDer: null,
@@ -1352,6 +1369,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             if (!hasOwnBcs && initialBcsScore != null) {
               this.profile.bcs = Math.max(1, Math.min(9, Number(initialBcsScore)));
             }
+            // Lát 2: chốt auto-mở sau khi BCS (initialBcsScore override) đã settle.
+            this.applyContextExpand();
           }
           this.$watch("profile.species", () => {
             if (!this.isProfileLocked) this.filters.breed = "";
@@ -1375,6 +1394,19 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             // v264: popup KHÔNG tự tắt — chờ user tự đóng (POST seen dời sang closeWeightPopup)
             this.$nextTick(() => { this.weightPopupOpen = true; });
           }
+        },
+
+        // Lát 2: auto-mở section theo NGỮ CẢNH sức khoẻ (tái dùng cờ đã có).
+        // CHỈ MỞ THÊM (=true) — KHÔNG tự đóng cái user mở tay. Gọi khi load + đổi pet
+        // (profile/brands đã sẵn sàng đồng bộ). Không đụng số/gram/kcal.
+        applyContextExpand() {
+          if (this.currentBcs.tier !== "ideal") { this.openGoal = true; this.openProfile = true; this.autoGoal = true; this.autoProfile = true; }
+          if (this.activeConditions.length > 0) { this.openGoal = true; this.autoGoal = true; }
+          if (this.profile.allergens.length > 0) { this.openFilter = true; this.autoFilter = true; }
+          // openMore CHỈ bung khi loài CÓ catalog (tồn brand cùng species) NHƯNG bộ lọc loại hết.
+          // KHÔNG bung khi loài chưa có brand nào (vấn đề catalog, không phải "có chuyện" của bé).
+          const speciesHasCatalog = this.brands.some((b) => b.species === this.profile.species || b.species === "both");
+          if (speciesHasCatalog && this.filtered.length === 0) { this.openMore = true; this.autoMore = true; }
         },
 
         selectPet(petId) {
@@ -1440,6 +1472,8 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           }
           // Cluster-2: pet đã chọn (locked) → lấy DER từ engine A qua endpoint (hợp nhất 1 nguồn)
           this.fetchEngineDer(p.id);
+          // Lát 2: re-eval auto-mở theo ngữ cảnh pet mới (chỉ mở thêm, không tự đóng).
+          this.applyContextExpand();
         },
 
         // Cluster-2: fetch engine A DER cho pet đã lưu. Manual mode KHÔNG gọi (không pet id).
