@@ -1839,6 +1839,84 @@ const storyExcerpt = hasStory
                 <p class="text-[11px] text-slate-400 mb-3">Chưa đủ mốc cân để tính xu hướng.</p>
               </template>
 
+              <!-- Lớp 2.1+2.2: nhắc theo xu hướng + đề xuất (app CHỈ đề xuất; người bấm mới đổi) -->
+              <template x-if="nutrition.insights">
+                <div class="mb-3 space-y-2" x-show="!nutrition.suggestDismissed">
+                  <!-- Nhắc theo trend (tái dùng recommendations / trấn an) -->
+                  <template x-if="weightNudge().show">
+                    <div class="rounded-xl border px-3 py-2 text-xs leading-snug flex items-start gap-2"
+                         :class="weightNudge().severity === 'critical' ? 'bg-red-50 border-red-200 text-red-800' : weightNudge().severity === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-sky-50 border-sky-200 text-sky-800'">
+                      <FeatureIcon name="info" class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <div class="flex-1">
+                        <p x-text="weightNudge().message"></p>
+                        <p x-show="weightNudge().needVet" class="mt-0.5 font-medium">→ Nên hỏi bác sĩ thú y.</p>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Đề xuất -->
+                  <template x-if="rationSuggestion().show">
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+                      <!-- concern → điều chỉnh khẩu phần -->
+                      <template x-if="rationSuggestion().concern">
+                        <div class="mb-2">
+                          <p class="font-semibold text-slate-700 mb-1">Gợi ý điều chỉnh khẩu phần</p>
+                          <template x-if="rationSuggestion().canLowerActivity">
+                            <div class="flex items-start justify-between gap-2">
+                              <p class="text-slate-600 flex-1">Hạ vận động: <b x-text="activityLevelLabel(rationSuggestion().activity)"></b> → <b x-text="activityLevelLabel(rationSuggestion().nextLower)"></b> — bé sẽ ăn ít hơn. <span class="text-slate-400">(số khẩu phần mới hiện sau khi áp dụng)</span></p>
+                              <button @click="askApply('activity')" :disabled="nutrition.applying" class="shrink-0 text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white px-2.5 py-1 rounded-lg">Áp dụng</button>
+                            </div>
+                          </template>
+                          <template x-if="!rationSuggestion().canLowerActivity">
+                            <p class="text-slate-600">Vận động đã ở mức thấp nhất. Cân nhắc <b>giảm khẩu phần ~10%</b> và theo dõi 4 tuần — hỏi bác sĩ trước khi đổi chế độ.</p>
+                          </template>
+                        </div>
+                      </template>
+
+                      <!-- chưa có target → đặt mục tiêu (số CÂN cũ→mới, user nhập, default = cân hiện tại) -->
+                      <template x-if="!rationSuggestion().hasTarget">
+                        <div>
+                          <p class="text-slate-600 mb-1.5">Chưa đặt <b>cân mục tiêu</b>. Đặt để app theo dõi đúng hướng + nhắc chính xác hơn.</p>
+                          <template x-if="!nutrition.showTargetInput">
+                            <button @click="startSetTarget()" class="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg">Đặt cân mục tiêu</button>
+                          </template>
+                          <template x-if="nutrition.showTargetInput">
+                            <div class="flex items-center gap-2 flex-wrap">
+                              <span class="text-slate-500" x-text="(nutrition.insights.current_weight_kg ?? '—') + 'kg →'"></span>
+                              <input type="number" step="0.1" min="0.5" max="100" x-model.number="nutrition.targetInput" class="w-20 px-2 py-1 border border-slate-200 rounded text-sm" />
+                              <span class="text-slate-500">kg</span>
+                              <button @click="askApply('target')" :disabled="nutrition.applying || !nutrition.targetInput" class="text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white px-2.5 py-1 rounded-lg">Áp dụng</button>
+                              <button @click="nutrition.showTargetInput = false" class="text-xs text-slate-500">Hủy</button>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+
+                      <!-- HỘP XÁC NHẬN — GUARD: PATCH chỉ chạy sau khi bấm Xác nhận -->
+                      <template x-if="nutrition.pendingApply">
+                        <div class="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2">
+                          <p class="text-amber-900 mb-1.5" x-show="nutrition.pendingApply === 'target'">Đổi cân mục tiêu: <b x-text="(nutrition.insights.target_weight_kg ?? '—')"></b> → <b x-text="nutrition.targetInput + 'kg'"></b>?</p>
+                          <p class="text-amber-900 mb-1.5" x-show="nutrition.pendingApply === 'activity'">Đổi vận động: <b x-text="activityLevelLabel(rationSuggestion().activity)"></b> → <b x-text="activityLevelLabel(rationSuggestion().nextLower)"></b>? Khẩu phần sẽ giảm.</p>
+                          <div class="flex gap-2">
+                            <button @click="confirmApply()" :disabled="nutrition.applying" class="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg">Xác nhận đổi</button>
+                            <button @click="cancelApply()" class="text-xs text-amber-700">Hủy</button>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- nhãn trung thực + bỏ qua -->
+                      <div class="mt-2 flex items-start justify-between gap-2">
+                        <p class="text-[10px] text-slate-400 leading-snug flex-1">Đề xuất theo xu hướng cân — bạn quyết định, app không tự đổi. Điểm khởi đầu, không thay tư vấn bác sĩ.</p>
+                        <button @click="nutrition.suggestDismissed = true" class="text-[10px] text-slate-400 hover:text-slate-600 shrink-0">Bỏ qua</button>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- feedback sau áp dụng (ngoài card để không biến mất khi card ẩn) -->
+                  <p x-show="nutrition.applyMsg" x-text="nutrition.applyMsg" class="text-xs text-emerald-700 font-medium"></p>
+                </div>
+              </template>
+
               <!-- Log form -->
               <template x-if="nutrition.showLogForm">
                 <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3">
@@ -2804,6 +2882,12 @@ const storyExcerpt = hasStory
         logSubmitting: false,
         logError: "",
         weighReminderDismissed: false,   // Lớp 2: banner nhắc cân — đóng được, 1 lần/phiên
+        suggestDismissed: false,         // Lớp 2.2: card nhắc/đề xuất — đóng được
+        showTargetInput: false,
+        targetInput: null,
+        pendingApply: null,              // null | 'target' | 'activity' — GUARD: chỉ PATCH sau xác nhận
+        applying: false,
+        applyMsg: "",
       },
 
       // ===== Care tab state (M4) =====
@@ -3784,6 +3868,86 @@ const storyExcerpt = hasStory
           if (days >= 30) return { show: true, kind: "stale", days, message: `Đã ${days} ngày chưa cân bé — cân lại để cập nhật khẩu phần nhé.` };
         }
         return { show: false };
+      },
+
+      // Lớp 2.1: nhắc theo xu hướng — tái dùng recommendations[].message; rỗng → trấn an theo trend
+      weightNudge() {
+        const ins = this.nutrition.insights;
+        if (!ins) return { show: false };
+        const recs = ins.recommendations || [];
+        if (recs.length) {
+          const order = { critical: 3, warning: 2, info: 1 };
+          const top = recs.slice().sort((a, b) => (order[b.severity] || 0) - (order[a.severity] || 0))[0];
+          return { show: true, severity: top.severity, message: top.message, needVet: top.severity === "critical" || top.severity === "warning" };
+        }
+        const t = ins.trend_30d && ins.trend_30d.direction;
+        const dk = ins.trend_30d && ins.trend_30d.delta_kg;
+        if (t === "stable") return { show: true, severity: "info", message: `Cân của bé đang ổn định (${dk > 0 ? "+" : ""}${dk ?? 0}kg/30 ngày). Tiếp tục khẩu phần hiện tại.` };
+        if (t === "gain") return { show: true, severity: "info", message: `Bé tăng ${dk}kg/30 ngày — theo dõi khẩu phần.` };
+        if (t === "loss") return { show: true, severity: "warning", message: `Bé giảm ${Math.abs(dk)}kg/30 ngày — kiểm tra nếu không cố ý giảm cân.`, needVet: true };
+        return { show: false };
+      },
+
+      // Lớp 2.2: đề xuất — concern (bcs≥7 / gain / lệch target ≥15%) + nhánh hạ vận động hoặc set target
+      rationSuggestion() {
+        const ins = this.nutrition.insights, cal = this.nutrition.calorie;
+        if (!ins) return { show: false };
+        const ORDER = ["sedentary", "low", "moderate", "active", "very_active"];   // ENUM bậc (KHÔNG phải hệ số DER)
+        const bcs = ins.bcs_current;
+        const trend = ins.trend_30d && ins.trend_30d.direction;
+        const overTarget = ins.target_weight_kg != null && ins.delta_to_target_kg != null && ins.target_weight_kg > 0 && ins.delta_to_target_kg > 0 && (ins.delta_to_target_kg / ins.target_weight_kg) >= 0.15;
+        const concern = (bcs != null && bcs >= 7) || trend === "gain" || overTarget;
+        const activity = cal && cal.breakdown ? cal.breakdown.activity_level : null;
+        const idx = ORDER.indexOf(activity);
+        const canLowerActivity = idx > 0;
+        const nextLower = canLowerActivity ? ORDER[idx - 1] : null;
+        const hasTarget = ins.target_weight_kg != null;
+        return { show: concern || !hasTarget, concern, canLowerActivity, nextLower, activity, hasTarget, currentWeight: ins.current_weight_kg, targetWeight: ins.target_weight_kg };
+      },
+
+      startSetTarget() {
+        this.nutrition.showTargetInput = true;
+        this.nutrition.targetInput = Number(this.pet.weight_kg) || null;   // mặc định = cân hiện tại (app KHÔNG tự đoán đích)
+      },
+      askApply(kind) { this.nutrition.pendingApply = kind; this.nutrition.applyMsg = ""; },   // mở hộp xác nhận — CHƯA đổi gì
+      cancelApply() { this.nutrition.pendingApply = null; },
+
+      // GUARD: chỉ chạy khi user đã bấm "Xác nhận đổi". KHÔNG bao giờ tự PATCH.
+      async confirmApply() {
+        const kind = this.nutrition.pendingApply;
+        if (!kind) return;
+        this.nutrition.applying = true;
+        try {
+          if (kind === "target") {
+            const t = Number(this.nutrition.targetInput);
+            if (!t || t <= 0) { this.nutrition.applyMsg = "Cân mục tiêu không hợp lệ."; return; }
+            const res = await fetch(`/api/v1/pets/${this.pet.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target_weight_kg: t }) });
+            if (!res.ok) { this.nutrition.applyMsg = "Chưa lưu được, thử lại."; return; }
+            const j = await res.json(); this.pet = j.pet || this.pet;
+            await this.fetchInsights();
+            // "Profile=thuốc": CHỈ báo thành công khi target THẬT đã lưu (đọc lại insights, không tin UI)
+            const saved = this.nutrition.insights && Number(this.nutrition.insights.target_weight_kg) === t;
+            if (saved) {
+              this.nutrition.showTargetInput = false;
+              this.nutrition.applyMsg = `Đã đặt cân mục tiêu ${t}kg.`;
+            } else {
+              this.nutrition.applyMsg = "Chưa lưu được, thử lại.";
+            }
+          } else if (kind === "activity") {
+            const s = this.rationSuggestion();
+            if (!s.canLowerActivity || !s.nextLower) { this.nutrition.applyMsg = "Vận động đã thấp nhất."; return; }
+            const res = await fetch(`/api/v1/pets/${this.pet.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activity_level: s.nextLower }) });
+            if (!res.ok) { this.nutrition.applyMsg = "Lỗi cập nhật vận động."; return; }
+            const j = await res.json(); this.pet = j.pet || this.pet;
+            await Promise.all([this.fetchCalorieTarget(), this.fetchNutritionPlan(), this.fetchInsights()]);
+            this.nutrition.applyMsg = `Đã hạ vận động sang "${this.activityLevelLabel(s.nextLower)}" — khẩu phần đã tính lại.`;
+          }
+        } catch (e) {
+          this.nutrition.applyMsg = "Lỗi kết nối.";
+        } finally {
+          this.nutrition.applying = false;
+          this.nutrition.pendingApply = null;
+        }
       },
 
       async submitWeightLog() {

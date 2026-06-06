@@ -209,6 +209,7 @@ const petPatchSchema = z.object({
   dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   gender: z.enum(["Đực", "Cái"]).nullable().optional(),
   weight_kg: z.number().positive().max(200).nullable().optional(),
+  target_weight_kg: z.number().positive().max(200).nullable().optional(),
   photo_url: z.string().url().nullable().optional(),
   // v49: Profile-driven medical + lifestyle fields
   bcs_score: z.number().int().min(1).max(9).nullable().optional(),
@@ -251,6 +252,7 @@ petsRoute.patch("/:id{[0-9]+}", zValidator("json", petPatchSchema), async (c) =>
     if (data.dob !== undefined) update.dob = data.dob;
     if (data.gender !== undefined) update.gender = genderViToEn(data.gender);
     if (data.weight_kg !== undefined) update.weight_kg = data.weight_kg;
+    if (data.target_weight_kg !== undefined) update.target_weight_kg = data.target_weight_kg;
     if (data.photo_url !== undefined) update.photo_url = data.photo_url;
     // v49: profile-driven fields — JSON.stringify arrays cho Baserow long-text columns
     if (data.bcs_score !== undefined) update.bcs_score = data.bcs_score;
