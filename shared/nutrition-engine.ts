@@ -48,6 +48,7 @@ export interface CalorieBreakdown {
   der_final: number;
   life_stage: LifeStage;
   activity_level: ActivityLevel;
+  ageingNote: string | null; // warning for senior/geriatric (null otherwise)
 }
 
 // ============================================================
@@ -105,8 +106,8 @@ const LIFE_STAGE_MODIFIER: Record<LifeStage, number> = {
   puppy: 1.0, // override applies separately
   junior: 1.0, // override applies separately
   adult: 1.0,
-  senior: 0.9,
-  geriatric: 0.85,
+  senior: 1.0, // AAHA/WSAVA: no sub-maintenance penalty (was 0.9)
+  geriatric: 1.0, // AAHA/WSAVA: no penalty; senior cats often need MORE (was 0.85)
 };
 
 /**
@@ -125,7 +126,7 @@ export function calculateDER(pet: PetForNutrition, weather?: WeatherContext): Ca
   if (!weight || weight <= 0) return null;
 
   const lifeStage = (pet.life_stage as LifeStage) || calculateLifeStage(pet.species, pet.dob);
-  const activity = (pet.activity_level as ActivityLevel) || "moderate";
+  const activity = (pet.activity_level as ActivityLevel) || "sedentary"; // AAHA/WSAVA: safer default when activity unknown (was "moderate")
   const months = ageInMonths(pet.dob) ?? 999;
   const bcs = pet.body_condition_score ? Number(pet.body_condition_score) : null;
 
@@ -178,6 +179,11 @@ export function calculateDER(pet: PetForNutrition, weather?: WeatherContext): Ca
   }
   der *= bcsAdjust;
 
+  const ageingNote =
+    lifeStage === "senior" || lifeStage === "geriatric"
+      ? "Thú lớn tuổi — theo dõi cân & cơ; mèo già thường cần nhiều hơn, hỏi bác sĩ"
+      : null;
+
   return {
     rer: Math.round(rer),
     base_multiplier: baseMultiplier,
@@ -190,6 +196,7 @@ export function calculateDER(pet: PetForNutrition, weather?: WeatherContext): Ca
     der_final: Math.round(der),
     life_stage: lifeStage,
     activity_level: activity,
+    ageingNote,
   };
 }
 
