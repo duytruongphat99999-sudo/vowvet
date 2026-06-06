@@ -1,6 +1,6 @@
 # CONTEXT_SYNC — VowVet / Mon Min Pet
 
-> 🆕 **cập nhật 2026-06-06 (MỚI NHẤT):** **Audit DER + Lớp 2 (vòng phản hồi cân)** — engine A về **AAHA/WSAVA** (sedentary default, bỏ phạt senior/geri, +`ageingNote`; RER giữ) · **1 NGUỒN DER** (food-brands pet-locked + pet page qua endpoint) · pet page **Mức nền/Hôm nay** + gram cân-đong nền · data-fix **min activity→sedentary** · **Lớp 2**: bịt rò ghi-cân (PATCH hồ sơ cũng ghi `weight_logs`+bust cache), nhắc cân (lần đầu/>30d/trend, reuse `recommendations`), **đề xuất khẩu phần** (hạ vận động / giảm ~10% / set target) **+ apply guard** (người bấm+xác nhận mới PATCH, báo theo ground-truth), mở whitelist PATCH `target_weight_kg` · **#2: gram_nền GIỮ BCS, chỉ bỏ weather** (`der_raw×bcs_adjust` — pet béo/gầy thấy liều giảm/tăng, không phải duy trì). **SW = `vowvet-v282-base-ration-keeps-bcs`** · HEAD `8a30ee8` · **+10 commit local CHƯA push**. Xem **SESSION 2026-06-06** ngay dưới.
+> 🆕 **cập nhật 2026-06-06 (MỚI NHẤT):** **Audit DER + Lớp 2 (vòng phản hồi cân)** — engine A về **AAHA/WSAVA** (sedentary default, bỏ phạt senior/geri, +`ageingNote`; RER giữ) · **1 NGUỒN DER** (food-brands pet-locked + pet page qua endpoint) · pet page **Mức nền/Hôm nay** + gram cân-đong nền · data-fix **min activity→sedentary** · **Lớp 2**: bịt rò ghi-cân (PATCH hồ sơ cũng ghi `weight_logs`+bust cache), nhắc cân (lần đầu/>30d/trend, reuse `recommendations`), **đề xuất khẩu phần** (hạ vận động / giảm ~10% / set target) **+ apply guard** (người bấm+xác nhận mới PATCH, báo theo ground-truth), mở whitelist PATCH `target_weight_kg` · **#2: gram_nền GIỮ BCS, chỉ bỏ weather** (`der_raw×bcs_adjust` — pet béo/gầy thấy liều giảm/tăng, không phải duy trì) · **Dọn UI tiếng người** (bỏ jargon đơn-thuốc/Poop Score/RER + brand/filter/footer/chips — 2 trang food-brands & pets/[id]). **SW = `vowvet-v284-humanize-brand-filter-chips`** · HEAD `e01c180` · **+13 commit local CHƯA push**. Xem **SESSION 2026-06-06** ngay dưới.
 > 🆕 **cập nhật 2026-06-03:** Onboarding guard · Certificate "Hồ sơ Trọn đời" (pastel/hoa lá/2 chữ ký/5 mục/con dấu) · Wizard tạo bé · **Tối ưu loading** (cache per-user + parallelize → dashboard 6.2s→1.5s, /pets/[id] 6.5s→1.6s) · **Skeleton** chuyển trang · Fix **quest trùng** (race) · **Nhãn AI trung tính** (giấu Gemini). **SW = `vowvet-v276-cache-parallel-skeleton`** · HEAD `e4c8bd1` · ~79 commit local CHƯA push. Xem **SESSION 2026-06-03** ngay dưới.
 > Snapshot kỹ thuật — cập nhật **2026-06-01**: 🛡️ **Admin duyệt place** (Phase 1 backend `a79b84b` + Phase 3 UI `8b5875f` → `/admin/places`) · 📅 diary year-range động [2026–2029] · 🎨 brand-sync **/playdate/setup** + **/share** (iconify emoji→FeatureIcon + sky/amber→ink/cream + thêm icon `download`) · 🔧 severityDot pain/mobility = cognitive (superset) · 🗺️ nhóm C playdate **ĐÃ QUYẾT giữ emoji** · 💾 git bundle backup · 🕯️🎂🚨 **brand-sync 3 trang cảm xúc** (memorial nến-động · birthday · lost — GIỮ palette+emoji thematic) · 🎂 **cụm BIRTHDAY hoàn tất** (chính + wall tông-ấm + party-nav-fix→`/birthday` + **bánh kem nến-động** v255 + confetti reduced-motion guard) · ⭐ **Achievements WOW** (`273f558`, v257 — entrance shimmer/ring/count-up/stagger + unlock glow/burst, reduced-motion safe) · 🔍 **recon /food-brands** (công thức RER/DER + data layer — chuẩn bị audit dinh dưỡng, CHƯA code). **SW hiện tại = `vowvet-v257-achievements-wow`** · **70 commit local, CHƯA push** (không remote). 〈Chi tiết: xem snapshot **2026-06-01** ngay dưới.〉 *Buổi trước — 2026-05-31 (buổi 3):* 🎨 Arc icon 8 màn (Check-in/Climate · BCS · Nutrition · mobility · pain · cognitive · water · bills) · 🐛 fix bug ẩn `as number[]` trong `<script is:inline>` bills · 💰 bills brand-color (xanh→gold/ink) · 🗺️ **Map-Lai + brand-sync /map DONE ALL** (OSM suggest/promote + hết emoji/hex lạc, icon màu-loại) · 📔 **diary DONE ALL** (mood→face icon + UI emoji→icon + màu yearbook gold/cream; `10e15bc` + fix mic/màu `22dcc70`). *Buổi 2 (2026-05-30): WOW v197-205 · TopBar v206-207 · Dashboard v208-210.* **SW hiện tại = `vowvet-v242-diary-yearbook-gold`** · ~51 commit local, chưa push.
 > Nền tảng: Pet Score Phase 1→8 + **WOW arc v197-205** (pet-score) + **TopBar v206-207** (nav dùng chung + khai tử quick-nav floating) + **Dashboard WOW v208** (score ring fill + hero polish).
@@ -13,10 +13,10 @@
 > Arc: setup → recon nutrition (3 nguồn DER lệch) → engine A AAHA/WSAVA → hợp nhất nguồn → pet page base/today split + data-fix min → **Lớp 2**: bịt rò ghi-cân + nhắc cân + đề xuất khẩu phần + apply guard + mở whitelist `target_weight_kg`. *(APPEND — KHÔNG ghi đè.)*
 
 ### 📊 STATE
-- HEAD `8a30ee8` · **SW `vowvet-v282-base-ration-keeps-bcs`** · **+10 commit local CHƯA push** (a8e61b7→8a30ee8; + commit save này).
+- HEAD `e01c180` · **SW `vowvet-v284-humanize-brand-filter-chips`** · **+13 commit local CHƯA push** (a8e61b7→e01c180; + commit save này).
 - `.claude/launch.json` untracked (preview config, không commit). `CONTEXT_SYNC.md` commit ở mốc save này.
 
-### ✅ ĐÃ XONG (10 commit)
+### ✅ ĐÃ XONG (13 commit)
 1. `a8e61b7` setup: tạo `vowvet/CLAUDE.md` + lệnh `/context-save` (`.claude/commands/context-save.md`) + allowlist `.claude/settings.local.json` (**gitignored**, local-only).
 2. `94390e7` docs: sửa path nutrition SAI trong CLAUDE.md (KHÔNG có `web/src/lib/nutrition.ts`; thật = `shared/nutrition-engine.ts` + `api/src/lib|routes/nutrition.ts` + DER client `food-brands.astro`) + ghi **ENGINE là chân lý DER**.
 3. `43e4b7e` **Cluster-1** fix engine A (`shared/nutrition-engine.ts`) chuẩn **AAHA/WSAVA**: default activity `moderate`→**`sedentary`** (1.6→1.2 khi null), bỏ phạt **senior 0.9→1.0 / geriatric 0.85→1.0**, thêm field **`ageingNote`** (senior/geri). **RER & generateMealPlan KHÔNG đổi**.
@@ -27,6 +27,9 @@
 8. `175d37f` **Lớp 2 đóng**: nhắc theo trend (reuse `recommendations[].message`) + **đề xuất khẩu phần** (concern → hạ vận động *qualitative* / giảm ~10% / **set target** input default=cân hiện tại) + **nút Áp dụng + hộp xác nhận** (GUARD: chỉ PATCH sau bấm; báo thành công **CHỈ** khi ground-truth persist) + mở whitelist PATCH `target_weight_kg` (`api/src/routes/pets.ts` +2 dòng — field Baserow ĐÃ có, KHÔNG schema-change). (v281)
 9. `cfc05fe` docs(context): save Lớp 2 close (CONTEXT_SYNC) → bundle `vowvet-20260606-1630.bundle`.
 10. `8a30ee8` **#2 gram_nền GIỮ BCS**: `[id].astro` 3 chỗ (`:1597` Mức nền · `:1702` gram/bữa · `:1712` treat) đổi `der_raw` → **`der_raw × bcs_adjust`** (giữ phản hồi cân, bỏ weather). Field breakdown CÓ SẴN, KHÔNG đụng engine. Verify client-mock: béo(0.8) 260→208, gầy(1.15) 260→299; min (bcs=null) KHÔNG đổi (260/[110,54,110]/26). (v282)
+11. `8d9b89a` docs(context): save #2 (CONTEXT_SYNC) → bundle `vowvet-20260606-1643.bundle`.
+12. `08aea2b` **Dọn UI lát 1** (food-brands phần trên): bỏ giọng "Đơn thuốc số / Poop Score / RER" → "Khẩu phần hôm nay / Hôm nay cho bé ăn / Mục tiêu sức khoẻ / Bé đang khoẻ / Đang ổn / Để app chỉnh cho đúng", bỏ in hoa bữa sáng-tối, RER label → câu tĩnh "Tính theo cân nặng, tuổi, vận động & thời tiết". CHỈ chữ — số 234/45/83 nguyên. (v283)
+13. `e01c180` **Dọn UI lát 2** (brand/filter/footer + chips pet page): "Chưa có loại nào… / Bỏ bớt điều kiện / Tìm thêm trên Shopee-Lazada / Quét nhãn hạt nhà / Xem thực đơn 30 ngày" + pet page "Bé cần mỗi ngày / Độ tuổi × / Đồ thưởng / Loại hạt đang tính / Chưa chọn loại hạt". Nudge messages (api) KHÔNG đụng. CHỈ chữ — số nguyên. (v284)
 
 ### 🔢 SỐ THẬT min (sau fix, verify DOM)
 - der_raw **260** (Mức nền) / der_final **234** (Hôm nay = ×0.9 weather HCMC) · activity=sedentary · BCS=null.
@@ -44,6 +47,7 @@
 - **`daily_calorie_target`**: chỉ `migrate-m7` ghi (skip-if-set), **KHÔNG runtime refresh** → đông cứng/stale; AI care-plan (`care-plan-engine.ts:240`) đọc nó (≈der_raw stale).
 - **food-brands** `isProfileLocked = selectedPetId!==null`; manual mode (slider BCS/weight) what-if = `derClient` BCS-only.
 - **Phân biệt user-set vs migrate-set "moderate": KHÔNG được** (không field nguồn, migrate không để dấu vết). Chỉ suy gián tiếp: `daily_calorie_target=null` ⇒ không migrate (vd min). 5 pet "moderate" / 7 null trong 12 pet.
+- **Chip "Độ tuổi ×"** (`[id].astro:1629`) sau cluster-1 **KHÔNG render** (`life_stage_modifier` luôn=1 → `x-if` ẩn) — đúng, không phải lỗi; text đã sửa sẵn trong source. Tương tự **"Cho bé ăn / ngày"** (`food-brands:911`) chỉ hiện khi grid brand có card (`filtered>0`).
 
 ### 🎯 VIỆC ĐANG DỞ (Bồ giao tiếp)
 1. ⭐ **4 pet migrate "moderate"** (Beo id3 · Mon id5 · Mon id6 · Pugy id7) — chưa data-fix. Cụm DATA. Cảnh báo: không tách được user-chọn vs migrate-nhét → fix blunt (coi như chưa khai / re-prompt).
@@ -53,10 +57,10 @@
 5. **Nhắc CHỦ ĐỘNG** (cron/push) khi lâu chưa cân / trend xấu — Lớp 2 hiện chỉ nhắc khi mở trang (in-app). Job mới kiểu M5/M6.
 6. **Gate `[id].astro:1601`** (dòng "Hôm nay"): `der_final !== der_raw` → nên **`weather_adjust !== 1`** — cosmetic, tránh hiện "Hôm nay = nền" thừa ở edge bcs≠1 + weather=1. (thực tế HCMC weather≠1 nên hiếm lộ.)
 
-> ✅ **Lớp 2 (vòng phản hồi cân) ĐÃ ĐÓNG** + **#2**: log cân (table) · nhập cân ghi history+sync+bust (cả đường hồ sơ) · nhắc cân lần đầu/lâu/trend · đề xuất khẩu phần (hạ vận động/giảm%/set target) · apply guard người-bấm + báo theo ground-truth · **gram_nền giữ BCS bỏ weather** (béo/gầy đúng liều). (items trên = mở rộng tương lai, KHÔNG block.)
+> ✅ **Lớp 2 (vòng phản hồi cân) ĐÃ ĐÓNG** + **#2**: log cân (table) · nhập cân ghi history+sync+bust (cả đường hồ sơ) · nhắc cân lần đầu/lâu/trend · đề xuất khẩu phần (hạ vận động/giảm%/set target) · apply guard người-bấm + báo theo ground-truth · **gram_nền giữ BCS bỏ weather** (béo/gầy đúng liều) · **dọn UI tiếng người** (bỏ jargon, 2 trang). (items trên = mở rộng tương lai, KHÔNG block.)
 
 ### 💾 BACKUP
-- Bundle off-machine gần nhất `vowvet-20260606-1630.bundle` = **TRƯỚC** `8a30ee8` (thiếu commit #2 + save này). **Mốc save này tạo bundle mới** qua `8a30ee8` (+ commit CONTEXT_SYNC) — xem báo cáo cho tên file. Nhớ kéo cloud thủ công.
+- Bundle off-machine gần nhất `vowvet-20260606-1643.bundle` = **TRƯỚC** `e01c180` (thiếu 2 commit dọn UI + save này). **Mốc save này tạo bundle mới** qua `e01c180` (+ commit CONTEXT_SYNC) — xem báo cáo cho tên file. Nhớ kéo cloud thủ công.
 
 ---
 
