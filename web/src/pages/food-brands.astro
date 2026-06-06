@@ -651,12 +651,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           <!-- WIDGET 3: Smart Label Scanner (Đợt 1 — moved from right column; Đợt 1.5 — id cho FAB mobile scroll) -->
           <div id="smart-scanner" class="bg-white border border-mmp-ink/12 rounded-2xl p-5 scroll-mt-20">
             <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60 mb-1 inline-flex items-center gap-1"><FeatureIcon name="home" class="w-3 h-3" /> Cấu hình hạt tại nhà</p>
-            <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Smart Label Scanner</h3>
+            <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Quét nhãn hạt nhà</h3>
             <p class="text-sm text-mmp-ink/80 mb-3 leading-relaxed">Đã có hạt sẵn ở nhà? Nhập kcal/100g đọc trên bao bì để hệ thống tính lại khẩu phần riêng cho bé mà không ép đổi hạt.</p>
             <template x-if="!homeScanMode">
               <button type="button" @click="homeScanMode = true"
                       class="w-full bg-mmp-cream/70 hover:bg-mmp-ink/10 text-mmp-ink font-semibold text-sm px-4 py-2.5 rounded-xl transition inline-flex items-center justify-center gap-1.5">
-                <FeatureIcon name="microscope" class="w-4 h-4" /> Bật Smart Label Scanner
+                <FeatureIcon name="microscope" class="w-4 h-4" /> Quét nhãn
               </button>
             </template>
             <template x-if="homeScanMode">
@@ -753,7 +753,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                 <p class="text-[11px] leading-relaxed" style="color: #1A1814; opacity: 0.85;">
                   <FeatureIcon name="lightbulb" class="w-3 h-3 inline align-[-1px]" /> <strong class="font-bold">Thực đơn phối trộn:</strong>
                   Khẩu phần này được thiết kế kết hợp hoàn hảo (70% Hạt + 30% Pate).
-                  Vui lòng cho bé ăn <strong class="font-bold">KẾT HỢP</strong> cả hai loại hằng ngày
+                  Vui lòng cho bé ăn <strong class="font-bold">kết hợp</strong> cả hai loại hằng ngày
                   theo lịch trình Sáng-Trưa-Tối nêu trên để đạt hiệu quả chuyển hóa tốt nhất,
                   tránh hiểu nhầm là chọn một trong hai.
                 </p>
@@ -908,7 +908,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
                     <!-- Outcome row: Khẩu phần + Chi phí (combined) -->
                     <div style="min-height: 3rem;">
-                      <p class="text-[10px] uppercase tracking-wider text-mmp-ink/60 font-semibold mb-0.5">Khẩu phần ngày</p>
+                      <p class="text-[10px] tracking-wider text-mmp-ink/60 font-semibold mb-0.5">Cho bé ăn / ngày</p>
                       <p class="text-mmp-ink leading-tight">
                         <span class="font-bold text-xl tabular-nums" x-text="derLoading ? '…' : (gramsPerDay(b) != null ? gramsPerDay(b) + 'g' : '—')"></span>
                         <template x-if="!derLoading && costPerDay(b) != null">
@@ -1005,17 +1005,17 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           <template x-if="filtered.length === 0">
             <div class="bg-white rounded-2xl border border-mmp-ink/12 p-12 text-center mt-4">
               <div class="flex justify-center mb-3"><FeatureIcon name="search" class="w-12 h-12 text-mmp-ink/30" /></div>
-              <p class="text-mmp-ink/80 font-medium mb-1">Không có brand nào khớp filter</p>
+              <p class="text-mmp-ink/80 font-medium mb-1">Chưa có loại nào trong kho khớp với bé</p>
               <p class="text-sm text-mmp-ink/60 mb-4">Thử bỏ bớt điều kiện, reset filter, hoặc tìm trên Google (MonMin, Shopee, Lazada).</p>
               <div class="flex flex-col sm:flex-row gap-2 justify-center">
                 <button @click="resetFilters()" class="text-sm bg-mmp-ink hover:bg-mmp-ink/90 text-white font-semibold px-4 py-2 rounded-lg transition">
-                  Reset filter
+                  Bỏ bớt điều kiện
                 </button>
                 <!-- v46: market search → open Google search với marketSearchKeywords prefilled + site: ưu tiên monminpet.com -->
                 <a :href="'https://www.google.com/search?q=' + encodeURIComponent('site:monminpet.com OR site:shopee.vn OR site:lazada.vn ' + marketSearchKeywords)"
                    target="_blank" rel="noopener"
                    class="text-sm bg-mmp-cream hover:bg-amber-50 border border-amber-200 text-mmp-ink font-semibold px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-1.5">
-                  <FeatureIcon name="search" class="w-4 h-4" /> Tìm trên thị trường (ưu tiên MonMin)
+                  <FeatureIcon name="search" class="w-4 h-4" /> Tìm thêm trên Shopee / Lazada
                 </a>
               </div>
               <p class="text-[10px] text-mmp-ink/55 mt-3">Dùng từ khoá y khoa từ hồ sơ của bé · Mở Google trong tab mới</p>
@@ -1024,7 +1024,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
           <!-- ③ (tiếp) — Tìm trên thị trường nếu chưa có brand phù hợp -->
           <section class="rounded-3xl p-5 border border-mmp-ink/10 bg-white mt-5">
-            <p class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60 mb-1 inline-flex items-center gap-1"><FeatureIcon name="search" class="w-3 h-3" /> Tìm trên thị trường</p>
+            <p class="text-[10px] tracking-widest font-bold text-mmp-ink/60 mb-1 inline-flex items-center gap-1"><FeatureIcon name="search" class="w-3 h-3" /> Tìm thêm trên Shopee / Lazada</p>
             <h3 class="font-display italic text-lg font-semibold mb-2 leading-tight text-mmp-ink">Từ khoá gợi ý</h3>
             <p class="text-sm text-mmp-ink/80 mb-3 leading-relaxed">Sao chép từ khoá dưới đây, dán vào Shopee / Lazada / TikTok Shop để tìm hạt ngoại đặc trị nếu MonMin chưa phân phối dòng bệnh lý này:</p>
             <div class="bg-mmp-cream/40 border border-mmp-ink/10 rounded-xl p-3 mb-3 font-mono text-xs text-mmp-ink/80 break-words leading-relaxed" x-text="marketSearchKeywords"></div>
@@ -1102,10 +1102,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--c-gold);"></span>
           Cá nhân hoá miễn phí
         </span>
-        <h2 class="font-display italic text-2xl sm:text-3xl font-semibold mb-3">Bạn cần meal plan riêng cho bé?</h2>
+        <h2 class="font-display italic text-2xl sm:text-3xl font-semibold mb-3">Xem thực đơn 30 ngày chi tiết</h2>
         {userPets.length > 0 ? (
           <>
-            <p class="text-white/75 mb-6">Đã có hồ sơ bé. Vào Care Plan để VowVet tự động tính khẩu phần riêng cho bé yêu.</p>
+            <p class="text-white/75 mb-6">Vào Care Plan xem thực đơn từng ngày cho bé.</p>
             <a href={`/pets/${userPets[0].id}/care-plan`}
                class="inline-block bg-[#ecb921] hover:bg-[#d4a417] text-mmp-ink font-semibold px-6 py-3 rounded-xl shadow-lg transition">
               Thiết lập Meal Plan ngay ➔
