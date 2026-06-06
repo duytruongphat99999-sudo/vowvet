@@ -21,9 +21,11 @@
 - **Container**: `vowvet-web` (Astro SSR) · `vowvet-api`.
 - **Đường dẫn chính**:
   - `web/src/pages/…` — trang (`pets/[id].astro`, `pets/[id]/pet-score.astro`, `food-brands.astro`, `pets/new` wizard, `dev/reset-onboarding`…)
-  - `web/src/lib/…` — `me-cache.ts`, **`nutrition.ts` (CẤM — xem §4)**
-  - `web/src/shared/…` — `health-conditions.ts` (18 tình trạng × 3 tầng)
-  - `web/src/middleware/index.ts` — cache per-user + guard onboarding
+  - **Logic dinh dưỡng (DER/RER/gram) — CẤM, xem §4**: `shared/nutrition-engine.ts` **(engine, CANONICAL)** + `api/src/lib/nutrition.ts` (DB/cache) + `api/src/routes/nutrition.ts` (HTTP) + DER client-side & hằng **DRY 360 / WET 85** ở `web/src/pages/food-brands.astro`
+  - `web/src/lib/…` — helper FE (`breeds.ts`, `age.ts`, `api-client.ts`, `articles.ts`)
+  - `shared/health-conditions.ts` — 18 tình trạng × 3 tầng
+  - `api/src/lib/me-cache.ts` + cache middleware đăng ký ở `api/src/index.ts` — cache per-user (TTL 20s, bust khi ghi)
+  - `web/src/middleware.ts` — Astro middleware (guard onboarding)
   - `web/public/sw.js` — service worker (bump version mỗi release)
   - `docker/docker-compose.yml`
   - `baserow-config.json` — **gitignored** (field IDs local). Migration script thì **committed**.
@@ -53,7 +55,8 @@
 ---
 
 ## 4. FILE / VÙNG CẤM ĐỤNG (ngoài global)
-- **`nutrition.ts` + MỌI số/công thức dinh dưỡng** (RER/DER/hệ số/gram). Chỉ sửa khi có TASK riêng + **Bồ DUYỆT SỐ CŨ→MỚI từng dòng**.
+- **MỌI logic DER/RER/gram/hệ số ở BẤT KỲ file nào** — engine `shared/nutrition-engine.ts` + DER client-side & hằng `DRY 360`/`WET 85` ở `web/src/pages/food-brands.astro` + field `daily_calorie_target` do `scripts/migrate-m7.ts` ghi (+ nước/treat). Chỉ sửa khi có TASK riêng + **Bồ DUYỆT SỐ CŨ→MỚI từng dòng**.
+- **DER có 3 nguồn lịch sử** (engine / food-brands client / migrate field) — **ENGINE `shared/nutrition-engine.ts` là CHÂN LÝ**; chỗ khác phải gọi về engine, **KHÔNG tự tính song song**.
 - **Schema Baserow**: muốn thêm/đổi field → BƯỚC 0 recon → **ĐỀ XUẤT field → ĐỢI duyệt** mới tạo. Không tự thêm cột.
 
 ---
