@@ -35,6 +35,19 @@
   --font-mono: "Azeret Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+/* v289: Bottom-nav app-style — đệm đáy CHỈ khi body.has-bottom-nav (trang gated, mobile).
+   Desktop (nav lg:hidden) + print KHÔNG đệm thừa. Cao thanh ~4rem + safe-area iOS notch. */
+.has-bottom-nav {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 1024px) {
+  .has-bottom-nav { padding-bottom: 0; }
+}
+@media print {
+  .has-bottom-nav { padding-bottom: 0 !important; }
+  .vv-bottomnav { display: none !important; }
+}
+
 /* Backward-compat for any legacy --color-vow-* references */
 :root {
   --color-vow-primary: #0a0a0a;

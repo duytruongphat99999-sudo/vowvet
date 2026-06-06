@@ -6,6 +6,8 @@
  * v207: Quick-nav floating đã gỡ — mỗi page dùng header ngữ cảnh (back+title),
  * dashboard dùng TopBar. Layout chỉ còn meta/PWA/SW shell.
  */
+import BottomNav from "../components/BottomNav.astro";
+
 interface Props {
   title?: string;
   description?: string;
@@ -22,13 +24,30 @@ const locale = Astro.locals.locale ?? "vi";
 // thay tĩnh lúc build → ở production build thành false và bị strip hoàn toàn.
 // Thêm điều kiện đã đăng nhập (không hiện ở /login).
 const showDevTools = import.meta.env.DEV && !!Astro.locals.user;
+
+// v289: Bottom-nav app-style — chỉ hiện khi đã đăng nhập + KHÔNG ở trang public/auth/error.
+// Gate:
+//  - Error pages: Astro.routePattern '/404' | '/500' (bắt cả unknown-path fallback,
+//    vì Astro.response.status đọc 200 trong Layout — adapter set 404 sau render).
+//  - Public/auth exact: landing '/', /login, /onboarding, /offline.
+//  - Public-share prefix: /login /p/ /memorial/ /personality-card/.
+const navPath = Astro.url.pathname;
+const routePattern = Astro.routePattern ?? "";
+const NAV_HIDDEN_ROUTES = ["/404", "/500"];
+const NAV_HIDDEN_EXACT = ["/", "/login", "/onboarding", "/offline"];
+const NAV_HIDDEN_PREFIX = ["/login", "/p/", "/memorial/", "/personality-card/"];
+const showBottomNav =
+  !!Astro.locals.user &&
+  !NAV_HIDDEN_ROUTES.includes(routePattern) &&
+  !NAV_HIDDEN_EXACT.includes(navPath) &&
+  !NAV_HIDDEN_PREFIX.some((p) => navPath.startsWith(p));
 ---
 
 <!doctype html>
 <html lang={locale}>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="description" content={description} />
 
@@ -58,8 +77,10 @@ const showDevTools = import.meta.env.DEV && !!Astro.locals.user;
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <slot name="head" />
   </head>
-  <body>
+  <body class:list={[showBottomNav && "has-bottom-nav"]}>
     <slot />
+
+    {showBottomNav && <BottomNav path={navPath} />}
 
     {showDevTools && (
       <button
