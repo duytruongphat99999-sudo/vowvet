@@ -955,6 +955,12 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         <span><strong class="font-semibold">Lưu ý:</strong> <span x-text="mismatchReason(b)"></span></span>
                       </p>
                     </template>
+                    <!-- RX note: carb cao là chủ đích kiểm soát khoáng (phòng sỏi), KHÔNG phải low-carb fail → thay cờ carb -->
+                    <template x-if="profile.species === 'cat' && isRxDiet(b) && carbOf(b) > 25">
+                      <p class="text-[11px] text-mmp-ink/60 leading-snug inline-flex items-start gap-1.5" style="min-height: 2.4rem;">
+                        <span><strong class="font-semibold">Đồ kê đơn:</strong> tinh bột ~<span x-text="Math.round(carbOf(b))"></span>% là chủ đích để kiểm soát khoáng (hỗ trợ phòng/điều trị sỏi tiết niệu), không phải điểm trừ.</span>
+                      </p>
+                    </template>
 
                     <!-- v36: Ingredient Guard — strike-through cho thành phần allergic của bé -->
                     <template x-if="(b.contains_allergens || []).length > 0 && b.contains_allergens.some(a => profile.allergens.includes(a))">
@@ -2107,6 +2113,10 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             ? b.carb_pct_calculated
             : this.estimatedCarb(b);
         },
+        // RX (đồ kê đơn): carb cao là chủ đích kiểm soát khoáng → miễn nhánh cờ carb. Match theo product_line.
+        isRxDiet(b) {
+          return /veterinary|prescription/i.test(b.product_line || "");
+        },
 
         // === v36: Compat score (numeric BCS) ===
         compatScore(b) {
@@ -2114,7 +2124,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
           const allergens = b.contains_allergens || [];
           const hits = allergens.filter((a) => this.profile.allergens.includes(a));
           s -= hits.length * 40;
-          if (this.profile.species === "cat" && this.carbOf(b) > 25) s -= 25;
+          if (this.profile.species === "cat" && !this.isRxDiet(b) && this.carbOf(b) > 25) s -= 25;
           if (b.species !== "both" && b.species !== this.profile.species) s -= 50;
           const bcs = Number(this.profile.bcs) || 5;
           if (bcs >= 6 && b.fat_pct > 14) s -= 25;
@@ -2134,7 +2144,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
         isMismatch(b) {
           const allergens = b.contains_allergens || [];
           if (allergens.some((a) => this.profile.allergens.includes(a))) return true;
-          if (this.profile.species === "cat" && this.carbOf(b) > 25) return true;
+          if (this.profile.species === "cat" && !this.isRxDiet(b) && this.carbOf(b) > 25) return true;
           return false;
         },
         mismatchReason(b) {
@@ -2144,7 +2154,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             const names = hits.map((a) => this.allergenLabel(a)).join(", ");
             return `Chứa thành phần dị ứng (${names}) với bé ${this.profile.petName || "bạn"}`;
           }
-          if (this.profile.species === "cat" && this.carbOf(b) > 25) {
+          if (this.profile.species === "cat" && !this.isRxDiet(b) && this.carbOf(b) > 25) {
             return `Hàm lượng tinh bột ~${Math.round(this.carbOf(b))}% vượt ngưỡng sinh học của mèo`;
           }
           return "";
