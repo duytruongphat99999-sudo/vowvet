@@ -17,6 +17,7 @@ import { findUserByPhone } from "../lib/users.ts";
 import { speciesEnToVi } from "@shared/enum-mappers.ts";
 import { listRows } from "@shared/baserow.ts";
 import { loadFoodBrands } from "../lib/nutrition.ts";
+import { loadMonMinSupplements } from "../lib/monmin-supplements.ts";
 import { getPublicPetBySlug, incrementViewCount, incrementShareCount } from "../lib/public-pets.ts";
 
 export const publicRoute = new Hono();
@@ -164,6 +165,19 @@ publicRoute.get("/food-brands", async (c) => {
   } catch (err: any) {
     console.error("[public/food-brands] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi load brands" } }, 500);
+  }
+});
+
+// ===== GET /public/monmin-supplements =====
+// Live fetch+parse từ monminpet.com, cache 6h (loadMonMinSupplements). No-auth, thừa kế rate-limit *.
+// Trả nguyên object (gồm matchedConditions) — KHÔNG whitelist.
+publicRoute.get("/monmin-supplements", async (c) => {
+  try {
+    const supplements = await loadMonMinSupplements();
+    return c.json({ supplements, total: supplements.length });
+  } catch (err: any) {
+    console.error("[public/monmin-supplements] error:", err?.message || err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi load supplements" } }, 500);
   }
 });
 
