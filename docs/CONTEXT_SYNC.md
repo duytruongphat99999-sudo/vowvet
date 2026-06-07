@@ -1,49 +1,51 @@
-# CONTEXT SYNC — 2026-06-07 17:28
+# CONTEXT SYNC — 2026-06-07 (phiên dọn: carb backfill + RX exemption + junk rows)
 
-> Handoff gọn cho phiên sau. Lịch sử dài: `CONTEXT_SYNC_FULL_20260606.md` (685 dòng) + root `CONTEXT_SYNC.md` (phiên supplement MonMin 3-phase). File này (docs/) là bản mới nhất.
-> STATE: HEAD `402846f` · SW `vowvet-v296-carb-scoring-sync` · repo **LOCAL-ONLY (không remote), 134 commit, CHƯA push**.
+> Handoff gọn cho phiên sau. Lịch sử dài: `CONTEXT_SYNC_FULL_20260606.md` (685 dòng). File này (docs/) là **canonical**; root `CONTEXT_SYNC.md` đã revert về bản committed (không còn dùng làm handoff).
+> STATE: HEAD `51971c2` + docs commit này trên đầu · SW `vowvet-v297-rx-carb-note` · repo **LOCAL-ONLY (không remote), ~138 commit, CHƯA push**. Working tree sạch (chỉ `.claude/launch.json` untracked — tooling stub, KHÔNG commit).
 
 ## 🎯 ĐANG LÀM GÌ
-Thương mại hóa trang Dinh dưỡng: catalog `food_brands` shoppable + supplement MonMin (companion riêng) + carb-mismatch đọc số THẬT.
+Thương mại hóa trang Dinh dưỡng: catalog `food_brands` shoppable + supplement MonMin (companion) + carb-mismatch đọc số THẬT. Phiên này: dọn data + miễn cờ carb cho đồ kê đơn.
 
 ## ✅ ĐÃ XONG PHIÊN NÀY
-- **`food_brands` = 17 brand**: 8 cũ (Royal Canin ×5 / Reflex ×2 / ANF) + **9 premium (#17–#25)**:
-  - **low-carb**: Orijen Cat/Dog · Acana Cat/Dog · Farmina N&D Cat/Dog (carb 18–30).
-  - **ngũ cốc / RX (đặc trị)**: Hill's Science Diet Indoor Cat · RC Urinary S/O Cat · Hill's c/d Urinary Cat (carb 34–38).
-  - **Đã clear (trước phiên)**: 2 dòng MonMin food GIẢ + Me-O / Whiskas / Pedigree / SmartHeart.
-- **Carb logic** (`food-brands.astro`): đọc `carb_pct_calculated` THẬT qua **`carbOf()`** (fallback `estimatedCarb = 100 − P − F − 12` cho row thiếu/0); **ngưỡng mèo 25** (cũ 20); **4 usage nhất quán** — `isMismatch` / `mismatchReason` / `compatScore` / `conditionDelta`; **chó KHÔNG có nhánh carb**. `estimatedCarb` giờ chỉ còn ở định nghĩa + làm fallback. (commit `402846f`, SW v296)
-- **Allergen 9 premium = JSON-array** (`["chicken","fish"]`); `corn`/`wheat` → `"grain"` (vocab 9-code); `lamb` (Acana Dog) ngoài vocab → ingredient-guard **inert** (vô hại; `fish` vẫn bắt được). (commit `afc8501`, SW v294)
-- **Script mới**: `scripts/premium-brands-populate.ts` (recon-live list-fields + validate key/option + anti-dup + dry-run mặc định; `--write` tạo row). Trước đó: `scripts/brand-search-fill.ts` (auto `product_url` Shopee cho brand ngoại, commit `80fe95c`).
+- **Backfill số dinh dưỡng THẬT cho 8 row CŨ** (RC ×5 / Reflex ×2 / ANF) — thay placeholder phồng (40/45/50) bằng số nhãn hãng. carb mới: RC Indoor `39.7` · RC Persian `26.9` · Reflex Plus Cat `35` · RC Maxi `40` · RC Mini `39.8` · Reflex Adult `39.5` · ANF `35` · RC Puppy `31.8` (kèm P/F/fibre). Verify qua public endpoint. (commit `1d8a4cf`, tool `scripts/oldbrand-nutri-backfill.ts` — recon→dry-run→`--apply`, self-check skip ±0.1.)
+- **Miễn cờ carb cho đồ kê đơn (RX)** (`food-brands.astro`, SW v297): thêm **`isRxDiet(b)`** = `/veterinary|prescription/i.test(product_line)`; gate `!this.isRxDiet(b)` vào **3 nhánh carb mèo** (`compatScore` −25 · `isMismatch` · `mismatchReason`); thêm template **note "Đồ kê đơn"** (calm, `text-mmp-ink/60`, thuần chữ) thay cảnh báo. **KHÔNG đụng** `carbOf`/`estimatedCarb`/`conditionDelta`/số. (commit `51971c2`.)
+  - **DOM-verified** (Alpine thật, profile mèo): id 24 RC Urinary S/O + id 25 Hill's c/d → hết "vượt ngưỡng", hiện note RX. Đối chứng id 23 Hill's Science Diet Indoor + id 12 RC Indoor → VẪN cảnh báo amber (không miễn nhầm).
+- **Dọn 2 junk row** id 1 & id 2 (rỗng hoàn toàn) khỏi `food_brands` — RECON-guard brand_name rỗng trước khi xóa. RAW Baserow 19→17, catalog vẫn 17.
 
-## 🧾 NỢ PHIÊN SAU (ưu tiên)
-1. **BACKFILL `carb_pct_calculated` số thật cho 8 row CŨ** (RC / Reflex / ANF) — đang fallback formula `100−P−F−12` bị **phồng** → carb hiển thị thổi cao (vd RC Indoor Cat ~50% dù thật ~28%). Đây là nguyên nhân chính cần dọn.
-2. (Tuỳ chọn) **Ẩn cảnh báo carb cho 2 dòng RX** (#8 RC Urinary S/O Cat, #9 Hill's c/d Urinary Cat) — giá trị của chúng ở kiểm soát khoáng/đặc trị, KHÔNG phải low-carb → cảnh báo "carb cao" gây hiểu nhầm.
-3. **Host ảnh pack-shot 9 premium** lên `monminpet.com/images/products/<slug>.png` (giờ `image_url` trống → card hiện placeholder).
-4. **Farmina kcal (#5, #6)** hiện đang Atwater-tính → chốt lại con số từ bao bì.
-5. (Ghi nhận, **KHÔNG phải nợ**) `compatScore` / `conditionDelta` các ngưỡng/trọng số khác vẫn giữ nguyên — chỉ đổi nguồn carb sang `carbOf`.
+## 🧾 NỢ PHIÊN SAU (ưu tiên cao → thấp)
+1. **Host ảnh pack-shot 9 premium** lên `monminpet.com/images/products/<slug>.png` (giờ `image_url` trống → card placeholder).
+2. **Farmina kcal (id 21, 22)** đang Atwater-tính → chốt lại từ bao bì.
+3. **Webview in-app MonMin** (v2) nếu `X-Frame-Options`/CSP cho nhúng; ngoài → giữ `target=_blank`.
+4. **Mạch 2 quét nhãn CAMERA** (getUserMedia + OCR Gemini), route `/scan` / `#smart-scanner`.
+5. **Trang "Định vị pet" GPS** (đang coming-soon nav) · **AppHeader chung** (chờ chốt scope).
+6. **Mạch 4 Nhật ký sản phẩm pet** [đụng schema Baserow → recon + duyệt field TRƯỚC] · **PDF hồ sơ pet** · **ADOPT EPIC** (recon từ đầu).
 
 ## 📌 QUYẾT ĐỊNH KỸ THUẬT
-- **`carbOf()`** = `(carb_pct_calculated != null && > 0) ? real : estimatedCarb`. Cảnh báo + scoring carb là **HIỂN THỊ**, KHÔNG đụng DER engine khẩu phần.
-- **Supplement MonMin = live-fetch monminpet** (sitemap-index → ld+json Product), cache **6h** (`api/src/lib/monmin-supplements.ts`), match bệnh **client-side** theo cờ bệnh pet. **KHÔNG bảng Baserow.**
-- **Nút shoppable/supplement = ink fill** (`bg-mmp-ink`/chữ trắng, đạt §9 contrast), **gold = accent** (ring/badge/viền). `target=_blank rel=noopener noreferrer`, dùng `product_url`/`url` theo record.
-- **Vocab allergen** (canonical) = `shared/allergen-normalizer.ts`: `chicken/beef/fish/dairy/egg/soy/grain/shellfish/peanut`. `KEYWORD_TO_CODE` map `corn/ngô/wheat/lúa mì → grain`.
+- **`carbOf()`** = `(carb_pct_calculated != null && > 0) ? real : estimatedCarb`. Cảnh báo/scoring carb là **HIỂN THỊ**, KHÔNG đụng DER engine. Ngưỡng mèo **25**.
+- **`isRxDiet`** match theo `product_line` (`Royal Canin Veterinary` / `Hill's Prescription Diet`). Miễn cờ carb = **display-only**, KHÔNG đụng số carb. Allergen vẫn tính cho RX (check allergen đứng trước nhánh carb).
+- **Supplement MonMin = live-fetch monminpet** (sitemap → ld+json Product), cache **6h** (`api/src/lib/monmin-supplements.ts`), match bệnh client-side. **KHÔNG bảng Baserow.**
+- **Nút shoppable/supplement = ink fill** (§9 contrast), gold = accent. `target=_blank rel=noopener noreferrer`.
+- **Vocab allergen** = `shared/allergen-normalizer.ts` (chicken/beef/fish/dairy/egg/soy/grain/shellfish/peanut); `corn/wheat → grain`.
+- **Canonical handoff = `docs/CONTEXT_SYNC.md`** (root đã revert).
 
 ## ⚠️ LƯU Ý / BẪY
-- **Script Baserow chạy HOST**: `BASEROW_URL=http://localhost:8888 bun run scripts/<x>.ts [--write]` (host KHÔNG có `host.docker.internal`; Bun **tự nạp `.env`**; KHÔNG hardcode/in token). Field meta cần JWT (email+password .env); row CRUD dùng Token qua `shared/baserow.ts`.
-- **Sửa api/lib hoặc data → `docker restart vowvet-api`** (bust `brandsCache` 24h + nạp code). `.astro` → `docker restart vowvet-web`. `.env` → `--force-recreate`. `sw.js` → **bump vXXX**.
-- **PowerShell** mở cửa sổ mới luôn về `C:\Users\Admin` → phải `cd C:\docker\vowvet` TRƯỚC khi `git`. Path có ngoặc vuông (`pets/[id].astro`) phải **QUOTE**.
-- **Secret-scan trước commit**: regex rộng dễ false-positive (bắt nhầm "token"/"password" = tên biến/comment) → quét theo **VALUE trong quote** (`sk-`/`AIza`/`eyJ`/literal ≥12 ký tự).
-- **Preview**: screenshot subsystem timeout trên trang nặng → verify bằng **computed-style/DOM eval**. Inject Alpine state qua `preview_eval` = **ephemeral** (mất khi reload). Preview CÓ internet (ảnh monminpet load thật). Tab nutrition pet page = **lazy** (`x-if`) → verify section SAU khi mở tab.
-- **monminpet**: 35 product · ld+json Product per-page (`sitemap-index` → `sitemap-0`) · ảnh `/images/products/<slug>.png`. Product page **301 → http trailing-slash** → follow-redirect.
-- Account test: pet **min id 12** (user 10) Mèo, no health_conditions → supplement = featured; `lyvu2004DTP@gmail.com` user 18 (Google) — `/dev/reset-onboarding` reset vô hạn.
-- **Bundle `*.bundle` gitignored** — backup rời ở `C:\docker\backups\`, USER tự upload cloud.
-- **CẤM ĐỤNG** (trừ khi TASK ghi rõ): `shared/nutrition-engine.ts` / số DER·RER·gram·khẩu phần · vocab `shared/health-conditions.ts` + `allergen-normalizer.ts` · schema/field/row Baserow · loader `api/src/lib/nutrition.ts` + `public.ts`.
+- **Baserow id ≠ số thứ tự catalog!** Catalog hiển thị sort theo tên; id THẬT: 8 row cũ = `5,6,9,10,11,12,13,16`; 9 premium = `17–25`. RX: RC Urinary S/O = **id 24**, Hill's c/d = **id 25**. (Đừng đọc/ghi theo "#8/#9" — đó là vị trí hiển thị.)
+- **Script Baserow chạy HOST**: `BASEROW_URL=http://localhost:8888 bun run scripts/<x>.ts [--apply/--write]` (Bun tự nạp `.env`; KHÔNG hardcode/in token). Field-meta cần JWT (.env email+pass); row CRUD = Token qua `shared/baserow.ts`. **Đọc/ghi raw nhanh** = `bun -e 'const {getRow,updateRow,deleteRow,listRows}=await import("./shared/baserow.ts"); ...'` (không cần tạo file).
+- **Xóa row Baserow = PHÁ HỦY** → bắt buộc RECON xác nhận rỗng trước (`deleteRow` chỉ khi `brand_name` trống).
+- **Sửa api/lib hoặc data → `docker restart vowvet-api`** (bust `brandsCache` 24h). `.astro` → `docker restart vowvet-web`. `.env` → `--force-recreate`. `sw.js` → bump vXXX.
+- **Verify DOM thật**: `preview_start "vowvet"` (launch.json stub no-op port 4322 → browser gắn vào server docker 4322), điều hướng `location.href='.../food-brands'`, rồi `preview_eval` gọi `Alpine.$data(el)` → chạy chính method đã ship. Inject state = ephemeral. Screenshot trang nặng = timeout → dùng eval/DOM.
+- **Cờ carb render AMBER** (`text-amber-700`), KHÔNG phải đỏ. Đỏ chỉ cho gạch-ngang allergen.
+- **PowerShell** mở mới về `C:\Users\Admin` → `cd C:\docker\vowvet` TRƯỚC `git`; path `[ ]` phải QUOTE. **curl→python**: pipe trực tiếp (`/tmp` khác nhau giữa bash↔python Windows nên đừng `-o /tmp/...`).
+- **Secret-scan trước commit** theo VALUE-trong-quote (`sk-`/`AIza`/`eyJ`/literal ≥12); regex rộng bắt nhầm tên biến.
+- Account test: pet **min id 12** (user 10) Mèo; `lyvu2004DTP@gmail.com` user 18 (Google), `/dev/reset-onboarding` reset.
+- **Bundle `*.bundle` gitignored** — backup ở `C:\docker\backups\`, USER tự upload cloud. `/context-save` (gstack) KHÔNG ghi `docs/` — làm tay.
+- **CẤM ĐỤNG** (trừ TASK ghi rõ): `shared/nutrition-engine.ts` / số DER·gram·khẩu phần · vocab `health-conditions.ts` + `allergen-normalizer.ts` · schema/field/row Baserow · loader `nutrition.ts` + `public.ts`.
 
 ## 📂 FILE QUAN TRỌNG
-- `web/src/pages/food-brands.astro` — catalog + section "Bổ sung từ MonMin" + carb-mismatch (`carbOf`/`estimatedCarb`).
-- `web/src/pages/pets/[id].astro` — supplement PREMIUM trong tab nutrition (lazy x-if).
+- `web/src/pages/food-brands.astro` — catalog + supplement section + carb-mismatch (`carbOf`/`estimatedCarb`) + **`isRxDiet` + RX note**.
+- `web/src/pages/pets/[id].astro` — supplement PREMIUM tab nutrition (lazy x-if).
 - `api/src/lib/monmin-supplements.ts` — supplement live-fetch + cache 6h + match bệnh.
-- `scripts/premium-brands-populate.ts` · `scripts/brand-shoppable-sync.ts` · `scripts/brand-search-fill.ts` — data tools (chạy HOST, dry-run mặc định).
-- `shared/allergen-normalizer.ts` · `shared/health-conditions.ts` — vocab allergen + bệnh (CẤM sửa vocab).
-- `web/public/sw.js` — `VERSION = vowvet-v296-carb-scoring-sync`.
-- `CONTEXT_SYNC_FULL_20260606.md` (root) — archive log dài 685 dòng.
+- `scripts/oldbrand-nutri-backfill.ts` — backfill P/F/fibre/carb 8 row cũ (recon→dry-run→`--apply`). · `scripts/premium-brands-populate.ts` · `scripts/brand-shoppable-sync.ts` · `scripts/brand-search-fill.ts` — data tools (HOST, dry-run mặc định).
+- `shared/allergen-normalizer.ts` · `shared/health-conditions.ts` — vocab (CẤM sửa).
+- `web/public/sw.js` — `VERSION = vowvet-v297-rx-carb-note`.
+- `CONTEXT_SYNC_FULL_20260606.md` (root) — archive log dài.
