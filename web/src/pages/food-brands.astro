@@ -28,6 +28,18 @@ try {
   console.error("[food-brands page] fetch failed:", err);
 }
 
+// Phase 2: SSR fetch MonMin supplements (live-fetch+cache backend). Defensive: lỗi → [] (KHÔNG vỡ trang).
+let supplements: any[] = [];
+try {
+  const sres = await fetch(`${API_INTERNAL}/api/v1/public/monmin-supplements`);
+  if (sres.ok) {
+    const sj = await sres.json();
+    supplements = sj.supplements || [];
+  }
+} catch (err) {
+  console.error("[food-brands page] supplements fetch failed:", err);
+}
+
 // === v34: SSR fetch user pets + latest BCS (graceful fallback for guests) ===
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 let userPets: any[] = [];
@@ -75,6 +87,7 @@ try {
 }
 
 const brandsJson = JSON.stringify(brands);
+const supplementsJson = JSON.stringify(supplements);
 const userPetsJson = JSON.stringify(userPets);
 const initialBcsScoreJson = JSON.stringify(initialBcsScore);
 // Đợt 2b: cấu hình dẫn luồng bệnh sử (tầng + dinh dưỡng + kết cấu) + cờ popup nhắc cân
@@ -108,7 +121,7 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
 
   <main class="min-h-screen bg-mmp-cream">
     <!-- v44: x-data hoisted to wrap nav so Alpine directives work in nav avatar -->
-    <div x-data={`brandsCatalog(${brandsJson}, ${userPetsJson}, ${initialBcsScoreJson}, ${conditionConfigJson}, ${showWeightPopupJson})`}>
+    <div x-data={`brandsCatalog(${brandsJson}, ${userPetsJson}, ${initialBcsScoreJson}, ${conditionConfigJson}, ${showWeightPopupJson}, ${supplementsJson})`}>
     <!-- v44: Public top nav — auth-aware avatar (logged-in) vs login button (guest) -->
     <nav class="bg-white border-b border-mmp-ink/12 sticky top-0 z-30 shadow-sm">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
@@ -1083,6 +1096,66 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             </div>
           </template>
 
+          <!-- ===== Phase 2: Bổ sung từ MonMin (supplements live-fetch, match bệnh client-side) ===== -->
+          <template x-if="suppList.length > 0">
+            <section class="mt-6" aria-label="Bổ sung từ MonMin">
+              <div class="flex items-start gap-2 mb-3">
+                <span class="shrink-0 mt-0.5 text-[#B48608]"><FeatureIcon name="sparkles" class="w-5 h-5" /></span>
+                <div>
+                  <h2 class="font-display italic text-lg sm:text-xl font-bold text-mmp-ink leading-tight">Bổ sung từ MonMin</h2>
+                  <p class="text-xs text-mmp-ink/60 mt-0.5">
+                    <span x-show="isSuppMatched" x-cloak>Sản phẩm dinh dưỡng MonMin phù hợp với <span class="font-semibold text-mmp-ink/80" x-text="profile.petName || 'bé'"></span></span>
+                    <span x-show="!isSuppMatched">Gợi ý từ MonMin cho bé</span>
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <template x-for="s in shownSupp" :key="s.slug">
+                  <div class="relative" x-data="{ imgError: false }">
+                    <article class="relative bg-white rounded-2xl border overflow-hidden flex flex-col h-full transition"
+                             :class="(s._hits && s._hits.length) ? 'border-mmp-gold/60 shadow-sm ring-1 ring-mmp-gold/40' : 'border-mmp-ink/12 hover:shadow-md'">
+                      <!-- Ảnh (object-cover, onerror → placeholder) — tái dùng pattern card v1 -->
+                      <div class="aspect-[4/3] bg-mmp-cream flex items-center justify-center relative">
+                        <img x-show="s.image && !imgError" x-cloak :src="s.image" :alt="s.name" @error="imgError = true" class="absolute inset-0 w-full h-full object-cover" />
+                        <span class="text-mmp-ink/25" x-show="!s.image || imgError"><FeatureIcon name="shop" class="w-10 h-10" /></span>
+                        <!-- Badge match bệnh (chỉ món match) -->
+                        <template x-if="s._hits && s._hits.length">
+                          <span class="absolute top-2 left-2 bg-mmp-gold text-mmp-ink text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 ring-mmp-gold/60 shadow-sm inline-flex items-center gap-1 max-w-[92%]">
+                            <FeatureIcon name="check" class="w-3 h-3 shrink-0" /><span class="truncate" x-text="'Hợp với ' + suppMatchLabels(s)[0]"></span>
+                          </span>
+                        </template>
+                      </div>
+                      <!-- Body -->
+                      <div class="p-3 flex-1 flex flex-col gap-1.5">
+                        <h3 class="text-sm font-semibold text-mmp-ink leading-snug line-clamp-2" x-text="s.name"></h3>
+                        <p class="text-sm font-bold text-mmp-ink tabular-nums mt-auto" x-text="s.price ? formatVnd(s.price) : 'Liên hệ'"></p>
+                        <a :href="s.url" target="_blank" rel="noopener noreferrer"
+                           class="mt-1 w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-mmp-ink text-white hover:bg-mmp-ink/90 text-xs font-semibold transition">
+                          <FeatureIcon name="shop" class="w-3.5 h-3.5" /> Xem sản phẩm
+                        </a>
+                      </div>
+                    </article>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Xem thêm (gập mặc định, chỉ hiện khi >4) -->
+              <template x-if="hasMoreSupp">
+                <button type="button" @click="showAllSupp = !showAllSupp" :aria-expanded="showAllSupp"
+                        class="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-sm text-mmp-ink/70 hover:text-mmp-ink font-medium py-2 rounded-xl border border-mmp-ink/12 hover:bg-mmp-cream/40 motion-safe:transition">
+                  <span x-text="showAllSupp ? 'Thu gọn' : ('Xem thêm sản phẩm MonMin (' + (suppList.length - 4) + ')')"></span>
+                  <svg class="w-4 h-4 motion-safe:transition-transform" :class="showAllSupp ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                </button>
+              </template>
+
+              <p class="text-[10px] text-mmp-ink/50 italic mt-2 inline-flex items-start gap-1">
+                <FeatureIcon name="info" class="w-3 h-3 shrink-0 translate-y-0.5" />
+                <span>Sản phẩm bổ sung — mang tính tham khảo, hỏi bác sĩ thú y trước khi dùng.</span>
+              </p>
+            </section>
+          </template>
+
           <!-- ③ (tiếp) — Tìm trên thị trường nếu chưa có brand phù hợp -->
           <!-- Mua & tìm thêm — collapse (mobile-first lát 1) -->
           <button type="button" @click="openMore=!openMore" :aria-expanded="openMore" class="w-full flex items-center justify-between gap-2 mt-5 mb-1 text-left bg-white border border-mmp-ink/12 rounded-2xl px-5 py-3 hover:bg-mmp-cream/40 motion-safe:transition">
@@ -1231,10 +1304,14 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
   </main>
 
   <script is:inline>
-    function brandsCatalog(initialBrands, initialUserPets, initialBcsScore, conditionConfig, showWeightPopup) {
+    function brandsCatalog(initialBrands, initialUserPets, initialBcsScore, conditionConfig, showWeightPopup, initialSupplements) {
       return {
         brands: initialBrands,
         userPets: initialUserPets || [],
+
+        // === Phase 2: Bổ sung MonMin (live-fetch backend, match bệnh client-side) ===
+        supplements: initialSupplements || [],
+        showAllSupp: false,
 
         // === Đợt 2b: dẫn luồng bệnh sử + popup nhắc cân ===
         conditionConfig: conditionConfig || { defs: [], tiers: {}, nutrition: {}, texture: {} },
@@ -1547,6 +1624,27 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
             .filter(Boolean);
         },
         get tier1ActiveCodes() { return this.activeConditions.filter((c) => c.tier === 1).map((c) => c.code); },
+
+        // === Phase 2: lọc supplement MonMin theo bệnh tầng-1 của pet (client-side, 1 payload) ===
+        get matchedSupp() {
+          const codes = this.tier1ActiveCodes;
+          if (!codes.length) return [];
+          return (this.supplements || [])
+            .map((s) => {
+              const hits = (s.matchedConditions || []).filter((c) => codes.includes(c));
+              return hits.length ? { ...s, _hits: hits } : null;
+            })
+            .filter(Boolean)
+            .sort((a, b) => b._hits.length - a._hits.length);
+        },
+        // 0 match → vài món đầu (KHÔNG ẩn section, KHÔNG logic phức)
+        get featuredSupp() { return (this.supplements || []).slice(0, 8).map((s) => ({ ...s, _hits: [] })); },
+        get isSuppMatched() { return this.matchedSupp.length > 0; },
+        get suppList() { return this.isSuppMatched ? this.matchedSupp : this.featuredSupp; },
+        get shownSupp() { return this.showAllSupp ? this.suppList : this.suppList.slice(0, 4); },
+        get hasMoreSupp() { return this.suppList.length > 4; },
+        // label bệnh khớp (từ HEALTH_CONDITIONS defs) cho badge "Hợp với …"
+        suppMatchLabels(s) { return (s._hits || []).map((c) => { const d = this._condDef(c); return d ? d.label : c; }); },
         tierChipClass(tier) {
           return tier === 1 ? "bg-amber-50 text-amber-800 border-amber-200"
                : tier === 2 ? "bg-blue-50 text-blue-800 border-blue-200"
