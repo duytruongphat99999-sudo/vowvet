@@ -24,3 +24,5 @@ docs/archive/MIGRATION_REPORT.md
 data/api/gemini-usage.log.jsonl
 # Claude Code local permission policy (per-machine, không chia sẻ)
 .claude/settings.local.json
+# git bundle backups (off-machine; tạo tay, upload cloud, KHÔNG commit)
+*.bundle
