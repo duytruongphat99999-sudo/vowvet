@@ -1,0 +1,15 @@
+row_id,brand_name,mon_min_recommended,image_url,product_url
+3,Mon Min Dry Dog Premium,true,https://monminpet.com/images/products/vetrimax-kc.png,https://monminpet.com/san-pham/vetrimax-kc
+4,Mon Min Wet Cat Pate,true,https://monminpet.com/images/og-default.svg,https://monminpet.com/san-pham/
+10,ANF 30/15 Adult,false,,
+15,Me-O Adult,false,,
+7,Pedigree Adult,false,,
+9,Reflex Adult,false,,
+16,Reflex Plus Cat,false,,
+12,Royal Canin Indoor Cat,false,,
+5,Royal Canin Maxi Adult,false,,
+6,Royal Canin Mini Adult,false,,
+13,Royal Canin Persian Adult,false,,
+11,Royal Canin Puppy,false,,
+8,SmartHeart Adult,false,,
+14,Whiskas Adult Cat,false,,

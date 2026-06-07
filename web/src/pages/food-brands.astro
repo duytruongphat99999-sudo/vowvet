@@ -891,8 +891,14 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                            : (b.mon_min_recommended ? 'border-mmp-gold/50 shadow-sm' : 'border-mmp-ink/12 hover:shadow-md')">
 
                   <!-- Image header -->
-                  <div class="aspect-[3/2] bg-mmp-cream flex items-center justify-center relative">
-                    <span class="text-mmp-ink/30">
+                  <div class="aspect-[3/2] bg-mmp-cream flex items-center justify-center relative" x-data="{ imgError: false }">
+                    <!-- Ảnh sản phẩm thật (khi có image_url + load OK) -->
+                    <img x-show="b.image_url && !imgError" x-cloak
+                         :src="b.image_url" :alt="b.brand_name"
+                         @error="imgError = true"
+                         class="absolute inset-0 w-full h-full object-cover" />
+                    <!-- Placeholder (không có image_url, hoặc ảnh hỏng) -->
+                    <span class="text-mmp-ink/30" x-show="!b.image_url || imgError">
                       <span x-show="b.species === 'cat'"><FeatureIcon name="cat" class="w-14 h-14" /></span>
                       <span x-show="b.species !== 'cat'"><FeatureIcon name="dog" class="w-14 h-14" /></span>
                     </span>
@@ -997,6 +1003,14 @@ const ogImage = "https://vowvet.monminpet.com/og-image.png"; // placeholder — 
                         <span class="text-mmp-ink/60">Giá</span>
                         <span class="font-bold text-mmp-ink tabular-nums" x-text="b.price_vnd_per_kg ? formatVnd(b.price_vnd_per_kg) + ' /kg' : 'Liên hệ'"></span>
                       </div>
+
+                      <!-- Shoppable CTA — "Xem sản phẩm" (render khi có product_url; mở tab mới). Độc lập với ảnh & với CTA swap MonMin. -->
+                      <template x-if="b.product_url">
+                        <a :href="b.product_url" target="_blank" rel="noopener noreferrer"
+                           class="mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-mmp-ink text-white hover:bg-mmp-ink/90 text-xs font-semibold transition">
+                          <FeatureIcon name="shop" class="w-4 h-4" /> Xem sản phẩm
+                        </a>
+                      </template>
 
                       <!-- Disclosure chevron — raw specs -->
                       <button type="button"

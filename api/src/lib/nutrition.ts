@@ -70,6 +70,8 @@ interface BaserowFoodBrand {
   contains_allergens?: string | null;
   mon_min_recommended?: boolean;
   vn_availability?: boolean;
+  image_url?: string | null;
+  product_url?: string | null;
 }
 
 export interface FoodBrand {
@@ -87,6 +89,8 @@ export interface FoodBrand {
   contains_allergens: AllergenCode[];
   mon_min_recommended: boolean;
   vn_availability: boolean;
+  image_url: string | null;
+  product_url: string | null;
 }
 
 let brandsCache: { data: FoodBrand[]; expires_at: number } | null = null;
@@ -119,6 +123,8 @@ function flatBrand(r: BaserowFoodBrand): FoodBrand {
     contains_allergens: parseAllergens(r.contains_allergens),
     mon_min_recommended: r.mon_min_recommended === true,
     vn_availability: r.vn_availability !== false,
+    image_url: r.image_url || null,
+    product_url: r.product_url || null,
   };
 }
 
