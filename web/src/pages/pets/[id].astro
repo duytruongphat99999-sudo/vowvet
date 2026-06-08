@@ -2971,6 +2971,20 @@ const storyExcerpt = hasStory
 <script is:inline>
   function foodScanWidget(petId) {
     return {
+      init() {
+        try {
+          const k = "vowvet:scan:" + this.petId;
+          const raw = sessionStorage.getItem(k);
+          if (raw) {
+            this.result = JSON.parse(raw);
+            if (this.result && this.result.scan_url) this.preview = this.result.scan_url;
+            sessionStorage.removeItem(k);
+            this.$nextTick(() => document.getElementById("food-scan")
+              ?.scrollIntoView({ behavior:"smooth", block:"center" }));
+          }
+        } catch (e) {}
+      },
+
       petId,
       inputId: `food-scan-input-${petId}`,
       file: null,

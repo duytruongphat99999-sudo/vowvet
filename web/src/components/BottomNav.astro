@@ -41,15 +41,10 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
   </button>
 
   <!-- Ô GIỮA — Quét nhãn thức ăn (camera scan, FAB gold nổi). href động theo pet active (pet đầu). -->
-  <a
-    href="/dashboard"
-    :href="petId ? `/pets/${petId}?scan=1` : '/dashboard'"
-    class="vv-bn-scan"
-    aria-label="Quét nhãn thức ăn"
-  >
+  <button type="button" class="vv-bn-scan" aria-label="Quét nhãn thức ăn" @click="openScanner()">
     <span class="vv-bn-scan__btn"><FeatureIcon name="scan" class="w-7 h-7" /></span>
     <span class="vv-bn-scan__label">Quét</span>
-  </a>
+  </button>
 
   <a href="/vaccines" class:list={["vv-bn-item", isVaccine && "is-active"]} aria-label="Lịch vaccine">
     <FeatureIcon name="syringe" class="w-6 h-6" />
@@ -68,11 +63,77 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
 
   <!-- Toast "sắp có" cho Định vị pet (position:fixed → không chiếm slot flex) -->
   <div x-show="soon" x-cloak class="vv-bn-toast" role="status" aria-live="polite">Định vị pet — sắp có</div>
-</nav>
+
+    <!-- vv-fab-scan: input ẩn (camera) + sheet chọn pet -->
+    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+           class="vv-fab-scan-input" x-ref="fabScanInput" @change="onScanPick($event)"
+           style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" />
+    <template x-if="scanSheet">
+      <div class="vv-fab-sheet-backdrop" @click="closeSheet()"
+           style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;align-items:flex-end;">
+        <div class="vv-fab-sheet" @click.stop
+             style="background:#fff;width:100%;border-radius:18px 18px 0 0;padding:18px 16px 24px;max-height:70vh;overflow:auto;">
+          <div style="font-weight:700;font-size:1.05rem;margin-bottom:4px;">Gán nhãn cho bé nào?</div>
+          <div style="color:#666;font-size:.85rem;margin-bottom:14px;" x-show="!scanBusy">Chọn thú cưng để lưu kết quả quét.</div>
+          <div x-show="scanBusy" style="color:#a06a00;font-size:.9rem;margin-bottom:14px;">⏳ AI của VowVet đang đọc nhãn…</div>
+          <div x-show="scanErr" x-text="scanErr" style="color:#c0392b;font-size:.85rem;margin-bottom:12px;"></div>
+          <template x-for="p in scanPets" :key="p.id">
+            <button type="button" class="vv-fab-petrow" :disabled="scanBusy" @click="chooseScanPet(p.id)"
+              style="display:flex;align-items:center;gap:12px;width:100%;padding:10px 8px;border:none;background:none;border-bottom:1px solid #f0f0f0;cursor:pointer;text-align:left;">
+              <img :src="p.photo_url || '/icons/pet-fallback.png'" alt="" onerror="this.style.visibility='hidden'"
+                   style="width:42px;height:42px;border-radius:50%;object-fit:cover;background:#eee;flex:none;" />
+              <span style="display:flex;flex-direction:column;">
+                <span style="font-weight:600;" x-text="p.name"></span>
+                <span style="font-size:.8rem;color:#888;" x-text="p.species"></span>
+              </span>
+            </button>
+          </template>
+          <button type="button" @click="closeSheet()" :disabled="scanBusy"
+            style="margin-top:16px;width:100%;padding:11px;border:1px solid #ddd;border-radius:12px;background:#fafafa;font-weight:600;cursor:pointer;">Huỷ</button>
+        </div>
+      </div>
+    </template>
+
+  </nav>
 
 <script is:inline>
   function bottomNav() {
     return {
+    scanSheet: false, scanPets: [], scanFile: null, scanBusy: false, scanErr: "",
+    currentPetId() { const m = String(location.pathname).match(/^\/pets\/(\d+)/); return m ? Number(m[1]) : null; },
+    openScanner() { this.scanErr=""; this.scanFile=null; if (this.$refs.fabScanInput) this.$refs.fabScanInput.click(); },
+    async onScanPick(e) {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!f) return;
+      if (f.size > 10*1024*1024) { alert("Ảnh tối đa 10MB."); return; }
+      this.scanFile = f; this.scanErr=""; this.scanBusy=false;
+      try {
+        const r = await fetch("/api/v1/auth/me", { credentials:"include" });
+        const d = await r.json();
+        this.scanPets = (d && d.pets) ? d.pets : [];
+      } catch { this.scanPets = []; }
+      const here = this.currentPetId();
+      if (this.scanPets.length === 1) { this.runScan(this.scanPets[0].id); return; }
+      if (this.scanPets.length === 0 && here) { this.runScan(here); return; }
+      if (here) this.scanPets.sort((a,b)=> (a.id===here?-1:b.id===here?1:0));
+      this.scanSheet = true;
+    },
+    chooseScanPet(id) { this.runScan(id); },
+    async runScan(petId) {
+      if (!this.scanFile || this.scanBusy) return;
+      this.scanBusy = true; this.scanErr="";
+      try {
+        const fd = new FormData(); fd.append("photo", this.scanFile);
+        const res = await fetch(`/api/v1/pets/${petId}/food/scan`, { method:"POST", credentials:"include", body: fd });
+        const j = await res.json();
+        if (!res.ok) { this.scanErr = (j && j.error && j.error.message) || "Quét thất bại, thử lại."; this.scanBusy=false; return; }
+        try { sessionStorage.setItem("vowvet:scan:"+petId, JSON.stringify(j)); } catch {}
+        window.location.href = `/pets/${petId}?scan=1`;
+      } catch { this.scanErr = "Lỗi mạng, thử lại."; this.scanBusy=false; }
+    },
+    closeSheet() { if (this.scanBusy) return; this.scanSheet=false; this.scanFile=null; this.scanErr=""; },
+
       petId: null,
       soon: false,
       _soonT: null,
