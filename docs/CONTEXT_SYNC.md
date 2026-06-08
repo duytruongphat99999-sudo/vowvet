@@ -103,3 +103,24 @@ CÒN THIẾU (pha sau — khớp epic activity layer ở trên):
 → Mai: thêm UI + persist + rate-limit + ash, KHÔNG build lại backend (đã có).
 
 ---
+
+## ✅ SCAN PHA-2 LỚP NỀN — XONG (commit f2ef75d, 2026-06-08)
+Vòng đời scan đóng hoàn chỉnh (UI Meliodas + nền chat này):
+- M1 (2d550fd): bảng scan_logs id=715, 18 field, created_at=TEXT ISO. + TableName union.
+- M2 (f2ef75d): food-scan.ts — tính carb-TỪ-NHÃN server-side: carb=max(0,100−P−F−fibre−moisture−ash), ash=7% hằng khi OCR thiếu → ash_estimated=true. createRow("scan_logs") fire-and-forget (lỗi persist KHÔNG làm fail scan). Trả carb_pct+ash_estimated vào response. → BRAND NGOÀI THƯ VIỆN giờ RA CARB (mục đích scan đạt).
+- M3 (f2ef75d): rate-limit checkRateLimit("food-scan", session.sub, 20, 3600) → 429. Bịt cost-abuse Gemini (vision-lib vốn bỏ qua budget $5).
+- M4 (f2ef75d): pets.ts aggregator +safeList("scan_logs") + map type:"food_scan" + POINTS_BY_ACTIVITY.food_scan=15 → scan lên /pets/:id/activity timeline.
+- UI (f2ef75d): widget foodScanWidget hiện "Tinh bột ~X% (ước tính từ nhãn)" + note "khoáng ước tính" khi result.carb_pct!=null (monochrome). SW v302.
+- Verify 5/5 PASS (carb=35 đúng, persist 18 field, rate-limit chặn #21, timeline có entry, widget render).
+
+⚠️ GOTCHA QUAN TRỌNG (đừng sửa nhầm lại):
+- scan_logs.created_at là field TEXT (không phải DATE) → Baserow date_* filter (date_after_or_equal) KHÔNG chạy trên nó (400 ERROR_VIEW_FILTER_TYPE_UNSUPPORTED_FIELD). Aggregator pets.ts CỐ Ý lọc scan_logs bằng JS-cutoff (created_at.slice(0,10) < sinceISO → skip), KHÔNG dùng Baserow date-filter như 7 nguồn cũ (chúng là field DATE). ĐỪNG "sửa" thành date-filter — sẽ vỡ. Muốn date-filter native = đổi created_at→DATE (schema change, cân nhắc sau).
+
+NỢ SCAN (chưa gấp):
+1. Test OCR ảnh nhãn THẬT — backend proven, nhưng độ chính xác OCR đọc nhãn cong/mờ chưa kiểm. Cần Duy thả ảnh thật → POST /food/scan end-to-end.
+2. Dọn 2 row auto-rỗng scan_logs (id 1,2 — Baserow tự tạo lúc M1, giống food_brands từng dính). Vô hại (không pet_id → aggregator bỏ qua). TASK xoá nhỏ (RECON-guard rỗng trước).
+3. (Optional) created_at→DATE nếu muốn date-filter Baserow native thay JS-cutoff.
+
+VIỆC LỚN KẾ (phiên riêng, context sạch): ADMIN cross-user drilldown — tái dùng aggregator /pets/:id/activity, bỏ guard ownership + thêm requireAdmin (phone-allowlist ADMIN_PHONES). Activity layer write-spine (model B) = hoãn tới khi >3 feature cần log.
+
+---
