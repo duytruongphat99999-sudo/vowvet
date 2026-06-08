@@ -77,3 +77,19 @@ SCAN nối vào layer này (KHÔNG table cô lập):
 BƯỚC KẾ (mai, chat mới, tỉnh): Bồ trình 2-3 mô hình data (scan-event persist + admin drilldown + có/không write-spine) kèm trade-off → Duy chọn → rồi build. Thứ tự: nền/schema trước, scan+admin sau.
 
 ---
+
+## ⚠️ ĐÍNH CHÍNH (2026-06-08) — SCAN BACKEND ĐÃ TỒN TẠI
+Block epic ở trên ghi "/scan chưa tồn tại" — SAI. Session khác của Duy (commit ca32f13, alias Meliodas, 10:52 VN) đã build scan backend PHA 1:
+- Route POST /api/v1/pets/:id/food/scan (api/src/routes/food-scan.ts) — requireAuth + getOwnedPet ownership. Multipart photo ≤10MB → upload R2 scans/{petId}/ → scanFoodLabel() → matchFoodBrand() → trả {scan_url, ocr, match}. Nhãn "AI của VowVet" (trung thực §5).
+- OCR: api/src/lib/food-label-vision.ts — Gemini 2.5 Flash inlineData, parse JSON thuần (KHÔNG responseSchema). Trả brand/line/species/life_stage/protein/fat/fiber/moisture/kcal/raw_text.
+- Match: api/src/lib/food-brand-matcher.ts — listRows food_brands READ-ONLY, fuzzy (normalize + Dice), trả brand khớp + field đã lưu (gồm carb_pct_calculated) + top-3.
+- TRẠNG THÁI pha-1 = EPHEMERAL (không ghi Baserow), KHÔNG rate-limit, OCR text-parse, lấy moisture nhưng KHÔNG ash → carb NFE CHƯA tính.
+
+CÒN THIẾU (pha sau — khớp epic activity layer ở trên):
+1. UI page /scan (scan.astro + getUserMedia) — CHƯA có.
+2. Persist scan event → activity layer (quyết: bảng scan_logs / community_events.event_data — design mai).
+3. THÊM rate-limit (rate-limit.ts) — chặn cost-abuse Gemini (vision-lib bỏ qua budget $5).
+4. Bù ash (ước ~7% hoặc thêm field) → tính carb NFE = 100-P-F-fibre-moisture-ash. Cân nhắc chuyển OCR sang responseSchema (chắc hơn text-parse).
+→ Mai: thêm UI + persist + rate-limit + ash, KHÔNG build lại backend (đã có).
+
+---
