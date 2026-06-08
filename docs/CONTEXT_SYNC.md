@@ -124,3 +124,72 @@ NỢ SCAN (chưa gấp):
 VIỆC LỚN KẾ (phiên riêng, context sạch): ADMIN cross-user drilldown — tái dùng aggregator /pets/:id/activity, bỏ guard ownership + thêm requireAdmin (phone-allowlist ADMIN_PHONES). Activity layer write-spine (model B) = hoãn tới khi >3 feature cần log.
 
 ---
+
+# 📦 ĐÓNG PHIÊN 2026-06-08c — TỔNG HỢP (đọc mục này TRƯỚC)
+> STATE: HEAD `63fe1d1` · SW `vowvet-v303-nav-scan-devtools` · LOCAL-ONLY, CHƯA push. Working tree sạch (chỉ `.claude/launch.json`).
+> ⚠️ Template hỏi "SEO & Schema" — dự án này KHÔNG làm SEO/structured-data markup; "Schema" = **Baserow schema** (tables/fields). Không bịa mục SEO.
+
+## 1) TRẠNG THÁI — tính năng/file đã hoàn thành (phiên 2026-06-08)
+- **Scan nhãn thức ăn — FULL STACK xong:**
+  - Backend OCR (Meliodas): `api/src/routes/food-scan.ts` (`POST /api/v1/pets/:id/food/scan`) + `food-label-vision.ts` (Gemini 2.5 flash inlineData) + `food-brand-matcher.ts` (fuzzy Dice, READ-ONLY food_brands).
+  - **M1** `2d550fd`: bảng Baserow `scan_logs` id=715 (18 field, `scripts/migrate-scan-logs.ts`) + TableName union.
+  - **M2/M3/M4** `f2ef75d`: persist `scan_logs` fire-and-forget + carb-TỪ-NHÃN (`100−P−F−fibre−moisture−ash`, ash=7% hằng→`ash_estimated`) + rate-limit 20/giờ (429) + aggregator `/pets/:id/activity` (type `food_scan`, +15đ).
+  - **UI**: `foodScanWidget` (`pets/[id].astro` tab Dinh dưỡng) — camera `<input capture>`, hiện carb.
+  - **Nav** `63fe1d1`: FAB giữa BottomNav = "Quét" → `/pets/<petActive>?scan=1` auto-mở widget; dev-reset gate `PUBLIC_ENABLE_DEVTOOLS`. SW v303.
+- Carb backfill 8 row cũ `1d8a4cf` · RX exemption `51971c2`(v297) · AppHeader-lite border `24f3bb9`(v298) · A-policy màu `bd90777`(v299,Meliodas) · brand-card placeholder `bea467a`(v301,Meliodas).
+- Security: xoá creds disk (MIGRATION_REPORT) + `git rm` LOGIN_UX `6ef5859`, **token rotated**.
+- `docs/ANALYSIS_2026-06-08.md` — phân tích kiến trúc/palette/header/roadmap/nợ đầy đủ.
+
+## 2) CẤU TRÚC CỐT LÕI — framework + "schema" + quy chuẩn
+- **Stack**: Astro 5 SSR · Bun · Hono (api) · Alpine.js · **Baserow** (DB 58 table, id=136) · **Cloudflare R2** (ảnh user — KHÔNG MinIO) · Docker · Cloudflare tunnel + nginx-proxy.
+- **"Schema" = Baserow tables**: `baserow-config.json` (id+field, gitignored) + TableName union `shared/baserow-config.ts`. Tạo bảng = migration script (JWT login → `api()` → `writeFileSync`), pattern `scripts/migrate-m26.ts`.
+- **Quy chuẩn**: timestamp = app-set ISO **text** (`*_at`) · insert = `shared/baserow.ts createRow()` · vision = `@google/genai` 2.3.0 `inlineData`, structured = `responseSchema` · nhãn AI = **"AI của VowVet"** (KHÔNG lộ Gemini) · carb display-only (KHÔNG đụng `nutrition-engine.ts` DER).
+- **Brand/màu**: pet-detail = MONOCHROME gold/ink (`.pet-detail-tabs` override — ĐỪNG đụng); semantic emerald/sky HỢP LỆ NGOÀI pet-detail (A-policy, `CLAUDE.md §9`); border `mmp-ink/12`, text phụ `mmp-ink/60`, chính ink. SW bump vXXX mỗi release HTML/CSS.
+
+## 3) LỖI TỒN ĐỌNG / RỦI RO
+- 🔴 **PROD chạy DEV-server** (`web.Dockerfile` CMD `bun run dev`) → app chậm + `import.meta.env.DEV=true`. Fix B đã ẩn nút Reset nhưng **chậm vẫn còn**. Fix gốc = đổi Dockerfile dev→prod build (rủi ro cao, CHƯA làm).
+- 🔴 **LIVE kẹt v298** do **Cloudflare cache** `sw.js`/asset (cf HIT, TTL ~22h) → scan UI (v300+) CHƯA hiện trên `vowvet.monminpet.com`. → **PURGE Cloudflare cache** (tay Duy) + set rule KHÔNG cache `/sw.js`.
+- 🟠 `scan_logs.created_at`=TEXT → Baserow `date_*` filter 400 → aggregator CỐ Ý **JS-cutoff** (`pets.ts`). **ĐỪNG "sửa" thành date-filter** (sẽ vỡ).
+- 🟡 2 row auto-rỗng `scan_logs` (id 1,2) Baserow tự tạo — vô hại, nên dọn · carb-drift 9 premium (Hill's SD Indoor/Farmina Dog nghi thổi) · 213 `!important` `global.css` · dead var `isPlaydate` (BottomNav:21) · root `CONTEXT_SYNC.md` stale.
+- 🟡 **Test OCR ảnh nhãn THẬT chưa chạy** (backend proven nhưng độ chính xác nhãn cong/mờ chưa kiểm) — chờ Duy thả ảnh.
+
+## 4) NEXT STEPS (3–5 việc tiếp)
+1. **[TAY-Duy]** Purge Cloudflare cache (`sw.js`+asset) → live nhận v303 + scan UI hiện. Set CDN rule không cache service-worker.
+2. **[Quyết+code, rủi ro cao]** `web.Dockerfile` dev→prod (`astro build` + adapter/preview) → hết chậm + dev-reset tự strip. Test kỹ trước khi đụng prod.
+3. **[Test]** Thả ảnh nhãn THẬT (brand CÓ trong food_brands) → POST `/food/scan` e2e: kiểm OCR số đúng + match + carb + row `scan_logs`.
+4. **[Nhỏ]** Dọn 2 junk row `scan_logs` (RECON-guard rỗng trước) + dọn dead var `isPlaydate`.
+5. **[Epic, context sạch]** ADMIN cross-user activity drilldown (tái dùng aggregator `/pets/:id/activity` + bỏ ownership + `requireAdmin` phone-allowlist `ADMIN_PHONES`).
+
+> Dev note: bật lại Reset-test local = thêm `PUBLIC_ENABLE_DEVTOOLS=true` vào `.env` + `--force-recreate vowvet-web` (⚠️ `docker restart` KHÔNG nạp lại `.env`).
+
+---
+
+# 📦 ĐÓNG PHIÊN 2026-06-08 (tối) — MIGRATION web dev→prod (đọc mục này TRƯỚC)
+> STATE: HEAD `f879a06` · `vowvet-web` chạy **PROD BUILD** (`astro build` + `@astrojs/node` standalone, `NODE_ENV=production`, cmd `bun ./dist/server/entry.mjs`) · SW = `web/public/sw.js` TAY v303 (7733b, push SỐNG) · LOCAL-ONLY, CHƯA push.
+> 2 commit phiên này: `5635c93` (cutover) · `f879a06` (fix push). Block này + "2026-06-08c" ở trên gom chung 1 docs-commit.
+
+## 1) 4 MỐC migration (đều verify thật, local-only)
+1. **`docker/web.prod.Dockerfile`** — multi-stage: build (`bun install` + `astro build`) → runtime (`dist`+`node_modules`, `bun ./dist/server/entry.mjs`). Smoke `vowvet-web:prodtest` PASS (`/`→200, `/sw.js`→200, SSR thật). *Bug đã sửa: Dockerfile KHÔNG cho inline comment trên dòng COPY (`# full…` → parser hiểu là source → "/full not found"). RUN thì OK (vào shell).*
+2. **NPM `/api` route — LIVE + BỀN.** `nginx-proxy` `/data/nginx/proxy_host/10.conf` chỉ có `location /` → vowvet-web:4321 (vite proxy `/api` CHỈ chạy DEV → prod sẽ 404). Thêm `location /api/` → `vowvet-api:3000` (resolver 127.0.0.11 + biến né stale-IP 502 + header `X-Vowvet-Api-Route`). Ghi BỀN vào DB `proxy_host.advanced_config` (throwaway `alpine`+`apk sqlite` `--volumes-from nginx-proxy`, `readfile()`+`busy_timeout`). **Backup DB: `/data/database.sqlite.bak-20260608-200721` TRONG container `nginx-proxy`.** ⚠️ **Git-Bash mangle path `/data/...` khi truyền THẲNG làm arg cho `docker exec` (→ `C:/Program Files/Git/data/...`) → PHẢI bọc trong `sh -c '...'`** (đó là lý do backup conf + DB từng fail ngầm; lệnh bọc sh -c thì OK).
+3. **Cutover** `5635c93`: `docker-compose.yml` service `vowvet-web` → `dockerfile: docker/web.prod.Dockerfile` + `NODE_ENV: production` (đúng **2 dòng** diff). Health PASS (cmd entry.mjs, NODE_ENV=production, local+live 200).
+4. **Fix push** `f879a06`: workbox `generateSW` (AstroPWA) GHI ĐÈ `dist/client/sw.js` → bản **1565b MẤT push/notificationclick/offline-routing** → vỡ M5 alert/M6 vaccine/triage/M11 (đều dựa `push` handler). **Gỡ AstroPWA khỏi `astro.config.mjs`** (`integrations: []`) → Astro copy `public/sw.js` (7733b TAY) thẳng vào dist → prod serve ĐÚNG. Verify: served sw.js **byte-identical** `public/sw.js`, có handler `push`+`notificationclick`, manifest 200 (static `public/manifest.webmanifest` + link tay Layout:57), live `/api` 200, `/registerSW.js`→404 (orphan sạch).
+
+## 2) THAY ĐỔI VẬN HÀNH (prod build — KHÁC dev cũ, NHỚ KỸ)
+- **Sửa `.astro`/`web/src` HẾT hot-reload** → phải `docker compose -f docker/docker-compose.yml up -d --build vowvet-web` (rebuild image). **CHƯA có `docker-compose.dev.yml` override** để bật lại hot-reload khi dev (nợ tiện ích).
+- **`.env` đổi** → `up -d --build` / `--force-recreate` (`docker restart` vẫn KHÔNG nạp `.env`).
+- **`up -d --build vowvet-web` KÉO THEO `vowvet-api` recreate** (do `depends_on`) → cả 2 restart ngắn. Vô hại (api Dockerfile không đổi).
+- **SW = `public/sw.js` TAY** → quy trình "**bump VERSION `vXXX` trong `web/public/sw.js`**" QUAY LẠI điều khiển SW thật (workbox không còn ghi đè).
+
+## 3) PHAO ROLLBACK (GIỮ ~1 NGÀY — ĐỪNG XOÁ)
+- `docker/docker-compose.yml.bak-20260608-202031` (compose dev cũ).
+- `web/astro.config.mjs.bak-20260608-211053` (config còn AstroPWA).
+- `docker/web.Dockerfile` (dev `bun run dev`) — GIỮ để revert nhanh.
+- Rollback toàn bộ: `git revert f879a06 5635c93` + `up -d --build vowvet-web`.
+
+## 4) NỢ phiên sau
+- **CF purge** (AN TOÀN giờ — push đúng cả origin lẫn CF-cache): purge `sw.js`+asset để đẩy **nav/scan (prod HTML/asset)** ra phone; set rule KHÔNG cache `/sw.js`. *Hiện CF còn HIT bản tay v303 (Age ~6h, max-age 58379) → tự đồng bộ ~10h kể cả không purge; timebomb push đã defused.*
+- **Loop route-302** (`Layout.astro` `controllerchange→reload`, guard `_reloading` chỉ chặn trong 1 page-load): **fix (bỏ/làm mềm auto-reload) TRƯỚC lần bump SW VERSION kế** — vì bump = SW mới skipWaiting+claim = controllerchange = reload mọi tab; route 302 (onboarding/auth) nguy cơ loop.
+- **Cruft `web/public/sw.js.v184.bak`** (7730b) — đang bị serve công khai `/sw.js.v184.bak` (200) → nên `git rm`. + các file `.bak-*` trên disk.
+- **Bind-mount thừa trên prod**: compose `vowvet-web` vẫn mount `web/src`/`web/public`/`astro.config.mjs` — prod đọc `dist` nên VÔ DỤNG (footgun "sửa host không reflect"). Dọn khi làm `docker-compose.dev.yml`.
+
+---
