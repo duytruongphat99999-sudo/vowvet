@@ -44,7 +44,7 @@ services:
     container_name: vowvet-web
     build:
       context: ..
-      dockerfile: docker/web.Dockerfile
+      dockerfile: docker/web.prod.Dockerfile
     ports:
       # Debug only: gÃµ http://127.0.0.1:4322 tá»« host. Production traffic qua nginx-proxy.
       - "127.0.0.1:4322:4321"
@@ -53,7 +53,7 @@ services:
     environment:
       # Vite dev server proxy /api/* â†’ vowvet-api container qua docker DNS
       API_INTERNAL_URL: http://vowvet-api:3000
-      NODE_ENV: development
+      NODE_ENV: production
     volumes:
       - ../web/src:/app/web/src
       - ../web/public:/app/web/public
