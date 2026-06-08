@@ -101,7 +101,10 @@
 ## 9. Design tokens (brand MMP)
 - **Màu**: cream `rgb(250,246,238)` (`#FAF6EC`) · gold-bright `#ecb921` · gold-deep `#B48608` · ink `#0a0a0a` · brown phụ `#8b6f47`.
 - **⚠️ Contrast**: gold `#ecb921` **KHÔNG** làm chữ trên nền trắng/cream (~1.9:1, fail). Chỉ dùng nền/viền/thanh/icon-fill. **Chữ chính = ink**, **chữ phụ = brown**.
-- **Cấm màu**: purple / navy / emerald. (Đỏ chỉ cho banner cảnh báo Tầng-3 + nút xóa.)
+- **Màu semantic (A-policy)**: emerald/green = success, sky/blue = info/health — **HỢP LỆ** cho TRẠNG THÁI LÂM SÀNG/SEMANTIC (đạt chuẩn, info sức khoẻ, cảnh báo nhẹ) ở **toàn app NGOÀI pet-detail**. Khớp token `--color-vv-success #10b981` / `--color-vv-info #2563eb` (`global.css`).
+- **Pet-detail + care-plan tab = MONOCHROME** gold/ink — giữ override `.pet-detail-tabs` (`global.css`), KHÔNG dùng màu semantic trong scope này.
+- **Vẫn CẤM**: purple / navy; màu dùng để **TRANG TRÍ** (không mang nghĩa trạng thái); **gradient màu**; >1 gold/viewport. **Đỏ** chỉ cho banner cảnh báo Tầng-3 + nút xóa.
+- **Decisions log (2026-06-08)**: hợp thức hoá semantic màu ngoài pet-detail (A-policy) — align với token `global.css`; pet-detail giữ monochrome.
 - **Font**: Fraunces *italic* (display) · Inter (body) · Azeret Mono (số) · Dancing Script việt-hoá (chữ ký certificate).
 - **Icon**: line-art Lucide-style (viewBox 24, stroke `currentColor` 1.5), KHÔNG emoji.
 - **Animation**: BẮT BUỘC **reduced-motion 2 lớp** — CSS `@media (prefers-reduced-motion)` + JS `matchMedia`.

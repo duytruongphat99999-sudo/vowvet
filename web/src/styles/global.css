@@ -17,8 +17,8 @@
   /* VowVet semantic */
   --color-vv-primary: #0a0a0a;          /* CTAs use ink (matches bio) */
   --color-vv-accent: #ecb921;           /* Gold accent */
-  --color-vv-info: #2563eb;             /* Trust blue for AI/health context */
-  --color-vv-success: #10b981;          /* Emerald */
+  --color-vv-info: #2563eb;             /* Info/health semantic — hợp lệ NGOÀI pet-detail (A-policy) */
+  --color-vv-success: #10b981;          /* Success semantic (emerald) — hợp lệ NGOÀI pet-detail (A-policy) */
   --color-vv-warning: #f59e0b;          /* Amber */
   --color-vv-danger: #dc2626;           /* Red */
 
