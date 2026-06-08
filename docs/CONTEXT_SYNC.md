@@ -54,3 +54,26 @@ Thương mại hóa trang Dinh dưỡng (catalog `food_brands` số nhãn thật
 - `web/src/components/TopBar.astro` — header component duy nhất (chỉ dashboard). `Layout.astro` — no header (v207).
 - `scripts/oldbrand-nutri-backfill.ts` · `premium-brands-populate.ts` · `brand-*` — data tools (HOST, dry-run mặc định).
 - **`docs/ANALYSIS_2026-06-08.md`** — phân tích kiến trúc/palette/header/roadmap/nợ đầy đủ (đọc trước khi build epic mai).
+
+---
+
+## 🏛️ EPIC NỀN — USER ACTIVITY LAYER (thiết kế lúc TỈNH, đừng gật khi mệt)
+
+PHÁT HIỆN RECON (2026-06-08): activity-layer PER-PET ĐÃ TỒN TẠI & đang chạy — KHÔNG xây mới.
+- Spine READ: GET /api/v1/pets/:id/activity (api/src/routes/pets.ts:1808) — aggregate 7 bảng (pet_photos/daily_check_ins/pet_diary/bcs_assessments/user_daily_quests/user_achievements/care_plan_completions) → {type,title,description,points,created_at}, fail-soft per-query, POINTS_BY_ACTIVITY (pets.ts:1797). Page: web/src/pages/pets/[id]/activity.astro.
+- Public feed: community_events(704) qua createCommunityEvent() (community-feed.ts:61). event_type: tier_up|achievement_unlock|hero_action|new_match|birthday.
+- Gamification trong DATA (không chỉ UI): achievement_defs/user_achievements · quest_definitions/user_daily_quests · hero_acts · reward_definitions/user_rewards · leaderboard_snapshots.
+- DB: 58 table (id=136). Owner = pets.user_id; ownership = getOwnedPet(petId, session.sub). Timestamp = app-set ISO (*_at). Insert helper chung = shared/baserow.ts createRow(). KHÔNG có logActivity() tổng — mỗi domain tự ghi.
+
+THIẾU (việc thật — cần Duy quyết design trước khi build):
+1. ADMIN cross-user drilldown — CHƯA CÓ. Admin giờ chỉ /admin/stats (counter tổng) + CSV thô (admin.ts:41). "Admin soi 1 user làm gì" = BUILD: tái dùng aggregator /pets/:id/activity, bỏ guard ownership + thêm requireAdmin (admin = phone-allowlist ADMIN_PHONES, admin.ts:26 — KHÔNG phải is_vet).
+2. THÊM NGUỒN vào aggregator (scan/bills/vaccine/water…): +1 safeList() (pets.ts:1838) + 1 dòng POINTS_BY_ACTIVITY (pets.ts:1797).
+3. WRITE-SPINE chung logActivity()? — quyết: giữ read-aggregate (mỗi domain tự ghi, hiện vậy) HAY thêm 1 audit-log thô tập trung. Trade-off Bồ trình mai.
+
+SCAN nối vào layer này (KHÔNG table cô lập):
+- /scan chưa tồn tại. OCR→GA→carb tái dùng wiring bills NO-DEP (ocrBillImage bills.ts:244 inlineData base64 + responseSchema care-planner-v2:289 + multipart photo→buffer bills:91 + carb NFE server-side 100-P-F-fibre-moisture-ash). SDK @google/genai 2.3.0 image+JSON proven. THÊM rate-limit (vision-lib bỏ qua budget $5). SW 302 = no loop (giải quyết).
+- Scan muốn lên timeline = phải PERSIST event. ĐÂU? (bảng mới scan_logs / community_events.event_data / table user-products) = quyết design mai. Đây chính là "tủ sản phẩm của user" Duy muốn → đi qua activity layer, không cô lập.
+
+BƯỚC KẾ (mai, chat mới, tỉnh): Bồ trình 2-3 mô hình data (scan-event persist + admin drilldown + có/không write-spine) kèm trade-off → Duy chọn → rồi build. Thứ tự: nền/schema trước, scan+admin sau.
+
+---
