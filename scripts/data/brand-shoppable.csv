@@ -1,15 +1,18 @@
 row_id,brand_name,mon_min_recommended,image_url,product_url
-3,Mon Min Dry Dog Premium,true,https://monminpet.com/images/products/vetrimax-kc.png,https://monminpet.com/san-pham/vetrimax-kc
-4,Mon Min Wet Cat Pate,true,https://monminpet.com/images/og-default.svg,https://monminpet.com/san-pham/
-10,ANF 30/15 Adult,false,,
-15,Me-O Adult,false,,
-7,Pedigree Adult,false,,
-9,Reflex Adult,false,,
-16,Reflex Plus Cat,false,,
-12,Royal Canin Indoor Cat,false,,
-5,Royal Canin Maxi Adult,false,,
-6,Royal Canin Mini Adult,false,,
-13,Royal Canin Persian Adult,false,,
-11,Royal Canin Puppy,false,,
-8,SmartHeart Adult,false,,
-14,Whiskas Adult Cat,false,,
+20,Acana Adult Dog,false,,https://shopee.vn/search?keyword=Acana%20Adult%20Dog
+19,Acana Highest Protein Cat,false,,https://shopee.vn/search?keyword=Acana%20Highest%20Protein%20Cat
+10,ANF 30/15 Adult,false,,https://shopee.vn/search?keyword=ANF%2030%2F15%20Adult
+21,Farmina N&D Chicken Cat,false,,https://shopee.vn/search?keyword=Farmina%20N%26D%20Chicken%20Cat
+22,Farmina N&D Chicken Dog,false,,https://shopee.vn/search?keyword=Farmina%20N%26D%20Chicken%20Dog
+25,Hill's c/d Urinary Cat,false,,https://shopee.vn/search?keyword=Hill's%20c%2Fd%20Urinary%20Cat
+23,Hill's Science Diet Indoor Cat,false,,https://shopee.vn/search?keyword=Hill's%20Science%20Diet%20Indoor%20Cat
+17,Orijen Original Cat,false,,https://shopee.vn/search?keyword=Orijen%20Original%20Cat
+18,Orijen Original Dog,false,,https://shopee.vn/search?keyword=Orijen%20Original%20Dog
+9,Reflex Adult,false,,https://shopee.vn/search?keyword=Reflex%20Adult
+16,Reflex Plus Cat,false,,https://shopee.vn/search?keyword=Reflex%20Plus%20Cat
+12,Royal Canin Indoor Cat,false,,https://shopee.vn/search?keyword=Royal%20Canin%20Indoor%20Cat
+5,Royal Canin Maxi Adult,false,,https://shopee.vn/search?keyword=Royal%20Canin%20Maxi%20Adult
+6,Royal Canin Mini Adult,false,,https://shopee.vn/search?keyword=Royal%20Canin%20Mini%20Adult
+13,Royal Canin Persian Adult,false,,https://shopee.vn/search?keyword=Royal%20Canin%20Persian%20Adult
+11,Royal Canin Puppy,false,,https://shopee.vn/search?keyword=Royal%20Canin%20Puppy
+24,Royal Canin Urinary S/O Cat,false,,https://shopee.vn/search?keyword=Royal%20Canin%20Urinary%20S%2FO%20Cat
