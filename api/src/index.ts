@@ -54,6 +54,7 @@ import { waterRoute } from "./routes/water.ts";
 import { placesRoute } from "./routes/places.ts";
 import { petScoreRoute } from "./routes/pet-score.ts";
 import { bcsRoute } from "./routes/bcs.ts";
+import { foodScanRoute } from "./routes/food-scan.ts";
 import { petMemorialRoute, memorialAuthRoute, memorialPublicRoute } from "./routes/memorials.ts";
 import { playdateRoute } from "./routes/playdate.ts";
 import { triageTreeRoute } from "./routes/triage-tree.ts";
@@ -191,6 +192,8 @@ app.route("/api/v1/pets", waterRoute);                // /pets/:id/water
 app.route("/api/v1/places", placesRoute);             // /places[/:id|/categories|/:id/checkins|/:id/checkin|/checkin-history/:petId]
 // M22: BCS AI Vision
 app.route("/api/v1/pets", bcsRoute);                  // /pets/:id/bcs[/assess|/history|/latest|/:assessId|/:assessId/vet-review]
+// Camera scan pha 1: OCR nhãn thức ăn → match food_brands (chưa UI)
+app.route("/api/v1/pets", foodScanRoute);             // /pets/:id/food/scan
 // M30: Memorial Hall (placeholder - legal safe)
 app.route("/api/v1/pets", petMemorialRoute);          // /pets/:id/memorial (POST/GET)
 app.route("/api/v1/memorials", memorialAuthRoute);    // /memorials/my|/:mid|/:mid/interest|/my-interest
