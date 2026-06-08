@@ -1,7 +1,17 @@
 # CONTEXT SYNC — 2026-06-08 (đóng phiên: AppHeader-lite + security cleanup + R2 fix)
 
 > Handoff canonical (root `CONTEXT_SYNC.md` đã revert/stale — KHÔNG dùng). Lịch sử dài: `CONTEXT_SYNC_FULL_20260606.md`. **Báo cáo phân tích đầy đủ: `docs/ANALYSIS_2026-06-08.md`.**
-> STATE: HEAD = commit "docs: close session" (trên `6ef5859`) · SW `vowvet-v298-header-border-brand` · repo **LOCAL-ONLY (không remote), ~140 commit, CHƯA push**. Working tree sạch (chỉ `.claude/launch.json` untracked).
+> STATE: HEAD `a3f2eb4` · SW `vowvet-v300-food-scan-ui` · repo **LOCAL-ONLY (không remote), ~143 commit, CHƯA push**. Working tree sạch (chỉ `.claude/launch.json` untracked).
+
+## ✅ ĐÃ XONG — phiên 2026-06-08b (scan UI + A-policy màu)
+- **`ca32f13`** — Backend OCR scan nhãn (pha 1): `POST /pets/:id/food/scan` + `food-label-vision.ts` (Gemini 2.5 flash, JSON text-parse) + `food-brand-matcher.ts` (listRows food_brands READ-ONLY, fuzzy Dice). Ephemeral, KHÔNG ghi Baserow.
+- **`bd90777`** — A-policy màu: `CLAUDE.md §9` hợp thức hoá emerald/green=success, sky/blue=info **semantic HỢP LỆ NGOÀI pet-detail**; pet-detail/care-plan giữ MONOCHROME (override `.pet-detail-tabs` GIỮ NGUYÊN). Comment token `global.css:20-21` align. Vá leak gradient `pets/[id].astro:1600` → cream/ink. SW v299. (KHÔNG rip 459 class = tránh A-purist.)
+- **`a3f2eb4`** — UI camera scan (pha 2): widget Alpine `foodScanWidget` trong **nutrition tab** `pets/[id].astro` (monochrome gold/ink, `<input type=file capture=environment>`, fetch `/food/scan` relative + credentials cookie). Render `{scan_url, ocr, match}` — KHÔNG tính FE. Nhãn "AI của VowVet". SW v300. Plumbing HTTP verified; **chờ ảnh nhãn thật để test OCR**.
+
+## 🔓 OPEN / NỢ (cập nhật 2026-06-08b)
+- **B — packshot brand**: `food_brands` **17/17 thiếu `image_url`** (live verified; `product_url` đã đủ cả 17). Host = `https://monminpet.com/images/products/<slug>.png` (**KHÔNG R2** — R2 chỉ ảnh user upload). Chờ 17 ảnh per-slug (slug chuẩn hoá đã đề xuất). Không build được tới khi có ảnh.
+- **C — test OCR nhãn THẬT**: backend + UI xong, plumbing verified (mint token `signSession` + curl `/food/scan`, OCR null trên ảnh-không-nhãn = đúng). CHƯA test nhãn thật → chờ Duy đưa ảnh (nên chọn brand có trong food_brands để verify cả `match`).
+- **A — gradient/`-50` trang trí**: bề mặt rộng (~89 `bg-*-50` + ~35 gradient / ~35 file). HOÃN — dọn per-instance scope hẹp khi cần (KHÔNG quét mù = tránh A-purist). Theo A-policy: semantic status giờ HỢP LỆ; chỉ màu **trang trí**/gradient mới cấm.
 
 ## 🎯 ĐANG LÀM GÌ
 Thương mại hóa trang Dinh dưỡng (catalog `food_brands` số nhãn thật + supplement MonMin + carb-mismatch). Phiên này: dọn data/creds + nhất quán brand + phân tích kiến trúc để chốt 4 epic (palette / header / camera-scan / PDF).
@@ -86,7 +96,7 @@ Block epic ở trên ghi "/scan chưa tồn tại" — SAI. Session khác của 
 - TRẠNG THÁI pha-1 = EPHEMERAL (không ghi Baserow), KHÔNG rate-limit, OCR text-parse, lấy moisture nhưng KHÔNG ash → carb NFE CHƯA tính.
 
 CÒN THIẾU (pha sau — khớp epic activity layer ở trên):
-1. UI page /scan (scan.astro + getUserMedia) — CHƯA có.
+1. UI scan — ✅ XONG (`a3f2eb4`): widget `foodScanWidget` trong **nutrition tab** `pets/[id].astro` (KHÔNG phải page `/scan` riêng; KHÔNG getUserMedia — dùng `<input capture>`). Monochrome.
 2. Persist scan event → activity layer (quyết: bảng scan_logs / community_events.event_data — design mai).
 3. THÊM rate-limit (rate-limit.ts) — chặn cost-abuse Gemini (vision-lib bỏ qua budget $5).
 4. Bù ash (ước ~7% hoặc thêm field) → tính carb NFE = 100-P-F-fibre-moisture-ash. Cân nhắc chuyển OCR sang responseSchema (chắc hơn text-parse).
