@@ -1,6 +1,5 @@
 import { defineConfig } from "astro/config";
 import tailwindcss from "@tailwindcss/vite";
-import AstroPWA from "@vite-pwa/astro";
 import node from "@astrojs/node";
 
 export default defineConfig({
@@ -32,33 +31,5 @@ export default defineConfig({
     },
   },
   integrations: [
-    AstroPWA({
-      registerType: "autoUpdate",
-      manifest: {
-        name: "VowVet — Người bạn đồng hành sức khỏe cho thú cưng",
-        short_name: "VowVet",
-        description: "Nền tảng chăm sóc sức khỏe thú cưng thông minh dành cho người Việt",
-        theme_color: "#0a0a0a",
-        background_color: "#fafafa",
-        display: "standalone",
-        start_url: "/",
-        lang: "vi",
-        icons: [
-          {
-            src: "/icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-        ],
-      },
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
-      },
-    }),
   ],
 });
