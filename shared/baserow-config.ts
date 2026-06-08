@@ -66,7 +66,8 @@ export type TableName =
   | "insurance_waitlist"
   | "care_plan_completions"
   | "pet_exercise_logs"
-  | "pet_water_logs";
+  | "pet_water_logs"
+  | "scan_logs";
 
 export interface TableMeta {
   id: number;
