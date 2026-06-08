@@ -221,7 +221,7 @@ const storyExcerpt = hasStory
     >
       <!-- Top bar -->
       <div class="mb-4 flex items-center justify-between gap-3 flex-wrap">
-        <a href="/dashboard" class="text-slate-500 hover:text-slate-700 text-sm">← Dashboard</a>
+        <a href="/dashboard" class="text-mmp-ink/60 hover:text-mmp-ink text-sm">← Dashboard</a>
         <button type="button" @click="window.print()"
                 class="no-print text-xs sm:text-sm font-semibold italic border-2 border-[var(--c-ink)] text-[var(--c-ink)] hover:bg-[var(--c-ink)] hover:text-white px-4 py-2 rounded-2xl transition btn-eu inline-flex items-center gap-2">
           <FeatureIcon name="file-text" class="w-4 h-4" /><span>Xuất PDF Hộ chiếu</span>
@@ -824,7 +824,7 @@ const storyExcerpt = hasStory
         <div class="lg:col-span-3 space-y-5">
 
           <!-- v62: STICKY PAGE TAB NAV — luxury European feel -->
-          <nav id="pet-page-nav" class="sticky top-0 z-20 bg-mmp-cream/95 backdrop-blur border-b border-slate-200 -mx-4 sm:-mx-6 px-4 sm:px-6 no-print" aria-label="Pet page sections">
+          <nav id="pet-page-nav" class="sticky top-0 z-20 bg-mmp-cream/95 backdrop-blur border-b border-mmp-ink/12 -mx-4 sm:-mx-6 px-4 sm:px-6 no-print" aria-label="Pet page sections">
             <div class="relative" x-data="{ atStart: true, atEnd: false, syncScroll(el) { this.atStart = el.scrollLeft <= 4; this.atEnd = (el.scrollLeft + el.clientWidth) >= (el.scrollWidth - 4); } }" x-init="$nextTick(() => syncScroll($refs.petTabScroll))">
             <div class="flex items-center gap-1 overflow-x-auto py-2" x-ref="petTabScroll" @scroll="syncScroll($event.target)">
               <template x-for="t in PAGE_TABS" :key="t.key">
