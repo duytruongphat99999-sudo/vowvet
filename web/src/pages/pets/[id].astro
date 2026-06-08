@@ -1711,6 +1711,9 @@ const storyExcerpt = hasStory
                           <span class="text-xs bg-white border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
                         </template>
                       </div>
+                      <template x-if="result?.carb_pct != null">
+                        <p class="text-xs text-mmp-ink mt-2">Tinh bột ~<span class="font-semibold" x-text="result.carb_pct"></span>% <span class="text-mmp-ink/50">(ước tính từ nhãn<span x-show="result?.ash_estimated">, khoáng ước tính</span>)</span></p>
+                      </template>
                     </div>
                   </template>
 

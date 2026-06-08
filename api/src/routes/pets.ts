@@ -1803,6 +1803,7 @@ const POINTS_BY_ACTIVITY: Record<string, number> = {
   achievement_unlock:   0,  // overridden per def points
   care_plan_item:       5,
   trifecta_bonus:      30,
+  food_scan:           15,
 };
 
 petsRoute.get("/:id{[0-9]+}/activity", async (c) => {
@@ -1835,7 +1836,7 @@ petsRoute.get("/:id{[0-9]+}/activity", async (c) => {
     const petIdStr = String(petId);
     const userIdStr = String(session.sub);
 
-    const [photos, checkins, diaries, bcs, quests, achievements, careItems] = await Promise.all([
+    const [photos, checkins, diaries, bcs, quests, achievements, careItems, scans] = await Promise.all([
       safeList("pet_photos",
         { pet_id__link_row_has: petIdStr, uploaded_at__date_after_or_equal: sinceISO },
         { size: 100, orderBy: "-uploaded_at" }),
@@ -1857,6 +1858,9 @@ petsRoute.get("/:id{[0-9]+}/activity", async (c) => {
       safeList("care_plan_completions",
         { user_id__equal: userIdStr, pet_id__link_row_has: petIdStr, created_at__date_after_or_equal: sinceISO },
         { size: 200, orderBy: "-created_at" }),
+      safeList("scan_logs",
+        { pet_id__link_row_has: petIdStr },
+        { size: 100, orderBy: "-created_at" }),
     ]);
 
     // Pull quest_definitions to enrich quest name + bonus (small static table)
@@ -1920,6 +1924,18 @@ petsRoute.get("/:id{[0-9]+}/activity", async (c) => {
         description: cat ? `Phân loại: ${cat}` : null,
         points: POINTS_BY_ACTIVITY.bcs_check,
         created_at: String(b.assessed_at || ""),
+      });
+    }
+
+    for (const s of scans) {
+      // scan_logs.created_at là TEXT (Baserow date-filter 400 trên text) → cutoff ngày ở JS (ISO so sánh lexicographic)
+      if (String(s.created_at || "").slice(0, 10) < sinceISO) continue;
+      activities.push({
+        type: "food_scan",
+        title: `Quét nhãn: ${s.brand_name || "sản phẩm"}`,
+        description: s.matched_brand_id ? "Khớp thư viện" : (s.carb_pct != null ? `Tinh bột ~${s.carb_pct}%` : "Đã quét"),
+        points: POINTS_BY_ACTIVITY.food_scan,
+        created_at: String(s.created_at || ""),
       });
     }
 
