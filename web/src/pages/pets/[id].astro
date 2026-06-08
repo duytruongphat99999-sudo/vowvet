@@ -218,6 +218,7 @@ const storyExcerpt = hasStory
       class="max-w-5xl mx-auto pet-detail-tabs"
       x-data={`petDetail(${initialJson}, ${dogBreedsJson}, ${catBreedsJson}, "${appUrl}", ${healthConfigJson}, ${supplementsJson})`}
       :data-active="pageTab"
+      x-init="if (new URLSearchParams(window.location.search).get('scan') === '1') { pageTab = 'health'; $nextTick(() => { activeTab = 'nutrition'; $nextTick(() => document.getElementById('food-scan')?.scrollIntoView({ behavior: 'smooth', block: 'center' })); }); }"
     >
       <!-- Top bar -->
       <div class="mb-4 flex items-center justify-between gap-3 flex-wrap">
@@ -1660,7 +1661,7 @@ const storyExcerpt = hasStory
             </template>
 
             <!-- SECTION: SCAN NHÃN THỨC ĂN (C pha 2) — widget Alpine tự chứa, monochrome gold/ink -->
-            <section x-data={`foodScanWidget(${petId})`} class="bg-white rounded-2xl border border-mmp-ink/12 p-5">
+            <section id="food-scan" x-data={`foodScanWidget(${petId})`} class="bg-white rounded-2xl border border-mmp-ink/12 p-5">
               <div class="mb-2">
                 <h3 class="text-sm font-semibold text-mmp-ink flex items-center gap-1.5"><FeatureIcon name="camera" class="w-4 h-4" />Scan nhãn thức ăn</h3>
                 <p class="text-xs text-mmp-ink/60 mt-0.5">Chụp bảng Guaranteed Analysis trên bao bì — AI của VowVet đọc số dinh dưỡng & dò trong thư viện.</p>

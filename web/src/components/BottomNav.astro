@@ -40,10 +40,15 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
     <span>Định vị</span>
   </button>
 
-  <!-- Ô GIỮA — Tìm bạn chơi (nút tròn gold nổi, giữ style nút Quét cũ) -->
-  <a href="/playdate" class:list={["vv-bn-scan", isPlaydate && "is-here"]} aria-label="Tìm bạn chơi">
+  <!-- Ô GIỮA — Quét nhãn thức ăn (camera scan, FAB gold nổi). href động theo pet active (pet đầu). -->
+  <a
+    href="/dashboard"
+    :href="petId ? `/pets/${petId}?scan=1` : '/dashboard'"
+    class="vv-bn-scan"
+    aria-label="Quét nhãn thức ăn"
+  >
     <span class="vv-bn-scan__btn"><FeatureIcon name="scan" class="w-7 h-7" /></span>
-    <span class="vv-bn-scan__label">Bạn chơi</span>
+    <span class="vv-bn-scan__label">Quét</span>
   </a>
 
   <a href="/vaccines" class:list={["vv-bn-item", isVaccine && "is-active"]} aria-label="Lịch vaccine">

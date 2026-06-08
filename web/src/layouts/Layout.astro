@@ -23,7 +23,7 @@ const locale = Astro.locals.locale ?? "vi";
 // v269: nút "Reset test" CHỈ hiện ở môi trường dev. `import.meta.env.DEV` được
 // thay tĩnh lúc build → ở production build thành false và bị strip hoàn toàn.
 // Thêm điều kiện đã đăng nhập (không hiện ở /login).
-const showDevTools = import.meta.env.DEV && !!Astro.locals.user;
+const showDevTools = import.meta.env.DEV && !!Astro.locals.user && import.meta.env.PUBLIC_ENABLE_DEVTOOLS === "true";
 
 // v289: Bottom-nav app-style — chỉ hiện khi đã đăng nhập + KHÔNG ở trang public/auth/error.
 // Gate:
