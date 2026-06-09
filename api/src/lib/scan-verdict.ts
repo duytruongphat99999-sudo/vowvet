@@ -121,6 +121,16 @@ export function classifyProduct(
 ): { type: ScanCategory; confident: boolean } {
   const hasPF = ocr.protein_pct != null && ocr.fat_pct != null;
 
+  // ƯU TIÊN product_type Gemini phân loại (prompt supplement/treat/food-aware).
+  switch (ocr.product_type) {
+    case "non_food":   return { type: "non_food", confident: true };
+    case "supplement": return { type: "supplement", confident: true };
+    case "treat":      return { type: "treat", confident: true };
+    case "food":       return { type: "complete", confident: hasPF || RE_COMPLETE.test(text) };
+    // "unknown"/null → rơi xuống keyword fallback bên dưới.
+  }
+
+  // Fallback keyword khi OCR không cho product_type.
   if (RE_NON_FOOD.test(text)) return { type: "non_food", confident: true };
   if (hasPF && RE_TREAT.test(text)) return { type: "treat", confident: true };
   if (!hasPF && RE_SUPP.test(text)) return { type: "supplement", confident: true };

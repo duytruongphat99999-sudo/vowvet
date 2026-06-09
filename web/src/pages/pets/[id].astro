@@ -1702,13 +1702,18 @@ const storyExcerpt = hasStory
                     <img :src="result.scan_url" alt="Ảnh nhãn đã quét" class="w-full max-h-48 object-contain rounded-xl border border-mmp-ink/12 bg-slate-50" />
                   </template>
 
-                  <!-- FAIL: không đọc được nhãn (gộp 1 state, không vừa-báo-fail-vừa-báo-có-số) -->
+                  <!-- TRẠNG THÁI 3: không đọc nổi ảnh (ocr null / unknown) — CHỈ case này mới "chụp lại" -->
                   <template x-if="failState">
-                    <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3">AI của VowVet chưa đọc được nhãn — chụp lại bảng Guaranteed Analysis, đủ sáng, không loá.</p>
+                    <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3">AI của VowVet chưa đọc được nhãn — chụp lại rõ phần thành phần/bao bì, đủ sáng, không loá.</p>
                   </template>
 
-                  <!-- VERDICT: 1 card -->
-                  <template x-if="!failState && verdict">
+                  <!-- TRẠNG THÁI 2: KHÔNG phải sản phẩm thú cưng (KHÁC "chụp lại") -->
+                  <template x-if="!failState && isNonFood">
+                    <p class="text-xs text-mmp-ink bg-slate-50 border border-mmp-ink/12 rounded-lg p-3">Đây không phải nhãn thức ăn/sản phẩm cho thú cưng nên AI của VowVet không phân tích dinh dưỡng. Nếu là đồ ăn/bổ sung cho chó mèo, chụp lại đúng mặt nhãn nhé.</p>
+                  </template>
+
+                  <!-- TRẠNG THÁI 1: đọc được (food/treat/supplement) → verdict card -->
+                  <template x-if="!failState && !isNonFood && verdict">
                     <div class="bg-white rounded-xl border border-mmp-ink/12 p-4 space-y-3">
                       <div>
                         <div class="flex items-center gap-1.5 flex-wrap mb-1">
@@ -3027,8 +3032,11 @@ const storyExcerpt = hasStory
         this.result = null;
       },
 
-      get failState() { return !this.result || !this.result.ocr; },
       get verdict() { return (this.result && this.result.verdict) || null; },
+      get catType() { const v = this.verdict; return (v && v.category && v.category.type) || null; },
+      // 3 trạng thái: failState = không đọc nổi (ocr null / unknown) · isNonFood = không phải đồ thú cưng · còn lại = đọc được
+      get failState() { return !this.result || !this.result.ocr || this.catType === "unknown"; },
+      get isNonFood() { return this.catType === "non_food"; },
       get vetNotes() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind === "text"); },
       get actionCtas() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind !== "text"); },
 

@@ -11,6 +11,7 @@
 export interface FoodLabelOcr {
   brand_name: string | null;
   product_line: string | null;
+  product_type: string | null; // "food" | "treat" | "supplement" | "non_food" | "unknown" | null
   species: string | null; // "dog" | "cat" | "both" | null
   life_stage: string | null; // "puppy" | "adult" | "senior" | "all" | null
   protein_pct: number | null;
@@ -48,19 +49,34 @@ function str(v: any): string | null {
   return t.length ? t : null;
 }
 
+/** product_type hợp lệ trong enum; ngoài enum / không phải string → null. */
+function ptype(v: any): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim().toLowerCase();
+  return ["food", "treat", "supplement", "non_food", "unknown"].includes(t) ? t : null;
+}
+
 const PROMPT =
-  `Bạn là chuyên gia đọc NHÃN thức ăn thú cưng (chó/mèo). Ảnh được cung cấp là nhãn bao bì.\n` +
+  `Bạn là chuyên gia đọc NHÃN sản phẩm cho THÚ CƯNG (chó/mèo): thức ăn hoàn chỉnh, bánh thưởng, HOẶC ` +
+  `sản phẩm bổ sung (men vi sinh/probiotic/CFU, inulin, vitamin, dầu cá, hỗ trợ khớp…). Ảnh là nhãn bao bì.\n` +
   `Hãy trích thông tin IN TRÊN NHÃN — TUYỆT ĐỐI không suy đoán, không bịa số.\n\n` +
   `Quy tắc:\n` +
-  `- Field nào KHÔNG đọc rõ hoặc không có trên nhãn → trả null. Đừng đoán.\n` +
-  `- Guaranteed Analysis / Thành phần đảm bảo → số %: protein, fat (chất béo), fiber (chất xơ), moisture (độ ẩm).\n` +
-  `- calories_per_100g: chỉ điền nếu nhãn ghi rõ kcal/100g (hoặc quy đổi rõ ràng từ kcal/kg). Không rõ → null.\n` +
-  `- species: "dog" nếu cho chó, "cat" nếu cho mèo, "both" nếu cả hai, null nếu không rõ.\n` +
-  `- life_stage: "puppy"/"adult"/"senior"/"all" theo nhãn, null nếu không rõ.\n` +
-  `- brand_name: tên thương hiệu chính. product_line: dòng/biến thể sản phẩm (nếu có).\n` +
-  `- raw_text: toàn bộ chữ đọc được trên nhãn (rút gọn).\n\n` +
+  `- LUÔN trả brand_name (tên thương hiệu) và raw_text (toàn bộ chữ đọc được, rút gọn) nếu đọc được nhãn — ` +
+  `KỂ CẢ khi KHÔNG có bảng Guaranteed Analysis chuẩn. Thiếu số dinh dưỡng KHÔNG sao.\n` +
+  `- product_type — phân loại sản phẩm:\n` +
+  `    "food" = thức ăn hoàn chỉnh (hạt/pate làm bữa chính);\n` +
+  `    "treat" = bánh thưởng/snack;\n` +
+  `    "supplement" = bổ sung (probiotic/CFU, inulin, vitamin, dầu cá, glucosamine…), KHÔNG phải bữa chính;\n` +
+  `    "non_food" = KHÔNG phải đồ ăn thú cưng (dầu tắm/xịt/vệ sinh, HOẶC sản phẩm cho NGƯỜI);\n` +
+  `    "unknown" = đọc được chữ nhưng không đủ để phân loại.\n` +
+  `- Số dinh dưỡng (protein/fat/fiber/moisture %, kcal/100g): CHỈ điền nếu nhãn GHI RÕ; không có → null. KHÔNG bịa.\n` +
+  `- species: "dog"/"cat"/"both"/null. life_stage: "puppy"/"adult"/"senior"/"all"/null. product_line: dòng/biến thể nếu có.\n` +
+  `- CHỈ trả TẤT CẢ null (brand_name=null, raw_text=null, product_type="unknown") khi: ảnh KHÔNG đọc nổi ` +
+  `(mờ/loá/không phải nhãn) HOẶC rõ ràng không phải sản phẩm thú cưng và không đọc được gì. ` +
+  `KHÔNG bịa product_type cho vật thể ngẫu nhiên — nếu là đồ người/đồ vệ sinh thì product_type="non_food".\n\n` +
   `Trả JSON THUẦN (không markdown, không code fence):\n` +
-  `{"brand_name":<string|null>,"product_line":<string|null>,"species":<string|null>,"life_stage":<string|null>,` +
+  `{"brand_name":<string|null>,"product_line":<string|null>,"product_type":<"food"|"treat"|"supplement"|"non_food"|"unknown">,` +
+  `"species":<string|null>,"life_stage":<string|null>,` +
   `"protein_pct":<number|null>,"fat_pct":<number|null>,"fiber_pct":<number|null>,"moisture_pct":<number|null>,` +
   `"calories_per_100g":<number|null>,"raw_text":<string|null>}`;
 
@@ -109,6 +125,7 @@ export async function scanFoodLabel(input: FoodLabelInput): Promise<FoodLabelOcr
     return {
       brand_name: str(parsed.brand_name),
       product_line: str(parsed.product_line),
+      product_type: ptype(parsed.product_type),
       species: str(parsed.species),
       life_stage: str(parsed.life_stage),
       protein_pct: pct(parsed.protein_pct),
