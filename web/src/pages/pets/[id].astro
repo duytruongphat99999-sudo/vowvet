@@ -1671,7 +1671,7 @@ const storyExcerpt = hasStory
               <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" @change="onPick($event)" class="hidden" :id="inputId" aria-label="Chụp hoặc chọn ảnh nhãn thức ăn" />
               <label :for="inputId"
                 class="block border-2 border-dashed border-mmp-ink/20 rounded-xl p-4 text-center cursor-pointer transition hover:border-mmp-gold"
-                :class="preview ? 'bg-mmp-cream border-mmp-gold' : ''">
+                :class="preview ? 'bg-slate-50 border-mmp-gold' : ''">
                 <template x-if="!preview">
                   <div>
                     <p class="flex justify-center text-mmp-ink/40"><FeatureIcon name="camera" class="w-7 h-7" /></p>
@@ -1684,7 +1684,7 @@ const storyExcerpt = hasStory
               </label>
 
               <template x-if="error">
-                <p class="text-xs text-mmp-ink bg-mmp-cream border border-mmp-ink/12 rounded-lg p-2 mt-3" x-text="error" aria-live="polite"></p>
+                <p class="text-xs text-mmp-ink bg-slate-50 border border-mmp-ink/12 rounded-lg p-2 mt-3" x-text="error" aria-live="polite"></p>
               </template>
 
               <button @click="submit()" :disabled="!file || scanning"
