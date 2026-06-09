@@ -172,6 +172,9 @@ const showBottomNav =
           let _reloading = false;
           navigator.serviceWorker.addEventListener("controllerchange", () => {
             if (_reloading) return;
+            // v304: vừa quét nhãn (?scan=1) → ĐỪNG auto-reload, reload sẽ xoá mất card kết quả
+            // (sessionStorage["vowvet:scan:<id>"] chỉ đọc được 1 lần). Toast SW vẫn hiện để tải tay.
+            try { if (new URLSearchParams(window.location.search).has("scan")) return; } catch (e) {}
             _reloading = true;
             window.location.reload();
           });

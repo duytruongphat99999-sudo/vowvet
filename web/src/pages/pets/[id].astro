@@ -218,6 +218,7 @@ const storyExcerpt = hasStory
       class="max-w-5xl mx-auto pet-detail-tabs"
       x-data={`petDetail(${initialJson}, ${dogBreedsJson}, ${catBreedsJson}, "${appUrl}", ${healthConfigJson}, ${supplementsJson})`}
       :data-active="pageTab"
+      @scan-add-to-plan.window="applyScanBrand($event.detail && $event.detail.brandId)"
       x-init="if (new URLSearchParams(window.location.search).get('scan') === '1') { pageTab = 'health'; $nextTick(() => { activeTab = 'nutrition'; $nextTick(() => document.getElementById('food-scan')?.scrollIntoView({ behavior: 'smooth', block: 'center' })); }); }"
     >
       <!-- Top bar -->
@@ -1693,63 +1694,85 @@ const storyExcerpt = hasStory
                 <span x-show="scanning">AI của VowVet đang phân tích nhãn…</span>
               </button>
 
-              <!-- KẾT QUẢ (chỉ render JSON endpoint trả, KHÔNG tính toán) -->
+              <!-- KẾT QUẢ — 1 card verdict duy nhất (server trả category/verdict/cta). KHÔNG tính FE. -->
               <template x-if="result">
                 <div class="mt-4 space-y-3">
                   <template x-if="result.scan_url">
                     <img :src="result.scan_url" alt="Ảnh nhãn đã quét" class="w-full max-h-48 object-contain rounded-xl border border-mmp-ink/12 bg-mmp-cream" />
                   </template>
 
-                  <template x-if="ocrEmpty">
-                    <p class="text-xs text-mmp-ink/70 bg-mmp-cream border border-mmp-ink/12 rounded-lg p-3">AI của VowVet chưa đọc được nhãn — chụp rõ bảng Guaranteed Analysis, đủ sáng, không loá.</p>
+                  <!-- FAIL: không đọc được nhãn (gộp 1 state, không vừa-báo-fail-vừa-báo-có-số) -->
+                  <template x-if="failState">
+                    <p class="text-xs text-mmp-ink/70 bg-mmp-cream border border-mmp-ink/12 rounded-lg p-3">AI của VowVet chưa đọc được nhãn — chụp lại bảng Guaranteed Analysis, đủ sáng, không loá.</p>
                   </template>
 
-                  <template x-if="!ocrEmpty">
-                    <div class="bg-mmp-cream rounded-xl border border-mmp-ink/12 p-3">
-                      <p class="text-[11px] uppercase tracking-wide text-mmp-ink/50 mb-2 flex items-center gap-1"><FeatureIcon name="ai" class="w-3.5 h-3.5" />AI của VowVet đọc từ nhãn</p>
-                      <div class="flex flex-wrap gap-1.5">
-                        <template x-for="row in gaRows" :key="row.k">
-                          <span class="text-xs bg-white border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
-                        </template>
+                  <!-- VERDICT: 1 card -->
+                  <template x-if="!failState && verdict">
+                    <div class="bg-white rounded-xl border border-mmp-ink/12 p-4 space-y-3">
+                      <div>
+                        <div class="flex items-center gap-1.5 flex-wrap mb-1">
+                          <span class="text-[11px] uppercase tracking-wide text-mmp-ink/50 inline-flex items-center gap-1"><FeatureIcon name="ai" class="w-3.5 h-3.5" />AI của VowVet</span>
+                          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border border-mmp-ink/15 bg-mmp-cream text-mmp-ink" x-text="verdict.category.label"></span>
+                        </div>
+                        <p class="text-sm font-semibold text-mmp-ink leading-snug" x-text="verdict.headline"></p>
                       </div>
-                      <template x-if="result?.carb_pct != null">
-                        <p class="text-xs text-mmp-ink mt-2">Tinh bột ~<span class="font-semibold" x-text="result.carb_pct"></span>% <span class="text-mmp-ink/50">(ước tính từ nhãn<span x-show="result?.ash_estimated">, khoáng ước tính</span>)</span></p>
+
+                      <!-- Hỏi bác sĩ (dạng chữ, nổi lên đầu khi có cờ) -->
+                      <template x-for="(note, i) in vetNotes" :key="i">
+                        <p class="text-xs text-mmp-ink bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-1.5">
+                          <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5" /><span x-text="note.label"></span>
+                        </p>
                       </template>
-                    </div>
-                  </template>
 
-                  <template x-if="result.match && result.match.matched">
-                    <div class="bg-white rounded-xl border border-mmp-ink/12 p-3">
-                      <div class="flex items-center justify-between gap-2 mb-2">
-                        <p class="text-sm font-semibold text-mmp-ink" x-text="result.match.brand.brand_name"></p>
-                        <span class="text-[11px] text-mmp-ink/60">Khớp <span class="font-semibold" x-text="confPct"></span>%</span>
-                      </div>
-                      <div class="h-1.5 rounded-full bg-mmp-ink/10 overflow-hidden mb-2">
-                        <div class="h-full bg-mmp-ink rounded-full" :style="`width:${confPct}%`"></div>
-                      </div>
-                      <div class="flex flex-wrap gap-1.5">
-                        <template x-for="row in brandRows" :key="row.k">
-                          <span class="text-xs bg-mmp-cream border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
+                      <ul class="space-y-1.5">
+                        <template x-for="(ln, i) in verdict.lines" :key="i">
+                          <li class="text-sm text-mmp-ink/80 leading-snug flex items-start gap-1.5">
+                            <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-2"></span><span x-text="ln"></span>
+                          </li>
                         </template>
-                      </div>
-                      <p class="text-[11px] text-mmp-ink/50 mt-2">Số dinh dưỡng từ thư viện VowVet.</p>
-                    </div>
-                  </template>
+                      </ul>
 
-                  <template x-if="result.match && !result.match.matched">
-                    <div class="bg-white rounded-xl border border-mmp-ink/12 p-3">
-                      <p class="text-sm text-mmp-ink/70">Không có trong thư viện VowVet.</p>
-                      <template x-if="result.match.candidates && result.match.candidates.length">
-                        <div class="mt-2">
-                          <p class="text-[11px] uppercase tracking-wide text-mmp-ink/50 mb-1">Gần giống</p>
-                          <div class="flex flex-wrap gap-1.5">
-                            <template x-for="c in result.match.candidates" :key="c.brand_id">
-                              <span class="text-xs bg-mmp-cream border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink" x-text="c.brand_name"></span>
+                      <!-- Chi tiết số từ nhãn (gập) — số nhãn nằm mục phụ, không phải bảng chính -->
+                      <template x-if="gaRows.length || (result.match && result.match.matched)">
+                        <details>
+                          <summary class="text-[11px] uppercase tracking-wide text-mmp-ink/50 cursor-pointer select-none">Chi tiết số từ nhãn</summary>
+                          <div class="mt-2 space-y-2">
+                            <template x-if="gaRows.length">
+                              <div class="flex flex-wrap gap-1.5">
+                                <template x-for="row in gaRows" :key="row.k">
+                                  <span class="text-xs bg-mmp-cream border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
+                                </template>
+                              </div>
+                            </template>
+                            <template x-if="result?.carb_pct != null">
+                              <p class="text-xs text-mmp-ink">Tinh bột ~<span class="font-semibold" x-text="result.carb_pct"></span>% <span class="text-mmp-ink/50">(ước tính từ nhãn<span x-show="result?.ash_estimated">, khoáng ước tính</span>)</span></p>
+                            </template>
+                            <template x-if="result.match && result.match.matched">
+                              <div class="bg-mmp-cream rounded-lg border border-mmp-ink/12 p-2.5">
+                                <div class="flex items-center justify-between gap-2 mb-1.5">
+                                  <p class="text-xs font-semibold text-mmp-ink" x-text="result.match.brand.brand_name"></p>
+                                  <span class="text-[11px] text-mmp-ink/60">Khớp thư viện <span class="font-semibold" x-text="confPct"></span>%</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5">
+                                  <template x-for="row in brandRows" :key="row.k">
+                                    <span class="text-xs bg-white border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
+                                  </template>
+                                </div>
+                              </div>
                             </template>
                           </div>
-                        </div>
+                        </details>
                       </template>
-                      <p class="text-[11px] text-mmp-ink/50 mt-2">Số ở trên là AI đọc trực tiếp từ nhãn (chưa đối chiếu thư viện).</p>
+
+                      <!-- CTA theo loại + verdict -->
+                      <div class="flex flex-wrap gap-2 pt-1">
+                        <template x-for="(c, i) in actionCtas" :key="i">
+                          <button type="button" @click="runCta(c)"
+                            class="text-sm font-semibold px-3 py-2 rounded-xl transition"
+                            :class="c.primary ? 'bg-mmp-ink text-white hover:opacity-90' : 'bg-mmp-cream text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30'"
+                            x-text="c.label"></button>
+                        </template>
+                      </div>
                     </div>
                   </template>
                 </div>
@@ -3003,11 +3026,10 @@ const storyExcerpt = hasStory
         this.result = null;
       },
 
-      get ocrEmpty() {
-        const o = this.result && this.result.ocr;
-        if (!o) return true;
-        return ["protein_pct","fat_pct","fiber_pct","moisture_pct","calories_per_100g","brand_name"].every((k) => o[k] == null);
-      },
+      get failState() { return !this.result || !this.result.ocr; },
+      get verdict() { return (this.result && this.result.verdict) || null; },
+      get vetNotes() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind === "text"); },
+      get actionCtas() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind !== "text"); },
 
       get gaRows() {
         const o = this.result && this.result.ocr;
@@ -3045,6 +3067,25 @@ const storyExcerpt = hasStory
         } finally {
           this.scanning = false;
         }
+      },
+
+      // CTA: rescan=reset · add_plan=bắc cầu sang petDetail (setBrandForPlan) · link=điều hướng · text=không click
+      runCta(c) {
+        if (!c) return;
+        if (c.action === "rescan") { this.reset(); return; }
+        if (c.action === "add_plan" && c.brandId != null) {
+          window.dispatchEvent(new CustomEvent("scan-add-to-plan", { detail: { brandId: c.brandId } }));
+          return;
+        }
+        if (c.kind === "link" && c.href) { window.location.href = c.href; return; }
+      },
+
+      reset() {
+        this.result = null; this.file = null; this.error = "";
+        if (this.preview) { try { URL.revokeObjectURL(this.preview); } catch (e) {} }
+        this.preview = null;
+        const el = document.getElementById(this.inputId);
+        if (el) { el.value = ""; el.click(); }
       },
     };
   }
@@ -4159,6 +4200,15 @@ const storyExcerpt = hasStory
         this.nutrition.selectedBrandId = brandId;
         this.nutrition.showBrandPicker = false;
         this.fetchNutritionPlan();
+      },
+
+      // Từ verdict scan: chọn brand khớp làm loại hạt cho kế hoạch bữa ăn + cuộn tới khu dinh dưỡng.
+      applyScanBrand(brandId) {
+        if (brandId == null) return;
+        this.activeTab = "nutrition";
+        if (!this.nutrition.loaded) this.initNutritionTab();
+        this.setBrandForPlan(brandId);
+        this.$nextTick(() => document.getElementById("food-scan")?.scrollIntoView({ behavior: "smooth", block: "start" }));
       },
 
       async invalidateAndReload() {

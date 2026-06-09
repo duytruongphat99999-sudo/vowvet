@@ -13,10 +13,12 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
 import { getOwnedPet } from "../lib/pets.ts";
+import { toApiPet } from "./pets.ts";
 import { uploadObject, imageExtFromMime } from "@shared/r2.ts";
 import { scanFoodLabel } from "../lib/food-label-vision.ts";
 import { matchFoodBrand } from "../lib/food-brand-matcher.ts";
 import { checkRateLimit } from "../lib/rate-limit.ts";
+import { buildScanVerdict, type ScanPetProfile } from "../lib/scan-verdict.ts";
 import { createRow } from "@shared/baserow.ts";
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB (như bills)
@@ -31,9 +33,10 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
 
-  // Ownership
+  // Ownership (giữ pet để dựng profile verdict — KHÔNG fetch thêm)
+  let pet: Awaited<ReturnType<typeof getOwnedPet>>;
   try {
-    await getOwnedPet(petId, session.sub);
+    pet = await getOwnedPet(petId, session.sub);
   } catch (err: any) {
     if (err?.status === 404 || err?.status === 403) {
       return c.json({ error: { code: err.code, message: err.message } }, err.status);
@@ -124,7 +127,21 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
       console.warn("[food/scan] persist scan_logs fail-soft:", String((err as any)?.message || err).slice(0, 120));
     }
 
-    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated });
+    // Verdict cá nhân hoá theo profile bé (KHÔNG sửa số/công thức — chỉ ĐỌC).
+    const ap = toApiPet(pet);
+    const speciesVi = (ap.species as string) || null;
+    const profile: ScanPetProfile = {
+      name: ap.name || "bé",
+      speciesEn: speciesVi === "Mèo" ? "cat" : speciesVi === "Chó" ? "dog" : null,
+      speciesVi,
+      dob: ap.dob || null,
+      lifeStage: ap.life_stage || null,
+      allergens: [...(ap.allergens || []), ...(ap.sensitivities || [])],
+      conditions: (ap.health_conditions || []).filter((cnd: any) => cnd && cnd.status !== "resolved"),
+    };
+    const verdict = buildScanVerdict({ petId, ocr, match, carb_pct, profile });
+
+    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated, verdict });
   } catch (err: any) {
     console.error("[food/scan] error:", err);
     return c.json({ error: { code: "SCAN_FAILED", message: "Quét nhãn thất bại, thử lại sau" } }, 500);
