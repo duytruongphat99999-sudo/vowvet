@@ -1698,12 +1698,12 @@ const storyExcerpt = hasStory
               <template x-if="result">
                 <div class="mt-4 space-y-3">
                   <template x-if="result.scan_url">
-                    <img :src="result.scan_url" alt="Ảnh nhãn đã quét" class="w-full max-h-48 object-contain rounded-xl border border-mmp-ink/12 bg-mmp-cream" />
+                    <img :src="result.scan_url" alt="Ảnh nhãn đã quét" class="w-full max-h-48 object-contain rounded-xl border border-mmp-ink/12 bg-slate-50" />
                   </template>
 
                   <!-- FAIL: không đọc được nhãn (gộp 1 state, không vừa-báo-fail-vừa-báo-có-số) -->
                   <template x-if="failState">
-                    <p class="text-xs text-mmp-ink/70 bg-mmp-cream border border-mmp-ink/12 rounded-lg p-3">AI của VowVet chưa đọc được nhãn — chụp lại bảng Guaranteed Analysis, đủ sáng, không loá.</p>
+                    <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3">AI của VowVet chưa đọc được nhãn — chụp lại bảng Guaranteed Analysis, đủ sáng, không loá.</p>
                   </template>
 
                   <!-- VERDICT: 1 card -->
@@ -1712,7 +1712,7 @@ const storyExcerpt = hasStory
                       <div>
                         <div class="flex items-center gap-1.5 flex-wrap mb-1">
                           <span class="text-[11px] uppercase tracking-wide text-mmp-ink/50 inline-flex items-center gap-1"><FeatureIcon name="ai" class="w-3.5 h-3.5" />AI của VowVet</span>
-                          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border border-mmp-ink/15 bg-mmp-cream text-mmp-ink" x-text="verdict.category.label"></span>
+                          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border border-mmp-ink/15 bg-slate-50 text-mmp-ink" x-text="verdict.category.label"></span>
                         </div>
                         <p class="text-sm font-semibold text-mmp-ink leading-snug" x-text="verdict.headline"></p>
                       </div>
@@ -1740,7 +1740,7 @@ const storyExcerpt = hasStory
                             <template x-if="gaRows.length">
                               <div class="flex flex-wrap gap-1.5">
                                 <template x-for="row in gaRows" :key="row.k">
-                                  <span class="text-xs bg-mmp-cream border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
+                                  <span class="text-xs bg-slate-50 border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
                                 </template>
                               </div>
                             </template>
@@ -1748,7 +1748,7 @@ const storyExcerpt = hasStory
                               <p class="text-xs text-mmp-ink">Tinh bột ~<span class="font-semibold" x-text="result.carb_pct"></span>% <span class="text-mmp-ink/50">(ước tính từ nhãn<span x-show="result?.ash_estimated">, khoáng ước tính</span>)</span></p>
                             </template>
                             <template x-if="result.match && result.match.matched">
-                              <div class="bg-mmp-cream rounded-lg border border-mmp-ink/12 p-2.5">
+                              <div class="bg-slate-50 rounded-lg border border-mmp-ink/12 p-2.5">
                                 <div class="flex items-center justify-between gap-2 mb-1.5">
                                   <p class="text-xs font-semibold text-mmp-ink" x-text="result.match.brand.brand_name"></p>
                                   <span class="text-[11px] text-mmp-ink/60">Khớp thư viện <span class="font-semibold" x-text="confPct"></span>%</span>
@@ -1769,7 +1769,7 @@ const storyExcerpt = hasStory
                         <template x-for="(c, i) in actionCtas" :key="i">
                           <button type="button" @click="runCta(c)"
                             class="text-sm font-semibold px-3 py-2 rounded-xl transition"
-                            :class="c.primary ? 'bg-mmp-ink text-white hover:opacity-90' : 'bg-mmp-cream text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30'"
+                            :class="c.primary ? 'bg-mmp-ink text-white hover:opacity-90' : 'bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30'"
                             x-text="c.label"></button>
                         </template>
                       </div>
@@ -1923,7 +1923,7 @@ const storyExcerpt = hasStory
                   <div x-data="{ imgError: false }">
                     <article class="relative bg-white rounded-2xl overflow-hidden border border-mmp-gold/40 ring-1 ring-mmp-gold/40 shadow-sm">
                       <div class="grid sm:grid-cols-2">
-                        <div class="aspect-[4/3] sm:aspect-auto sm:min-h-[176px] bg-mmp-cream relative flex items-center justify-center">
+                        <div class="aspect-[4/3] sm:aspect-auto sm:min-h-[176px] bg-slate-50 relative flex items-center justify-center">
                           <img x-show="heroSupp.image && !imgError" x-cloak :src="heroSupp.image" :alt="heroSupp.name" @error="imgError = true" class="absolute inset-0 w-full h-full object-cover" />
                           <span class="text-mmp-ink/25" x-show="!heroSupp.image || imgError"><FeatureIcon name="shop" class="w-12 h-12" /></span>
                           <span class="absolute top-2.5 left-2.5 bg-mmp-gold text-mmp-ink text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 ring-mmp-gold/60 shadow-sm inline-flex items-center gap-1 max-w-[92%]">
@@ -1951,7 +1951,7 @@ const storyExcerpt = hasStory
                     <div class="relative" x-data="{ imgError: false }">
                       <article class="relative bg-white rounded-xl border overflow-hidden flex flex-col h-full transition"
                                :class="(s._hits && s._hits.length) ? 'border-mmp-gold/50 ring-1 ring-mmp-gold/30' : 'border-mmp-ink/12 hover:shadow-sm'">
-                        <div class="aspect-square bg-mmp-cream relative flex items-center justify-center">
+                        <div class="aspect-square bg-slate-50 relative flex items-center justify-center">
                           <img x-show="s.image && !imgError" x-cloak :src="s.image" :alt="s.name" @error="imgError = true" class="absolute inset-0 w-full h-full object-cover" />
                           <span class="text-mmp-ink/25" x-show="!s.image || imgError"><FeatureIcon name="shop" class="w-8 h-8" /></span>
                           <template x-if="s._hits && s._hits.length">
