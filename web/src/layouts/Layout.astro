@@ -168,15 +168,15 @@ const showBottomNav =
             }
           });
 
-          // v136: Auto reload after controllerchange (SW takes over)
-          let _reloading = false;
-          navigator.serviceWorker.addEventListener("controllerchange", () => {
-            if (_reloading) return;
-            // v304: vừa quét nhãn (?scan=1) → ĐỪNG auto-reload, reload sẽ xoá mất card kết quả
-            // (sessionStorage["vowvet:scan:<id>"] chỉ đọc được 1 lần). Toast SW vẫn hiện để tải tay.
-            try { if (new URLSearchParams(window.location.search).has("scan")) return; } catch (e) {}
-            _reloading = true;
-            window.location.reload();
+          // v304: gộp — chống reload-loop khi NÂNG SW + giữ card scan (?scan=1).
+          // hadController chụp TRƯỚC khi SW đổi → chỉ reload khi nâng cấp thật, bỏ qua fresh-install.
+          const hadController = !!navigator.serviceWorker?.controller;
+          let refreshing = false;
+          navigator.serviceWorker?.addEventListener("controllerchange", () => {
+            if (new URLSearchParams(location.search).get("scan") === "1") return; // vừa quét → giữ card
+            if (refreshing) return;               // chống LOOP: reload đúng 1 lần
+            refreshing = true;
+            if (hadController) location.reload();  // chỉ reload khi nâng cấp thật
           });
         }
 

@@ -180,11 +180,15 @@ export function buildScanVerdict(args: {
   // ----- 3 check rẻ (chỉ áp cho sản phẩm cho-ăn-được) -----
   const flags: ScanVerdict["flags"] = { allergens: [], conditions: [], lifeStageNote: null };
   let askVet = cls.type === "supplement";
+  let allergyUnverified = false; // bé CÓ dị ứng nhưng text quét không đọc được thành phần để đối chiếu
 
   if (cls.type === "complete" || cls.type === "treat" || cls.type === "supplement") {
-    // (a) Dị ứng — HEDGE vì OCR fuzzy; chỉ surface khi PHÁT HIỆN, KHÔNG khẳng định "không có".
-    const petCodes = allergenCodesFrom(profile.allergens.join(" "));
-    if (petCodes.length) {
+    // (a) Dị ứng — HEDGE vì OCR fuzzy; KHÔNG khẳng định "không có/an toàn". Bé có dị ứng → KHÔNG BAO GIỜ im.
+    if (profile.allergens.length) {
+      const petCodes = allergenCodesFrom(profile.allergens.join(" "));
+      const petAllergyLabels = petCodes.length
+        ? petCodes.map((c) => ALLERGEN_LABEL_VI[c] || c)
+        : profile.allergens.slice(); // fallback: hiển thị nguyên văn bé khai (không normalize được)
       const inLabel = allergenCodesFrom(ocr.raw_text);
       const hit = petCodes.filter((c) => inLabel.includes(c));
       if (hit.length) {
@@ -192,6 +196,10 @@ export function buildScanVerdict(args: {
         flags.allergens = labels;
         lines.push(`AI đọc thấy nhãn CÓ THỂ chứa ${labels.join(", ")} — trùng dị ứng đã ghi của ${name}. Kiểm tra kỹ thành phần thật trên bao bì trước khi cho ăn.`);
         askVet = true;
+      } else {
+        // Không match được trong text quét → thật thà: chưa chắc đọc đủ, tự xem bao bì (KHÔNG suy ra an toàn).
+        allergyUnverified = true;
+        lines.push(`${name} có dị ứng ${petAllergyLabels.join(", ")}. Ảnh quét chưa chắc đọc đủ bảng thành phần — xem kỹ thành phần trên bao trước khi dùng.`);
       }
     }
 
@@ -215,8 +223,9 @@ export function buildScanVerdict(args: {
   }
 
   const flagged = flags.allergens.length > 0 || flags.conditions.length > 0;
+  // allergyUnverified → KHÔNG green-light "ok" (bé dị ứng + chưa đọc được thành phần = không suy ra an toàn).
   const tone: ScanVerdict["tone"] =
-    flagged ? "caution" : cls.type === "complete" && cls.confident ? "ok" : "info";
+    flagged ? "caution" : cls.type === "complete" && cls.confident && !allergyUnverified ? "ok" : "info";
 
   // ----- [D] CTA theo loại + verdict -----
   const cta: ScanCta[] = [];
