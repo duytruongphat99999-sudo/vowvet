@@ -1687,7 +1687,8 @@ const storyExcerpt = hasStory
                 <p class="text-xs text-mmp-ink bg-slate-50 border border-mmp-ink/12 rounded-lg p-2 mt-3" x-text="error" aria-live="polite"></p>
               </template>
 
-              <button @click="submit()" :disabled="!file || scanning"
+              <button @click="submit()" x-show="file && !result" :disabled="!file || scanning"
+                style="color:#fff!important"
                 class="w-full bg-mmp-ink hover:opacity-90 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm shadow-sm mt-3"
                 aria-label="Phân tích nhãn bằng AI của VowVet">
                 <span x-show="!scanning" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="wand" class="w-4 h-4" />Phân tích nhãn</span>
