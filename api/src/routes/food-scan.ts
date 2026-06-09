@@ -136,6 +136,8 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
       speciesVi,
       dob: ap.dob || null,
       lifeStage: ap.life_stage || null,
+      weightKg: ap.weight_kg != null ? Number(ap.weight_kg) : null,
+      activity: ap.activity_level || null,
       allergens: [...(ap.allergens || []), ...(ap.sensitivities || [])],
       conditions: (ap.health_conditions || []).filter((cnd: any) => cnd && cnd.status !== "resolved"),
     };

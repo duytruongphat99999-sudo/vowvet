@@ -24,6 +24,8 @@ export interface ScanPetProfile {
   speciesVi: string | null;
   dob: string | null;
   lifeStage: string | null;
+  weightKg: number | null;
+  activity: string | null; // sedentary|low|moderate|active|very_active
   allergens: string[];
   conditions: { code: string; status: string; since: string | null }[];
 }
@@ -103,6 +105,67 @@ function allergenCodesFrom(s: string | null | undefined): AllergenCode[] {
   return [...out];
 }
 
+/** Mức vận động → low|moderate|high|null (chuẩn hoá từ code sedentary/low/moderate/active/very_active). */
+function activityClass(a: string | null): "low" | "moderate" | "high" | null {
+  const n = norm(a);
+  if (!n) return null;
+  if (/sedentary|^low|it van dong|luoi|nhe/.test(n)) return "low";
+  if (/active|nang dong|the thao/.test(n)) return "high"; // 'very_active' chứa 'active'
+  return "moderate";
+}
+
+/** Giai đoạn sống gộp: young|adult|senior (từ life_stage, fallback dob). */
+function lifeStageClass(profile: ScanPetProfile): "young" | "adult" | "senior" | null {
+  const ls = norm(profile.lifeStage);
+  if (/puppy|kitten|junior/.test(ls)) return "young";
+  if (/senior|geriatric/.test(ls)) return "senior";
+  if (/adult/.test(ls)) return "adult";
+  const t = profile.dob ? Date.parse(profile.dob) : NaN;
+  if (Number.isNaN(t)) return null;
+  const months = (Date.now() - t) / (1000 * 60 * 60 * 24 * 30.44);
+  if (months < 12) return "young";
+  if (months >= (profile.speciesEn === "cat" ? 132 : 84)) return "senior"; // mèo ~11y, chó ~7y
+  return "adult";
+}
+
+/**
+ * Soi dinh dưỡng NHIỀU CHIỀU (đạm/béo/calo) theo loài + tuổi + vận động.
+ * Phrasing tích cực ("hợp/tốt") CHỈ khi `healthy` — pet bệnh nền nói dữ kiện trung tính.
+ * Đây là COMMENT hiển thị, KHÔNG phải tính DER (nutrition-engine giữ nguyên).
+ */
+function nutritionLines(a: {
+  name: string; sp: "dog" | "cat" | null; els: "young" | "adult" | "senior" | null;
+  act: "low" | "moderate" | "high" | null; healthy: boolean;
+  P: number | null; F: number | null; kcal: number | null;
+}): string[] {
+  const { name, sp, els, act, healthy, P, F, kcal } = a;
+  const out: string[] = [];
+  if (P != null) {
+    if (sp === "cat") {
+      if (P < 28) out.push(`Đạm ${P}% — THẤP so với nhu cầu đạm cao của mèo; ăn lâu dài ${name} dễ thiếu đạm.`);
+      else if (P >= 34) out.push(`Đạm ${P}% — CAO${healthy ? `, rất hợp mèo như ${name}` : " (mèo ăn thịt bắt buộc, cần đạm cao)"}.`);
+      else out.push(`Đạm ${P}% — mức ổn cho mèo${els === "senior" ? `; ${name} lớn tuổi vẫn cần đạm chất lượng nếu thận khoẻ` : ""}.`);
+    } else if (sp === "dog") {
+      if (els === "young" && P < 25) out.push(`Đạm ${P}% — hơi thấp cho chó đang lớn (cần ~≥28%).`);
+      else if (P >= 26) out.push(`Đạm ${P}%${healthy ? ` — đạm tốt cho chó như ${name}` : " cho chó"}.`);
+      else out.push(`Đạm ${P}% — mức cơ bản cho chó trưởng thành.`);
+    }
+  }
+  if (F != null && sp === "cat" && els === "young" && F < 18) {
+    out.push(`Béo ${F}% — hơi thấp cho mèo con đang lớn (cần năng lượng cao).`);
+  }
+  if (kcal != null) {
+    const hi = kcal >= 400, lo = kcal <= 330;
+    let s = `${kcal} kcal/100g — ${hi ? "đậm năng lượng" : lo ? "năng lượng nhẹ" : "năng lượng vừa"}`;
+    if (hi && act === "low") s += `; ${name} ít vận động → dễ lên cân, cân đong kỹ thay vì cho ăn tự do.`;
+    else if (hi && act === "high") s += healthy ? `; hợp bé năng động như ${name}.` : `; ${name} năng động sẽ đốt nhiều năng lượng hơn.`;
+    else if (lo && act === "high") s += `; ${name} năng động có thể cần khẩu phần nhiều hơn để đủ sức.`;
+    else s += ".";
+    out.push(s);
+  }
+  return out;
+}
+
 /** Nhãn VN tuổi thô từ dob ("YYYY-MM-DD") — chỉ để chào, KHÔNG dùng tính toán. */
 function ageLabel(dob: string | null): string | null {
   if (!dob) return null;
@@ -159,6 +222,13 @@ export function buildScanVerdict(args: {
   const cls = classifyProduct(ocr, text);
   const name = profile.name || "bé";
   const matched = !!(match && match.matched && match.brand);
+  const healthy = profile.conditions.length === 0;
+  // Số để soi: ưu tiên OCR (nhãn vừa quét), thiếu thì lấy brand khớp thư viện.
+  const Pn = ocr.protein_pct ?? (matched ? match.brand!.protein_pct : null);
+  const Fn = ocr.fat_pct ?? (matched ? match.brand!.fat_pct : null);
+  const kcaln = ocr.calories_per_100g ?? (matched ? match.brand!.calories_per_100g : null);
+  const els = lifeStageClass(profile);
+  const act = activityClass(profile.activity);
 
   // ----- Headline: tên + (loài · tuổi) -----
   const idParts = [profile.speciesVi, ageLabel(profile.dob)].filter(Boolean).join(" · ");
@@ -170,14 +240,27 @@ export function buildScanVerdict(args: {
   if (cls.type === "complete") {
     if (cls.confident) lines.push("Đây là thức ăn hoàn chỉnh — có thể dùng làm bữa chính.");
     else lines.push("Có vẻ là thức ăn hoàn chỉnh, nhưng nhãn chưa ghi rõ “complete & balanced”/AAFCO — kiểm tra lại bao bì trước khi cho ăn làm bữa chính.");
-    if (carb_pct != null) lines.push(`Tinh bột ước tính từ nhãn ~${carb_pct}% (tham khảo, khoáng có thể là ước tính).`);
+    // Soi nhiều chiều: đạm/béo/calo theo loài + tuổi + vận động của CHÍNH bé.
+    lines.push(...nutritionLines({ name, sp: profile.speciesEn, els, act, healthy, P: Pn, F: Fn, kcal: kcaln }));
+    if (carb_pct != null) {
+      let c = `Tinh bột ước tính từ nhãn ~${carb_pct}% (tham khảo, khoáng có thể là ước tính)`;
+      if (profile.speciesEn === "cat" && carb_pct > 25) c += `; hơi cao cho mèo — cân nhắc loại carb thấp hơn nếu ${name} cần kiểm soát cân/đường huyết`;
+      lines.push(c + ".");
+    }
   } else if (cls.type === "supplement") {
     lines.push("Đây là sản phẩm BỔ SUNG, không phải thức ăn chính — không dùng để tính khẩu phần.");
     const focus = suppFocus(text);
     if (focus) lines.push(`Nhãn hướng tới hỗ trợ: ${focus}.`);
+    // Gợi ý dữ kiện theo profile (KHÔNG tuyên "bé CẦN" như chỉ định điều trị).
+    const cc = profile.conditions.map((c) => c.code);
+    if (focus && /tiêu hoá/.test(focus) && cc.includes("gi_ibd"))
+      lines.push(`${name} có vấn đề tiêu hoá đã ghi — men vi sinh CÓ THỂ hỗ trợ; cân nhắc và hỏi bác sĩ (không phải chỉ định bắt buộc).`);
+    else if (focus && /xương khớp/.test(focus) && cc.includes("musculoskeletal"))
+      lines.push(`${name} có vấn đề cơ xương khớp đã ghi — sản phẩm hỗ trợ khớp có thể liên quan; hỏi bác sĩ trước khi dùng.`);
     lines.push("Bé có cần hay không tuỳ tình trạng sức khoẻ — nên hỏi bác sĩ thú y trước khi dùng.");
   } else if (cls.type === "treat") {
-    lines.push("Đây là bánh thưởng — tính vào quỹ calo trong ngày, không thay bữa chính.");
+    lines.push(`Bánh thưởng — giữ ≤10% tổng calo/ngày của ${name}, không thay bữa chính.`);
+    if (kcaln != null && kcaln >= 400) lines.push(`${kcaln} kcal/100g khá đậm — cho ít thôi${act === "low" ? `, nhất là vì ${name} ít vận động` : ""}.`);
   } else if (cls.type === "non_food") {
     lines.push("Sản phẩm này không phải đồ ăn (bôi ngoài/vệ sinh) — không tính dinh dưỡng.");
   } else {
@@ -219,6 +302,11 @@ export function buildScanVerdict(args: {
       flags.conditions = labels;
       lines.push(`${name} có bệnh nền đã ghi: ${labels.join(", ")}. VowVet không kết luận sản phẩm này có hợp hay không — hãy hỏi bác sĩ thú y trước khi cho dùng.`);
       askVet = true;
+      // Callout sắc theo bệnh × số nhãn — CHỈ surface dữ kiện + đẩy bác sĩ, KHÔNG phán "hợp/an toàn".
+      const cc = profile.conditions.map((c) => c.code);
+      if (cc.includes("kidney_ckd") && Pn != null && Pn >= 30) lines.push(`⚠️ ${name} có bệnh thận mà đạm nhãn ${Pn}% (cao) — thận bệnh thường cần điều chỉnh đạm; KHÔNG tự đổi, hỏi bác sĩ.`);
+      if (cc.includes("obesity_weightloss") && kcaln != null && kcaln >= 400) lines.push(`⚠️ ${name} đang cần giảm cân mà loại này ${kcaln} kcal/100g (đậm) — dễ phản tác dụng, hỏi bác sĩ.`);
+      if (cc.includes("diabetes_endocrine") && carb_pct != null && carb_pct > 20) lines.push(`⚠️ ${name} có tiểu đường/nội tiết mà tinh bột ~${carb_pct}% — đường huyết nhạy với carb, hỏi bác sĩ.`);
     }
 
     // (c) Loài / life-stage có hợp không.
@@ -233,6 +321,10 @@ export function buildScanVerdict(args: {
   }
 
   const flagged = flags.allergens.length > 0 || flags.conditions.length > 0;
+  // Pet KHOẺ + thức ăn hoàn chỉnh chắc chắn + không cờ → MẠNH TAY chốt "phù hợp".
+  if (cls.type === "complete" && healthy && !flagged && !allergyUnverified && cls.confident) {
+    lines.push(`Tổng thể: đây là lựa chọn phù hợp với ${name}.`);
+  }
   // allergyUnverified → KHÔNG green-light "ok" (bé dị ứng + chưa đọc được thành phần = không suy ra an toàn).
   const tone: ScanVerdict["tone"] =
     flagged ? "caution" : cls.type === "complete" && cls.confident && !allergyUnverified ? "ok" : "info";
@@ -241,7 +333,10 @@ export function buildScanVerdict(args: {
   const cta: ScanCta[] = [];
   // Có cờ bệnh nền/dị ứng → "Hỏi bác sĩ thú y" nổi lên đầu (dạng chữ — không có flow vet thật).
   if (askVet) {
-    cta.push({ action: "ask_vet", kind: "text", label: "Nên hỏi bác sĩ thú y trước khi cho dùng sản phẩm này.", primary: true });
+    const vetLabel = profile.conditions.length
+      ? `⚠️ ${name} có bệnh nền — hỏi bác sĩ thú y trước khi đổi/cho dùng sản phẩm này.`
+      : "Nên hỏi bác sĩ thú y trước khi cho dùng sản phẩm này.";
+    cta.push({ action: "ask_vet", kind: "text", label: vetLabel, primary: true });
   }
   // Hoàn chỉnh + không cờ + có brand khớp → thêm vào kế hoạch bữa ăn.
   if (cls.type === "complete" && !flagged && matched) {
