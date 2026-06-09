@@ -30,26 +30,32 @@ export const ALLERGEN_CODES: AllergenCode[] = [
   "peanut",
 ];
 
-/** Map từ keyword (VN hoặc EN) → standardized code. Case-insensitive substring match. */
+/**
+ * Map từ keyword (VN hoặc EN) → standardized code. Word-boundary match.
+ * Dùng lookaround Unicode `(?<![\p{L}\p{N}_])…(?![\p{L}\p{N}_])` + cờ /iu (KHÔNG `\b`):
+ * `\b` không có /u coi ký tự có dấu (à, đ…) là non-word → token tiếng Việt CÓ DẤU
+ * ("gà"/"cá"/"đậu nành") không khớp. Lookaround Unicode coi mọi chữ-cái là word-char nên khớp đúng.
+ * THỨ TỰ QUAN TRỌNG: dairy ĐẶT TRƯỚC beef để "sữa bò" → dairy (không bị từ "bò" nuốt).
+ */
 const KEYWORD_TO_CODE: Array<[RegExp, AllergenCode]> = [
   // chicken
-  [/\b(gà|thịt gà|chicken)\b/i, "chicken"],
-  // beef
-  [/\b(bò|thịt bò|beef)\b/i, "beef"],
+  [/(?<![\p{L}\p{N}_])(gà|thịt gà|chicken)(?![\p{L}\p{N}_])/iu, "chicken"],
   // fish (include common VN fish names)
-  [/\b(cá ngừ|cá hồi|cá thu|cá biển|cá nục|cá|fish|tuna|salmon)\b/i, "fish"],
-  // dairy
-  [/\b(sữa bò|sữa tươi|sữa|phô mai|milk|dairy|cheese|lactose)\b/i, "dairy"],
+  [/(?<![\p{L}\p{N}_])(cá ngừ|cá hồi|cá thu|cá biển|cá nục|cá|fish|tuna|salmon)(?![\p{L}\p{N}_])/iu, "fish"],
+  // dairy — trước beef (xem ghi chú thứ tự ở trên)
+  [/(?<![\p{L}\p{N}_])(sữa bò|sữa tươi|sữa|phô mai|milk|dairy|cheese|lactose)(?![\p{L}\p{N}_])/iu, "dairy"],
+  // beef
+  [/(?<![\p{L}\p{N}_])(bò|thịt bò|beef)(?![\p{L}\p{N}_])/iu, "beef"],
   // egg
-  [/\b(trứng|egg)\b/i, "egg"],
+  [/(?<![\p{L}\p{N}_])(trứng|egg)(?![\p{L}\p{N}_])/iu, "egg"],
   // soy
-  [/\b(đậu nành|đậu hũ|tofu|soy)\b/i, "soy"],
+  [/(?<![\p{L}\p{N}_])(đậu nành|đậu hũ|tofu|soy|soya)(?![\p{L}\p{N}_])/iu, "soy"],
   // grain
-  [/\b(ngũ cốc|lúa mì|yến mạch|wheat|grain|oat|corn|ngô)\b/i, "grain"],
+  [/(?<![\p{L}\p{N}_])(ngũ cốc|lúa mì|yến mạch|wheat|grain|oat|corn|ngô|gluten)(?![\p{L}\p{N}_])/iu, "grain"],
   // shellfish
-  [/\b(tôm|cua|ghẹ|nghêu|shellfish|shrimp|crab)\b/i, "shellfish"],
+  [/(?<![\p{L}\p{N}_])(tôm|cua|ghẹ|nghêu|shellfish|shrimp|crab)(?![\p{L}\p{N}_])/iu, "shellfish"],
   // peanut
-  [/\b(đậu phộng|lạc|peanut)\b/i, "peanut"],
+  [/(?<![\p{L}\p{N}_])(đậu phộng|lạc|peanut)(?![\p{L}\p{N}_])/iu, "peanut"],
 ];
 
 /**
