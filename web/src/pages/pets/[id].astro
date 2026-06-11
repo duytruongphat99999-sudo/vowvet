@@ -2951,6 +2951,7 @@ const storyExcerpt = hasStory
                   <template x-for="f in [['all','Tất cả'],['concern','Có concern'],['normal','Bình thường']]" :key="f[0]">
                     <button @click="care.historyFilter = f[0]"
                       :class="care.historyFilter === f[0] ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                      :style="care.historyFilter === f[0] ? 'color:#fff !important' : ''"
                       class="px-3 py-1.5 rounded-full font-medium transition" x-text="f[1]"></button>
                   </template>
                 </div>
@@ -2963,13 +2964,16 @@ const storyExcerpt = hasStory
                 </template>
                 <ul class="space-y-2">
                   <template x-for="h in filteredHistory()" :key="h.id">
-                    <li class="bg-white border border-slate-100 rounded-xl p-3 flex items-center gap-3">
-                      <span class="w-2 h-2 rounded-full shrink-0" :class="urgencyDot(h.plan?.urgency_level)"></span>
+                    <li class="bg-white border border-slate-100 rounded-xl p-3 flex items-start gap-3 cursor-pointer"
+                      @click="care.historyOpenId = care.historyOpenId === h.id ? null : h.id">
+                      <span class="w-2 h-2 rounded-full shrink-0 mt-1.5" :class="urgencyDot(h.plan?.urgency_level)"></span>
                       <div class="min-w-0 flex-1">
                         <p class="text-sm font-medium text-slate-900" x-text="h.check_date"></p>
-                        <p class="text-xs text-slate-500 truncate" x-text="h.plan?.summary || 'Chưa có phân tích'"></p>
+                        <p class="text-xs text-slate-500" :class="care.historyOpenId === h.id ? '' : 'truncate'"
+                          x-text="h.plan?.summary || 'Chưa có phân tích'"></p>
                       </div>
                       <span class="text-xs text-slate-400 shrink-0" x-text="h.plan ? urgencyLabel(h.plan.urgency_level) : '—'"></span>
+                      <span class="text-slate-400 shrink-0 text-xs transition-transform" :class="care.historyOpenId === h.id ? 'rotate-180' : ''">▾</span>
                     </li>
                   </template>
                 </ul>
@@ -3334,6 +3338,7 @@ const storyExcerpt = hasStory
         historyExpanded: false,
         history: [],
         historyFilter: "all",
+        historyOpenId: null,
         _pollTimer: null,
         _pollAttempts: 0,
       },
