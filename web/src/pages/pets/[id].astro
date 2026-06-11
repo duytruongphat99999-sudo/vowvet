@@ -1704,7 +1704,7 @@ const storyExcerpt = hasStory
 
                   <!-- TRẠNG THÁI 3: không đọc nổi ảnh (ocr null / unknown) — CHỈ case này mới "chụp lại" -->
                   <template x-if="failState">
-                    <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3">AI của VowVet chưa đọc được nhãn — chụp lại rõ phần thành phần/bao bì, đủ sáng, không loá.</p>
+                    <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3" x-text="failMsg"></p>
                   </template>
 
                   <!-- TRẠNG THÁI 2: KHÔNG phải sản phẩm thú cưng (KHÁC "chụp lại") -->
@@ -3036,6 +3036,8 @@ const storyExcerpt = hasStory
       get catType() { const v = this.verdict; return (v && v.category && v.category.type) || null; },
       // 3 trạng thái: failState = không đọc nổi (ocr null / unknown) · isNonFood = không phải đồ thú cưng · còn lại = đọc được
       get failState() { return !this.result || !this.result.ocr || this.catType === "unknown"; },
+      // message từ API ưu tiên (phân biệt "AI bận" vs "ảnh mờ"); fallback chuỗi cũ khi thiếu
+      get failMsg() { return (this.result && this.result.message) || "AI của VowVet chưa đọc được nhãn — chụp lại rõ phần thành phần/bao bì, đủ sáng, không loá."; },
       get isNonFood() { return this.catType === "non_food"; },
       get vetNotes() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind === "text"); },
       get actionCtas() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind !== "text"); },

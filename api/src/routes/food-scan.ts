@@ -76,16 +76,20 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
     const key = `scans/${petId}/${Date.now()}.${ext}`;
     const scanUrl = await uploadObject(key, bytes, file.type);
 
-    // OCR nhãn (Gemini vision) — base64 trực tiếp từ bytes; null nếu không đọc được
+    // OCR nhãn (Gemini vision) — base64 trực tiếp từ bytes; {ocr, failReason} phân biệt AI bận vs ảnh mờ
     const imageBase64 = Buffer.from(buf).toString("base64");
-    const ocr = await scanFoodLabel({ imageBase64, mimeType: file.type });
+    const { ocr, failReason } = await scanFoodLabel({ imageBase64, mimeType: file.type });
 
     if (!ocr) {
+      const aiBusy = failReason === "model_error";
       return c.json({
         scan_url: scanUrl,
         ocr: null,
         match: { matched: false, brand: null, confidence: 0, candidates: [] },
-        message: "AI của VowVet chưa đọc được nhãn. Thử lại với ảnh rõ nét, đủ sáng, thấy bảng thành phần.",
+        fail_reason: aiBusy ? "ai_busy" : "unreadable",
+        message: aiBusy
+          ? "AI của VowVet đang quá tải, không phải do ảnh — thử lại sau ít phút nha."
+          : "AI của VowVet chưa đọc được nhãn — chụp lại rõ phần thành phần/bao bì, đủ sáng, không loá.",
       });
     }
 

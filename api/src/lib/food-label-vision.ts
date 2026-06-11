@@ -1,11 +1,18 @@
 /**
  * Food label OCR vision service (camera scan — pha 1).
  *
- * Bám khuôn bcs-vision.ts: Gemini 2.5 Flash + inlineData, parse JSON thuần,
- * fallback `null` (KHÔNG bịa số) khi thiếu key / Gemini fail / nhãn không đọc được.
+ * Gọi Gemini REST trực tiếp (v1beta generateContent) + inlineData, parse JSON thuần.
+ * REST thay SDK để đọc được HTTP status (phân loại retry) + finishReason (bắt MAX_TOKENS).
+ * Retry 3 attempt (backoff 1s/2.5s) CHỈ cho 429/5xx/network/timeout — hết nuốt im 503.
+ *
+ * scanFoodLabel trả {ocr, failReason}:
+ *   failReason "model_error" = lỗi phía AI (429/5xx/network/timeout/4xx/parse hỏng/MAX_TOKENS) — KHÔNG phải tại ảnh;
+ *   failReason "empty"       = Gemini đọc JSON hợp lệ nhưng all-null (ảnh không đọc nổi thật);
+ *   failReason null          = có dữ liệu. non_food all-null VẪN là kết quả hợp lệ (3-state 2b41f9c).
  *
  * CHỈ đọc nhãn → trả guaranteed-analysis thô. KHÔNG tính DER/dinh dưỡng (pha sau).
- * KHÔNG log GEMINI_API_KEY. Nhãn AI hướng người dùng = "AI của VowVet" (xử lý ở route).
+ * KHÔNG log GEMINI_API_KEY (key đi qua header, không nằm trong URL/error body).
+ * Nhãn AI hướng người dùng = "AI của VowVet" (xử lý ở route).
  */
 
 export interface FoodLabelOcr {
@@ -25,6 +32,13 @@ export interface FoodLabelOcr {
 export interface FoodLabelInput {
   imageBase64: string;
   mimeType: string;
+}
+
+export type FoodLabelFailReason = "model_error" | "empty" | null;
+
+export interface FoodLabelScanResult {
+  ocr: FoodLabelOcr | null;
+  failReason: FoodLabelFailReason;
 }
 
 /** % hợp lệ 0..100; ngoài range / không phải số → null (KHÔNG bịa). */
@@ -80,63 +94,141 @@ const PROMPT =
   `"protein_pct":<number|null>,"fat_pct":<number|null>,"fiber_pct":<number|null>,"moisture_pct":<number|null>,` +
   `"calories_per_100g":<number|null>,"raw_text":<string|null>}`;
 
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const ATTEMPT_TIMEOUT_MS = 20_000; // AbortController 20s/attempt
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [1_000, 2_500]; // backoff giữa attempt 1→2 và 2→3
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type GeminiCall =
+  | { ok: true; finishReason: string | null; text: string }
+  | { ok: false; retryable: boolean; detail: string };
+
+/** 1 attempt REST. Lỗi network/timeout + 429/5xx = retryable; 4xx khác = không. */
+async function callGeminiOnce(apiKey: string, input: FoodLabelInput): Promise<GeminiCall> {
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: PROMPT },
+          { inline_data: { mime_type: input.mimeType, data: input.imageBase64 } },
+        ],
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: 2048,
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingBudget: 0 }, // tắt thinking — không ăn lẹm token budget
+    },
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+    });
+  } catch (err: any) {
+    return { ok: false, retryable: true, detail: `fetch_error: ${String(err?.message || err).slice(0, 500)}` };
+  }
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    return {
+      ok: false,
+      retryable: res.status === 429 || res.status >= 500,
+      detail: `http_${res.status}: ${errBody.slice(0, 500)}`,
+    };
+  }
+
+  const j: any = await res.json().catch(() => null);
+  const cand = j?.candidates?.[0];
+  const text = (cand?.content?.parts ?? []).map((p: any) => p?.text ?? "").join("");
+  return { ok: true, finishReason: cand?.finishReason ?? null, text };
+}
+
 /**
- * OCR 1 ảnh nhãn → guaranteed-analysis thô. Trả null nếu không đọc được / Gemini fail.
+ * OCR 1 ảnh nhãn → guaranteed-analysis thô.
+ * Trả {ocr, failReason} — KHÔNG còn null trần: route phân biệt được "AI bận" vs "ảnh mờ".
  */
-export async function scanFoodLabel(input: FoodLabelInput): Promise<FoodLabelOcr | null> {
+export async function scanFoodLabel(input: FoodLabelInput): Promise<FoodLabelScanResult> {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
   if (!GEMINI_API_KEY) {
-    console.warn("[food-label-vision] GEMINI_API_KEY missing → null (no OCR)");
-    return null;
+    console.error("[food-label-vision] GEMINI_API_KEY missing → model_error (no OCR)");
+    return { ocr: null, failReason: "model_error" };
   }
 
-  try {
-    const { GoogleGenAI } = await import("@google/genai");
-    const genai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const result = await genai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: PROMPT },
-            { inlineData: { mimeType: input.mimeType, data: input.imageBase64 } },
-          ],
-        },
-      ],
-      config: { maxOutputTokens: 800, temperature: 0.1, responseMimeType: "application/json" },
-    });
-
-    const raw = result.text || "";
-    const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-    let parsed: any;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      const m = cleaned.match(/\{[\s\S]+\}/);
-      if (!m) {
-        console.error("[food-label-vision] no JSON in response");
-        return null;
-      }
-      parsed = JSON.parse(m[0]);
+  let call: Extract<GeminiCall, { ok: true }> | null = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) await sleep(RETRY_DELAYS_MS[attempt - 2]);
+    const r = await callGeminiOnce(GEMINI_API_KEY, input);
+    if (r.ok) {
+      call = r;
+      break;
     }
-
-    const rawText = str(parsed.raw_text);
-    return {
-      brand_name: str(parsed.brand_name),
-      product_line: str(parsed.product_line),
-      product_type: ptype(parsed.product_type),
-      species: str(parsed.species),
-      life_stage: str(parsed.life_stage),
-      protein_pct: pct(parsed.protein_pct),
-      fat_pct: pct(parsed.fat_pct),
-      fiber_pct: pct(parsed.fiber_pct),
-      moisture_pct: pct(parsed.moisture_pct),
-      calories_per_100g: kcal(parsed.calories_per_100g),
-      raw_text: rawText ? rawText.slice(0, 2000) : null,
-    };
-  } catch (err) {
-    console.error("[food-label-vision] OCR fail:", err);
-    return null;
+    console.error(`[food-label-vision] Gemini attempt ${attempt}/${MAX_ATTEMPTS} fail (retryable=${r.retryable}):`, r.detail);
+    if (!r.retryable) break;
   }
+  if (!call) return { ocr: null, failReason: "model_error" };
+
+  if (call.finishReason === "MAX_TOKENS") {
+    console.error("[food-label-vision] finishReason=MAX_TOKENS — output bị cắt → model_error");
+    return { ocr: null, failReason: "model_error" };
+  }
+
+  const cleaned = call.text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    const m = cleaned.match(/\{[\s\S]+\}/);
+    if (!m) {
+      console.error(`[food-label-vision] no JSON in response (finishReason=${call.finishReason}):`, cleaned.slice(0, 500));
+      return { ocr: null, failReason: "model_error" };
+    }
+    try {
+      parsed = JSON.parse(m[0]);
+    } catch {
+      console.error("[food-label-vision] JSON parse fail:", cleaned.slice(0, 500));
+      return { ocr: null, failReason: "model_error" };
+    }
+  }
+
+  const rawText = str(parsed.raw_text);
+  const ocr: FoodLabelOcr = {
+    brand_name: str(parsed.brand_name),
+    product_line: str(parsed.product_line),
+    product_type: ptype(parsed.product_type),
+    species: str(parsed.species),
+    life_stage: str(parsed.life_stage),
+    protein_pct: pct(parsed.protein_pct),
+    fat_pct: pct(parsed.fat_pct),
+    fiber_pct: pct(parsed.fiber_pct),
+    moisture_pct: pct(parsed.moisture_pct),
+    calories_per_100g: kcal(parsed.calories_per_100g),
+    raw_text: rawText ? rawText.slice(0, 2000) : null,
+  };
+
+  // empty = all-null contract trong PROMPT (ảnh không đọc nổi thật).
+  // EXCLUDE non_food: product_type="non_food" dù 0 field vẫn là KẾT QUẢ HỢP LỆ
+  // → chảy về route/widget render state "không phải đồ thú cưng" (3-state 2b41f9c).
+  const hasAnyField =
+    ocr.brand_name !== null || ocr.product_line !== null || ocr.species !== null ||
+    ocr.life_stage !== null || ocr.protein_pct !== null || ocr.fat_pct !== null ||
+    ocr.fiber_pct !== null || ocr.moisture_pct !== null || ocr.calories_per_100g !== null ||
+    ocr.raw_text !== null;
+  if (!hasAnyField && ocr.product_type !== "non_food") {
+    console.error(`[food-label-vision] OCR empty (all-null, product_type=${ocr.product_type}) → unreadable`);
+    return { ocr: null, failReason: "empty" };
+  }
+
+  return { ocr, failReason: null };
 }
