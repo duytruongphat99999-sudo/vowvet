@@ -1662,7 +1662,7 @@ const storyExcerpt = hasStory
             </template>
 
             <!-- SECTION: SCAN NHÃN THỨC ĂN (C pha 2) — widget Alpine tự chứa, monochrome gold/ink -->
-            <section id="food-scan" x-data={`foodScanWidget(${petId})`} class="bg-white rounded-2xl border border-mmp-ink/12 p-5">
+            <section id="food-scan" x-data={`foodScanWidget(${petId}, ${JSON.stringify(pet.name || "bé")})`} class="bg-white rounded-2xl border border-mmp-ink/12 p-5">
               <div class="mb-2">
                 <h3 class="text-sm font-semibold text-mmp-ink flex items-center gap-1.5"><FeatureIcon name="camera" class="w-4 h-4" />Scan nhãn thức ăn</h3>
                 <p class="text-xs text-mmp-ink/60 mt-0.5">Chụp bảng Guaranteed Analysis trên bao bì — AI của VowVet đọc số dinh dưỡng & dò trong thư viện.</p>
@@ -1692,7 +1692,7 @@ const storyExcerpt = hasStory
                 class="w-full bg-mmp-ink hover:opacity-90 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm shadow-sm mt-3"
                 aria-label="Phân tích nhãn bằng AI của VowVet">
                 <span x-show="!scanning" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="wand" class="w-4 h-4" />Phân tích nhãn</span>
-                <span x-show="scanning">AI của VowVet đang phân tích nhãn…</span>
+                <span x-show="scanning" x-text="scanMsg"></span>
               </button>
 
               <!-- KẾT QUẢ — 1 card verdict duy nhất (server trả category/verdict/cta). KHÔNG tính FE. -->
@@ -1730,13 +1730,85 @@ const storyExcerpt = hasStory
                         </p>
                       </template>
 
-                      <ul class="space-y-1.5">
-                        <template x-for="(ln, i) in verdict.lines" :key="i">
-                          <li class="text-sm text-mmp-ink/80 leading-snug flex items-start gap-1.5">
-                            <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-2"></span><span x-text="ln"></span>
-                          </li>
-                        </template>
-                      </ul>
+                      <!-- PASS 2: phân tích wow (LLM, server đã validate) — không có → fallback verdict.lines bên dưới -->
+                      <template x-if="analysis">
+                        <div class="space-y-3">
+                          <!-- Score: CHỈ tồn tại khi pet khoẻ + không dính dị ứng (validator server chặn) -->
+                          <template x-if="analysis.score != null">
+                            <div class="flex items-center gap-3 bg-slate-50 border border-mmp-ink/12 rounded-xl p-3">
+                              <span class="text-3xl font-bold text-mmp-ink shrink-0" style="font-family:'Azeret Mono',ui-monospace,monospace" x-text="analysis.score"></span>
+                              <div>
+                                <p class="text-[11px] uppercase tracking-wide text-mmp-ink/50">Điểm cho bé — thang 10</p>
+                                <p class="text-xs text-mmp-ink/70">AI của VowVet chấm theo hồ sơ của chính bé.</p>
+                              </div>
+                            </div>
+                          </template>
+
+                          <div>
+                            <p class="text-xs font-semibold text-mmp-ink mb-1">📝 <span x-text="analysis.conclusion.title"></span></p>
+                            <p class="text-sm text-mmp-ink/80 leading-snug" x-text="analysis.conclusion.body"></p>
+                          </div>
+
+                          <template x-if="anaScenarios.length">
+                            <div class="space-y-1.5">
+                              <template x-for="(s, i) in anaScenarios" :key="i">
+                                <div class="bg-slate-50 border border-mmp-ink/12 rounded-lg p-2.5">
+                                  <p class="text-xs font-semibold text-mmp-ink" x-text="s.title"></p>
+                                  <p class="text-xs text-mmp-ink/70 leading-snug mt-0.5" x-text="s.detail"></p>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+
+                          <template x-if="anaInsights.length">
+                            <div>
+                              <p class="text-xs font-semibold text-mmp-ink mb-1">🔍 Soi thành phần</p>
+                              <ul class="space-y-1">
+                                <template x-for="(it, i) in anaInsights" :key="i">
+                                  <li class="text-xs text-mmp-ink/80 leading-snug"><span class="font-semibold" x-text="it.term"></span> — <span x-text="it.plain"></span></li>
+                                </template>
+                              </ul>
+                            </div>
+                          </template>
+
+                          <template x-if="anaTips.length">
+                            <div>
+                              <p class="text-xs font-semibold text-mmp-ink mb-1">💡 Bí kíp dùng</p>
+                              <ul class="space-y-1">
+                                <template x-for="(t, i) in anaTips" :key="i">
+                                  <li class="text-xs text-mmp-ink/80 leading-snug flex items-start gap-1.5">
+                                    <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-1.5"></span><span x-text="t"></span>
+                                  </li>
+                                </template>
+                              </ul>
+                            </div>
+                          </template>
+
+                          <template x-if="analysis.economy">
+                            <div class="bg-slate-50 border border-mmp-ink/12 rounded-lg p-2.5">
+                              <p class="text-xs font-semibold text-mmp-ink mb-0.5">⏰ Tính kinh tế</p>
+                              <p class="text-xs text-mmp-ink/80 leading-snug" x-text="analysis.economy.estimate"></p>
+                              <p class="text-[11px] text-mmp-ink/50 mt-0.5" x-text="analysis.economy.basis"></p>
+                            </div>
+                          </template>
+
+                          <div class="space-y-1.5">
+                            <p class="text-xs font-semibold text-mmp-ink">🩺 Theo dõi khi dùng</p>
+                            <p class="text-xs text-mmp-ink/70 leading-snug"><span class="font-semibold text-mmp-ink">Bình thường:</span> <span x-text="analysis.watch.normal"></span></p>
+                            <p class="text-xs text-mmp-ink bg-amber-50 border border-amber-200 rounded-lg p-2.5 leading-snug"><span class="font-semibold">Bất thường:</span> <span x-text="analysis.watch.abnormal"></span></p>
+                          </div>
+                        </div>
+                      </template>
+
+                      <template x-if="!analysis">
+                        <ul class="space-y-1.5">
+                          <template x-for="(ln, i) in verdict.lines" :key="i">
+                            <li class="text-sm text-mmp-ink/80 leading-snug flex items-start gap-1.5">
+                              <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-2"></span><span x-text="ln"></span>
+                            </li>
+                          </template>
+                        </ul>
+                      </template>
 
                       <!-- Chi tiết số từ nhãn (gập) — số nhãn nằm mục phụ, không phải bảng chính -->
                       <template x-if="gaRows.length || (result.match && result.match.matched)">
@@ -2998,7 +3070,7 @@ const storyExcerpt = hasStory
 <script is:inline src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <!-- C pha 2: widget scan nhãn thức ăn — Alpine tự chứa, nối POST /pets/:id/food/scan (ca32f13). KHÔNG tính toán FE. -->
 <script is:inline>
-  function foodScanWidget(petId) {
+  function foodScanWidget(petId, petName) {
     return {
       init() {
         try {
@@ -3015,10 +3087,13 @@ const storyExcerpt = hasStory
       },
 
       petId,
+      petName: petName || "bé",
       inputId: `food-scan-input-${petId}`,
       file: null,
       preview: null,
       scanning: false,
+      scanMsg: "Đang đọc nhãn…",
+      _msgTimer: null,
       error: "",
       result: null,
 
@@ -3040,6 +3115,11 @@ const storyExcerpt = hasStory
       get failMsg() { return (this.result && this.result.message) || "AI của VowVet chưa đọc được nhãn — chụp lại rõ phần thành phần/bao bì, đủ sáng, không loá."; },
       get isNonFood() { return this.catType === "non_food"; },
       get vetNotes() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind === "text"); },
+      // Pass 2 phân tích wow — server validate + fail-soft: không có → template verdict.lines render như cũ
+      get analysis() { return (this.result && this.result.analysis) || null; },
+      get anaScenarios() { const a = this.analysis; return (a && Array.isArray(a.scenarios)) ? a.scenarios : []; },
+      get anaInsights() { const a = this.analysis; return (a && Array.isArray(a.insights)) ? a.insights : []; },
+      get anaTips() { const a = this.analysis; return (a && Array.isArray(a.tips)) ? a.tips : []; },
       get actionCtas() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind !== "text"); },
 
       get gaRows() {
@@ -3064,6 +3144,9 @@ const storyExcerpt = hasStory
       async submit() {
         if (!this.file || this.scanning) return;
         this.scanning = true;
+        // Loading staged: OCR ~6s → pass 2 phân tích thêm 4-8s, đổi chữ sau ~5s cho đỡ "đứng hình"
+        this.scanMsg = "Đang đọc nhãn…";
+        this._msgTimer = setTimeout(() => { this.scanMsg = "Đang phân tích cho " + this.petName + "…"; }, 5000);
         this.error = "";
         this.result = null;
         try {
@@ -3076,6 +3159,7 @@ const storyExcerpt = hasStory
         } catch (_) {
           this.error = "Lỗi kết nối. Kiểm tra mạng và thử lại.";
         } finally {
+          if (this._msgTimer) { clearTimeout(this._msgTimer); this._msgTimer = null; }
           this.scanning = false;
         }
       },

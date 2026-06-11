@@ -19,6 +19,7 @@ import { scanFoodLabel } from "../lib/food-label-vision.ts";
 import { matchFoodBrand } from "../lib/food-brand-matcher.ts";
 import { checkRateLimit } from "../lib/rate-limit.ts";
 import { buildScanVerdict, type ScanPetProfile } from "../lib/scan-verdict.ts";
+import { buildScanAnalysis, type ScanAnalysis } from "../lib/scan-analysis.ts";
 import { createRow } from "@shared/baserow.ts";
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB (như bills)
@@ -147,7 +148,15 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
     };
     const verdict = buildScanVerdict({ petId, ocr, match, carb_pct, profile });
 
-    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated, verdict });
+    // Pass 2 "phân tích wow" (LLM text-only) — fail-soft: null → response KHÔNG có key analysis,
+    // widget tự rơi về verdict template. Skip non_food/unknown (không có gì để phân tích).
+    let analysis: ScanAnalysis | null = null;
+    const vType = verdict?.category?.type;
+    if (verdict && (vType === "complete" || vType === "supplement" || vType === "treat")) {
+      analysis = await buildScanAnalysis({ ocr, verdict, profile, allergenHits: verdict.flags.allergens });
+    }
+
+    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated, verdict, ...(analysis ? { analysis } : {}) });
   } catch (err: any) {
     console.error("[food/scan] error:", err);
     return c.json({ error: { code: "SCAN_FAILED", message: "Quét nhãn thất bại, thử lại sau" } }, 500);
