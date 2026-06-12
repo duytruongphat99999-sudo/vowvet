@@ -67,7 +67,8 @@ export type TableName =
   | "care_plan_completions"
   | "pet_exercise_logs"
   | "pet_water_logs"
-  | "scan_logs";
+  | "scan_logs"
+  | "danger_kb";
 
 export interface TableMeta {
   id: number;

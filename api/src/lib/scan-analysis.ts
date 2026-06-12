@@ -15,6 +15,7 @@
  */
 import type { FoodLabelOcr } from "./food-label-vision.ts";
 import type { ScanVerdict, ScanPetProfile } from "./scan-verdict.ts";
+import type { KbWarning } from "./kb-warnings.ts";
 import { HEALTH_CONDITIONS } from "@shared/health-conditions.ts";
 
 export interface ScanAnalysis {
@@ -33,6 +34,8 @@ export interface ScanAnalysisInput {
   profile: ScanPetProfile;
   /** verdict.flags.allergens — label VN các allergen ĐÃ match trên nhãn (route truyền vào, không query mới). */
   allergenHits: string[];
+  /** KB cảnh báo nguy hiểm vet-approved đã match (kb-warnings.ts) — LLM diễn giải, KHÔNG tự thêm/bớt. */
+  kbWarnings?: KbWarning[];
 }
 
 // ============================================================
@@ -120,6 +123,7 @@ async function callGeminiTextOnce(apiKey: string, prompt: string): Promise<Gemin
 
 function buildPrompt(input: ScanAnalysisInput): string {
   const { ocr, verdict, profile, allergenHits } = input;
+  const kbWarnings = input.kbWarnings || [];
   const conditionLabels = profile.conditions.map(
     (c) => HEALTH_CONDITIONS.find((d) => d.code === c.code)?.label || c.code,
   );
@@ -150,6 +154,13 @@ function buildPrompt(input: ScanAnalysisInput): string {
       raw_text_nhan: ocr.raw_text,
     },
     canh_bao_di_ung_tren_nhan: allergenHits, // allergen bé khai TRÙNG với chữ đọc được trên nhãn
+    // KB nguy hiểm do BÁC SĨ THÚ Y duyệt — ĐÃ XÁC NHẬN match trên nhãn này, là SỰ THẬT không bàn cãi
+    canh_bao_nguy_hiem_vet_approved: kbWarnings.map((w) => ({
+      chat: w.substance,
+      muc_do: w.severity,
+      co_che: w.summary,
+      hanh_dong: w.action,
+    })),
     nhan_dinh_co_san: { headline: verdict.headline, lines: verdict.lines }, // pass 1 đã soi đạm/béo/calo
   };
 
@@ -172,7 +183,10 @@ function buildPrompt(input: ScanAnalysisInput): string {
     `6. scenarios: nếu là supplement → 2-4 kịch bản đời thường "khi nào nên dùng/mở hũ này"; nếu là food/treat → so đạm/béo/calo với nhu cầu bé ` +
     `bằng cách DIỄN GIẢI LẠI nhan_dinh_co_san.lines, TUYỆT ĐỐI không tự tính số mới.\n` +
     `7. watch.normal = dấu hiệu bình thường những ngày đầu dùng; watch.abnormal = dấu hiệu bất thường, LUÔN kết bằng: ngưng dùng + đưa bé đi gặp bác sĩ thú y.\n` +
-    `8. Tiếng Việt, mỗi mục ngắn gọn; conclusion.body tối đa 1000 ký tự; mọi giá trị string KHÔNG chứa markdown.\n\n` +
+    `8. Tiếng Việt, mỗi mục ngắn gọn; conclusion.body tối đa 1000 ký tự; mọi giá trị string KHÔNG chứa markdown.\n` +
+    `9. canh_bao_nguy_hiem_vet_approved (nếu CÓ phần tử): đây là cảnh báo do BÁC SĨ THÚ Y duyệt, ĐÃ match trên nhãn — ` +
+    `BẮT BUỘC: score: null; conclusion mở đầu bằng cảnh báo này (diễn giải lại co_che + hanh_dong cho dễ hiểu, KHÔNG giảm nhẹ); ` +
+    `TUYỆT ĐỐI KHÔNG khuyên dùng sản phẩm; KHÔNG tự thêm chất nguy hiểm ngoài danh sách, KHÔNG bỏ bớt cảnh báo nào.\n\n` +
     `Trả JSON THUẦN (không markdown, không code fence):\n` +
     `{"score":<number|null>,"conclusion":{"title":<string>,"body":<string>},` +
     `"scenarios":[{"title":<string>,"detail":<string>}],` +
@@ -205,12 +219,15 @@ export type ValidateResult = { ok: true; value: ScanAnalysis } | { ok: false; re
  * economy sai luật → soft-coerce về null (KHÔNG đánh rớt cả bài).
  * @param rawText — raw_text nhãn (ocr.raw_text): MỌI số trong economy.basis phải có mặt ở đây,
  *                  chống LLM tự suy số ("thường 1 muỗng/ngày" → "30 ngày" bịa).
+ * @param kbDanger — true khi KB vet-approved match fatal/severe: quét chữ cấm như pet bệnh nền
+ *                   (LLM bỏ rule 9 viết "nên dùng/an toàn" dưới box đỏ → INVALID, rơi về fallback).
  */
 export function validateAnalysis(
   raw: any,
   profile: ScanPetProfile,
   allergenHits: string[],
   rawText: string | null = null,
+  kbDanger = false,
 ): ValidateResult {
   if (!raw || typeof raw !== "object") return { ok: false, reason: "not_object" };
 
@@ -254,8 +271,9 @@ export function validateAnalysis(
   // (a) bệnh nền / dính dị ứng mà vẫn chấm điểm → INVALID
   if ((sick || allergic) && score !== null) return { ok: false, reason: "score_not_null_for_risky_pet" };
 
-  // (b) chữ cấm khi bệnh nền — quét toàn bộ text LLM sinh (mirror rule verdict 8cb7530)
-  if (sick) {
+  // (b) chữ cấm khi bệnh nền HOẶC KB danger fatal/severe — quét toàn bộ text LLM sinh
+  // (mirror rule verdict 8cb7530; kbDanger: "nên dùng" dưới box đỏ = mâu thuẫn an toàn).
+  if (sick || kbDanger) {
     const allText = norm(
       [
         raw.conclusion.title, raw.conclusion.body,
@@ -355,10 +373,16 @@ export async function buildScanAnalysis(input: ScanAnalysisInput): Promise<ScanA
       }
     }
 
-    const v = validateAnalysis(parsed, input.profile, input.allergenHits, input.ocr.raw_text);
+    const kbDanger = (input.kbWarnings || []).some((w) => w.severity === "fatal" || w.severity === "severe");
+    const v = validateAnalysis(parsed, input.profile, input.allergenHits, input.ocr.raw_text, kbDanger);
     if (!v.ok) {
       console.error(`[scan-analysis] validator INVALID (${v.reason}) → fallback verdict template`);
       return null;
+    }
+    // CÓ BẤT KỲ KB warning nào (kể cả caution) → score ÉP null TRONG CODE — khớp prompt rule 9,
+    // coerce chứ KHÔNG reject (LLM lỡ chấm vẫn an toàn; điểm số cạnh box cảnh báo = phản UX).
+    if ((input.kbWarnings || []).length > 0) {
+      v.value.score = null;
     }
     return v.value;
   } catch (err) {

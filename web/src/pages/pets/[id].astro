@@ -1702,6 +1702,23 @@ const storyExcerpt = hasStory
                     <img :src="result.scan_url" alt="Ảnh nhãn đã quét" class="w-full max-h-48 object-contain rounded-xl border border-mmp-ink/12 bg-slate-50" />
                   </template>
 
+                  <!-- KB CẢNH BÁO NGUY HIỂM (vet-approved) — TRÊN CÙNG, độc lập verdict/analysis.
+                       Hiện ở MỌI trạng thái có OCR (kể cả non_food: quét hộp thuốc người vẫn phải cảnh báo).
+                       Đỏ semantic Tầng-3 hợp lệ; style inline né rule .pet-detail-tabs. -->
+                  <template x-for="(w, i) in kbWarnings" :key="i">
+                    <div class="rounded-xl p-3" role="alert"
+                      :style="w.severity === 'caution' ? 'background:#fffbeb;border:2px solid #d97706' : 'background:#fef2f2;border:2px solid #dc2626'">
+                      <p class="text-xs font-bold flex items-center gap-1.5"
+                        :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c') + ' !important'">
+                        <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0" />
+                        <span x-text="(w.severity === 'fatal' ? 'NGUY HIỂM TÍNH MẠNG' : w.severity === 'severe' ? 'NGUY HIỂM' : 'CẦN THẬN TRỌNG') + ' — ' + w.substance"></span>
+                      </p>
+                      <p class="text-xs mt-1.5 leading-snug" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')" x-text="w.summary"></p>
+                      <p class="text-xs mt-1 font-semibold leading-snug" :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c')" x-text="w.action"></p>
+                      <p class="text-[10px] mt-1.5 italic" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')">Cảnh báo do bác sĩ thú y duyệt, dựa trên chữ đọc được từ nhãn.</p>
+                    </div>
+                  </template>
+
                   <!-- TRẠNG THÁI 3: không đọc nổi ảnh (ocr null / unknown) — CHỈ case này mới "chụp lại" -->
                   <template x-if="failState">
                     <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3" x-text="failMsg"></p>
@@ -1800,7 +1817,9 @@ const storyExcerpt = hasStory
                         </div>
                       </template>
 
-                      <template x-if="!analysis">
+                      <!-- Fallback verdict pass-1 KHÔNG biết KB → kbDanger thì ẨN lines (tránh khen
+                           sản phẩm ngay dưới box đỏ), thay bằng note đẩy về bác sĩ. -->
+                      <template x-if="!analysis && !kbDanger">
                         <ul class="space-y-1.5">
                           <template x-for="(ln, i) in verdict.lines" :key="i">
                             <li class="text-sm text-mmp-ink/80 leading-snug flex items-start gap-1.5">
@@ -1808,6 +1827,9 @@ const storyExcerpt = hasStory
                             </li>
                           </template>
                         </ul>
+                      </template>
+                      <template x-if="!analysis && kbDanger">
+                        <p class="text-sm text-mmp-ink/80 leading-snug">Sản phẩm dính cảnh báo nguy hiểm phía trên — AI của VowVet không phân tích thêm. Hỏi bác sĩ thú y trước khi cho bé dùng.</p>
                       </template>
 
                       <!-- Chi tiết số từ nhãn (gập) — số nhãn nằm mục phụ, không phải bảng chính -->
@@ -1842,9 +1864,9 @@ const storyExcerpt = hasStory
                         </details>
                       </template>
 
-                      <!-- CTA theo loại + verdict -->
+                      <!-- CTA theo loại + verdict (kbDanger → chỉ còn rescan, cấm 'Thêm vào kế hoạch') -->
                       <div class="flex flex-wrap gap-2 pt-1">
-                        <template x-for="(c, i) in actionCtas" :key="i">
+                        <template x-for="(c, i) in visibleCtas" :key="i">
                           <button type="button" @click="runCta(c)"
                             class="text-sm font-semibold px-3 py-2 rounded-xl transition"
                             :class="c.primary ? 'bg-mmp-ink text-white hover:opacity-90' : 'bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30'"
@@ -3112,6 +3134,15 @@ const storyExcerpt = hasStory
       },
 
       get verdict() { return (this.result && this.result.verdict) || null; },
+      // KB cảnh báo nguy hiểm vet-approved — độc lập verdict/analysis (server tính, fail-soft []).
+      get kbWarnings() { return (this.result && Array.isArray(this.result.kb_warnings)) ? this.result.kb_warnings : []; },
+      get kbDanger() { return this.kbWarnings.some(function (w) { return w.severity === 'fatal' || w.severity === 'severe'; }); },
+      // kbDanger → giấu CTA hành động (add_plan...) — chỉ giữ rescan; verdict pass-1 không biết KB.
+      get visibleCtas() {
+        var ctas = this.actionCtas;
+        if (!this.kbDanger) return ctas;
+        return ctas.filter(function (c) { return c.action === 'rescan'; });
+      },
       get catType() { const v = this.verdict; return (v && v.category && v.category.type) || null; },
       // 3 trạng thái: failState = không đọc nổi (ocr null / unknown) · isNonFood = không phải đồ thú cưng · còn lại = đọc được
       get failState() { return !this.result || !this.result.ocr || this.catType === "unknown"; },

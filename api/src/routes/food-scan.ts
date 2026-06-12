@@ -20,6 +20,7 @@ import { matchFoodBrand } from "../lib/food-brand-matcher.ts";
 import { checkRateLimit } from "../lib/rate-limit.ts";
 import { buildScanVerdict, type ScanPetProfile } from "../lib/scan-verdict.ts";
 import { buildScanAnalysis, type ScanAnalysis } from "../lib/scan-analysis.ts";
+import { getKbWarnings, type KbWarning } from "../lib/kb-warnings.ts";
 import { createRow } from "@shared/baserow.ts";
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB (như bills)
@@ -148,15 +149,29 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
     };
     const verdict = buildScanVerdict({ petId, ocr, match, carb_pct, profile });
 
+    // KB cảnh báo nguy hiểm (vet-approved, danger_kb) — ĐỘC LẬP verdict/analysis, fail-soft [].
+    // Tính CẢ khi non_food (case quét hộp thuốc người: Rowatinex/paracetamol — cảnh báo càng phải hiện).
+    let kbWarnings: KbWarning[] = [];
+    try {
+      kbWarnings = await getKbWarnings({
+        rawText: ocr.raw_text ?? null,
+        brand: ocr.brand_name ?? null,
+        productLine: ocr.product_line ?? null,
+        petSpecies: profile.speciesEn,
+      });
+    } catch (err) {
+      console.error("[food/scan] kb-warnings fail-soft:", String((err as any)?.message || err).slice(0, 120));
+    }
+
     // Pass 2 "phân tích wow" (LLM text-only) — fail-soft: null → response KHÔNG có key analysis,
     // widget tự rơi về verdict template. Skip non_food/unknown (không có gì để phân tích).
     let analysis: ScanAnalysis | null = null;
     const vType = verdict?.category?.type;
     if (verdict && (vType === "complete" || vType === "supplement" || vType === "treat")) {
-      analysis = await buildScanAnalysis({ ocr, verdict, profile, allergenHits: verdict.flags.allergens });
+      analysis = await buildScanAnalysis({ ocr, verdict, profile, allergenHits: verdict.flags.allergens, kbWarnings });
     }
 
-    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated, verdict, ...(analysis ? { analysis } : {}) });
+    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated, verdict, kb_warnings: kbWarnings, ...(analysis ? { analysis } : {}) });
   } catch (err: any) {
     console.error("[food/scan] error:", err);
     return c.json({ error: { code: "SCAN_FAILED", message: "Quét nhãn thất bại, thử lại sau" } }, 500);
