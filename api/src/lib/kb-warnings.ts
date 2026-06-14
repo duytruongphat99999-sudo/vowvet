@@ -133,9 +133,32 @@ export function matchKb(entries: KbEntry[], text: string, petSpecies: "dog" | "c
   return out;
 }
 
-/** Entry point cho route: load approved (cache) + match vào brand/product/raw_text. */
+/**
+ * Multi-field matcher: chạy matchKb TRÊN TỪNG field riêng (negation guard per-field —
+ * không phụ thuộc separator/chỗ nối giữa các field), union theo substance, sort lại severity.
+ * Field rỗng/null bỏ qua. Field cũ giữ NGUYÊN combined text như trước → KHÔNG BAO GIỜ bắt
+ * ÍT hơn hiện tại; raw_ingredients (verbatim) chỉ THÊM cơ hội match.
+ */
+export function matchKbFields(
+  entries: KbEntry[],
+  fields: Array<string | null | undefined>,
+  petSpecies: "dog" | "cat" | null,
+): KbWarning[] {
+  const bySubstance = new Map<string, KbWarning>();
+  for (const f of fields) {
+    if (!f || !f.trim()) continue;
+    for (const w of matchKb(entries, f, petSpecies)) {
+      if (!bySubstance.has(w.substance)) bySubstance.set(w.substance, w);
+    }
+  }
+  const rank: Record<KbWarning["severity"], number> = { fatal: 0, severe: 1, caution: 2 };
+  return [...bySubstance.values()].sort((a, b) => rank[a.severity] - rank[b.severity]);
+}
+
+/** Entry point cho route: load approved (cache) + match vào brand/product/raw_text + raw_ingredients (verbatim, field riêng). */
 export async function getKbWarnings(input: {
   rawText: string | null;
+  rawIngredients?: string | null; // block thành phần chép NGUYÊN VĂN (food-label-vision) — match per-field, không nối vào text cũ
   brand: string | null;
   productLine: string | null;
   petSpecies: "dog" | "cat" | null;
@@ -143,7 +166,7 @@ export async function getKbWarnings(input: {
   const entries = await loadApprovedKb();
   if (!entries.length) return [];
   const text = [input.brand, input.productLine, input.rawText].filter(Boolean).join(" \n ");
-  return matchKb(entries, text, input.petSpecies);
+  return matchKbFields(entries, [text, input.rawIngredients], input.petSpecies);
 }
 
 /** Test-only (harness): reset cache giữa các case. */

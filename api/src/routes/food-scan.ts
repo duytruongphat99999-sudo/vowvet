@@ -22,6 +22,7 @@ import { buildScanVerdict, type ScanPetProfile } from "../lib/scan-verdict.ts";
 import { buildScanAnalysis, type ScanAnalysis } from "../lib/scan-analysis.ts";
 import { getKbWarnings, type KbWarning } from "../lib/kb-warnings.ts";
 import { createRow } from "@shared/baserow.ts";
+import { Jimp } from "jimp";
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB (như bills)
 
@@ -75,10 +76,32 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
     // Upload R2: scans/{petId}/{timestamp}.{ext}
     const buf = await file.arrayBuffer();
     const bytes = new Uint8Array(buf);
-    const key = `scans/${petId}/${Date.now()}.${ext}`;
-    const scanUrl = await uploadObject(key, bytes, file.type);
 
-    // OCR nhãn (Gemini vision) — base64 trực tiếp từ bytes; {ocr, failReason} phân biệt AI bận vs ảnh mờ
+    // Nén BẢN HIỂN THỊ cho R2: resize ≤1600px cạnh dài + JPEG q80 (ảnh phone vài MB → vài chục KB,
+    // bớt tải/decode ở trang kết quả). OCR Gemini bên dưới VẪN dùng buf GỐC (nét) — KHÔNG đụng.
+    // fail-soft: jimp lỗi → upload nguyên gốc, KHÔNG chặn scan.
+    let uploadBytes: Uint8Array = bytes;
+    let uploadMime = file.type;
+    let uploadExt = ext;
+    try {
+      const img = await Jimp.read(Buffer.from(buf));
+      const w = img.bitmap.width, h = img.bitmap.height;
+      const longEdge = Math.max(w, h);
+      if (longEdge > 1600) {
+        const scale = 1600 / longEdge;
+        img.resize({ w: Math.round(w * scale), h: Math.round(h * scale) });
+      }
+      const jpeg = await img.getBuffer("image/jpeg", { quality: 80 });
+      uploadBytes = new Uint8Array(jpeg);
+      uploadMime = "image/jpeg";
+      uploadExt = "jpg";
+    } catch (err) {
+      console.warn("[food/scan] resize fail-soft, upload original:", String((err as any)?.message || err).slice(0, 120));
+    }
+    const key = `scans/${petId}/${Date.now()}.${uploadExt}`;
+    const scanUrl = await uploadObject(key, uploadBytes, uploadMime);
+
+    // OCR nhãn (Gemini vision) — base64 từ buf GỐC (KHÔNG nén, để đọc chữ nét); {ocr, failReason} phân biệt AI bận vs ảnh mờ
     const imageBase64 = Buffer.from(buf).toString("base64");
     const { ocr, failReason } = await scanFoodLabel({ imageBase64, mimeType: file.type });
 
@@ -108,30 +131,29 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
     }
 
     // Persist scan_logs — fire-and-forget (lỗi ghi KHÔNG làm fail scan; pattern community-feed).
-    try {
-      await createRow("scan_logs", {
-        user_id: Number(session.sub),
-        pet_id: [Number(petId)],
-        scan_url: scanUrl,
-        brand_name: ocr?.brand_name ?? null,
-        product_line: ocr?.product_line ?? null,
-        species: ocr?.species ?? null,
-        life_stage: ocr?.life_stage ?? null,
-        protein_pct: P ?? null,
-        fat_pct: F ?? null,
-        fiber_pct: FB ?? null,
-        moisture_pct: M ?? null,
-        ash_pct,
-        carb_pct,
-        calories_per_100g: ocr?.calories_per_100g ?? null,
-        match_confidence: match?.confidence ?? null,
-        matched_brand_id: match?.brand?.brand_id ?? null,
-        ash_estimated,
-        created_at: new Date().toISOString(),
-      });
-    } catch (err) {
+    // KHÔNG await: ghi Baserow ~1.3s không được chặn response scan (đã đốt ~20s Gemini).
+    createRow("scan_logs", {
+      user_id: Number(session.sub),
+      pet_id: [Number(petId)],
+      scan_url: scanUrl,
+      brand_name: ocr?.brand_name ?? null,
+      product_line: ocr?.product_line ?? null,
+      species: ocr?.species ?? null,
+      life_stage: ocr?.life_stage ?? null,
+      protein_pct: P ?? null,
+      fat_pct: F ?? null,
+      fiber_pct: FB ?? null,
+      moisture_pct: M ?? null,
+      ash_pct,
+      carb_pct,
+      calories_per_100g: ocr?.calories_per_100g ?? null,
+      match_confidence: match?.confidence ?? null,
+      matched_brand_id: match?.brand?.brand_id ?? null,
+      ash_estimated,
+      created_at: new Date().toISOString(),
+    }).catch((err) => {
       console.warn("[food/scan] persist scan_logs fail-soft:", String((err as any)?.message || err).slice(0, 120));
-    }
+    });
 
     // Verdict cá nhân hoá theo profile bé (KHÔNG sửa số/công thức — chỉ ĐỌC).
     const ap = toApiPet(pet);
@@ -155,6 +177,7 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
     try {
       kbWarnings = await getKbWarnings({
         rawText: ocr.raw_text ?? null,
+        rawIngredients: ocr.raw_ingredients ?? null,
         brand: ocr.brand_name ?? null,
         productLine: ocr.product_line ?? null,
         petSpecies: profile.speciesEn,
@@ -171,7 +194,17 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
       analysis = await buildScanAnalysis({ ocr, verdict, profile, allergenHits: verdict.flags.allergens, kbWarnings });
     }
 
-    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated, verdict, kb_warnings: kbWarnings, ...(analysis ? { analysis } : {}) });
+    // profile slim cho FE chấm "độ khớp hồ sơ" rule-based (ScanResultCard + vet-flags) — CHỈ ĐỌC, KHÔNG tính số.
+    const profileOut = {
+      name: profile.name,
+      speciesEn: profile.speciesEn,
+      speciesVi: profile.speciesVi,
+      lifeStage: profile.lifeStage,
+      dob: profile.dob,
+      weightKg: profile.weightKg,
+    };
+
+    return c.json({ scan_url: scanUrl, ocr, match, carb_pct, ash_estimated, verdict, kb_warnings: kbWarnings, profile: profileOut, ...(analysis ? { analysis } : {}) });
   } catch (err: any) {
     console.error("[food/scan] error:", err);
     return c.json({ error: { code: "SCAN_FAILED", message: "Quét nhãn thất bại, thử lại sau" } }, 500);

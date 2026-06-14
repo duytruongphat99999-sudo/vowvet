@@ -1,59 +1,85 @@
-# CONTEXT SYNC — 2026-06-07 15:17
+# CONTEXT SYNC — 2026-06-14 (Chủ Nhật, 10:26)
 
-> Định dạng handoff gọn. **Lịch sử log dài (685 dòng) đã archive ở `CONTEXT_SYNC_FULL_20260606.md`** (từ commit `a9bb6ae`).
-> STATE: HEAD `105fa1d` · SW `vowvet-v293-pet-supplements` · repo **LOCAL-ONLY (không remote), 130 commit, CHƯA push**.
+> Handoff MỚI NHẤT — arc "scan result: cụm phân tích theo hồ sơ + fix nút Quét lại".
+> Bản 2026-06-13 (UX track ① scan result) là nền ngay trước. `docs/CONTEXT_SYNC.md` = nền 2026-06-08.
+> STATE: HEAD `8cacecc` (172 commit) — **TẤT CẢ việc phiên này + 2 phiên trước UNCOMMITTED**, CHƯA deploy lên domain, CHƯA verify phone.
+> SW tay đã bump tới **`v307-rescan-cta`** (v304→305→306→307 trong phiên này). Repo **LOCAL-ONLY, KHÔNG remote**.
 
 ## 🎯 ĐANG LÀM GÌ
-App-shell hóa VowVet + thương mại hóa trang Dinh dưỡng. Vừa hoàn tất feature **Supplement MonMin (3-phase)**: live-fetch sản phẩm monminpet → match bệnh của pet → hiển thị trên food-brands + pet page. Local-only.
+Hoàn thiện "mặt tiền" trang quét nhãn `/scan/result`: (1) cụm "phân tích sản phẩm theo hồ sơ bé" — điểm độ-khớp **rule-based** (không để Gemini chấm), khớp/chưa-khớp, box ⭐ thành phần, box độc, liều-từ-nhãn; (2) vá bug nút "Quét lại" không mở camera (route về profile) → quét-lại **tại chỗ** trên /scan/result giữ user-gesture. Tất cả KHUNG/UX + data — KHÔNG đụng công thức dinh dưỡng, KHÔNG đụng prompt verdict/analysis của Gemini.
 
-## ✅ ĐÃ XONG PHIÊN NÀY (Supplement MonMin 3-phase — DONE + verified)
-- **Backend** (`2227352`): `api/src/lib/monmin-supplements.ts` (MỚI) — live fetch `sitemap-index.xml` → 35 product, parse **ld+json Product** (name/desc/image/price/sku/category), cache **6h**, concurrency cap 6, follow-redirect (301→http trailing-slash), defensive (lỗi+cache cũ→stale; không cache→[]; KHÔNG throw). Match bệnh = keyword `CONDITION_NUTRITION` (tái dùng vocab, KHÔNG taxonomy mới). Route `GET /api/v1/public/monmin-supplements` (`public.ts`, no-auth, thừa kế rate-limit). **KHÔNG bảng Baserow.**
-- **Matcher siết** (cùng commit backend): word-boundary (KHÔNG substring rác) · **diacritic-set** (`"thận"` so trên text CÓ DẤU → "an thần"≠thận) · **weak-set** (`tiêu hóa/sensitive/digestive` → nếu match weak-only thì KHÔNG gắn code). Kết quả: kidney 5→4 (rớt calming-bot), gi_ibd 10→0 (chỉ weak), skin giữ nhờ keyword đặc hiệu.
-- **Phase 2 food-brands** (`0ab224d`, v292): section "Bổ sung từ MonMin" (Alpine x-for) — match `tier1ActiveCodes` (catalog), 0 match→featured, 4 + "Xem thêm", badge "Hợp với <label>" + ring gold, nút "Xem sản phẩm" target=_blank.
-- **Phase 3 pet page** (`105fa1d`, v293): section PREMIUM trong **tab nutrition (lazy x-if)** — panel ivory + viền gold mảnh, **HERO card** (match #1: ảnh to, micro "Hỗ trợ <focus>" từ CONDITION_NUTRITION), grid rest. Match theo `medForm.conditions` **CỦA PET đang xem**. Palette emerald/sky tab giữ nguyên (debt), gold = spotlight tách biệt.
+## ✅ ĐÃ XONG PHIÊN NÀY (UNCOMMITTED — chờ bật billing + eyeball phone)
+
+### A) Cụm "phân tích theo hồ sơ bé" (5 phần) — rule-based, KHÔNG để LLM chế
+- **`web/src/data/vet-flags.ts`** (MỚI): data thuần JSON-safe — `TOXIC_FLAGS` (8 chung: chocolate/allium/nho/xylitol/cồn/caffeine/bột nở/macadamia + 6 riêng mèo: permethrin/paracetamol/ibuprofen/aspirin/tinh dầu/lily), `PRAISE_FLAGS` (S.boulardii placeholder "lợi khuẩn hỗ trợ tiêu hóa" — KHÔNG "đặc trị"), `SCORE_RUBRIC` (loài −3 / tuổi −2 / dị ứng −3 / bột rời −1 / thiếu info −1 / sàn 1 / **toxicForcesFloor=true** → dính độc ép điểm về 1). Comment VN, Duy sửa số/thêm dòng không đụng logic.
+- **`api/src/lib/food-label-vision.ts`**: +field OCR `feeding_guide` (interface + prompt CHÉP NGUYÊN VĂN khối liều/khẩu phần, TUYỆT ĐỐI không tự tính + parse `str().slice(0,1200)` + thêm vào `hasAnyField`).
+- **`api/src/routes/food-scan.ts`**: +`profile` slim (name/speciesEn/speciesVi/lifeStage/dob/weightKg) vào response JSON — CHỈ ĐỌC, KHÔNG đụng carb/ash. `feeding_guide` tự theo `ocr`.
+- **`web/src/components/ScanResultCard.astro`**: inject vet-flags qua `<script type="application/json" id="vv-vet-flags" set:html>` (inline widget = JS thuần không import được TS → đọc qua id lúc init). Getters mới: `vetFlags/_vfNorm/_vfText/_vfMatch/vetFlagWarnings/clientDanger/anyDanger/vetStars/_petStage/_labelStage/_stageVi/rubric/_looseForm/verdictLines`. Render: điểm rule-based + "Khớp/Chưa khớp ở chỗ…" + câu chốt cố định *"Đây là phân tích để tham khảo — quyết định dùng hay không nên hỏi bác sĩ thú y."*; box ⭐ (nền vàng nhạt viền gold); box độc đỏ/vàng (dedupe vs box vet-approved kbWarnings, chất riêng mèo chỉ hiện khi bé là mèo); mục 💊 liều verbatim + cân bé. **GỠ** score+conclusion của Gemini (giữ scenarios/insights/tips/watch làm phần bổ sung); `verdictLines` lọc dòng "Tổng thể… phù hợp" cũ; gating `anyDanger` ẩn phân tích/CTA/khen cạnh box độc.
+- SW v304 → v305-scan-profile-match.
+
+### B) RECON bug nút "Quét lại" (chỉ điều tra, không sửa)
+- Kết luận **(C)**: 3 nút "Quét lại" đều route `/pets/[id]?scan=1` → handler [id].astro:222 CHỈ đổi tab + scroll tới `#food-scan`, **chưa bao giờ auto-mở camera**. Camera = native `<label for>` bọc `<input capture>` (id].astro:1673). Cú `.click()` mở picker cũ nằm ở `reset()` mồ côi (đợt refactor A2 bỏ rơi). KHÔNG phải lỗi handler chết (A) hay TASK B làm lệch (B).
+
+### C) Fix "Quét lại" tại chỗ (Hướng 1) — native label-for giữ user-gesture
+- **`web/src/pages/scan/result.astro`**: +input ẩn `#vv-rescan-input` (`accept="image/*" capture="environment"`, `@change="onRescanPick"`) đặt NGOÀI mọi `x-if`; 2 nút error-state + empty-state đổi `<a href=?scan=1>` → `<label for="vv-rescan-input">`.
+- **`web/src/components/ScanResultCard.astro`**: +method `onRescanPick($event)` (tái dùng nav-first TASK B: `scanFilePut` IDB → `?pending=1`; fallback IDB lỗi → route `?scan=1`); 2 nút fail-state + isNonFood đổi button → label-for.
+- SW v305 → v306-rescan-inplace.
+
+### D) Nút "Quét lại" thứ 5 (CTA row khi quét thành công)
+- **`web/src/components/ScanResultCard.astro`**: loop `visibleCtas` tách trong `<span class="contents">` — `c.action==='rescan'` → `<label for="vv-rescan-input">`, CTA khác GIỮ NGUYÊN `<button @click="runCta">`. Class/`:class` copy y cũ.
+- SW v306 → v307-rescan-cta. → cả **5 nút Quét lại** giờ dùng 1 cơ chế label-for tại chỗ.
 
 ## 🚧 ĐANG DỞ
-- KHÔNG có. 3-phase commit + verify đủ (featured + matched + lazy-load + nút/ảnh/xem-thêm). Working tree sạch (chỉ `.claude/launch.json` untracked).
+- **KHÔNG có việc dở code** — mọi task xong, `node --check` inline OK, build PASS (web+api), container healthy, log sạch.
+- "Dở" thật = **CHƯA verify trên phone** (camera iOS Safari + output scan thật) vì:
+  - **Gemini billing OFF** → OCR + pass-2 đều 429 free-tier → KHÔNG dựng được kết quả scan thật ở local.
+  - **localhost:4322 KHÔNG route /api** → luồng scan (IDB + /api + R2) chỉ chạy trên domain/phone.
 
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
-1. **Brand shoppable — 2 việc TÁCH BẠCH:**
-   - **2 dòng MonMin food** (`row 3` Mon Min Dry Dog · `row 4` Mon Min Wet Cat) trong `food_brands` = **data GIẢ**. MonMin **bán SUPPLEMENT, KHÔNG bán hạt** → KHÔNG có "hạt MonMin thật" để swap → nên **CLEAR/bỏ 2 dòng này khỏi `food_brands`** (feature supplement đã cover MonMin). KHÔNG đi tìm link thật cho 2 dòng này.
-   - **12 brand NGOẠI** (Royal Canin / Pedigree / …) = cái cần **điền ảnh + link THẬT** (Shopee/Lazada listing) — **tự host ảnh, ĐỪNG hotlink** — qua CSV + `--apply --write`.
-2. **Webview in-app MonMin** (v2): NẾU verify `X-Frame-Options`/CSP `monminpet.com` cho nhúng iframe → mở in-app; ngoài chặn → giữ `target=_blank`.
-3. **Mạch 2 — Quét nhãn CAMERA**: getUserMedia + OCR (Gemini vision); route `/scan` / `#smart-scanner`.
-4. **Mạch 4 — Nhật ký sản phẩm pet** (sữa tắm/xịt/ăn → cảnh báo kích ứng + truy nguồn) **[đụng schema Baserow → recon + duyệt field TRƯỚC]**.
-5. **PDF hồ sơ pet** trích **DATA** (KHÔNG screenshot DOM) — template print `pets/[id]`.
-6. **Trang "Định vị pet" (GPS)**: coming-soon → build page thật, đổi `<button>`→`<a>`.
-7. **AppHeader chung**: gộp header rời nhiều trang (chờ Bồ chốt scope).
-8. **ADOPT EPIC** (roadmap riêng, **recon từ đầu**): transfer ownership + adoption cert PDF + lost&found QR; marketplace/shelter sau.
-9. **Dọn nốt**: bcsAvatar/breedSticker + env emoji → FeatureIcon · nudge messages (`api`) · 4 pet migrate `"moderate"` · nước 50 vs 55 · **matcher refine** (gi_ibd hiện rỗng — nới keyword IBD đặc hiệu; thêm code vào diacritic-set nếu phát hiện đồng-tự mới).
-10. **Backup**: upload `vowvet-<ts>.bundle` lên cloud (agent không có quyền) · cân nhắc remote private.
+1. **Bật billing Gemini** (việc tay Duy) → mở quota OCR + pass-2 analysis → mới thấy được cụm 5-phần đầy đủ.
+2. **Eyeball phone toàn luồng** sau khi billing bật:
+   - Quét nhãn thật → điểm rule-based + Khớp/Chưa-khớp + câu chốt cố định hiện đúng; box ⭐ chỉ khi có chất trong PRAISE_FLAGS; box độc đỏ khi trúng TOXIC_FLAGS (thử nhãn có "tỏi/chocolate"); mục 💊 liều khi nhãn có bảng liều.
+   - **Soi kỹ (note Duy):** 4 mục phụ Gemini (🎯/🔍/💡/🛡️) có lọt chữ "phù hợp/nên dùng" không (pet khoẻ) → nếu có, hú để gỡ luôn (ngoài scope đã làm).
+   - **5 nút "Quét lại"** (error/empty/fail/isNonFood + CTA-success): bấm → mở camera NGAY trên /scan/result (KHÔNG nhảy profile), chọn ảnh → spinner pending → kết quả mới.
+3. **Gate (c) verbatim OCR** (nợ từ phiên trước): ảnh mặt sau bao Fera → `tmp/bao-hat.jpg` → curl pet 12 đọc `raw_ingredients` đủ-6-chủng → PASS mới đủ điều kiện commit OCR.
+4. **Gộp commit** toàn bộ (cụm phân tích + feeding_guide + fix Quét lại + việc 2 phiên trước) khi phone xanh. Co-author `Claude Opus 4.8 (1M context)`. Secret-scan trước.
+5. **Dọn dead-code** (TASK riêng, đừng xoá lung tung): nhánh `if (c.action==='rescan')` trong `runCta` giờ KHÔNG còn caller (5 nút đã thành label) = dead-code; `reset()` trong ScanResultCard (có `input.click()` cũ) cũng mồ côi từ A2. Để lại, dọn sau.
+6. **Phiên nâng prompt 6-ý** (BS Thục Đoan duyệt): wording S.boulardii chuẩn, "lý do trừ điểm" tinh, polish Key Specs.
+7. **Perf 3 trang chậm** (recon xong phiên trước, chưa sửa): dashboard 7-10s, /pets/[id] +1.3s, SW network-first. → TASK riêng.
+8. **② Discovery quest → Lost Pet V1** · **⑤ GPS slot** (/map + đổi label).
 
 ## 📌 QUYẾT ĐỊNH KỸ THUẬT ĐÃ CHỐT
-- **Supplement = LIVE FETCH monminpet** (sitemap + ld+json per-page), **KHÔNG bảng Baserow**. Cache 6h server-side (`supplementsCache` trong `monmin-supplements.ts`, tách khỏi `nutrition.ts`).
-- **Match bệnh: reuse `CONDITION_NUTRITION` keywords** (KHÔNG vocab mới). `matchedConditions[]` precompute ở backend; lọc client theo cờ bệnh pet. food-brands → `tier1ActiveCodes` (catalog); pet page → `medForm.conditions` (con đang xem). 0 match → featured (KHÔNG ẩn).
-- **Chỉ siết CÁCH match trong lib** (word-boundary + diacritic-set + weak-set) — KHÔNG đổi vocab gốc `health-conditions.ts`.
-- **DER engine `shared/nutrition-engine.ts` = CHÂN LÝ** · loader `api/src/lib/nutrition.ts` ≠ engine. **Supplement KHÔNG tính DER/khẩu phần** (chỉ hiển thị + link + label bệnh).
-- **Nút shoppable/supplement = ink fill** (`bg-mmp-ink`/chữ trắng, đạt §9 contrast), **gold = accent** (ring/badge/viền). `target=_blank rel=noopener noreferrer`, dùng `url`/`product_url` theo record.
+- **Điểm chấm = RULE-BASED trong code client** (KHÔNG để Gemini chấm). Lý do: rubric deterministic → Gemini không thể chế lý do trừ điểm (note 2 Duy); KHÔNG cần sửa `scan-analysis.ts` (file cấm). Dị ứng tái dùng kết quả match server (`verdict.flags.allergens`), KHÔNG tự match lại client (allergen-normalizer cấm).
+- **Toxic → ép điểm về sàn 1** (không phải −4): 6/10 mà dính độc phản trực giác. Số ở `SCORE_RUBRIC.toxicForcesFloor`.
+- **vet-flags vs danger_kb**: gộp 1 kiểu box đỏ, **dedupe** trùng chất. vet-flags = lớp đang chạy NGAY (danger_kb còn chờ BS duyệt). Box vet-flags ghi attribution KHÁC ("dựa trên thành phần đọc được", KHÔNG mạo nhận BS duyệt).
+- **Liều (5) = đọc verbatim feeding_guide, KHÔNG auto-tính khoảng theo cân** (né mìn 1). Hiện bảng liều + cân bé, con sen tự đối chiếu. Thiếu → "bao bì không ghi liều, hỏi bác sĩ".
+- **vet-flags nạp client qua `<script type=application/json>` + đọc theo id** (KHÔNG import): inline widget là JS thuần. Matcher: từ-khoá 1 chữ khớp theo TOKEN (Set words) để tránh FP ("ghee"≠"hẹ", "the"≠"hẹ"); nhiều chữ khớp substring.
+- **Quét lại = native `label-for`, CẤM JS `.click()`**: file dialog cần user-gesture trên CHÍNH trang; `.click()` sau nav bị nuốt. 1 input ẩn chung `#vv-rescan-input` đặt ở result.astro NGOÀI `x-if` (ScanResultCard wrap trong `x-if="result"` nên không để input trong đó được). onRescanPick tái dùng nav-first TASK B, không viết lại submit.
+- **CTA loop tách bằng `<span class="contents">`** (giữ flex layout + thứ tự): rescan→label, khác→button. KHÔNG sửa `scan-verdict.ts` (server vẫn đẩy CTA y cũ, chỉ đổi render client).
 
 ## ⚠️ LƯU Ý / CẠM BẪY
-- **2 dòng MonMin food** (`row 3` Dry Dog · `row 4` Wet Cat) trong `food_brands` = **GIẢ** — MonMin bán supplement KHÔNG bán hạt. ĐỪNG đi tìm hạt MonMin thật để gắn (xem VIỆC TIẾP THEO #1 → nên clear 2 dòng).
-- **PowerShell** mở cửa sổ mới luôn về `C:\Users\Admin` → phải `cd C:\docker\vowvet` **TRƯỚC** khi `git`. Path có ngoặc vuông (`pets/[id].astro`) phải **QUOTE** trong PowerShell.
-- **Sửa api/lib → `docker restart vowvet-api`** (busts cache + nạp code). `.astro` → `docker restart vowvet-web`. `.env` → `--force-recreate`. `sw.js` phải **bump vXXX**.
-- **Tab nutrition pet page = LAZY** (`x-if="activeTab==='nutrition'"`) → verify section supplement phải **SAU khi mở tab**, không lúc load.
-- **Sync brand shoppable chạy HOST**: `BASEROW_URL=http://localhost:8888 bun run scripts/brand-shoppable-sync.ts [--apply [--write]]` (host không có host.docker.internal; Bun tự nạp .env).
-- **Preview**: screenshot subsystem timeout trên page nặng → verify bằng **computed-style/DOM eval**. Inject Alpine state qua `preview_eval` = ephemeral. Preview CÓ internet (ảnh monminpet load thật). "Xem thêm" supplement dùng x-show/getter (KHÔNG x-transition) → không kẹt rAF.
-- **monminpet**: 35 product · ld+json Product per-page (`sitemap-index`→`sitemap-0`) · ảnh `/images/products/<slug>.png` (đã xác nhận). Product page **301→http trailing-slash** → phải follow-redirect.
-- Account test: pet **min id 12** (user 10) Mèo, no health_conditions → supplement = **featured**; `lyvu2004DTP@gmail.com` user 18 (Google) — `/dev/reset-onboarding` reset vô hạn.
-- **Bundle `*.bundle` đã gitignore** — backup rời, USER tự upload cloud.
-- **CẤM ĐỤNG** (trừ khi TASK ghi rõ): số/gram/kcal/DER · `shared/nutrition-engine.ts` · vocab `health-conditions.ts` (chỉ siết cách match) · schema/field Baserow · palette emerald/sky tab nutrition (debt).
+### Vận hành (giữ nguyên các phiên trước)
+- **Web = PROD BUILD**: sửa `.astro` → `docker compose -f docker/docker-compose.yml up -d --build vowvet-web` (restart suông VÔ DỤNG). `.env` đổi → `up -d --force-recreate`.
+- `up -d --build vowvet-web` đôi khi recreate luôn container `vowvet-api` (cùng project) — KHÔNG rebuild api, vô hại.
+- **localhost:4322 KHÔNG route /api** → eyeball local vô dụng cho luồng scan. Verify trên domain/phone.
+- **Gemini free tier 20 req/NGÀY** chung mọi feature; mỗi scan đốt 2 call (OCR+analysis) → ~10 scan/ngày cạn. Phải bật billing mới test đủ.
+- **`node --check` inline `.astro`**: regex phải anchor `/^<script is:inline>/m` (đầu dòng) — comment frontmatter nhắc chuỗi "<script is:inline>" sẽ false-match nếu không anchor. (Đã dính lần này, đã xử.)
+- `jimp` ở **api/node_modules** (workspace), không root.
 
-## 📂 FILE QUAN TRỌNG ĐÃ ĐỤNG
-- `api/src/lib/monmin-supplements.ts` — live fetch + parse ld+json + cache 6h + match bệnh (MỚI, matcher siết).
-- `api/src/routes/public.ts` — +route `/monmin-supplements` (no-auth).
-- `web/src/pages/food-brands.astro` — section "Bổ sung từ MonMin" (Phase 2, Alpine x-for).
-- `web/src/pages/pets/[id].astro` — section PREMIUM tab nutrition (Phase 3, hero match).
-- `shared/health-conditions.ts` — vocab bệnh + `CONDITION_NUTRITION` keywords (CẤM sửa vocab).
-- `scripts/brand-shoppable-sync.ts` — CSV↔Baserow brand image/url (row 3+4 = TEST/GIẢ, nên clear).
-- `web/public/sw.js` — `VERSION = vowvet-v293-pet-supplements`.
-- `CONTEXT_SYNC_FULL_20260606.md` — archive log dài (685 dòng).
+### FILE CẤM ĐỤNG (nguyên trạng)
+- `nutrition-engine.ts`/nutrition* + công thức RER/DER/carb/ash trong `food-scan.ts` · `scan-verdict.ts` (READ) · `scan-analysis.ts` prompt+validator · `allergen-normalizer.ts` · `health-conditions.ts` vocab · `global.css` · schema Baserow ngoài `danger_kb` · `.env` · `sw.js` (artifact, bump qua nguồn) · `scan-handoff.js` (cache-first serve bản cũ — chỉ GỌI scanFilePut/scanFileTake).
+- **TASK B nguyên văn**: `foodScanLauncher.submit()` nav-first ([id].astro:2941-2952), `onPick` launcher (2932), handler `?scan=1` (222) — Duy chưa verify B vì 429, KHÔNG được sửa lén (sẽ lẫn bug B với task mới).
+- **Block 5-mục/Key Specs/CTA Task A + cụm phân tích/điểm/box độc/box sao/liều vừa làm = chỉ THÊM, KHÔNG phá.**
+
+### 3 MÌN PROMPT — ĐÓNG BĂNG, chờ BS Thục Đoan duyệt
+- MÌN 1 liều-theo-cân: KHÔNG để AI tự tính liều, chỉ đọc liều TỪ NHÃN.
+- MÌN 2 medical claim: KHÔNG overclaim "đặc trị" cho OTC.
+- MÌN 3 logic chấm điểm: điểm rule-based đã giải quyết phần này (code chấm, không LLM); chỉ HIỂN THỊ, lý do lấy ĐÚNG rubric.
+
+## 📂 FILE QUAN TRỌNG ĐÃ ĐỤNG (phiên này, UNCOMMITTED)
+- `web/src/data/vet-flags.ts` — **MỚI**: bảng độc + câu-khen + rubric (data thuần, Duy/BS sửa số).
+- `web/src/components/ScanResultCard.astro` — render kết quả: cụm phân tích rule-based (điểm/khớp-chưa-khớp/box sao/box độc/liều) + onRescanPick + 4 nút Quét lại → label-for + CTA loop tách rescan.
+- `web/src/pages/scan/result.astro` — +input ẩn `#vv-rescan-input` + 2 nút error/empty → label-for.
+- `api/src/lib/food-label-vision.ts` — +field OCR `feeding_guide` (verbatim, không tính).
+- `api/src/routes/food-scan.ts` — +`profile` slim vào response (read-only; carb/ash NGUYÊN TRẠNG).
+- `web/public/sw.js` — VERSION v304 → **v307-rescan-cta**.

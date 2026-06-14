@@ -1,0 +1,128 @@
+---
+/**
+ * /scan/result — trang kết quả quét nhãn standalone (A2).
+ *
+ * petId qua ?pet= — FAB BottomNav + widget pet detail đều redirect về đây sau khi
+ * POST /food/scan xong, response nằm sessionStorage["vowvet:scan:"+petId].
+ * sessionStorage là ONE-SHOT: foodScanWidget.init() đọc xong removeItem ngay
+ * → refresh / vào thẳng URL = empty state (fallback bên dưới, KHÔNG trang trắng).
+ *
+ * Render kết quả + KB box = ScanResultCard (A1) — trang này KHÔNG chứa logic KB,
+ * không sửa component. Script foodScanWidget đi kèm trong component.
+ * Middleware: private mặc định (login + onboarded); SSR không render data pet nào —
+ * kết quả chỉ sống client-side trong sessionStorage của chính user.
+ */
+import Layout from "../../layouts/Layout.astro";
+import FeatureIcon from "../../components/FeatureIcon.astro";
+import ScanResultCard from "../../components/ScanResultCard.astro";
+
+const petIdRaw = Astro.url.searchParams.get("pet") || "";
+const petId = Number(petIdRaw);
+if (!Number.isFinite(petId) || petId <= 0) {
+  return Astro.redirect("/dashboard");
+}
+---
+
+<Layout title="Kết quả quét nhãn · VowVet" description="AI của VowVet đọc nhãn thức ăn và cảnh báo chất nguy hiểm cho thú cưng">
+  <main class="max-w-lg mx-auto px-4 pt-5 pb-28">
+    <!-- Header gọn: back về pet detail + tên bé (client fetch /auth/me — pattern TopBar/BottomNav, me-cache server 20s) -->
+    <div x-data={`scanResultHead(${petId})`} x-init="load()" class="flex items-center gap-3 mb-4">
+      <a href={`/pets/${petId}`} aria-label="Về trang của bé"
+        class="shrink-0 w-9 h-9 rounded-full bg-white border border-mmp-ink/15 flex items-center justify-center text-mmp-ink hover:border-mmp-ink/30 transition">
+        <FeatureIcon name="arrow" class="w-4 h-4 rotate-180" />
+      </a>
+      <div class="min-w-0">
+        <h1 class="text-lg font-semibold text-mmp-ink leading-tight">Kết quả quét nhãn</h1>
+        <p class="text-xs text-mmp-ink/60 truncate">AI của VowVet đọc nhãn cho <span class="font-semibold" x-text="petName">bé</span></p>
+      </div>
+    </div>
+
+    <!-- State + render qua Alpine scope chain: foodScanWidget init đọc sessionStorage one-shot.
+         Bridge CTA add_plan: component dispatch window event — trang này không có meal plan
+         → đưa về pet detail (?scan=1 tự mở tab Dinh dưỡng); brand chọn tay ở picker (không auto-set). -->
+    <div x-data={`foodScanWidget(${petId}, null)`}
+      @scan-add-to-plan.window={`window.location.href = '/pets/${petId}?scan=1'`}>
+
+      <!-- Quét-lại TẠI CHỖ (Hướng 1): native label-for giữ user-gesture → iOS Safari mở camera ngay tại trang này.
+           Đặt NGOÀI mọi x-if (ScanResultCard wrap trong x-if="result") để label ở error/empty-state cũng trỏ tới được.
+           onRescanPick (foodScanWidget) tái dùng nav-first TASK B: scanFilePut IDB → ?pending=1. -->
+      <input type="file" accept="image/*" capture="environment" @change="onRescanPick($event)" class="hidden" id="vv-rescan-input" aria-label="Chụp hoặc chọn lại ảnh nhãn thức ăn" />
+
+      <!-- LOADING: nav-first — POST chạy nền ở trang này; spinner thay vì đứng ~20s ở màn trước. -->
+      <template x-if="!result && scanning">
+        <div class="bg-white rounded-2xl border border-mmp-ink/12 p-8 text-center">
+          <span class="vv-scan-spinner" aria-hidden="true"></span>
+          <p class="text-sm font-semibold text-mmp-ink mt-3">AI của VowVet đang đọc nhãn…</p>
+          <p class="text-xs text-mmp-ink/60 mt-1 leading-snug" x-text="scanMsg">Đang đọc nhãn…</p>
+          <p class="text-[11px] text-mmp-ink/40 mt-2 leading-snug">Mất khoảng 15–20 giây, đừng tắt trang nhé.</p>
+        </div>
+      </template>
+
+      <!-- ERROR: HTTP 5xx / mạng / timeout 120s. (429 fail-soft trả 200 → vào fail-state ScanResultCard, KHÔNG vào đây.) -->
+      <template x-if="!result && !scanning && error">
+        <div class="bg-white rounded-2xl border border-mmp-ink/12 p-6 text-center">
+          <p class="flex justify-center text-mmp-ink/40 mb-2"><FeatureIcon name="alert-triangle" class="w-8 h-8" /></p>
+          <p class="text-sm font-semibold text-mmp-ink">Quét chưa xong</p>
+          <p class="text-xs text-mmp-ink/60 mt-1 leading-snug" x-text="error"></p>
+          <div class="flex flex-wrap justify-center gap-2 mt-4">
+            <label for="vv-rescan-input" class="cursor-pointer text-sm font-semibold px-3 py-2 rounded-xl transition bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30">Quét lại</label>
+            <a href={`/pets/${petId}`} class="text-sm font-semibold px-4 py-2.5 rounded-xl bg-mmp-ink hover:opacity-90 transition" style="color:#fff !important">Về trang của bé</a>
+          </div>
+        </div>
+      </template>
+
+      <!-- Empty: refresh / deep-link / bấm "Quét lại" (reset) → KHÔNG trang trắng -->
+      <template x-if="!result && !scanning && !error">
+        <div class="bg-white rounded-2xl border border-mmp-ink/12 p-6 text-center">
+          <p class="flex justify-center text-mmp-ink/40 mb-2"><FeatureIcon name="camera" class="w-8 h-8" /></p>
+          <p class="text-sm font-semibold text-mmp-ink">Chưa có kết quả quét</p>
+          <p class="text-xs text-mmp-ink/60 mt-1 leading-snug">Kết quả chỉ hiện ngay sau khi quét xong. Quét lại bằng nút Quét ở thanh dưới, hoặc trong trang của bé.</p>
+          <div class="flex flex-wrap justify-center gap-2 mt-4">
+            <label for="vv-rescan-input" class="cursor-pointer text-sm font-semibold px-3 py-2 rounded-xl transition bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30">Quét lại</label>
+            <a href={`/pets/${petId}`} class="text-sm font-semibold px-4 py-2.5 rounded-xl bg-mmp-ink hover:opacity-90 transition" style="color:#fff !important">Về trang của bé</a>
+          </div>
+        </div>
+      </template>
+
+      <ScanResultCard />
+
+      <p class="text-[11px] text-mmp-ink/40 text-center italic mt-3"><FeatureIcon name="ai" class="w-3 h-3 inline-block align-text-bottom mr-1" />AI của VowVet phân tích — tham khảo, không thay thế bác sĩ thú y.</p>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  /* Spinner loading nav-first — gold ring trên warm paper. */
+  .vv-scan-spinner {
+    display: inline-block;
+    width: 38px; height: 38px;
+    border: 4px solid rgba(180, 134, 8, 0.2);
+    border-top-color: #ecb921;
+    border-radius: 50%;
+    animation: vv-scan-spin 0.8s linear infinite;
+  }
+  @keyframes vv-scan-spin { to { transform: rotate(360deg); } }
+  /* Reduced-motion: bỏ xoay (tránh vestibular) → đổi sang nhịp mờ nhẹ. */
+  @media (prefers-reduced-motion: reduce) {
+    .vv-scan-spinner { animation: vv-scan-pulse 1.4s ease-in-out infinite; }
+    @keyframes vv-scan-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  }
+</style>
+
+<script is:inline>
+  function scanResultHead(petId) {
+    return {
+      petId,
+      petName: "bé",
+      async load() {
+        try {
+          const res = await fetch("/api/v1/auth/me", { credentials: "include" });
+          if (!res.ok) return;
+          const d = await res.json();
+          const p = d && Array.isArray(d.pets) ? d.pets.find((x) => x.id === petId) : null;
+          if (p && p.name) this.petName = p.name;
+        } catch (e) {}
+      },
+    };
+  }
+</script>

@@ -26,3 +26,6 @@ data/api/gemini-usage.log.jsonl
 .claude/settings.local.json
 # git bundle backups (off-machine; tạo tay, upload cloud, KHÔNG commit)
 *.bundle
+# harness/probe/ảnh test + dist-verify (A1) — đồ thí nghiệm, KHÔNG commit (bài học data/pgdata 1571 file)
+tmp/
+.claude/

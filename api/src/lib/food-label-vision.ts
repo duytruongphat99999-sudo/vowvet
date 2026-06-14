@@ -27,6 +27,8 @@ export interface FoodLabelOcr {
   moisture_pct: number | null;
   calories_per_100g: number | null;
   raw_text: string | null;
+  raw_ingredients: string | null; // block "Thành phần/Ingredients" chép NGUYÊN VĂN — input riêng cho KB matcher, KHÔNG đưa vào verdict/analysis
+  feeding_guide: string | null; // khối "Hướng dẫn dùng/Liều dùng/Feeding guide" chép NGUYÊN VĂN — KHÔNG tự tính liều
 }
 
 export interface FoodLabelInput {
@@ -77,6 +79,15 @@ const PROMPT =
   `Quy tắc:\n` +
   `- LUÔN trả brand_name (tên thương hiệu) và raw_text (toàn bộ chữ đọc được, rút gọn) nếu đọc được nhãn — ` +
   `KỂ CẢ khi KHÔNG có bảng Guaranteed Analysis chuẩn. Thiếu số dinh dưỡng KHÔNG sao.\n` +
+  `- raw_ingredients: tìm khối "Thành phần"/"Ingredients"/"Composition" trên nhãn và CHÉP NGUYÊN VĂN đúng thứ tự in, ` +
+  `giữ nguyên ngôn ngữ gốc trên nhãn — KHÔNG tóm tắt, KHÔNG dịch, KHÔNG bỏ phụ gia/chất bảo quản/E-number, ` +
+  `GIỮ cả nội dung trong ngoặc. Nhãn không in khối thành phần hoặc không đọc được khối đó → null.\n` +
+  `- feeding_guide: tìm khối "Hướng dẫn sử dụng"/"Liều dùng"/"Cách dùng"/"Cho ăn"/"Feeding guide"/"Directions"/"Dosage" ` +
+  `(thường là bảng cân nặng → lượng dùng) và CHÉP NGUYÊN VĂN phần liều/khẩu phần in trên nhãn, giữ nguyên mọi số và đơn vị. ` +
+  `NẾU là bảng cân→lượng: ghép theo ĐÚNG hàng vật lý trên nhãn, mỗi hàng MỘT dòng, dạng ` +
+  `"<khoảng cân giữ y nhãn> → <lượng + đơn vị giữ y nhãn>" (vd "4-6 kg → 4-6 pouch/day"). ` +
+  `Chỉ ghép cặp cân–lượng NẰM CÙNG MỘT HÀNG trên nhãn. Không chắc hàng nào ghép hàng nào → chép raw cả khối, KHÔNG đoán. ` +
+  `TUYỆT ĐỐI KHÔNG tự tính, KHÔNG nội suy, KHÔNG suy đoán liều. Nhãn không in liều/khẩu phần → null.\n` +
   `- product_type — phân loại sản phẩm:\n` +
   `    "food" = thức ăn hoàn chỉnh (hạt/pate làm bữa chính);\n` +
   `    "treat" = bánh thưởng/snack;\n` +
@@ -92,7 +103,7 @@ const PROMPT =
   `{"brand_name":<string|null>,"product_line":<string|null>,"product_type":<"food"|"treat"|"supplement"|"non_food"|"unknown">,` +
   `"species":<string|null>,"life_stage":<string|null>,` +
   `"protein_pct":<number|null>,"fat_pct":<number|null>,"fiber_pct":<number|null>,"moisture_pct":<number|null>,` +
-  `"calories_per_100g":<number|null>,"raw_text":<string|null>}`;
+  `"calories_per_100g":<number|null>,"raw_text":<string|null>,"raw_ingredients":<string|null>,"feeding_guide":<string|null>}`;
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -121,7 +132,7 @@ async function callGeminiOnce(apiKey: string, input: FoodLabelInput): Promise<Ge
       },
     ],
     generationConfig: {
-      maxOutputTokens: 2048,
+      maxOutputTokens: 4096, // raw_ingredients verbatim ăn thêm output token — 2048 dễ MAX_TOKENS → model_error oan
       temperature: 0.1,
       responseMimeType: "application/json",
       thinkingConfig: { thinkingBudget: 0 }, // tắt thinking — không ăn lẹm token budget
@@ -203,6 +214,8 @@ export async function scanFoodLabel(input: FoodLabelInput): Promise<FoodLabelSca
   }
 
   const rawText = str(parsed.raw_text);
+  const rawIngredients = str(parsed.raw_ingredients);
+  const feedingGuide = str(parsed.feeding_guide);
   const ocr: FoodLabelOcr = {
     brand_name: str(parsed.brand_name),
     product_line: str(parsed.product_line),
@@ -215,6 +228,8 @@ export async function scanFoodLabel(input: FoodLabelInput): Promise<FoodLabelSca
     moisture_pct: pct(parsed.moisture_pct),
     calories_per_100g: kcal(parsed.calories_per_100g),
     raw_text: rawText ? rawText.slice(0, 2000) : null,
+    raw_ingredients: rawIngredients ? rawIngredients.slice(0, 4000) : null, // cap rộng hơn raw_text — verbatim cắt cụt là rơi chất ở đuôi
+    feeding_guide: feedingGuide ? feedingGuide.slice(0, 1200) : null, // verbatim liều/khẩu phần — hiển thị nguyên văn, KHÔNG tính
   };
 
   // empty = all-null contract trong PROMPT (ảnh không đọc nổi thật).
@@ -224,7 +239,7 @@ export async function scanFoodLabel(input: FoodLabelInput): Promise<FoodLabelSca
     ocr.brand_name !== null || ocr.product_line !== null || ocr.species !== null ||
     ocr.life_stage !== null || ocr.protein_pct !== null || ocr.fat_pct !== null ||
     ocr.fiber_pct !== null || ocr.moisture_pct !== null || ocr.calories_per_100g !== null ||
-    ocr.raw_text !== null;
+    ocr.raw_text !== null || ocr.raw_ingredients !== null || ocr.feeding_guide !== null;
   if (!hasAnyField && ocr.product_type !== "non_food") {
     console.error(`[food-label-vision] OCR empty (all-null, product_type=${ocr.product_type}) → unreadable`);
     return { ocr: null, failReason: "empty" };

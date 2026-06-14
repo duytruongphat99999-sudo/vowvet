@@ -1661,8 +1661,10 @@ const storyExcerpt = hasStory
               </section>
             </template>
 
-            <!-- SECTION: SCAN NHÃN THỨC ĂN (C pha 2) — widget Alpine tự chứa, monochrome gold/ink -->
-            <section id="food-scan" x-data={`foodScanWidget(${petId}, ${JSON.stringify(pet.name || "bé")})`} class="bg-white rounded-2xl border border-mmp-ink/12 p-5">
+            <!-- SECTION: SCAN NHÃN THỨC ĂN — A2: chỉ còn LAUNCHER (upload + POST như cũ,
+                 kết quả đẩy sang /scan/result qua sessionStorage one-shot — cùng cơ chế FAB BottomNav).
+                 Render kết quả + KB box sống ở components/ScanResultCard.astro (trang /scan/result). -->
+            <section id="food-scan" x-data={`foodScanLauncher(${petId}, ${JSON.stringify(pet.name || "bé")})`} class="bg-white rounded-2xl border border-mmp-ink/12 p-5">
               <div class="mb-2">
                 <h3 class="text-sm font-semibold text-mmp-ink flex items-center gap-1.5"><FeatureIcon name="camera" class="w-4 h-4" />Scan nhãn thức ăn</h3>
                 <p class="text-xs text-mmp-ink/60 mt-0.5">Chụp bảng Guaranteed Analysis trên bao bì — AI của VowVet đọc số dinh dưỡng & dò trong thư viện.</p>
@@ -1687,196 +1689,13 @@ const storyExcerpt = hasStory
                 <p class="text-xs text-mmp-ink bg-slate-50 border border-mmp-ink/12 rounded-lg p-2 mt-3" x-text="error" aria-live="polite"></p>
               </template>
 
-              <button @click="submit()" x-show="file && !result" :disabled="!file || scanning"
+              <button @click="submit()" x-show="file" :disabled="!file || scanning"
                 style="color:#fff!important"
                 class="w-full bg-mmp-ink hover:opacity-90 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm shadow-sm mt-3"
                 aria-label="Phân tích nhãn bằng AI của VowVet">
                 <span x-show="!scanning" class="inline-flex items-center justify-center gap-1.5"><FeatureIcon name="wand" class="w-4 h-4" />Phân tích nhãn</span>
                 <span x-show="scanning" x-text="scanMsg"></span>
               </button>
-
-              <!-- KẾT QUẢ — 1 card verdict duy nhất (server trả category/verdict/cta). KHÔNG tính FE. -->
-              <template x-if="result">
-                <div class="mt-4 space-y-3">
-                  <template x-if="result.scan_url">
-                    <img :src="result.scan_url" alt="Ảnh nhãn đã quét" class="w-full max-h-48 object-contain rounded-xl border border-mmp-ink/12 bg-slate-50" />
-                  </template>
-
-                  <!-- KB CẢNH BÁO NGUY HIỂM (vet-approved) — TRÊN CÙNG, độc lập verdict/analysis.
-                       Hiện ở MỌI trạng thái có OCR (kể cả non_food: quét hộp thuốc người vẫn phải cảnh báo).
-                       Đỏ semantic Tầng-3 hợp lệ; style inline né rule .pet-detail-tabs. -->
-                  <template x-for="(w, i) in kbWarnings" :key="i">
-                    <div class="rounded-xl p-3" role="alert"
-                      :style="w.severity === 'caution' ? 'background:#fffbeb;border:2px solid #d97706' : 'background:#fef2f2;border:2px solid #dc2626'">
-                      <p class="text-xs font-bold flex items-center gap-1.5"
-                        :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c') + ' !important'">
-                        <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0" />
-                        <span x-text="(w.severity === 'fatal' ? 'NGUY HIỂM TÍNH MẠNG' : w.severity === 'severe' ? 'NGUY HIỂM' : 'CẦN THẬN TRỌNG') + ' — ' + w.substance"></span>
-                      </p>
-                      <p class="text-xs mt-1.5 leading-snug" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')" x-text="w.summary"></p>
-                      <p class="text-xs mt-1 font-semibold leading-snug" :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c')" x-text="w.action"></p>
-                      <p class="text-[10px] mt-1.5 italic" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')">Cảnh báo do bác sĩ thú y duyệt, dựa trên chữ đọc được từ nhãn.</p>
-                    </div>
-                  </template>
-
-                  <!-- TRẠNG THÁI 3: không đọc nổi ảnh (ocr null / unknown) — CHỈ case này mới "chụp lại" -->
-                  <template x-if="failState">
-                    <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3" x-text="failMsg"></p>
-                  </template>
-
-                  <!-- TRẠNG THÁI 2: KHÔNG phải sản phẩm thú cưng (KHÁC "chụp lại") -->
-                  <template x-if="!failState && isNonFood">
-                    <p class="text-xs text-mmp-ink bg-slate-50 border border-mmp-ink/12 rounded-lg p-3">Đây không phải nhãn thức ăn/sản phẩm cho thú cưng nên AI của VowVet không phân tích dinh dưỡng. Nếu là đồ ăn/bổ sung cho chó mèo, chụp lại đúng mặt nhãn nhé.</p>
-                  </template>
-
-                  <!-- TRẠNG THÁI 1: đọc được (food/treat/supplement) → verdict card -->
-                  <template x-if="!failState && !isNonFood && verdict">
-                    <div class="bg-white rounded-xl border border-mmp-ink/12 p-4 space-y-3">
-                      <div>
-                        <div class="flex items-center gap-1.5 flex-wrap mb-1">
-                          <span class="text-[11px] uppercase tracking-wide text-mmp-ink/50 inline-flex items-center gap-1"><FeatureIcon name="ai" class="w-3.5 h-3.5" />AI của VowVet</span>
-                          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border border-mmp-ink/15 bg-slate-50 text-mmp-ink" x-text="verdict.category.label"></span>
-                        </div>
-                        <p class="text-sm font-semibold text-mmp-ink leading-snug" x-text="verdict.headline"></p>
-                      </div>
-
-                      <!-- Hỏi bác sĩ (dạng chữ, nổi lên đầu khi có cờ) -->
-                      <template x-for="(note, i) in vetNotes" :key="i">
-                        <p class="text-xs text-mmp-ink bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-1.5">
-                          <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5" /><span x-text="note.label"></span>
-                        </p>
-                      </template>
-
-                      <!-- PASS 2: phân tích wow (LLM, server đã validate) — không có → fallback verdict.lines bên dưới -->
-                      <template x-if="analysis">
-                        <div class="space-y-3">
-                          <!-- Score: CHỈ tồn tại khi pet khoẻ + không dính dị ứng (validator server chặn) -->
-                          <template x-if="analysis.score != null">
-                            <div class="flex items-center gap-3 bg-slate-50 border border-mmp-ink/12 rounded-xl p-3">
-                              <span class="text-3xl font-bold text-mmp-ink shrink-0" style="font-family:'Azeret Mono',ui-monospace,monospace" x-text="analysis.score"></span>
-                              <div>
-                                <p class="text-[11px] uppercase tracking-wide text-mmp-ink/50">Điểm cho bé — thang 10</p>
-                                <p class="text-xs text-mmp-ink/70">AI của VowVet chấm theo hồ sơ của chính bé.</p>
-                              </div>
-                            </div>
-                          </template>
-
-                          <div>
-                            <p class="text-xs font-semibold text-mmp-ink mb-1">📝 <span x-text="analysis.conclusion.title"></span></p>
-                            <p class="text-sm text-mmp-ink/80 leading-snug" x-text="analysis.conclusion.body"></p>
-                          </div>
-
-                          <template x-if="anaScenarios.length">
-                            <div class="space-y-1.5">
-                              <template x-for="(s, i) in anaScenarios" :key="i">
-                                <div class="bg-slate-50 border border-mmp-ink/12 rounded-lg p-2.5">
-                                  <p class="text-xs font-semibold text-mmp-ink" x-text="s.title"></p>
-                                  <p class="text-xs text-mmp-ink/70 leading-snug mt-0.5" x-text="s.detail"></p>
-                                </div>
-                              </template>
-                            </div>
-                          </template>
-
-                          <template x-if="anaInsights.length">
-                            <div>
-                              <p class="text-xs font-semibold text-mmp-ink mb-1">🔍 Soi thành phần</p>
-                              <ul class="space-y-1">
-                                <template x-for="(it, i) in anaInsights" :key="i">
-                                  <li class="text-xs text-mmp-ink/80 leading-snug"><span class="font-semibold" x-text="it.term"></span> — <span x-text="it.plain"></span></li>
-                                </template>
-                              </ul>
-                            </div>
-                          </template>
-
-                          <template x-if="anaTips.length">
-                            <div>
-                              <p class="text-xs font-semibold text-mmp-ink mb-1">💡 Bí kíp dùng</p>
-                              <ul class="space-y-1">
-                                <template x-for="(t, i) in anaTips" :key="i">
-                                  <li class="text-xs text-mmp-ink/80 leading-snug flex items-start gap-1.5">
-                                    <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-1.5"></span><span x-text="t"></span>
-                                  </li>
-                                </template>
-                              </ul>
-                            </div>
-                          </template>
-
-                          <template x-if="analysis.economy">
-                            <div class="bg-slate-50 border border-mmp-ink/12 rounded-lg p-2.5">
-                              <p class="text-xs font-semibold text-mmp-ink mb-0.5">⏰ Tính kinh tế</p>
-                              <p class="text-xs text-mmp-ink/80 leading-snug" x-text="analysis.economy.estimate"></p>
-                              <p class="text-[11px] text-mmp-ink/50 mt-0.5" x-text="analysis.economy.basis"></p>
-                            </div>
-                          </template>
-
-                          <div class="space-y-1.5">
-                            <p class="text-xs font-semibold text-mmp-ink">🩺 Theo dõi khi dùng</p>
-                            <p class="text-xs text-mmp-ink/70 leading-snug"><span class="font-semibold text-mmp-ink">Bình thường:</span> <span x-text="analysis.watch.normal"></span></p>
-                            <p class="text-xs text-mmp-ink bg-amber-50 border border-amber-200 rounded-lg p-2.5 leading-snug"><span class="font-semibold">Bất thường:</span> <span x-text="analysis.watch.abnormal"></span></p>
-                          </div>
-                        </div>
-                      </template>
-
-                      <!-- Fallback verdict pass-1 KHÔNG biết KB → kbDanger thì ẨN lines (tránh khen
-                           sản phẩm ngay dưới box đỏ), thay bằng note đẩy về bác sĩ. -->
-                      <template x-if="!analysis && !kbDanger">
-                        <ul class="space-y-1.5">
-                          <template x-for="(ln, i) in verdict.lines" :key="i">
-                            <li class="text-sm text-mmp-ink/80 leading-snug flex items-start gap-1.5">
-                              <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-2"></span><span x-text="ln"></span>
-                            </li>
-                          </template>
-                        </ul>
-                      </template>
-                      <template x-if="!analysis && kbDanger">
-                        <p class="text-sm text-mmp-ink/80 leading-snug">Sản phẩm dính cảnh báo nguy hiểm phía trên — AI của VowVet không phân tích thêm. Hỏi bác sĩ thú y trước khi cho bé dùng.</p>
-                      </template>
-
-                      <!-- Chi tiết số từ nhãn (gập) — số nhãn nằm mục phụ, không phải bảng chính -->
-                      <template x-if="gaRows.length || (result.match && result.match.matched)">
-                        <details>
-                          <summary class="text-[11px] uppercase tracking-wide text-mmp-ink/50 cursor-pointer select-none">Chi tiết số từ nhãn</summary>
-                          <div class="mt-2 space-y-2">
-                            <template x-if="gaRows.length">
-                              <div class="flex flex-wrap gap-1.5">
-                                <template x-for="row in gaRows" :key="row.k">
-                                  <span class="text-xs bg-slate-50 border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
-                                </template>
-                              </div>
-                            </template>
-                            <template x-if="result?.carb_pct != null">
-                              <p class="text-xs text-mmp-ink">Tinh bột ~<span class="font-semibold" x-text="result.carb_pct"></span>% <span class="text-mmp-ink/50">(ước tính từ nhãn<span x-show="result?.ash_estimated">, khoáng ước tính</span>)</span></p>
-                            </template>
-                            <template x-if="result.match && result.match.matched">
-                              <div class="bg-slate-50 rounded-lg border border-mmp-ink/12 p-2.5">
-                                <div class="flex items-center justify-between gap-2 mb-1.5">
-                                  <p class="text-xs font-semibold text-mmp-ink" x-text="result.match.brand.brand_name"></p>
-                                  <span class="text-[11px] text-mmp-ink/60">Khớp thư viện <span class="font-semibold" x-text="confPct"></span>%</span>
-                                </div>
-                                <div class="flex flex-wrap gap-1.5">
-                                  <template x-for="row in brandRows" :key="row.k">
-                                    <span class="text-xs bg-white border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
-                                  </template>
-                                </div>
-                              </div>
-                            </template>
-                          </div>
-                        </details>
-                      </template>
-
-                      <!-- CTA theo loại + verdict (kbDanger → chỉ còn rescan, cấm 'Thêm vào kế hoạch') -->
-                      <div class="flex flex-wrap gap-2 pt-1">
-                        <template x-for="(c, i) in visibleCtas" :key="i">
-                          <button type="button" @click="runCta(c)"
-                            class="text-sm font-semibold px-3 py-2 rounded-xl transition"
-                            :class="c.primary ? 'bg-mmp-ink text-white hover:opacity-90' : 'bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30'"
-                            x-text="c.label"></button>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </template>
 
               <p class="text-[11px] text-mmp-ink/40 text-center italic mt-3"><FeatureIcon name="ai" class="w-3 h-3 inline-block align-text-bottom mr-1" />AI của VowVet phân tích — tham khảo, không thay thế bác sĩ thú y.</p>
             </section>
@@ -3094,24 +2913,12 @@ const storyExcerpt = hasStory
 
 <script is:inline src="/image-compress.js"></script>
 <script is:inline src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
-<!-- C pha 2: widget scan nhãn thức ăn — Alpine tự chứa, nối POST /pets/:id/food/scan (ca32f13). KHÔNG tính toán FE. -->
+<!-- A2: widget scan pet detail = LAUNCHER — upload + POST /food/scan y cũ, nhưng KHÔNG render
+     kết quả tại chỗ: ghi sessionStorage one-shot rồi điều hướng /scan/result (cùng cơ chế FAB).
+     Render + KB box ở components/ScanResultCard.astro (foodScanWidget đi kèm component đó). -->
 <script is:inline>
-  function foodScanWidget(petId, petName) {
+  function foodScanLauncher(petId, petName) {
     return {
-      init() {
-        try {
-          const k = "vowvet:scan:" + this.petId;
-          const raw = sessionStorage.getItem(k);
-          if (raw) {
-            this.result = JSON.parse(raw);
-            if (this.result && this.result.scan_url) this.preview = this.result.scan_url;
-            sessionStorage.removeItem(k);
-            this.$nextTick(() => document.getElementById("food-scan")
-              ?.scrollIntoView({ behavior:"smooth", block:"center" }));
-          }
-        } catch (e) {}
-      },
-
       petId,
       petName: petName || "bé",
       inputId: `food-scan-input-${petId}`,
@@ -3121,7 +2928,6 @@ const storyExcerpt = hasStory
       scanMsg: "Đang đọc nhãn…",
       _msgTimer: null,
       error: "",
-      result: null,
 
       onPick(e) {
         const f = e.target.files && e.target.files[0];
@@ -3130,92 +2936,38 @@ const storyExcerpt = hasStory
         this.file = f;
         this.preview = URL.createObjectURL(f);
         this.error = "";
-        this.result = null;
-      },
-
-      get verdict() { return (this.result && this.result.verdict) || null; },
-      // KB cảnh báo nguy hiểm vet-approved — độc lập verdict/analysis (server tính, fail-soft []).
-      get kbWarnings() { return (this.result && Array.isArray(this.result.kb_warnings)) ? this.result.kb_warnings : []; },
-      get kbDanger() { return this.kbWarnings.some(function (w) { return w.severity === 'fatal' || w.severity === 'severe'; }); },
-      // kbDanger → giấu CTA hành động (add_plan...) — chỉ giữ rescan; verdict pass-1 không biết KB.
-      get visibleCtas() {
-        var ctas = this.actionCtas;
-        if (!this.kbDanger) return ctas;
-        return ctas.filter(function (c) { return c.action === 'rescan'; });
-      },
-      get catType() { const v = this.verdict; return (v && v.category && v.category.type) || null; },
-      // 3 trạng thái: failState = không đọc nổi (ocr null / unknown) · isNonFood = không phải đồ thú cưng · còn lại = đọc được
-      get failState() { return !this.result || !this.result.ocr || this.catType === "unknown"; },
-      // message từ API ưu tiên (phân biệt "AI bận" vs "ảnh mờ"); fallback chuỗi cũ khi thiếu
-      get failMsg() { return (this.result && this.result.message) || "AI của VowVet chưa đọc được nhãn — chụp lại rõ phần thành phần/bao bì, đủ sáng, không loá."; },
-      get isNonFood() { return this.catType === "non_food"; },
-      get vetNotes() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind === "text"); },
-      // Pass 2 phân tích wow — server validate + fail-soft: không có → template verdict.lines render như cũ
-      get analysis() { return (this.result && this.result.analysis) || null; },
-      get anaScenarios() { const a = this.analysis; return (a && Array.isArray(a.scenarios)) ? a.scenarios : []; },
-      get anaInsights() { const a = this.analysis; return (a && Array.isArray(a.insights)) ? a.insights : []; },
-      get anaTips() { const a = this.analysis; return (a && Array.isArray(a.tips)) ? a.tips : []; },
-      get actionCtas() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind !== "text"); },
-
-      get gaRows() {
-        const o = this.result && this.result.ocr;
-        if (!o) return [];
-        const map = [["protein_pct","Đạm","%"],["fat_pct","Béo","%"],["fiber_pct","Xơ","%"],["moisture_pct","Ẩm","%"],["calories_per_100g","kcal/100g",""]];
-        return map.filter(([k]) => o[k] != null).map(([k, label, unit]) => ({ k: label, v: String(o[k]) + unit }));
-      },
-
-      get confPct() {
-        const c = this.result && this.result.match && this.result.match.confidence;
-        return c != null ? Math.round(c * 100) : 0;
-      },
-
-      get brandRows() {
-        const b = this.result && this.result.match && this.result.match.brand;
-        if (!b) return [];
-        const map = [["protein_pct","Đạm","%"],["fat_pct","Béo","%"],["fiber_pct","Xơ","%"],["carb_pct_calculated","Carb","%"],["calories_per_100g","kcal/100g",""]];
-        return map.filter(([k]) => b[k] != null).map(([k, label, unit]) => ({ k: label, v: String(b[k]) + unit }));
       },
 
       async submit() {
         if (!this.file || this.scanning) return;
         this.scanning = true;
-        // Loading staged: OCR ~6s → pass 2 phân tích thêm 4-8s, đổi chữ sau ~5s cho đỡ "đứng hình"
+        this.error = "";
+        // Nav-first: nhét File vào IndexedDB rồi sang /scan/result NGAY — POST chạy ở trang đó (loading),
+        // hết đứng ~20s ở màn này. Fallback: IDB chưa nạp/lỗi → luồng cũ (fetch xong mới nav).
+        if (typeof window.scanFilePut === "function") {
+          try {
+            await window.scanFilePut(this.petId, this.file);
+            window.location.href = `/scan/result?pet=${this.petId}&pending=1`;
+            return;
+          } catch (e) { /* rơi xuống fallback fetch-then-nav */ }
+        }
+        // Fallback luồng cũ — staged msg như trước
         this.scanMsg = "Đang đọc nhãn…";
         this._msgTimer = setTimeout(() => { this.scanMsg = "Đang phân tích cho " + this.petName + "…"; }, 5000);
-        this.error = "";
-        this.result = null;
         try {
           const fd = new FormData();
           fd.append("photo", this.file);
           const res = await fetch(`/api/v1/pets/${this.petId}/food/scan`, { method: "POST", credentials: "include", body: fd });
           const j = await res.json();
           if (!res.ok) { this.error = (j && j.error && j.error.message) || "Quét nhãn thất bại, thử lại sau."; return; }
-          this.result = j;
+          try { sessionStorage.setItem("vowvet:scan:" + this.petId, JSON.stringify(j)); } catch (e) {}
+          window.location.href = `/scan/result?pet=${this.petId}`;
         } catch (_) {
           this.error = "Lỗi kết nối. Kiểm tra mạng và thử lại.";
         } finally {
           if (this._msgTimer) { clearTimeout(this._msgTimer); this._msgTimer = null; }
           this.scanning = false;
         }
-      },
-
-      // CTA: rescan=reset · add_plan=bắc cầu sang petDetail (setBrandForPlan) · link=điều hướng · text=không click
-      runCta(c) {
-        if (!c) return;
-        if (c.action === "rescan") { this.reset(); return; }
-        if (c.action === "add_plan" && c.brandId != null) {
-          window.dispatchEvent(new CustomEvent("scan-add-to-plan", { detail: { brandId: c.brandId } }));
-          return;
-        }
-        if (c.kind === "link" && c.href) { window.location.href = c.href; return; }
-      },
-
-      reset() {
-        this.result = null; this.file = null; this.error = "";
-        if (this.preview) { try { URL.revokeObjectURL(this.preview); } catch (e) {} }
-        this.preview = null;
-        const el = document.getElementById(this.inputId);
-        if (el) { el.value = ""; el.click(); }
       },
     };
   }

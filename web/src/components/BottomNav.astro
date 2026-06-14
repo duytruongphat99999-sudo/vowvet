@@ -96,6 +96,8 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
 
   </nav>
 
+<!-- IDB handoff cho nav-first scan — gắn ở BottomNav (Layout phủ mọi trang gated) → phủ launcher + FAB + /scan/result. -->
+<script is:inline src="/scan-handoff.js"></script>
 <script is:inline>
   function bottomNav() {
     return {
@@ -123,13 +125,21 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
     async runScan(petId) {
       if (!this.scanFile || this.scanBusy) return;
       this.scanBusy = true; this.scanErr="";
+      // Nav-first: nhét File vào IndexedDB rồi sang /scan/result NGAY (POST chạy ở trang đó, loading ở đó).
+      if (typeof window.scanFilePut === "function") {
+        try {
+          await window.scanFilePut(petId, this.scanFile);
+          window.location.href = `/scan/result?pet=${petId}&pending=1`;
+          return;
+        } catch (e) { /* IDB lỗi → fallback luồng cũ fetch-rồi-nav */ }
+      }
       try {
         const fd = new FormData(); fd.append("photo", this.scanFile);
         const res = await fetch(`/api/v1/pets/${petId}/food/scan`, { method:"POST", credentials:"include", body: fd });
         const j = await res.json();
         if (!res.ok) { this.scanErr = (j && j.error && j.error.message) || "Quét thất bại, thử lại."; this.scanBusy=false; return; }
         try { sessionStorage.setItem("vowvet:scan:"+petId, JSON.stringify(j)); } catch {}
-        window.location.href = `/pets/${petId}?scan=1`;
+        window.location.href = `/scan/result?pet=${petId}`;
       } catch { this.scanErr = "Lỗi mạng, thử lại."; this.scanBusy=false; }
     },
     closeSheet() { if (this.scanBusy) return; this.scanSheet=false; this.scanFile=null; this.scanErr=""; },

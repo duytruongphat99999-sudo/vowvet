@@ -1,0 +1,634 @@
+---
+/**
+ * ScanResultCard — kết quả scan nhãn thức ăn + KB cảnh báo nguy hiểm (A1: bóc NGUYÊN VĂN từ pets/[id].astro).
+ *
+ * THUẦN HIỂN THỊ — business logic ở server (food-scan route / kb-warnings / scan-analysis), FE không tính toán.
+ * Markup đọc state qua Alpine scope chain → PHẢI render BÊN TRONG element x-data="foodScanWidget(petId, petName)".
+ * Function foodScanWidget định nghĩa ở <script is:inline> cuối file — đi cùng component, inline script
+ * parse trước khi Alpine init nên vị trí trong body không thành vấn đề.
+ * Hành vi an toàn carry NGUYÊN từ widget cũ (KHÔNG nhẹ tay hơn):
+ *  - Box KB đỏ TRÊN CÙNG mọi trạng thái (fatal/severe đỏ · caution amber), role=alert, contrast AA.
+ *  - kbDanger (fatal/severe) → ẨN verdict.lines + CTA chỉ còn "Quét lại" (getter visibleCtas).
+ *  - raw_ingredients (OCR verbatim) KHÔNG hiển thị — internal cho KB matcher.
+ */
+import FeatureIcon from "./FeatureIcon.astro";
+import { TOXIC_FLAGS, PRAISE_FLAGS, SCORE_RUBRIC } from "../data/vet-flags.ts";
+
+// vet-flags nạp vào client qua JSON script (inline widget = JS thuần, KHÔNG import được TS).
+// Matcher chạy client-side đọc #vv-vet-flags lúc init. Data thuần JSON-safe (không regex/hàm).
+const vetFlagsJson = JSON.stringify({ toxic: TOXIC_FLAGS, praise: PRAISE_FLAGS, rubric: SCORE_RUBRIC });
+---
+
+              <!-- KẾT QUẢ — 1 card verdict duy nhất (server trả category/verdict/cta). KHÔNG tính FE. -->
+              <template x-if="result">
+                <div class="mt-4 space-y-3">
+                  <template x-if="result.scan_url">
+                    <img :src="result.scan_url" alt="Ảnh nhãn đã quét" loading="lazy" decoding="async" class="w-full max-h-48 object-contain rounded-xl border border-mmp-ink/12 bg-slate-50" />
+                  </template>
+
+                  <!-- KB CẢNH BÁO NGUY HIỂM (vet-approved) — TRÊN CÙNG, độc lập verdict/analysis.
+                       Hiện ở MỌI trạng thái có OCR (kể cả non_food: quét hộp thuốc người vẫn phải cảnh báo).
+                       Đỏ semantic Tầng-3 hợp lệ; style inline né rule .pet-detail-tabs. -->
+                  <template x-for="(w, i) in kbWarnings" :key="i">
+                    <div class="rounded-xl p-3" role="alert"
+                      :style="w.severity === 'caution' ? 'background:#fffbeb;border:2px solid #d97706' : 'background:#fef2f2;border:2px solid #dc2626'">
+                      <p class="text-xs font-bold flex items-center gap-1.5"
+                        :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c') + ' !important'">
+                        <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0" />
+                        <span x-text="(w.severity === 'fatal' ? 'NGUY HIỂM TÍNH MẠNG' : w.severity === 'severe' ? 'NGUY HIỂM' : 'CẦN THẬN TRỌNG') + ' — ' + w.substance"></span>
+                      </p>
+                      <p class="text-xs mt-1.5 leading-snug" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')" x-text="w.summary"></p>
+                      <p class="text-xs mt-1 font-semibold leading-snug" :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c')" x-text="w.action"></p>
+                      <p class="text-[10px] mt-1.5 italic" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')">Cảnh báo do bác sĩ thú y duyệt, dựa trên chữ đọc được từ nhãn.</p>
+                    </div>
+                  </template>
+
+                  <!-- (4) Box độc chất từ vet-flags.ts — CÙNG style box đỏ/vàng, đặt DƯỚI box vet-approved,
+                       đã dedupe trùng chất. Attribution KHÁC (không mạo nhận BS duyệt). Chất "riêng mèo" chỉ hiện khi bé là mèo. -->
+                  <template x-for="(w, i) in vetFlagWarnings" :key="'vf'+i">
+                    <div class="rounded-xl p-3" role="alert"
+                      :style="w.severity === 'caution' ? 'background:#fffbeb;border:2px solid #d97706' : 'background:#fef2f2;border:2px solid #dc2626'">
+                      <p class="text-xs font-bold flex items-center gap-1.5"
+                        :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c') + ' !important'">
+                        <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0" />
+                        <span x-text="(w.severity === 'fatal' ? 'NGUY HIỂM TÍNH MẠNG' : w.severity === 'severe' ? 'NGUY HIỂM' : 'CẦN THẬN TRỌNG') + ' — ' + w.substance"></span>
+                      </p>
+                      <p class="text-xs mt-1.5 leading-snug" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')" x-text="w.summary"></p>
+                      <p class="text-xs mt-1 font-semibold leading-snug" :style="'color:' + (w.severity === 'caution' ? '#92400e' : '#b91c1c')" x-text="w.action"></p>
+                      <p class="text-[10px] mt-1.5 italic" :style="'color:' + (w.severity === 'caution' ? '#78350f' : '#7f1d1d')">Dựa trên thành phần đọc được từ nhãn — hãy đối chiếu bao bì thật.</p>
+                    </div>
+                  </template>
+
+                  <!-- TRẠNG THÁI 3: không đọc nổi ảnh (ocr null / unknown) — CHỈ case này mới "chụp lại" -->
+                  <template x-if="failState">
+                    <div class="space-y-3">
+                      <p class="text-xs text-mmp-ink/70 bg-slate-50 border border-mmp-ink/12 rounded-lg p-3" x-text="failMsg"></p>
+                      <label for="vv-rescan-input"
+                        class="inline-block text-center cursor-pointer text-sm font-semibold px-3 py-2 rounded-xl transition bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30">Quét lại</label>
+                    </div>
+                  </template>
+
+                  <!-- TRẠNG THÁI 2: KHÔNG phải sản phẩm thú cưng (KHÁC "chụp lại") -->
+                  <template x-if="!failState && isNonFood">
+                    <div class="space-y-3">
+                      <p class="text-xs text-mmp-ink bg-slate-50 border border-mmp-ink/12 rounded-lg p-3">Đây không phải nhãn thức ăn/sản phẩm cho thú cưng nên AI của VowVet không phân tích dinh dưỡng. Nếu là đồ ăn/bổ sung cho chó mèo, chụp lại đúng mặt nhãn nhé.</p>
+                      <label for="vv-rescan-input"
+                        class="inline-block text-center cursor-pointer text-sm font-semibold px-3 py-2 rounded-xl transition bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30">Quét lại</label>
+                    </div>
+                  </template>
+
+                  <!-- TRẠNG THÁI 1: đọc được (food/treat/supplement) → verdict card -->
+                  <template x-if="!failState && !isNonFood && verdict">
+                    <div class="bg-white rounded-xl border border-mmp-ink/12 p-4 space-y-3">
+                      <div>
+                        <div class="flex items-center gap-1.5 flex-wrap mb-1">
+                          <span class="text-[11px] uppercase tracking-wide text-mmp-ink/50 inline-flex items-center gap-1"><FeatureIcon name="ai" class="w-3.5 h-3.5" />AI của VowVet</span>
+                          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border border-mmp-ink/15 bg-slate-50 text-mmp-ink" x-text="verdict.category.label"></span>
+                        </div>
+                        <p class="text-sm font-semibold text-mmp-ink leading-snug" x-text="verdict.headline"></p>
+                      </div>
+
+                      <!-- Hỏi bác sĩ (dạng chữ, nổi lên đầu khi có cờ) -->
+                      <template x-for="(note, i) in vetNotes" :key="i">
+                        <p class="text-xs text-mmp-ink bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-1.5">
+                          <FeatureIcon name="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5" /><span x-text="note.label"></span>
+                        </p>
+                      </template>
+
+                      <!-- Key Specs (mục 1): số chính từ nhãn (gaRows = result.ocr.{protein/fat/fiber/moisture/calories}) —
+                           tách khỏi <details> để không dính hàng với nút; hiện ở CẢ analysis lẫn fallback. -->
+                      <template x-if="gaRows.length">
+                        <div class="bg-slate-50 border border-mmp-ink/12 rounded-xl p-3">
+                          <p class="text-[11px] uppercase tracking-wide text-mmp-ink/50 mb-2">Chỉ số dinh dưỡng từ nhãn</p>
+                          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            <template x-for="row in gaRows" :key="row.k">
+                              <div class="bg-white border border-mmp-ink/10 rounded-lg px-2.5 py-1.5">
+                                <p class="text-[10px] uppercase tracking-wide text-mmp-ink/50" x-text="row.k"></p>
+                                <p class="text-sm font-bold text-mmp-ink" style="font-family:'Azeret Mono',ui-monospace,monospace" x-text="row.v"></p>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- (3) Box ⭐ thành phần đáng chú ý — CHỈ nhấn chất có trong PRAISE_FLAGS (vet-flags.ts).
+                           Ẩn khi có cảnh báo nguy hiểm (không khen cạnh box độc). -->
+                      <template x-if="vetStars.length && !anyDanger">
+                        <div class="rounded-xl p-3" style="background:#fffdf5;border:1.5px solid #ecb921">
+                          <p class="text-xs font-bold text-mmp-ink flex items-center gap-1.5"><span aria-hidden="true">⭐</span>Thành phần đáng chú ý</p>
+                          <ul class="mt-1.5 space-y-1">
+                            <template x-for="(s, i) in vetStars" :key="i">
+                              <li class="text-xs text-mmp-ink leading-snug"><span class="font-semibold" x-text="s.term"></span> — <span x-text="s.plain"></span></li>
+                            </template>
+                          </ul>
+                        </div>
+                      </template>
+
+                      <!-- (1)+(2) Điểm độ-khớp-hồ-sơ + đối chiếu khớp/chưa-khớp — RULE-BASED (code chấm, KHÔNG để LLM chế lý do).
+                           Lý do trừ điểm lấy ĐÚNG từ rubric vet-flags.ts. Câu chốt cố định, KHÔNG nói "phù hợp/không phù hợp". -->
+                      <template x-if="rubric">
+                        <div class="bg-slate-50 border border-mmp-ink/12 rounded-xl p-3 space-y-2.5">
+                          <div class="flex items-center gap-3">
+                            <span class="text-3xl font-bold text-mmp-ink shrink-0" style="font-family:'Azeret Mono',ui-monospace,monospace" x-text="rubric.score"></span>
+                            <div>
+                              <p class="text-[11px] uppercase tracking-wide text-mmp-ink/50">Độ khớp với hồ sơ của <span x-text="petName"></span> — thang 10</p>
+                              <p class="text-xs text-mmp-ink/70">AI đối chiếu nhãn với hồ sơ bé; chỉ trừ theo lý do kiểm chứng được.</p>
+                            </div>
+                          </div>
+                          <template x-if="rubric.khop.length">
+                            <div>
+                              <p class="text-xs font-semibold text-mmp-ink mb-1">Khớp với bé ở chỗ</p>
+                              <ul class="space-y-1">
+                                <template x-for="(k, i) in rubric.khop" :key="i">
+                                  <li class="text-xs text-mmp-ink/80 leading-snug flex items-start gap-1.5"><span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-1.5"></span><span x-text="k"></span></li>
+                                </template>
+                              </ul>
+                            </div>
+                          </template>
+                          <template x-if="rubric.minus.length">
+                            <div>
+                              <p class="text-xs font-semibold text-mmp-ink mb-1">Chưa khớp ở chỗ</p>
+                              <ul class="space-y-1">
+                                <template x-for="(m, i) in rubric.minus" :key="i">
+                                  <li class="text-xs text-mmp-ink/80 leading-snug flex items-start gap-1.5"><span class="w-1 h-1 rounded-full bg-mmp-ink/40 shrink-0 mt-1.5"></span><span x-text="m"></span></li>
+                                </template>
+                              </ul>
+                            </div>
+                          </template>
+                          <p class="text-xs text-mmp-ink/60 italic border-t border-mmp-ink/10 pt-2">Đây là phân tích để tham khảo — quyết định dùng hay không nên hỏi bác sĩ thú y.</p>
+                        </div>
+                      </template>
+
+                      <!-- (5) Liều từ nhãn — đọc verbatim feeding_guide, KHÔNG tự tính. Thiếu → nói thẳng hỏi bác sĩ.
+                           Ẩn khi có cảnh báo nguy hiểm. -->
+                      <template x-if="(result?.ocr?.feeding_guide || catType === 'supplement') && !anyDanger">
+                        <div class="bg-slate-50 border border-mmp-ink/12 rounded-xl p-3">
+                          <p class="text-xs font-semibold text-mmp-ink mb-1">💊 Liều dùng theo nhãn</p>
+                          <template x-if="result?.ocr?.feeding_guide">
+                            <div>
+                              <p class="text-xs text-mmp-ink/80 leading-snug" style="white-space:pre-line" x-text="result.ocr.feeding_guide"></p>
+                              <template x-if="result?.profile?.weightKg != null">
+                                <p class="text-xs text-mmp-ink mt-1.5"><span class="font-semibold" x-text="petName"></span> nặng <span class="font-semibold" x-text="result.profile.weightKg"></span>kg — đối chiếu với khoảng cân phù hợp trên bảng liều của bao bì.</p>
+                              </template>
+                            </div>
+                          </template>
+                          <template x-if="!result?.ocr?.feeding_guide">
+                            <p class="text-xs text-mmp-ink/70 leading-snug">Bao bì không ghi liều cụ thể — hỏi bác sĩ thú y để biết liều phù hợp cho <span x-text="petName"></span>.</p>
+                          </template>
+                        </div>
+                      </template>
+
+                      <!-- PASS 2: phân tích wow (LLM, server đã validate) — score+kết luận đã thay bằng rubric rule-based ở trên;
+                           giữ scenarios/insights/tips/watch làm phần bổ sung. Ẩn cả block khi có cảnh báo nguy hiểm. -->
+                      <template x-if="analysis && !anyDanger">
+                        <div class="space-y-3">
+                          <template x-if="anaInsights.length">
+                            <div>
+                              <p class="text-xs font-semibold text-mmp-ink mb-1">🔍 Soi thành phần</p>
+                              <ul class="space-y-1">
+                                <template x-for="(it, i) in anaInsights" :key="i">
+                                  <li class="text-xs text-mmp-ink/80 leading-snug"><span class="font-semibold" x-text="it.term"></span> — <span x-text="it.plain"></span></li>
+                                </template>
+                              </ul>
+                            </div>
+                          </template>
+
+                          <template x-if="anaTips.length || analysis.economy">
+                            <div>
+                              <p class="text-xs font-semibold text-mmp-ink mb-1">💡 Hướng dẫn dùng</p>
+                              <template x-if="anaTips.length">
+                                <ul class="space-y-1">
+                                  <template x-for="(t, i) in anaTips" :key="i">
+                                    <li class="text-xs text-mmp-ink/80 leading-snug flex items-start gap-1.5">
+                                      <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-1.5"></span><span x-text="t"></span>
+                                    </li>
+                                  </template>
+                                </ul>
+                              </template>
+                              <template x-if="analysis.economy">
+                                <div class="bg-slate-50 border border-mmp-ink/12 rounded-lg p-2.5 mt-2">
+                                  <p class="text-xs font-semibold text-mmp-ink mb-0.5">Tính kinh tế</p>
+                                  <p class="text-xs text-mmp-ink/80 leading-snug" x-text="analysis.economy.estimate"></p>
+                                  <p class="text-[11px] text-mmp-ink/50 mt-0.5" x-text="analysis.economy.basis"></p>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+
+                          <div class="space-y-1.5">
+                            <p class="text-xs font-semibold text-mmp-ink">🛡️ Vùng an toàn</p>
+                            <p class="text-xs text-mmp-ink/70 leading-snug"><span class="font-semibold text-mmp-ink">Bình thường:</span> <span x-text="analysis.watch.normal"></span></p>
+                            <p class="text-xs text-mmp-ink bg-amber-50 border border-amber-200 rounded-lg p-2.5 leading-snug"><span class="font-semibold">Bất thường:</span> <span x-text="analysis.watch.abnormal"></span></p>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- Fallback verdict pass-1 (khi không có analysis Gemini) — dòng soi đạm/béo/calo bổ sung.
+                           verdictLines đã LỌC dòng kết luận "phù hợp" cũ (điểm/đối chiếu đã chuyển sang rubric rule-based).
+                           anyDanger → ẨN hết, chỉ note đẩy về bác sĩ (không phân tích cạnh box độc). -->
+                      <template x-if="!analysis && !anyDanger">
+                        <ul class="space-y-1.5">
+                          <template x-for="(ln, i) in verdictLines" :key="i">
+                            <li class="text-sm text-mmp-ink/80 leading-snug flex items-start gap-1.5">
+                              <span class="w-1 h-1 rounded-full bg-mmp-ink/30 shrink-0 mt-2"></span><span x-text="ln"></span>
+                            </li>
+                          </template>
+                        </ul>
+                      </template>
+                      <template x-if="anyDanger">
+                        <p class="text-sm text-mmp-ink/80 leading-snug">Sản phẩm dính cảnh báo nguy hiểm phía trên — AI của VowVet không phân tích thêm. Hỏi bác sĩ thú y trước khi cho bé dùng.</p>
+                      </template>
+
+                      <!-- Chi tiết thêm (gập): tinh bột ước tính + khớp thư viện — số chính đã lên Key Specs box ở trên -->
+                      <template x-if="result?.carb_pct != null || (result.match && result.match.matched)">
+                        <details>
+                          <summary class="text-[11px] uppercase tracking-wide text-mmp-ink/50 cursor-pointer select-none">Chi tiết thêm</summary>
+                          <div class="mt-2 space-y-2">
+                            <template x-if="result?.carb_pct != null">
+                              <p class="text-xs text-mmp-ink">Tinh bột ~<span class="font-semibold" x-text="result.carb_pct"></span>% <span class="text-mmp-ink/50">(ước tính từ nhãn<span x-show="result?.ash_estimated">, khoáng ước tính</span>)</span></p>
+                            </template>
+                            <template x-if="result.match && result.match.matched">
+                              <div class="bg-slate-50 rounded-lg border border-mmp-ink/12 p-2.5">
+                                <div class="flex items-center justify-between gap-2 mb-1.5">
+                                  <p class="text-xs font-semibold text-mmp-ink" x-text="result.match.brand.brand_name"></p>
+                                  <span class="text-[11px] text-mmp-ink/60">Khớp thư viện <span class="font-semibold" x-text="confPct"></span>%</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5">
+                                  <template x-for="row in brandRows" :key="row.k">
+                                    <span class="text-xs bg-white border border-mmp-ink/12 px-2 py-1 rounded-full text-mmp-ink"><span x-text="row.k"></span>: <span class="font-semibold" x-text="row.v"></span></span>
+                                  </template>
+                                </div>
+                              </div>
+                            </template>
+                          </div>
+                        </details>
+                      </template>
+
+                      <!-- CTA theo loại + verdict (anyDanger → chỉ còn rescan, cấm 'Thêm vào kế hoạch') -->
+                      <div class="flex flex-wrap gap-2 pt-1">
+                        <template x-for="(c, i) in visibleCtas" :key="i">
+                          <span class="contents">
+                            <!-- rescan: native label-for mở input ẩn #vv-rescan-input (quét-lại tại chỗ), KHÔNG runCta route profile -->
+                            <template x-if="c.action === 'rescan'">
+                              <label for="vv-rescan-input"
+                                class="inline-block text-center cursor-pointer text-sm font-semibold px-3 py-2 rounded-xl transition"
+                                :class="c.primary ? 'bg-mmp-ink text-white hover:opacity-90' : 'bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30'"
+                                x-text="c.label"></label>
+                            </template>
+                            <!-- CTA khác (add_plan / view_profile…): GIỮ NGUYÊN button + runCta -->
+                            <template x-if="c.action !== 'rescan'">
+                              <button type="button" @click="runCta(c)"
+                                class="text-sm font-semibold px-3 py-2 rounded-xl transition"
+                                :class="c.primary ? 'bg-mmp-ink text-white hover:opacity-90' : 'bg-slate-50 text-mmp-ink border border-mmp-ink/15 hover:border-mmp-ink/30'"
+                                x-text="c.label"></button>
+                            </template>
+                          </span>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+<!-- vet-flags data cho matcher client-side (bảng độc + câu-khen + rubric). Inline widget đọc qua id lúc init. -->
+<script type="application/json" id="vv-vet-flags" set:html={vetFlagsJson}></script>
+
+<!-- C pha 2: widget scan nhãn thức ăn — Alpine tự chứa, nối POST /pets/:id/food/scan (ca32f13). KHÔNG tính toán FE. -->
+<script is:inline>
+  function foodScanWidget(petId, petName) {
+    return {
+      init() {
+        // 1) Kết quả sẵn (luồng cũ / fallback fetch-then-nav): sessionStorage one-shot
+        try {
+          const k = "vowvet:scan:" + this.petId;
+          const raw = sessionStorage.getItem(k);
+          if (raw) {
+            this.result = JSON.parse(raw);
+            if (this.result && this.result.scan_url) this.preview = this.result.scan_url;
+            sessionStorage.removeItem(k);
+            this.$nextTick(() => document.getElementById("food-scan")
+              ?.scrollIntoView({ behavior:"smooth", block:"center" }));
+            return;
+          }
+        } catch (e) {}
+        // 2) Nav-first: File ảnh chờ ở IndexedDB (?pending=1) → POST tại trang này, hiện loading.
+        try {
+          if (new URLSearchParams(window.location.search).get("pending") === "1") {
+            this.scanning = true; // spinner hiện NGAY, trước cả khi đọc IDB
+            this._runPending();
+          }
+        } catch (e) {}
+      },
+
+      // Lấy File one-shot từ IDB rồi POST. Không có file (refresh/deep-link) → tắt loading → empty state.
+      async _runPending() {
+        let file = null;
+        try { if (typeof window.scanFileTake === "function") file = await window.scanFileTake(this.petId); } catch (e) {}
+        if (!file) { this.scanning = false; return; }
+        this.file = file;
+        this.scanning = false; // nhả guard cho submit() — submit set lại true đồng bộ → không nháy frame empty
+        await this.submit();
+      },
+
+      petId,
+      petName: petName || "bé",
+      inputId: `food-scan-input-${petId}`,
+      file: null,
+      preview: null,
+      scanning: false,
+      scanMsg: "Đang đọc nhãn…",
+      _msgTimer: null,
+      error: "",
+      result: null,
+      _vf: undefined, // memo vet-flags (đọc 1 lần từ #vv-vet-flags)
+
+      onPick(e) {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        if (f.size > 10 * 1024 * 1024) { this.error = "Ảnh tối đa 10MB."; this.file = null; this.preview = null; return; }
+        this.file = f;
+        this.preview = URL.createObjectURL(f);
+        this.error = "";
+        this.result = null;
+      },
+
+      get verdict() { return (this.result && this.result.verdict) || null; },
+      // KB cảnh báo nguy hiểm vet-approved — độc lập verdict/analysis (server tính, fail-soft []).
+      get kbWarnings() { return (this.result && Array.isArray(this.result.kb_warnings)) ? this.result.kb_warnings : []; },
+      get kbDanger() { return this.kbWarnings.some(function (w) { return w.severity === 'fatal' || w.severity === 'severe'; }); },
+      // anyDanger (KB vet-approved HOẶC vet-flags fatal/severe) → giấu CTA hành động (add_plan...) — chỉ giữ rescan.
+      get visibleCtas() {
+        var ctas = this.actionCtas;
+        if (!this.anyDanger) return ctas;
+        return ctas.filter(function (c) { return c.action === 'rescan'; });
+      },
+      get catType() { const v = this.verdict; return (v && v.category && v.category.type) || null; },
+      // 3 trạng thái: failState = không đọc nổi (ocr null / unknown) · isNonFood = không phải đồ thú cưng · còn lại = đọc được
+      get failState() { return !this.result || !this.result.ocr || this.catType === "unknown"; },
+      // message từ API ưu tiên (phân biệt "AI bận" vs "ảnh mờ"); fallback chuỗi cũ khi thiếu
+      get failMsg() { return (this.result && this.result.message) || "AI của VowVet chưa đọc được nhãn — chụp lại rõ phần thành phần/bao bì, đủ sáng, không loá."; },
+      get isNonFood() { return this.catType === "non_food"; },
+      get vetNotes() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind === "text"); },
+      // Pass 2 phân tích wow — server validate + fail-soft: không có → template verdict.lines render như cũ
+      get analysis() { return (this.result && this.result.analysis) || null; },
+      get anaScenarios() { const a = this.analysis; return (a && Array.isArray(a.scenarios)) ? a.scenarios : []; },
+      get anaInsights() { const a = this.analysis; return (a && Array.isArray(a.insights)) ? a.insights : []; },
+      get anaTips() { const a = this.analysis; return (a && Array.isArray(a.tips)) ? a.tips : []; },
+      get actionCtas() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind !== "text"); },
+
+      get gaRows() {
+        const o = this.result && this.result.ocr;
+        if (!o) return [];
+        const map = [["protein_pct","Đạm","%"],["fat_pct","Béo","%"],["fiber_pct","Xơ","%"],["moisture_pct","Ẩm","%"],["calories_per_100g","Năng lượng"," kcal/100g"]];
+        return map.filter(([k]) => o[k] != null).map(([k, label, unit]) => ({ k: label, v: String(o[k]) + unit }));
+      },
+
+      get confPct() {
+        const c = this.result && this.result.match && this.result.match.confidence;
+        return c != null ? Math.round(c * 100) : 0;
+      },
+
+      get brandRows() {
+        const b = this.result && this.result.match && this.result.match.brand;
+        if (!b) return [];
+        const map = [["protein_pct","Đạm","%"],["fat_pct","Béo","%"],["fiber_pct","Xơ","%"],["carb_pct_calculated","Carb","%"],["calories_per_100g","kcal/100g",""]];
+        return map.filter(([k]) => b[k] != null).map(([k, label, unit]) => ({ k: label, v: String(b[k]) + unit }));
+      },
+
+      // ---- vet-flags matcher (client-side; data thuần từ #vv-vet-flags) ----
+      get vetFlags() {
+        if (this._vf !== undefined) return this._vf;
+        try {
+          var el = document.getElementById("vv-vet-flags");
+          this._vf = el ? JSON.parse(el.textContent || "{}") : null;
+        } catch (e) { this._vf = null; }
+        return this._vf;
+      },
+      _vfNorm(s) {
+        return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
+      },
+      // {joined, words}: joined = chuỗi bỏ dấu; words = Set token (khớp từ-khoá 1 chữ chính xác, tránh "ghee"≠"hẹ").
+      _vfText() {
+        var o = this.result && this.result.ocr;
+        if (!o) return { joined: "", words: new Set() };
+        var raw = [o.raw_ingredients, o.raw_text].filter(Boolean).join(" ");
+        var j = this._vfNorm(raw);
+        var words = new Set(j.replace(/[^a-z0-9]+/g, " ").split(" ").filter(Boolean));
+        return { joined: j, words: words };
+      },
+      // từ-khoá nhiều chữ → substring trên joined; 1 chữ → khớp token.
+      _vfMatch(kwArr, ctx) {
+        var self = this;
+        return (kwArr || []).some(function (kw) {
+          var k = self._vfNorm(kw).trim();
+          if (!k) return false;
+          if (k.indexOf(" ") >= 0) return ctx.joined.indexOf(k) >= 0;
+          return ctx.words.has(k);
+        });
+      },
+      // (4) Cảnh báo độc từ vet-flags — đã lọc loài + dedupe vs box vet-approved (kbWarnings).
+      get vetFlagWarnings() {
+        var vf = this.vetFlags, r = this.result;
+        if (!vf || !vf.toxic || !r || !r.ocr) return [];
+        var ctx = this._vfText();
+        var sp = r.profile && r.profile.speciesEn;
+        var self = this;
+        var kbSubs = this.kbWarnings.map(function (w) { return self._vfNorm(w.substance || ""); });
+        var out = [];
+        vf.toxic.forEach(function (t) {
+          if (t.species === "cat" && sp !== "cat") return; // chất riêng mèo: chỉ khi bé là mèo
+          if (!self._vfMatch(t.kw, ctx)) return;
+          var lbl = self._vfNorm(t.label);
+          var dup = kbSubs.some(function (s) { return s && (s.indexOf(lbl) >= 0 || lbl.indexOf(s) >= 0); });
+          if (dup) return; // dedupe trùng chất với box vet-approved
+          out.push({ substance: t.label, severity: t.severity || "severe", summary: t.reason, action: t.action });
+        });
+        return out;
+      },
+      get clientDanger() {
+        return this.vetFlagWarnings.some(function (w) { return w.severity === "fatal" || w.severity === "severe"; });
+      },
+      // anyDanger = KB vet-approved HOẶC vet-flags fatal/severe → ẩn phân tích/CTA, ép điểm sàn.
+      get anyDanger() { return this.kbDanger || this.clientDanger; },
+      // (3) Thành phần đáng chú ý — CHỈ chất có trong PRAISE_FLAGS.
+      get vetStars() {
+        var vf = this.vetFlags, r = this.result;
+        if (!vf || !vf.praise || !r || !r.ocr) return [];
+        var ctx = this._vfText();
+        var self = this;
+        return vf.praise.filter(function (p) { return self._vfMatch(p.kw, ctx); })
+          .map(function (p) { return { term: p.label, plain: p.plain }; });
+      },
+      // giai đoạn bé: young|adult|senior|null (từ lifeStage, fallback dob).
+      _petStage() {
+        var p = this.result && this.result.profile;
+        if (!p) return null;
+        var ls = this._vfNorm(p.lifeStage);
+        if (/puppy|kitten|junior|nho|so sinh/.test(ls)) return "young";
+        if (/senior|geriatric|lon tuoi|cao tuoi/.test(ls)) return "senior";
+        if (/adult|truong thanh/.test(ls)) return "adult";
+        var t = p.dob ? Date.parse(p.dob) : NaN;
+        if (isNaN(t)) return null;
+        var months = (Date.now() - t) / (1000 * 60 * 60 * 24 * 30.44);
+        if (months < 12) return "young";
+        if (months >= (p.speciesEn === "cat" ? 132 : 84)) return "senior";
+        return "adult";
+      },
+      // giai đoạn nhãn: young|adult|senior|null ("all"→null = hợp mọi tuổi).
+      _labelStage(ls) {
+        var n = this._vfNorm(ls);
+        if (!n || n === "all") return null;
+        if (/puppy|kitten|junior/.test(n)) return "young";
+        if (/senior|geriatric/.test(n)) return "senior";
+        if (/adult/.test(n)) return "adult";
+        return null;
+      },
+      _stageVi(s) { return s === "young" ? "đang lớn" : s === "senior" ? "lớn tuổi" : "trưởng thành"; },
+      // dạng bột rời: khớp looseFormKw trên product_line + brand + đầu raw_text (tránh FP "bột cá" trong thành phần).
+      _looseForm() {
+        var vf = this.vetFlags, o = this.result && this.result.ocr;
+        if (!vf || !vf.rubric || !o) return false;
+        var hay = this._vfNorm([o.product_line, o.brand_name, (o.raw_text || "").slice(0, 200)].filter(Boolean).join(" "));
+        return (vf.rubric.looseFormKw || []).some(function (kw) { return hay.indexOf(kw) >= 0; });
+      },
+      // (1) Điểm độ-khớp-hồ-sơ — RULE-BASED. Bắt đầu 10, CHỈ trừ theo rubric vet-flags.ts (lý do kiểm chứng được).
+      get rubric() {
+        var r = this.result, vf = this.vetFlags;
+        var o = r && r.ocr, p = r && r.profile;
+        if (!o || !p || !vf || !vf.rubric) return null;
+        if (!(this.catType === "complete" || this.catType === "supplement" || this.catType === "treat")) return null;
+        var R = vf.rubric, name = (p.name || this.petName || "bé");
+        var score = 10, minus = [], khop = [];
+
+        // Lệch loài
+        var lblSp = o.species;
+        if ((lblSp === "dog" || lblSp === "cat") && p.speciesEn && lblSp !== p.speciesEn) {
+          score += R.speciesMismatch;
+          minus.push("Nhãn ghi cho " + (lblSp === "dog" ? "chó" : "mèo") + " nhưng " + name + " là " + (p.speciesVi || (p.speciesEn === "cat" ? "mèo" : "chó")) + " (" + R.speciesMismatch + " điểm).");
+        } else if ((lblSp === "dog" || lblSp === "cat" || lblSp === "both") && p.speciesEn) {
+          khop.push("Đúng loài — sản phẩm cho " + (lblSp === "both" ? "cả chó và mèo" : (lblSp === "dog" ? "chó" : "mèo")) + ", hợp với " + name + ".");
+        }
+
+        // Lệch giai đoạn tuổi
+        var petStage = this._petStage(), lblStage = this._labelStage(o.life_stage);
+        if (lblStage && petStage && lblStage !== petStage) {
+          score += R.lifeStageMismatch;
+          minus.push("Nhãn cho giai đoạn " + this._stageVi(lblStage) + " — khác giai đoạn của " + name + " (" + this._stageVi(petStage) + ") (" + R.lifeStageMismatch + " điểm).");
+        } else if (lblStage && petStage && lblStage === petStage) {
+          khop.push("Đúng giai đoạn tuổi (" + this._stageVi(petStage) + ").");
+        }
+
+        // Trùng dị ứng — dùng kết quả match server (verdict.flags.allergens), KHÔNG tự match lại.
+        var allg = (r.verdict && r.verdict.flags && r.verdict.flags.allergens) || [];
+        if (allg.length) {
+          score += R.allergenMatch;
+          minus.push("Nhãn có thể chứa " + allg.join(", ") + " — trùng dị ứng đã ghi của " + name + " (" + R.allergenMatch + " điểm).");
+        }
+
+        // Dạng bột rời khó kiểm liều
+        if (this._looseForm()) {
+          score += R.looseForm;
+          minus.push("Dạng bột rời/sang chiết, khó kiểm soát liều chính xác (" + R.looseForm + " điểm).");
+        }
+
+        // Thiếu thông tin nhãn (không đọc được liều/khẩu phần)
+        if (o.feeding_guide == null) {
+          score += R.missingInfo;
+          minus.push("Nhãn không ghi rõ liều/khẩu phần dùng (" + R.missingInfo + " điểm).");
+        }
+
+        // Chất nguy hiểm → ép sàn + xoá phần "khớp" (không khen cạnh box độc)
+        var toxHit = this.kbWarnings.length > 0 || this.vetFlagWarnings.length > 0;
+        if (toxHit) {
+          if (R.toxicForcesFloor) { score = R.floor; } else { score += R.toxic; }
+          minus.unshift("Phát hiện chất nguy hiểm trên nhãn — điểm hạ về mức thấp nhất (xem cảnh báo phía trên).");
+          khop = [];
+        }
+
+        if (score < R.floor) score = R.floor;
+        if (score > 10) score = 10;
+        return { score: score, minus: minus, khop: khop };
+      },
+      // verdict.lines pass-1 nhưng LỌC dòng kết luận "phù hợp" cũ (điểm/đối chiếu đã chuyển sang rubric rule-based).
+      get verdictLines() {
+        var self = this;
+        var v = this.verdict;
+        var arr = (v && Array.isArray(v.lines)) ? v.lines : [];
+        return arr.filter(function (l) {
+          var n = self._vfNorm(l);
+          return n.indexOf("tong the") < 0 && n.indexOf("lua chon phu hop") < 0;
+        });
+      },
+
+      async submit() {
+        if (!this.file || this.scanning) return;
+        this.scanning = true;
+        // Loading staged: OCR ~6s → pass 2 phân tích thêm 4-8s, đổi chữ sau ~5s cho đỡ "đứng hình"
+        this.scanMsg = "Đang đọc nhãn…";
+        this._msgTimer = setTimeout(() => { this.scanMsg = "Đang phân tích cho " + this.petName + "…"; }, 5000);
+        this.error = "";
+        this.result = null;
+        // Guard chống xoay vô tận: abort sau 120s (dài hơn server 3×20s OCR + analysis).
+        // KHÔNG đụng thời gian Gemini — chỉ là trần client để spinner không kẹt nếu request treo.
+        const ac = new AbortController();
+        const killer = setTimeout(() => ac.abort(), 120000);
+        try {
+          const fd = new FormData();
+          fd.append("photo", this.file);
+          const res = await fetch(`/api/v1/pets/${this.petId}/food/scan`, { method: "POST", credentials: "include", body: fd, signal: ac.signal });
+          const j = await res.json();
+          if (!res.ok) { this.error = (j && j.error && j.error.message) || "Quét nhãn thất bại, thử lại sau."; return; }
+          this.result = j;
+        } catch (e) {
+          this.error = (e && e.name === "AbortError")
+            ? "Quá thời gian chờ (AI bận hoặc mạng chậm). Thử lại sau ít phút nhé."
+            : "Lỗi kết nối. Kiểm tra mạng và thử lại.";
+        } finally {
+          clearTimeout(killer);
+          if (this._msgTimer) { clearTimeout(this._msgTimer); this._msgTimer = null; }
+          this.scanning = false;
+        }
+      },
+
+      // CTA: rescan=về launcher mở upload · add_plan=bắc cầu sang petDetail (setBrandForPlan) · link=điều hướng · text=không click
+      runCta(c) {
+        if (!c) return;
+        // A2-fix #3: trang /scan/result KHÔNG có upload UI (đã tách sang launcher pet detail) →
+        // reset() cũ click input mồ côi = vô tác dụng, rơi empty state. Điều hướng về launcher
+        // với cờ ?scan=1 (handler [id].astro mở tab nutrition + scroll #food-scan, dropzone hiện sẵn).
+        // Full reload (window.location.href) — nhất quán cơ chế submit() launcher + FAB.
+        if (c.action === "rescan") { window.location.href = `/pets/${this.petId}?scan=1`; return; }
+        if (c.action === "add_plan" && c.brandId != null) {
+          window.dispatchEvent(new CustomEvent("scan-add-to-plan", { detail: { brandId: c.brandId } }));
+          return;
+        }
+        if (c.kind === "link" && c.href) { window.location.href = c.href; return; }
+      },
+
+      // Quét-lại TẠI CHỖ (Hướng 1): user chọn ảnh ngay trên /scan/result qua native label-for (giữ user-gesture
+      // → iOS Safari mở camera được). Input ẩn #vv-rescan-input sống ở result.astro (ngoài x-if="result").
+      // TÁI DÙNG nav-first TASK B: scanFilePut IDB → ?pending=1. Fallback IDB lỗi/thiếu → route ?scan=1 (luồng cũ).
+      async onRescanPick(e) {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        if (f.size > 10 * 1024 * 1024) { this.error = "Ảnh tối đa 10MB."; return; }
+        if (typeof window.scanFilePut === "function") {
+          try {
+            await window.scanFilePut(this.petId, f);
+            window.location.href = `/scan/result?pet=${this.petId}&pending=1`;
+            return;
+          } catch (err) { /* IDB lỗi → rơi xuống fallback */ }
+        }
+        window.location.href = `/pets/${this.petId}?scan=1`;
+      },
+
+      reset() {
+        this.result = null; this.file = null; this.error = "";
+        if (this.preview) { try { URL.revokeObjectURL(this.preview); } catch (e) {} }
+        this.preview = null;
+        const el = document.getElementById(this.inputId);
+        if (el) { el.value = ""; el.click(); }
+      },
+    };
+  }
+</script>
