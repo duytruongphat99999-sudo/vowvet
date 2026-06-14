@@ -6,6 +6,7 @@
  * No auth required. Anonymized to pet name (no full user names).
  */
 import Layout from "../layouts/Layout.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
 import { getZaloLink } from "../../../shared/contact-info.ts";
 
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
@@ -51,7 +52,7 @@ const initialData = JSON.stringify({ events, zaloUrl: getZaloLink() });
       <!-- Empty -->
       <template x-if="filteredEvents.length === 0">
         <div class="bg-white rounded-2xl p-8 text-center border border-slate-100">
-          <p class="text-5xl mb-2">🌱</p>
+          <div class="flex justify-center mb-2"><FeatureIcon name="leaf" class="w-12 h-12 text-[#b48608]" /></div>
           <p class="text-base font-bold text-slate-900">Chưa có hoạt động</p>
           <p class="text-sm text-slate-600 mt-1">Hãy là người đầu tiên — unlock huy hiệu / check-in / giúp pet để hiện trên feed.</p>
         </div>
@@ -66,7 +67,7 @@ const initialData = JSON.stringify({ events, zaloUrl: getZaloLink() });
                 <img :src="e.pet_avatar_url" alt="" class="w-11 h-11 rounded-full object-cover border-2 border-slate-200 shrink-0" />
               </template>
               <template x-if="!e.pet_avatar_url">
-                <div class="w-11 h-11 rounded-full bg-mmp-cream flex items-center justify-center text-xl shrink-0">🐾</div>
+                <div class="w-11 h-11 rounded-full bg-mmp-cream flex items-center justify-center shrink-0"><FeatureIcon name="paw" class="w-6 h-6 text-slate-400" /></div>
               </template>
               <div class="flex-1 min-w-0">
                 <p class="text-sm leading-snug">
