@@ -174,7 +174,8 @@ function buildPrompt(input: ScanAnalysisInput): string {
     `Nếu bé có bệnh nền HOẶC có cảnh báo dị ứng → score: null (BẮT BUỘC).\n` +
     `2. Bé có bệnh nền → TUYỆT ĐỐI KHÔNG viết "phù hợp", "an toàn", "tốt cho", "hợp với", "tốt với", "nên dùng", "rất hợp" về sản phẩm; ` +
     `chỉ nêu DỮ KIỆN trung tính + kết luận đẩy về "hỏi bác sĩ thú y trước khi dùng".\n` +
-    `3. insights: dịch thuật ngữ in trên nhãn (CFU, prebiotic, probiotic, taurine, by-product, guaranteed analysis…) ra lợi ích đời thường. ` +
+    `3. insights: giải nghĩa thuật ngữ in trên nhãn (CFU, prebiotic, probiotic, taurine, by-product, guaranteed analysis…) ra lời đời thường, MÔ TẢ TRUNG TÍNH — nói thành phần đó LÀ gì / LÀM gì, KHÔNG phán giá trị. ` +
+    `CẤM giọng khuyến nghị: không "tốt cho", "nên", "quan trọng với", "đủ/thiếu", "đặc biệt cần thiết/quan trọng với…". ` +
     `Ẩn dụ ĐƯỢC PHÉP, nhưng CẤM bịa quy đổi số, CẤM nêu bất kỳ con số nào KHÔNG in trên nhãn.\n` +
     `4. tips: CHỈ kiến thức chăm sóc phổ quát đã thành chuẩn (vd men vi sinh: không trộn vào đồ ăn/nước >40°C, cho cách kháng sinh ≥2 tiếng, ` +
     `bảo quản nơi khô mát; thức ăn mới: chuyển dần 7-10 ngày). Tương tác thuốc cụ thể → KHÔNG bịa, ghi "hỏi bác sĩ thú y".\n` +
