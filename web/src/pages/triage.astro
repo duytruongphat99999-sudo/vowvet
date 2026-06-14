@@ -7,6 +7,7 @@
  * /triage/[petId] for persistence + history.
  */
 import Layout from "../layouts/Layout.astro";
+import FeatureIcon from "../components/FeatureIcon.astro";
 import { getZaloLink } from "../../../shared/contact-info.ts";
 
 const user = Astro.locals.user;
@@ -35,14 +36,14 @@ const initialData = JSON.stringify({
 });
 ---
 
-<Layout title="🚑 Triage · VowVet" description="Phân loại mức khẩn cấp cho bé — quyết định nhanh đi vet hay theo dõi">
+<Layout title="Triage · VowVet" description="Phân loại mức khẩn cấp cho bé — quyết định nhanh đi vet hay theo dõi">
   <main class="min-h-screen bg-gradient-to-b from-slate-50 to-white px-4 py-6 pb-16">
     <div class="max-w-xl mx-auto" x-data={`triagePage(${initialData})`}>
 
       <header class="flex items-center justify-between mb-5 gap-3">
         <a href="/emergency" class="text-sm text-slate-500 hover:text-slate-700">← Cấp cứu</a>
-        <h1 class="text-lg font-bold text-slate-900">🚑 Triage</h1>
-        <a href="/faq" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">📚 FAQ</a>
+        <h1 class="text-lg font-bold text-slate-900 flex items-center gap-1.5"><FeatureIcon name="siren" class="w-5 h-5" />Triage</h1>
+        <a href="/faq" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600 inline-flex items-center gap-1"><FeatureIcon name="book-open" class="w-4 h-4" />FAQ</a>
       </header>
 
       <!-- Progress bar -->
@@ -93,19 +94,19 @@ const initialData = JSON.stringify({
         </div>
 
         <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
-          <h3 class="text-sm font-bold text-slate-700 uppercase mb-2">💡 Khuyến nghị</h3>
+          <h3 class="text-sm font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5"><FeatureIcon name="lightbulb" class="w-4 h-4" />Khuyến nghị</h3>
           <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-line" x-text="result?.recommendation"></p>
         </div>
 
         <!-- Emergency CTA -->
         <template x-if="result?.tier === 'emergency' || result?.tier === 'urgent'">
           <div class="space-y-2 mb-4">
-            <a href="tel:+84779029133" class="block bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl text-center text-lg shadow-lg">
-              📞 Gọi 0779 029 133 ngay
+            <a href="tel:+84779029133" class="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl text-center text-lg shadow-lg">
+              <FeatureIcon name="phone" class="w-5 h-5" />Gọi 0779 029 133 ngay
             </a>
             <a :href="zaloUrl" target="_blank" rel="noopener"
-              class="block bg-mmp-ink hover:bg-mmp-ink text-white font-bold py-3 rounded-xl text-center">
-              💬 Chat Zalo VowVet
+              class="flex items-center justify-center gap-2 bg-mmp-ink hover:bg-mmp-ink text-white font-bold py-3 rounded-xl text-center">
+              <FeatureIcon name="message-circle" class="w-5 h-5" />Chat Zalo VowVet
             </a>
           </div>
         </template>
@@ -113,7 +114,7 @@ const initialData = JSON.stringify({
         <!-- Save session (logged-in only) -->
         <template x-if="isLoggedIn && pets.length > 0 && !saved">
           <div class="bg-mmp-cream border border-mmp-cream rounded-2xl p-4 mb-3">
-            <p class="text-sm font-bold text-mmp-ink mb-2">💾 Lưu kết quả cho bé của bạn?</p>
+            <p class="text-sm font-bold text-mmp-ink mb-2">Lưu kết quả cho bé của bạn?</p>
             <div class="flex flex-wrap gap-2">
               <template x-for="pet in pets" :key="pet.id">
                 <button @click="saveTo(pet.id)" :disabled="savingPetId === pet.id"
@@ -138,8 +139,8 @@ const initialData = JSON.stringify({
           </p>
         </template>
 
-        <button @click="reset()" class="block w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-sm mb-2">
-          🔁 Đánh giá lại
+        <button @click="reset()" class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-sm mb-2">
+          <FeatureIcon name="refresh" class="w-4 h-4" />Đánh giá lại
         </button>
         <a href="/dashboard" x-show="isLoggedIn" class="block w-full bg-mmp-ink hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-sm text-center">
           Về Dashboard
