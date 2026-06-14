@@ -371,7 +371,6 @@ const vetFlagsJson = JSON.stringify({ toxic: TOXIC_FLAGS, praise: PRAISE_FLAGS, 
       get vetNotes() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind === "text"); },
       // Pass 2 phân tích wow — server validate + fail-soft: không có → template verdict.lines render như cũ
       get analysis() { return (this.result && this.result.analysis) || null; },
-      get anaScenarios() { const a = this.analysis; return (a && Array.isArray(a.scenarios)) ? a.scenarios : []; },
       get anaInsights() { const a = this.analysis; return (a && Array.isArray(a.insights)) ? a.insights : []; },
       get anaTips() { const a = this.analysis; return (a && Array.isArray(a.tips)) ? a.tips : []; },
       get actionCtas() { const v = this.verdict; return (v && Array.isArray(v.cta) ? v.cta : []).filter((c) => c.kind !== "text"); },
@@ -590,14 +589,9 @@ const vetFlagsJson = JSON.stringify({ toxic: TOXIC_FLAGS, praise: PRAISE_FLAGS, 
         }
       },
 
-      // CTA: rescan=về launcher mở upload · add_plan=bắc cầu sang petDetail (setBrandForPlan) · link=điều hướng · text=không click
+      // CTA: add_plan=thêm vào khẩu phần · link=mở link · text=không click
       runCta(c) {
         if (!c) return;
-        // A2-fix #3: trang /scan/result KHÔNG có upload UI (đã tách sang launcher pet detail) →
-        // reset() cũ click input mồ côi = vô tác dụng, rơi empty state. Điều hướng về launcher
-        // với cờ ?scan=1 (handler [id].astro mở tab nutrition + scroll #food-scan, dropzone hiện sẵn).
-        // Full reload (window.location.href) — nhất quán cơ chế submit() launcher + FAB.
-        if (c.action === "rescan") { window.location.href = `/pets/${this.petId}?scan=1`; return; }
         if (c.action === "add_plan" && c.brandId != null) {
           window.dispatchEvent(new CustomEvent("scan-add-to-plan", { detail: { brandId: c.brandId } }));
           return;
@@ -620,14 +614,6 @@ const vetFlagsJson = JSON.stringify({ toxic: TOXIC_FLAGS, praise: PRAISE_FLAGS, 
           } catch (err) { /* IDB lỗi → rơi xuống fallback */ }
         }
         window.location.href = `/pets/${this.petId}?scan=1`;
-      },
-
-      reset() {
-        this.result = null; this.file = null; this.error = "";
-        if (this.preview) { try { URL.revokeObjectURL(this.preview); } catch (e) {} }
-        this.preview = null;
-        const el = document.getElementById(this.inputId);
-        if (el) { el.value = ""; el.click(); }
       },
     };
   }
