@@ -7,6 +7,7 @@
  */
 import Layout from "../../layouts/Layout.astro";
 import { fetchPet } from "../../lib/api-client.ts";
+import EcosystemNav from "../../components/EcosystemNav.astro";
 import { getZaloLink } from "../../../../shared/contact-info.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -145,6 +146,10 @@ const initialData = JSON.stringify({
         </a>
       </div>
 
+    </div>
+    <!-- #2 Ecosystem bridge (cross-site nav) -->
+    <div class="max-w-xl mx-auto mt-12 pt-8 border-t border-mmp-ink/10">
+      <EcosystemNav />
     </div>
   </main>
 

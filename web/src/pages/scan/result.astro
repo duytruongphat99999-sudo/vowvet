@@ -15,6 +15,7 @@
 import Layout from "../../layouts/Layout.astro";
 import FeatureIcon from "../../components/FeatureIcon.astro";
 import ScanResultCard from "../../components/ScanResultCard.astro";
+import EcosystemNav from "../../components/EcosystemNav.astro";
 
 const petIdRaw = Astro.url.searchParams.get("pet") || "";
 const petId = Number(petIdRaw);
@@ -87,6 +88,11 @@ if (!Number.isFinite(petId) || petId <= 0) {
       <ScanResultCard />
 
       <p class="text-[11px] text-mmp-ink/40 text-center italic mt-3"><FeatureIcon name="ai" class="w-3 h-3 inline-block align-text-bottom mr-1" />AI của VowVet phân tích — tham khảo, không thay thế bác sĩ thú y.</p>
+    </div>
+
+    <!-- #2 Ecosystem bridge (cross-site nav) -->
+    <div class="mt-10 pt-8 border-t border-mmp-ink/10">
+      <EcosystemNav />
     </div>
   </main>
 </Layout>

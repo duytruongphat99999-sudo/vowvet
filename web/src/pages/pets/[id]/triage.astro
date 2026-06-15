@@ -11,6 +11,7 @@
  * SSR pre-fetch symptom list (filter theo loài pet) để Alpine render ngay không phải request thêm.
  */
 import Layout from "../../../layouts/Layout.astro";
+import EcosystemNav from "../../../components/EcosystemNav.astro";
 import { fetchPet } from "../../../lib/api-client.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -333,6 +334,10 @@ const EMERGENCY_PHONE = clinic.phone.replace(/^\+84/, "0").replace(/\s+/g, "");
           Xem lịch sử triage trước đây →
         </a>
       </div>
+    </div>
+    <!-- #2 Ecosystem bridge (cross-site nav) -->
+    <div class="max-w-2xl mx-auto mt-12 pt-8 border-t border-mmp-ink/10">
+      <EcosystemNav />
     </div>
   </main>
 
