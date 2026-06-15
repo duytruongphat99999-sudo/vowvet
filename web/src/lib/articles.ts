@@ -2,6 +2,7 @@
  * Article content for /articles/[slug] — premium long-form posts that
  * back each homepage feature card. Vietnamese, professional, emotional.
  */
+import { withUtm } from "./utm.ts";
 
 export type ArticleSlug =
   | "ho-chieu-pet-24-7"
@@ -309,6 +310,27 @@ export const ARTICLES: Record<ArticleSlug, Article> = {
         heading: "DB cập nhật cho thị trường Việt",
         paragraphs: [
           "VowVet tích hợp DB forbidden foods riêng cho pet Việt Nam: chocolate, hành tỏi, nho (chó), cá sống (mèo), xương gà nấu chín, măng cụt, bơ. Khi bạn log meal có chứa item này, hệ thống cảnh báo tức thì + đề xuất triage urgency.",
+        ],
+      },
+      {
+        eyebrow: "BSTY gợi ý",
+        heading: "3 bổ sung nền tảng đội ngũ BSTY Mon Min Pet tin dùng",
+        paragraphs: [
+          "Thức ăn đạt chuẩn AAFCO lo phần **dinh dưỡng nền**. Với bé có nhu cầu riêng — đường ruột nhạy cảm, da lông xỉn, tuổi trung niên — đội ngũ BSTY Mon Min Pet thường gợi ý thêm bổ sung từ **Fera** (dòng bổ sung Mỹ, công thức rõ thành phần). Đây là sản phẩm hỗ trợ, không thay thế việc khám thú y.",
+        ],
+        bullets: [
+          {
+            title: "Fera Probiotics + Prebiotics — hệ tiêu hoá",
+            body: `Men vi sinh kèm chất xơ prebiotic, hỗ trợ cân bằng hệ vi sinh đường ruột — hợp bé hay rối loạn tiêu hoá khi đổi thức ăn. <a href="${withUtm("https://monminpet.com/san-pham/fera-probiotics-prebiotics/", { medium: "article", campaign: "aafco_fera" })}" target="_blank" rel="noopener" style="color:var(--c-gold);font-weight:600;text-decoration:underline;text-underline-offset:2px;">Xem trên Mon Min Pet ↗</a>`,
+          },
+          {
+            title: "Fera Fish Oil — da, lông & khớp",
+            body: `Dầu cá giàu Omega-3 (EPA/DHA), hỗ trợ da lông mượt cùng sức khoẻ khớp và tim mạch. <a href="${withUtm("https://monminpet.com/san-pham/fera-fish-oil/", { medium: "article", campaign: "aafco_fera" })}" target="_blank" rel="noopener" style="color:var(--c-gold);font-weight:600;text-decoration:underline;text-underline-offset:2px;">Xem trên Mon Min Pet ↗</a>`,
+          },
+          {
+            title: "Fera Wellness Blend — đa vi chất hằng ngày",
+            body: `Hỗn hợp vitamin–khoáng tổng hợp bổ trợ khẩu phần hằng ngày, phù hợp bé ăn home-cook hoặc cần thêm vi chất. <a href="${withUtm("https://monminpet.com/san-pham/fera-wellness-blend/", { medium: "article", campaign: "aafco_fera" })}" target="_blank" rel="noopener" style="color:var(--c-gold);font-weight:600;text-decoration:underline;text-underline-offset:2px;">Xem trên Mon Min Pet ↗</a>`,
+          },
         ],
       },
     ],
