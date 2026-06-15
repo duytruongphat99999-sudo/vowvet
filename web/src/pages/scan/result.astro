@@ -16,12 +16,18 @@ import Layout from "../../layouts/Layout.astro";
 import FeatureIcon from "../../components/FeatureIcon.astro";
 import ScanResultCard from "../../components/ScanResultCard.astro";
 import EcosystemNav from "../../components/EcosystemNav.astro";
+import { HEALTH_CONDITIONS } from "@shared/health-conditions.ts";
 
 const petIdRaw = Astro.url.searchParams.get("pet") || "";
 const petId = Number(petIdRaw);
 if (!Number.isFinite(petId) || petId <= 0) {
   return Astro.redirect("/dashboard");
 }
+
+// #3 scan bridge: code → {label, tier} để client resolve nhãn bệnh tầng-1 của bé.
+const condMapJson = JSON.stringify(
+  Object.fromEntries(HEALTH_CONDITIONS.map((c) => [c.code, { label: c.label, tier: c.tier }]))
+);
 ---
 
 <Layout title="Kết quả quét nhãn · VowVet" description="AI của VowVet đọc nhãn thức ăn và cảnh báo chất nguy hiểm cho thú cưng">
@@ -90,6 +96,29 @@ if (!Number.isFinite(petId) || petId <= 0) {
       <p class="text-[11px] text-mmp-ink/40 text-center italic mt-3"><FeatureIcon name="ai" class="w-3 h-3 inline-block align-text-bottom mr-1" />AI của VowVet phân tích — tham khảo, không thay thế bác sĩ thú y.</p>
     </div>
 
+    <!-- #3 Scan bridge — CTA bổ sung MonMin cá nhân hoá theo bé -->
+    <div x-data={`scanBridge(${petId}, ${condMapJson})`} x-init="load()" class="mt-5">
+      <a href={`/pets/${petId}?supp=1`}
+        class="group flex items-center gap-3 rounded-2xl border border-[#B48608]/30 p-4 hover:border-mmp-ink hover:shadow-md transition"
+        style="background: linear-gradient(180deg, #FDFAF2 0%, #FAF6EC 100%);">
+        <span class="shrink-0 w-11 h-11 rounded-xl bg-mmp-gold/15 flex items-center justify-center text-[#B48608]">
+          <FeatureIcon name="sparkles" class="w-5 h-5" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-bold text-mmp-ink leading-snug">
+            <template x-if="petCond">
+              <span>Bổ sung phù hợp với bé <span x-text="petName"></span> (<span x-text="petCond"></span>)</span>
+            </template>
+            <template x-if="!petCond">
+              <span>Tham khảo bổ sung MonMin cho bé <span x-text="petName"></span></span>
+            </template>
+          </span>
+          <span class="block text-xs text-mmp-ink/60 mt-0.5">Sản phẩm dinh dưỡng MonMin chọn riêng cho bé →</span>
+        </span>
+        <FeatureIcon name="arrow" class="w-4 h-4 text-mmp-ink/40 shrink-0 group-hover:translate-x-1 transition-transform" />
+      </a>
+    </div>
+
     <!-- #2 Ecosystem bridge (cross-site nav) -->
     <div class="mt-10 pt-8 border-t border-mmp-ink/10">
       <EcosystemNav />
@@ -127,6 +156,32 @@ if (!Number.isFinite(petId) || petId <= 0) {
           const d = await res.json();
           const p = d && Array.isArray(d.pets) ? d.pets.find((x) => x.id === petId) : null;
           if (p && p.name) this.petName = p.name;
+        } catch (e) {}
+      },
+    };
+  }
+
+  function scanBridge(petId, condMap) {
+    return {
+      petId,
+      condMap: condMap || {},
+      petName: "cưng",
+      petCond: null,
+      async load() {
+        try {
+          const res = await fetch("/api/v1/auth/me", { credentials: "include" });
+          if (!res.ok) return;
+          const d = await res.json();
+          const p = d && Array.isArray(d.pets) ? d.pets.find((x) => x.id === petId) : null;
+          if (!p) return;
+          if (p.name) this.petName = p.name;
+          const conds = Array.isArray(p.health_conditions) ? p.health_conditions : [];
+          for (const c of conds) {
+            if (c && c.status !== "resolved" && this.condMap[c.code] && this.condMap[c.code].tier === 1) {
+              this.petCond = this.condMap[c.code].label;
+              break;
+            }
+          }
         } catch (e) {}
       },
     };

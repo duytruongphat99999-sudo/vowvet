@@ -1829,7 +1829,7 @@ const storyExcerpt = hasStory
 
             <!-- ===== Phase 3: Bổ sung từ MonMin (PREMIUM spotlight — match bệnh CỦA PET NÀY) ===== -->
             <template x-if="hasAnySupp">
-              <section class="rounded-2xl p-5 shadow-md border border-[#B48608]/25" style="background: linear-gradient(180deg, #FDFAF2 0%, #FAF6EC 100%);" aria-label="Bổ sung từ MonMin">
+              <section id="monmin-supp" class="rounded-2xl p-5 shadow-md border border-[#B48608]/25" style="background: linear-gradient(180deg, #FDFAF2 0%, #FAF6EC 100%);" aria-label="Bổ sung từ MonMin">
                 <!-- Header -->
                 <div class="flex items-start gap-2.5 mb-4">
                   <span class="shrink-0 mt-0.5 text-[#B48608]"><FeatureIcon name="sparkles" class="w-6 h-6" /></span>
@@ -3147,6 +3147,14 @@ const storyExcerpt = hasStory
       init() {
         if (this.pet.qr_code) {
           this.$nextTick(() => this.renderQr());
+        }
+        // #3 scan bridge: ?supp=1 → mở tab Dinh dưỡng + cuộn tới khối "Bổ sung MonMin".
+        if (new URLSearchParams(window.location.search).get("supp") === "1") {
+          this.pageTab = "health";
+          this.$nextTick(() => {
+            this.activeTab = "nutrition";
+            this.$nextTick(() => document.getElementById("monmin-supp")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+          });
         }
       },
 
