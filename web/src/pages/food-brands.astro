@@ -9,6 +9,7 @@
 import Layout from "../layouts/Layout.astro";
 import FeatureIcon from "../components/FeatureIcon.astro";
 import Logo from "../components/Logo.astro";
+import { withUtm } from "../lib/utm.ts";
 import {
   HEALTH_CONDITIONS, TIER_META, CONDITION_NUTRITION, CONDITION_TEXTURE,
 } from "@shared/health-conditions.ts";
@@ -87,7 +88,10 @@ try {
 }
 
 const brandsJson = JSON.stringify(brands);
-const supplementsJson = JSON.stringify(supplements);
+// #1 UTM: gắn tracking vào link supplement MonMin ở SSR (trước khi sang Alpine).
+const supplementsJson = JSON.stringify(
+  supplements.map((s: any) => ({ ...s, url: withUtm(s?.url, { campaign: "food_brands" }) }))
+);
 const userPetsJson = JSON.stringify(userPets);
 const initialBcsScoreJson = JSON.stringify(initialBcsScore);
 // Đợt 2b: cấu hình dẫn luồng bệnh sử (tầng + dinh dưỡng + kết cấu) + cờ popup nhắc cân

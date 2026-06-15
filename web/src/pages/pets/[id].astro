@@ -5,6 +5,7 @@ import FeatureIcon from "../../components/FeatureIcon.astro";
 import { fetchPet, fetchCompletion } from "../../lib/api-client.ts";
 import { formatAge } from "../../lib/age.ts";
 import { DOG_BREEDS_VN, CAT_BREEDS_VN } from "../../lib/breeds.ts";
+import { withUtm } from "../../lib/utm.ts";
 import {
   HEALTH_CONDITIONS, CONDITION_NUTRITION, TIER_META, CONDITION_STATUSES,
   COAT_CONDITIONS, DENTAL_STATUSES, ACTIVITY_LEVELS, LIFE_STAGES,
@@ -49,7 +50,10 @@ try {
   const sres = await fetch(`${API_INTERNAL}/api/v1/public/monmin-supplements`, { headers: { cookie: cookieHeader } });
   if (sres.ok) { const sj = await sres.json(); supplements = sj.supplements || []; }
 } catch (err) { console.error("[pet page] supplements fetch failed:", err); }
-const supplementsJson = JSON.stringify(supplements);
+// #1 UTM: gắn tracking vào link supplement MonMin ở SSR (trước khi sang Alpine).
+const supplementsJson = JSON.stringify(
+  supplements.map((s: any) => ({ ...s, url: withUtm(s?.url, { campaign: "pet_detail" }) }))
+);
 
 // BƯỚC 2: cam kết hồ sơ trọn đời — chặn đầu khi chưa cam kết HOẶC pledge > 6 tháng (re-confirm)
 const _pledgeRaw = (pet as any)?.pledge_at || null;
