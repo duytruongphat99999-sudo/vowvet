@@ -242,6 +242,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   // ──────────────────────────────────────────────────────────
+  // Step 2.5: /register — deep-link từ MonMin Pet (?ref&condition).
+  // VowVet KHÔNG có trang /register → đẩy thẳng vào wizard tạo bé /pets/new,
+  // GIỮ NGUYÊN query (?ref&condition). Anon → qua /login với return_to=/pets/new
+  // (KHÔNG /register → tránh vòng lặp redirect về chính nó); login xong về wizard kèm query.
+  // ──────────────────────────────────────────────────────────
+  if (path === "/register") {
+    if (!isLoggedIn) return context.redirect(loginWithReturnTo("/pets/new", url.search));
+    return context.redirect("/pets/new" + url.search);
+  }
+
+  // ──────────────────────────────────────────────────────────
   // Step 3: Not logged in + private path → /login?return_to=…
   // ──────────────────────────────────────────────────────────
   if (!isLoggedIn) {

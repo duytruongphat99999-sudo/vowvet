@@ -164,6 +164,12 @@ const userNameJson = '""';
       // v273: load userName CLIENT-side (đã bỏ SSR fetch /auth/me chặn render). Alpine tự gọi init().
       init() {
         var self = this;
+        // Bắt ?ref từ deep-link MonMin (vd /pets/new?ref=product-fera-kidney-cat) → lưu cho analytics sau.
+        // CHỈ lưu ref; KHÔNG đọc/xử lý ?condition (phần B treo chờ duyệt). Không có ref thì không ghi.
+        try {
+          var mmpRef = new URLSearchParams(location.search).get("ref");
+          if (mmpRef) localStorage.setItem("mmp_ref", mmpRef);
+        } catch (e) {}
         fetch("/api/v1/auth/me", { credentials: "include" })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) { if (j && j.user && j.user.name) self.userName = j.user.name; })
