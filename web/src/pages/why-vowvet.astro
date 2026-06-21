@@ -28,6 +28,10 @@ if (!data) {
     brand: { legal_name: "CTY TNHH Duy Trường Phát", product_name: "VowVet", parent_brand: "Mon Min Pet" },
   };
 }
+
+// Trust: CHỈ hiện testimonial THẬT (is_placeholder=false). Placeholder pilot → ẩn cả section.
+// KHÔNG xoá data API (marketing.ts) — sau pilot flip is_placeholder=false là tự hiện lại.
+const realTestimonials = ((data && data.testimonials) || []).filter((t: any) => !t.is_placeholder);
 ---
 
 <Layout title="Tại sao chọn VowVet? · Mon Min Pet" description="Tại sao 100+ pet owner HCM chọn VowVet thay vì làm thủ công. 8 tình huống thực tế + so sánh với FB group + 5 lý do tin tưởng.">
@@ -167,32 +171,23 @@ if (!data) {
       </div>
     </section>
 
-    <!-- ======= SECTION 5: TESTIMONIALS ======= -->
+    {/* SECTION 5: TESTIMONIALS — chỉ render khi có quote THẬT (is_placeholder=false); placeholder pilot → ẩn cả section */}
+    {realTestimonials.length > 0 && (
     <section class="max-w-3xl mx-auto px-4 py-12">
       <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">Pet owner nói gì?</h2>
       <p class="text-center text-sm sm:text-base text-slate-600 mb-8 sm:mb-10">User thật từ pilot Mon Min</p>
 
       <div class="grid sm:grid-cols-3 gap-3 sm:gap-4">
-        {data.testimonials.map((t: any) => (
+        {realTestimonials.map((t: any) => (
           <div class="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200">
-            {t.is_placeholder ? (
-              <div class="text-center text-slate-400 py-3">
-                <div class="text-3xl mb-2">💬</div>
-                <p class="text-xs italic">Đang chờ user thật chia sẻ</p>
-                <p class="font-bold mt-3 text-sm text-slate-700">{t.name}</p>
-                <p class="text-xs text-slate-500">{t.pet}</p>
-              </div>
-            ) : (
-              <div>
-                <p class="text-sm italic mb-3">"{t.quote}"</p>
-                <p class="font-bold text-sm">{t.name}</p>
-                <p class="text-xs text-slate-500">{t.pet}</p>
-              </div>
-            )}
+            <p class="text-sm italic mb-3">"{t.quote}"</p>
+            <p class="font-bold text-sm">{t.name}</p>
+            <p class="text-xs text-slate-500">{t.pet}</p>
           </div>
         ))}
       </div>
     </section>
+    )}
 
     <!-- ======= SECTION 6: CTA ======= -->
     <section class="max-w-2xl mx-auto px-4 py-12 sm:py-16">
