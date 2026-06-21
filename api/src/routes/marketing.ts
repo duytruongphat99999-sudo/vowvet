@@ -98,7 +98,7 @@ marketingRoute.get("/why-vowvet", (c) => {
       {
         icon: "👨‍⚕️",
         title: "Đội ngũ vet thật",
-        desc: "Mon Min Pet Clinic 10+ năm kinh nghiệm thú y. Không phải tech bro làm app pet.",
+        desc: "Mon Min Pet Clinic 5+ năm kinh nghiệm thú y. Không phải tech bro làm app pet.",
       },
       {
         icon: "📚",
