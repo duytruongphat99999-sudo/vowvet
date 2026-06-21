@@ -71,9 +71,20 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
         <div class="vv-fab-sheet" @click.stop
              style="background:#fff;width:100%;border-radius:18px 18px 0 0;padding:18px 16px 24px;max-height:70vh;overflow:auto;">
           <div style="font-weight:700;font-size:1.05rem;margin-bottom:4px;">Gán nhãn cho bé nào?</div>
-          <div style="color:#666;font-size:.85rem;margin-bottom:14px;" x-show="!scanBusy">Chọn thú cưng để lưu kết quả quét.</div>
+          <div style="color:#666;font-size:.85rem;margin-bottom:14px;" x-show="!scanBusy && !scanErr && scanPets.length >= 1">Chọn thú cưng để lưu kết quả quét.</div>
           <div x-show="scanBusy" style="color:#a06a00;font-size:.9rem;margin-bottom:14px;">⏳ AI của VowVet đang đọc nhãn…</div>
-          <div x-show="scanErr" x-text="scanErr" style="color:#c0392b;font-size:.85rem;margin-bottom:12px;"></div>
+          <!-- Lỗi tải danh sách → cho Thử lại -->
+          <div x-show="scanErr && !scanBusy" style="margin-bottom:8px;">
+            <div x-text="scanErr" style="color:#c0392b;font-size:.85rem;margin-bottom:12px;"></div>
+            <button type="button" @click="retryScanList()"
+              style="width:100%;padding:11px;border:1px solid #b48608;border-radius:12px;background:#fff7e6;color:#8b6f47;font-weight:700;cursor:pointer;">Thử lại</button>
+          </div>
+          <!-- Chưa có thú cưng → nút thêm -->
+          <div x-show="!scanBusy && !scanErr && scanPets.length === 0" style="margin-bottom:8px;">
+            <div style="color:#666;font-size:.9rem;margin-bottom:12px;">Bạn chưa có thú cưng nào để gán nhãn.</div>
+            <button type="button" @click="location.href='/pets/new'"
+              style="width:100%;padding:11px;border:1px solid #b48608;border-radius:12px;background:#fff7e6;color:#8b6f47;font-weight:700;cursor:pointer;">Thêm thú cưng</button>
+          </div>
           <template x-for="p in scanPets" :key="p.id">
             <button type="button" class="vv-fab-petrow" :disabled="scanBusy" @click="chooseScanPet(p.id)"
               style="display:flex;align-items:center;gap:12px;width:100%;padding:10px 8px;border:none;background:none;border-bottom:1px solid #f0f0f0;cursor:pointer;text-align:left;">
@@ -98,7 +109,7 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
 <script is:inline>
   function bottomNav() {
     return {
-    scanSheet: false, scanPets: [], scanFile: null, scanBusy: false, scanErr: "",
+    scanSheet: false, scanPets: [], myPets: [], scanFile: null, scanBusy: false, scanErr: "",
     currentPetId() { const m = String(location.pathname).match(/^\/pets\/(\d+)/); return m ? Number(m[1]) : null; },
     openScanner() { this.scanErr=""; this.scanFile=null; if (this.$refs.fabScanInput) this.$refs.fabScanInput.click(); },
     async onScanPick(e) {
@@ -107,16 +118,41 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
       if (!f) return;
       if (f.size > 10*1024*1024) { alert("Ảnh tối đa 10MB."); return; }
       this.scanFile = f; this.scanErr=""; this.scanBusy=false;
+      // Reuse list pet đã load ở loadPet (né fetch /auth/me lần 2 dễ fail). Chỉ fetch lại nếu list trống.
+      let list = this.myPets;
+      if (!list || list.length === 0) {
+        list = await this.fetchScanList();
+        if (list === null) return; // lỗi → fetchScanList đã set scanErr + mở sheet (empty/error state)
+      }
+      this.decideScan(list);
+    },
+    // Fetch danh sách pet có guard r.ok (KHÔNG nuốt lỗi im). Trả null + mở sheet error nếu fail.
+    async fetchScanList() {
       try {
         const r = await fetch("/api/v1/auth/me", { credentials:"include" });
+        if (!r.ok) { this.scanErr = "Không tải được danh sách thú cưng, thử lại."; this.scanSheet = true; return null; }
         const d = await r.json();
-        this.scanPets = (d && d.pets) ? d.pets : [];
-      } catch { this.scanPets = []; }
+        const list = (d && Array.isArray(d.pets)) ? d.pets : [];
+        this.myPets = list;
+        return list;
+      } catch {
+        this.scanErr = "Lỗi mạng, không tải được danh sách, thử lại."; this.scanSheet = true; return null;
+      }
+    },
+    // Quyết định theo số pet: 1 → quét thẳng · 0 + đang ở /pets/{id} → quét pet đó · còn lại → mở sheet.
+    decideScan(list) {
+      this.scanPets = list.slice();
       const here = this.currentPetId();
       if (this.scanPets.length === 1) { this.runScan(this.scanPets[0].id); return; }
       if (this.scanPets.length === 0 && here) { this.runScan(here); return; }
       if (here) this.scanPets.sort((a,b)=> (a.id===here?-1:b.id===here?1:0));
-      this.scanSheet = true;
+      this.scanSheet = true; // >=2 → list chọn · 0 (không ở pet page) → empty-state "chưa có pet"
+    },
+    async retryScanList() {
+      this.scanErr = "";
+      const list = await this.fetchScanList();
+      if (list === null) return;
+      this.decideScan(list);
     },
     chooseScanPet(id) { this.runScan(id); },
     async runScan(petId) {
@@ -149,6 +185,7 @@ const isMe = /^\/pets\/[^/]+\/?$/.test(path); // /pets/{id} exact (không tính 
           const d = await res.json();
           if (d && Array.isArray(d.pets) && d.pets.length > 0) {
             this.petId = d.pets[0].id;
+            this.myPets = d.pets; // giữ full list cho onScanPick reuse (né fetch lần 2)
           }
         } catch (_) {
           /* fail-soft: ô "Tôi" vẫn trỏ /dashboard */
