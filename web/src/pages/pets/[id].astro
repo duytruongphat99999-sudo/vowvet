@@ -3153,7 +3153,16 @@ const storyExcerpt = hasStory
           this.pageTab = "health";
           this.$nextTick(() => {
             this.activeTab = "nutrition";
-            this.$nextTick(() => document.getElementById("monmin-supp")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            // Section nằm trong <template x-if="activeTab==='nutrition'"> → mount async.
+            // Poll tới khi element có mặt rồi mới cuộn (cap ~1.2s — máy chậm vẫn trúng, tránh loop vô hạn).
+            let _tries = 0;
+            const _scrollToSupp = () => {
+              const el = document.getElementById("monmin-supp");
+              if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+              if (++_tries > 24) return;
+              setTimeout(_scrollToSupp, 50);
+            };
+            this.$nextTick(_scrollToSupp);
           });
         }
       },
