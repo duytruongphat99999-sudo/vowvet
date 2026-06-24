@@ -224,7 +224,7 @@ const storyExcerpt = hasStory
       x-data={`petDetail(${initialJson}, ${dogBreedsJson}, ${catBreedsJson}, "${appUrl}", ${healthConfigJson}, ${supplementsJson})`}
       :data-active="pageTab"
       @scan-add-to-plan.window="applyScanBrand($event.detail && $event.detail.brandId)"
-      x-init="if (new URLSearchParams(window.location.search).get('scan') === '1') { pageTab = 'health'; $nextTick(() => { activeTab = 'nutrition'; $nextTick(() => document.getElementById('food-scan')?.scrollIntoView({ behavior: 'smooth', block: 'center' })); }); }"
+      x-init="if (new URLSearchParams(window.location.search).get('scan') === '1') { pageTab = 'health'; $nextTick(() => { activeTab = 'nutrition'; $nextTick(() => document.getElementById('food-scan')?.scrollIntoView({ behavior: 'smooth', block: 'center' })); }); } applyMmpPrefill();"
     >
       <!-- Top bar -->
       <div class="mb-4 flex items-center justify-between gap-3 flex-wrap">
@@ -3385,6 +3385,16 @@ const storyExcerpt = hasStory
         const i = this.medForm.conditions.findIndex((c) => c.code === code);
         if (i >= 0) this.medForm.conditions.splice(i, 1);
         else this.medForm.conditions.push({ code, status: "active", since: null, _y: "", _m: "" });
+      },
+      applyMmpPrefill() {
+        // Prefill bệnh từ deep-link MMP (đã map slug→code ở wizard new.astro, lưu localStorage). Soft-tick 1 lần, KHÔNG saveMedical.
+        try {
+          const pc = localStorage.getItem("mmp_prefill_condition");
+          if (!pc) return;
+          const valid = (this.healthConfig.conditions || []).some((c) => c.code === pc);
+          if (valid && !this.medHasCondition(pc)) this.medToggleCondition(pc);
+          localStorage.removeItem("mmp_prefill_condition");  // chỉ prefill 1 lần, không lặp mỗi lần mở
+        } catch (e) {}
       },
       medTierClasses(tier, selected) {
         const map = {

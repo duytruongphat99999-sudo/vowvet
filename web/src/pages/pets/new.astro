@@ -2,9 +2,11 @@
 import Layout from "../../layouts/Layout.astro";
 import PledgeCertificate from "../../components/PledgeCertificate.astro";
 import { DOG_BREEDS_VN, CAT_BREEDS_VN } from "../../lib/breeds.ts";
+import { MMP_CONDITION_MAP } from "../../../../shared/mmp-condition-map.ts";
 
 const dogBreedsJson = JSON.stringify(DOG_BREEDS_VN);
 const catBreedsJson = JSON.stringify(CAT_BREEDS_VN);
+const mmpConditionMapJson = JSON.stringify(MMP_CONDITION_MAP);
 
 // v273 (tối ưu loading): KHÔNG fetch /auth/me ở SSR nữa — nó query Baserow user+pets
 // (~1.3s ấm, ~5.5s lạnh) và CHẶN render cả trang. userName chỉ dùng cho chữ ký cert ở
@@ -14,7 +16,7 @@ const userNameJson = '""';
 
 <Layout title="Lập hồ sơ bé · VowVet">
   <main class="min-h-screen px-4 sm:px-6 py-8 bg-mmp-cream">
-    <div class="max-w-xl mx-auto" x-data={`newPetForm(${dogBreedsJson}, ${catBreedsJson}, ${userNameJson})`}>
+    <div class="max-w-xl mx-auto" x-data={`newPetForm(${dogBreedsJson}, ${catBreedsJson}, ${userNameJson}, ${mmpConditionMapJson})`}>
 
       {/* ① MÀN CHÀO HỎI — lời chào mềm + ảnh bé (tuỳ chọn) + tên */}
       <div x-show="step === 'welcome'" class="text-center py-6">
@@ -157,18 +159,22 @@ const userNameJson = '""';
 <script is:inline src="/image-compress.js"></script>
 
 <script is:inline>
-  function newPetForm(dogBreeds, catBreeds, userName) {
+  function newPetForm(dogBreeds, catBreeds, userName, mmpMap) {
     return {
       step: "welcome",       // welcome → pledge → form
       userName: userName || "",
       // v273: load userName CLIENT-side (đã bỏ SSR fetch /auth/me chặn render). Alpine tự gọi init().
       init() {
         var self = this;
-        // Bắt ?ref từ deep-link MonMin (vd /pets/new?ref=product-fera-kidney-cat) → lưu cho analytics sau.
-        // CHỈ lưu ref; KHÔNG đọc/xử lý ?condition (phần B treo chờ duyệt). Không có ref thì không ghi.
+        // Bắt deep-link MonMin: ?ref (analytics) + ?condition (slug bệnh → map code VowVet → prefill med-form ở pet-detail).
+        // Slug condition không khớp map → bỏ qua. Không có thì không ghi.
         try {
-          var mmpRef = new URLSearchParams(location.search).get("ref");
+          var sp = new URLSearchParams(location.search);
+          var mmpRef = sp.get("ref");
           if (mmpRef) localStorage.setItem("mmp_ref", mmpRef);
+          var condSlug = sp.get("condition");
+          var condCode = condSlug && mmpMap ? mmpMap[condSlug] : null;
+          if (condCode) localStorage.setItem("mmp_prefill_condition", condCode);
         } catch (e) {}
         fetch("/api/v1/auth/me", { credentials: "include" })
           .then(function (r) { return r.ok ? r.json() : null; })
