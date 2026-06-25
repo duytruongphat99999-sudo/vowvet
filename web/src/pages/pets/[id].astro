@@ -1153,6 +1153,138 @@ const storyExcerpt = hasStory
       <div data-page-tab="profile" class="mt-8" x-data="{ openSections: new Set() }">
         <h2 class="text-lg font-semibold text-slate-900 mb-3">Hồ sơ chi tiết</h2>
 
+        {/* FOSTER L3 — khu owner bật công khai hồ sơ foster (RIÊNG, không liên quan khu /share M12) */}
+        <section class="bg-white border border-mmp-ink/12 rounded-2xl p-5 sm:p-6 mb-4 shadow-sm"
+          x-data={`fosterAdmin(${petId}, "${appUrl}")`} x-init="load()">
+          <div class="flex items-start gap-3">
+            <span class="shrink-0 w-9 h-9 rounded-full bg-mmp-cream flex items-center justify-center text-mmp-ink"><FeatureIcon name="paw" class="w-5 h-5" /></span>
+            <div class="min-w-0 flex-1">
+              <h3 class="font-display italic text-xl font-semibold text-mmp-ink leading-tight">Foster — cứu trợ</h3>
+              <p class="text-[11px] text-mmp-ink/60 leading-relaxed mt-0.5">Công khai hồ sơ foster để người tài trợ thấy bé được chăm tử tế (bệnh án, cân nặng, nhật ký). Tắt bất cứ lúc nào.</p>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-4 border-t border-mmp-ink/8">
+            <label class="flex items-center justify-between gap-3 cursor-pointer">
+              <span class="text-sm font-semibold text-mmp-ink">Công khai hồ sơ Foster</span>
+              <input type="checkbox" x-model="fosterPublic" @change="toggle()" :disabled="busy || loading"
+                     class="rounded" style="accent-color: var(--c-gold); width: 18px; height: 18px;" />
+            </label>
+
+            <div x-show="fosterPublic" style="display:none;" class="mt-4 space-y-3">
+              <div>
+                <label class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60">Trạng thái</label>
+                <select x-model="status" class="w-full mt-1 px-3 py-2 rounded-xl border border-mmp-ink/15 bg-mmp-cream/40 text-sm text-mmp-ink">
+                  <option value="">— Chọn trạng thái —</option>
+                  <template x-for="opt in statusOptions" :key="opt"><option :value="opt" x-text="opt"></option></template>
+                </select>
+              </div>
+              <div>
+                <label class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60">Chuyện cứu</label>
+                <textarea x-model="story" rows="3" maxlength="2000" placeholder="Bé được cứu trong hoàn cảnh nào, đã hồi phục ra sao…"
+                  class="w-full mt-1 px-3 py-2 rounded-xl border border-mmp-ink/15 bg-mmp-cream/40 text-sm text-mmp-ink leading-relaxed"></textarea>
+              </div>
+              <div class="flex items-center gap-4">
+                <button @click="saveMeta()" :disabled="busy"
+                  class="px-4 py-2 rounded-xl bg-mmp-ink text-white text-sm font-bold disabled:opacity-50">Lưu</button>
+                <a :href="previewUrl" x-show="slug" target="_blank" rel="noopener"
+                  class="text-sm font-semibold text-mmp-ink underline inline-flex items-center gap-1">Xem trước chứng thư →</a>
+              </div>
+            </div>
+
+            <p x-show="err" x-text="err" style="display:none;" class="text-xs text-red-600 mt-2"></p>
+            <p x-show="msg" x-text="msg" style="display:none;" class="text-xs text-mmp-ink/70 mt-2"></p>
+          </div>
+        </section>
+
+        <script is:inline>
+          function fosterAdmin(petId, appUrl) {
+            return {
+              petId: petId,
+              appUrl: appUrl,
+              fosterPublic: false,
+              status: "",
+              story: "",
+              slug: "",
+              loading: true,
+              busy: false,
+              msg: "",
+              err: "",
+              statusOptions: ["cần tài trợ", "đang foster", "sắp có nhà", "đã về nhà"],
+              get previewUrl() {
+                if (!this.slug) return "";
+                return String(this.appUrl).replace(/\/$/, "") + "/p/" + this.slug;
+              },
+              async load() {
+                try {
+                  const r = await fetch("/api/v1/pets/" + this.petId + "/foster");
+                  if (r.ok) {
+                    const j = await r.json();
+                    this.fosterPublic = j.foster_public === true;
+                    this.status = j.foster_status || "";
+                    this.story = j.adoption_story || "";
+                    this.slug = j.public_slug || "";
+                  }
+                } catch (e) {
+                  /* im lặng — form vẫn dùng được, lỗi hiện khi thao tác */
+                } finally {
+                  this.loading = false;
+                }
+              },
+              async toggle() {
+                this.busy = true; this.msg = ""; this.err = "";
+                const turnOn = this.fosterPublic;
+                try {
+                  if (turnOn) {
+                    const r = await fetch("/api/v1/pets/" + this.petId + "/public/enable", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ foster_public: true })
+                    });
+                    const j = await r.json();
+                    if (!r.ok) throw new Error((j.error && j.error.message) || "Bật thất bại");
+                    this.slug = j.public_slug || this.slug;
+                    this.msg = "Đã công khai hồ sơ foster.";
+                  } else {
+                    const r = await fetch("/api/v1/pets/" + this.petId + "/public/disable", { method: "POST" });
+                    if (!r.ok) {
+                      let m = "Tắt thất bại";
+                      try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) {}
+                      throw new Error(m);
+                    }
+                    this.msg = "Đã tắt công khai.";
+                  }
+                } catch (e) {
+                  this.fosterPublic = !turnOn;
+                  this.err = e.message || "Lỗi kết nối";
+                } finally {
+                  this.busy = false;
+                }
+              },
+              async saveMeta() {
+                this.busy = true; this.msg = ""; this.err = "";
+                try {
+                  const r = await fetch("/api/v1/pets/" + this.petId + "/foster", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ foster_status: this.status || null, adoption_story: this.story || null })
+                  });
+                  if (!r.ok) {
+                    let m = "Lưu thất bại";
+                    try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) {}
+                    throw new Error(m);
+                  }
+                  this.msg = "Đã lưu.";
+                } catch (e) {
+                  this.err = e.message || "Lỗi kết nối";
+                } finally {
+                  this.busy = false;
+                }
+              }
+            };
+          }
+        </script>
+
         {/* Đợt 2a: BỆNH SỬ Y KHOA — interactive, lưu Baserow qua API (medForm trong petDetail) */}
         <div class="bg-white border border-mmp-ink/12 rounded-2xl p-5 sm:p-6 mb-4 shadow-sm">
           <div class="flex items-start gap-3">

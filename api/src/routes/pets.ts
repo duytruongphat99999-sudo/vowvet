@@ -83,7 +83,7 @@ import {
   updatePublicProfile,
   getPublicStats,
 } from "../lib/public-pets.ts";
-import { PublicEnableSchema, PublicUpdateSchema } from "@shared/zod-schemas/public-pet.ts";
+import { PublicEnableSchema, PublicUpdateSchema, FosterUpdateSchema } from "@shared/zod-schemas/public-pet.ts";
 // Baserow raw helpers — needed for care_plan_completions reads/writes + activity timeline aggregation.
 // Previously omitted (regression from Phase 2.2 of Care Plan WOW), causing
 // ReferenceError: listRows is not defined → 500 → frontend "Lỗi mạng" toast.
@@ -383,6 +383,54 @@ petsRoute.patch(
       return c.json({
         public_bio: (updated as any).public_bio || null,
         public_quote: (updated as any).public_quote || null,
+      });
+    } catch (err) {
+      return petErrorResponse(c, err);
+    }
+  }
+);
+
+// ============================================================
+// FOSTER L3 — owner đọc/ghi foster_status + adoption_story.
+// (Toggle foster_public dùng /public/enable + /public/disable đã có ở L1.)
+// ============================================================
+const fosterSel = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v ?? null);
+
+// GET /pets/:id/foster — owner đọc state foster (init form khu foster ở pet detail)
+petsRoute.get("/:id{[0-9]+}/foster", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  try {
+    const pet = (await getOwnedPet(petId, session.sub)) as any;
+    return c.json({
+      foster_public: pet.foster_public === true,
+      foster_status: fosterSel(pet.foster_status),
+      adoption_story: pet.adoption_story ?? null,
+      public_slug: pet.public_slug ?? null,
+      public_url: pet.public_slug ? `${APP_DOMAIN}/p/${pet.public_slug}` : null,
+    });
+  } catch (err) {
+    return petErrorResponse(c, err);
+  }
+});
+
+// PATCH /pets/:id/foster — owner lưu foster_status + adoption_story (tái dùng patchPet)
+petsRoute.patch(
+  "/:id{[0-9]+}/foster",
+  zValidator("json", FosterUpdateSchema),
+  async (c) => {
+    const session = c.get("user");
+    const petId = Number(c.req.param("id"));
+    const data = c.req.valid("json");
+    try {
+      await getOwnedPet(petId, session.sub); // ownership check
+      const update: Record<string, unknown> = {};
+      if (data.foster_status !== undefined) update.foster_status = data.foster_status || null;
+      if (data.adoption_story !== undefined) update.adoption_story = data.adoption_story || null;
+      const updated = (await patchPet(petId, update)) as any;
+      return c.json({
+        foster_status: fosterSel(updated.foster_status),
+        adoption_story: updated.adoption_story ?? null,
       });
     } catch (err) {
       return petErrorResponse(c, err);
