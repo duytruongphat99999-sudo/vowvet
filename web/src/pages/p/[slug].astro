@@ -13,6 +13,7 @@
 import Layout from "../../layouts/Layout.astro";
 import { fetchPublicPet } from "../../lib/api-client.ts";
 import { calculatePetAge } from "@shared/public-pet-fields.ts";
+import FosterCertificate from "../../components/FosterCertificate.astro";
 
 // CRITICAL: KHÔNG lowercase slug — QR codes generated bằng uppercase alphabet
 // (qr.ts dùng ABCDEFGHJKLMNPQRSTUVWXYZ23456789, format "XXXXXXXX-XX").
@@ -196,8 +197,13 @@ const gradient = mode === "public" ? speciesGradient(publicPet?.species) : "from
     )}
   </Fragment>
 
-  {/* ===== MODE: M12 PUBLIC PROFILE ===== */}
-  {mode === "public" && publicPet && (
+  {/* ===== MODE: FOSTER CERTIFICATE (L2b) — chỉ khi foster_public=true ===== */}
+  {mode === "public" && publicPet && isFosterPublic && (
+    <FosterCertificate pet={publicPet} shareUrl={canonicalUrl} />
+  )}
+
+  {/* ===== MODE: M12 PUBLIC PROFILE (bé thường — giữ NGUYÊN) ===== */}
+  {mode === "public" && publicPet && !isFosterPublic && (
     <main class={`min-h-screen bg-gradient-to-br ${gradient} relative overflow-hidden`}>
       {/* Subtle paw pattern overlay */}
       <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 25% 25%, rgba(255,255,255,0.4) 8px, transparent 8px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.3) 6px, transparent 6px); background-size: 80px 80px;"></div>
