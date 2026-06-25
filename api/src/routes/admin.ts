@@ -19,6 +19,7 @@ import { findUserById, softDeleteUser } from "../lib/users.ts";
 import { adminAnalyticsOverview } from "../lib/analytics.ts";
 import { getZaloStatus, sendOtp } from "../lib/otp-sender.ts";
 import { normalizePhone } from "@shared/auth.ts";
+import { listFosterOrders, updateOrderStatus, FosterOrderError } from "../lib/foster-orders.ts";
 
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -34,6 +35,31 @@ const requireAdmin: MiddlewareHandler = async (c, next) => {
 export const adminRoute = new Hono();
 adminRoute.use("*", requireAuth);
 adminRoute.use("*", requireAdmin);
+
+// ===== FOSTER L5b — đơn góp (admin-only; SĐT chủ bé chỉ ở đây) =====
+adminRoute.get("/foster-orders", async (c) => {
+  try {
+    const orders = await listFosterOrders();
+    return c.json({ orders });
+  } catch (err) {
+    console.error("[admin/foster-orders] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+adminRoute.patch("/foster-orders/:code/status", async (c) => {
+  const code = c.req.param("code");
+  let body: any;
+  try { body = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
+  try {
+    await updateOrderStatus(code, String(body?.status || ""));
+    return c.json({ ok: true, order_code: code, status: body.status });
+  } catch (err) {
+    if (err instanceof FosterOrderError) return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 404 | 500);
+    console.error("[admin/foster-orders status] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
 
 // ============================================================
 // GET /admin/stats

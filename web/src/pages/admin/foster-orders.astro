@@ -1,0 +1,135 @@
+---
+/**
+ * /admin/foster-orders — TRANG ĐƠN góp (FOSTER L5b). ADMIN-ONLY.
+ * Trang VỎ: data lấy qua API admin-gated (/api/v1/admin/foster-orders, bọc requireAdmin).
+ * Non-admin → API 403 → trang hiện "không có quyền", KHÔNG render data/SĐT.
+ * SĐT chủ bé CHỈ về từ API admin-gated này (③ — dùng để liên hệ lấy địa chỉ giao).
+ * KHÔNG gate ở web middleware — bảo vệ ở API.
+ */
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="Đơn góp Foster · Admin" description="Quản lý đơn góp gói foster (admin).">
+  <main class="min-h-screen bg-slate-50 px-4 py-8">
+    <div class="max-w-5xl mx-auto" x-data="fosterOrdersAdmin()" x-init="load()">
+
+      <header class="mb-5">
+        <h1 class="text-2xl font-bold text-slate-900">Đơn góp Foster</h1>
+        <p class="text-sm text-slate-600 mt-1">Liên hệ chủ bé qua SĐT để lấy địa chỉ giao gói.</p>
+        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 inline-block">
+          🔒 SĐT chủ bé chỉ hiển thị cho admin — dùng để liên hệ lấy địa chỉ giao. Không chia sẻ.
+        </p>
+      </header>
+
+      {/* Loading */}
+      <template x-if="loading">
+        <p class="text-slate-500 text-sm">Đang tải…</p>
+      </template>
+
+      {/* Forbidden */}
+      <template x-if="!loading && forbidden">
+        <div class="bg-white border border-slate-200 rounded-xl p-8 text-center">
+          <p class="text-4xl mb-2">🔒</p>
+          <p class="font-bold text-slate-900">Bạn không có quyền xem trang này</p>
+          <p class="text-sm text-slate-600 mt-1">Trang đơn góp chỉ dành cho admin MonMin.</p>
+        </div>
+      </template>
+
+      {/* Error */}
+      <template x-if="!loading && !forbidden && error">
+        <p class="text-sm text-red-600" x-text="error"></p>
+      </template>
+
+      {/* Empty */}
+      <template x-if="!loading && !forbidden && !error && orders.length === 0">
+        <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-600">Chưa có đơn góp nào.</div>
+      </template>
+
+      {/* Table */}
+      <div x-show="!loading && !forbidden && orders.length > 0" style="display:none;" class="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 text-left">
+            <tr>
+              <th class="px-3 py-2 font-semibold">Mã</th>
+              <th class="px-3 py-2 font-semibold">Bé</th>
+              <th class="px-3 py-2 font-semibold">Gói</th>
+              <th class="px-3 py-2 font-semibold">Giá</th>
+              <th class="px-3 py-2 font-semibold">Trạng thái</th>
+              <th class="px-3 py-2 font-semibold">Ngày</th>
+              <th class="px-3 py-2 font-semibold">Chủ bé · SĐT</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="o in orders" :key="o.order_code">
+              <tr class="border-t border-slate-100">
+                <td class="px-3 py-2 font-mono text-xs font-bold" x-text="o.order_code"></td>
+                <td class="px-3 py-2" x-text="o.pet_name || '—'"></td>
+                <td class="px-3 py-2" x-text="o.package_title || '—'"></td>
+                <td class="px-3 py-2 font-mono" x-text="o.package_price != null ? fmtPrice(o.package_price) : '—'"></td>
+                <td class="px-3 py-2">
+                  <select class="border border-slate-300 rounded-lg px-2 py-1 text-xs" @change="setStatus(o, $event.target.value)">
+                    <template x-for="s in statuses" :key="s">
+                      <option :value="s" :selected="o.status === s" x-text="s"></option>
+                    </template>
+                  </select>
+                </td>
+                <td class="px-3 py-2 text-xs text-slate-500" x-text="fmtDate(o.created_at)"></td>
+                <td class="px-3 py-2">
+                  <span x-text="o.owner_name || '—'"></span>
+                  <span class="block font-mono text-xs text-slate-700" x-text="o.owner_phone || '(chưa có SĐT)'"></span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    function fosterOrdersAdmin() {
+      return {
+        orders: [],
+        loading: true,
+        forbidden: false,
+        error: "",
+        statuses: ["mới", "đã liên hệ", "đã giao", "huỷ"],
+        async load() {
+          this.loading = true; this.error = ""; this.forbidden = false;
+          try {
+            const r = await fetch("/api/v1/admin/foster-orders", { credentials: "include" });
+            if (r.status === 403) { this.forbidden = true; return; }
+            if (!r.ok) { this.error = "Lỗi tải đơn (" + r.status + ")"; return; }
+            const j = await r.json();
+            this.orders = Array.isArray(j.orders) ? j.orders : [];
+          } catch (e) {
+            this.error = "Lỗi kết nối";
+          } finally {
+            this.loading = false;
+          }
+        },
+        async setStatus(o, status) {
+          const prev = o.status;
+          o.status = status;
+          try {
+            const r = await fetch("/api/v1/admin/foster-orders/" + encodeURIComponent(o.order_code) + "/status", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ status: status })
+            });
+            if (!r.ok) { o.status = prev; this.error = "Đổi trạng thái thất bại"; }
+          } catch (e) {
+            o.status = prev; this.error = "Lỗi kết nối";
+          }
+        },
+        fmtPrice(v) { try { return new Intl.NumberFormat("vi-VN").format(v) + "đ"; } catch (e) { return v + "đ"; } },
+        fmtDate(iso) {
+          if (!iso) return "";
+          var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return m ? (m[3] + "/" + m[2] + "/" + m[1]) : String(iso).slice(0, 10);
+        }
+      };
+    }
+  </script>
+</Layout>

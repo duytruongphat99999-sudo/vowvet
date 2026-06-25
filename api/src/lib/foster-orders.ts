@@ -4,12 +4,15 @@
  * Guard: CHỈ bé foster_public=true mới nhận đơn (chống đơn ma). order_code DUY NHẤT.
  * KHÔNG ghi địa chỉ foster vào đơn (③).
  */
-import { listRows, createRow } from "@shared/baserow.ts";
+import { listRows, createRow, getRow, updateRow } from "@shared/baserow.ts";
 import type { TableName } from "@shared/baserow-config.ts";
 import { findPetBySlug } from "./slug.ts";
 
 // foster_orders chưa nằm trong union TableName (typing) — cast; runtime đọc theo config.
 const ORDERS = "foster_orders" as TableName;
+
+/** 4 trạng thái đơn (khớp single_select Baserow). */
+export const FOSTER_ORDER_STATUSES = ["mới", "đã liên hệ", "đã giao", "huỷ"];
 
 export class FosterOrderError extends Error {
   code: string;
@@ -72,4 +75,50 @@ export async function createFosterOrder(input: {
   });
 
   return { order_code: code };
+}
+
+/**
+ * L5b — list đơn cho ADMIN (CHỈ gọi từ route bọc requireAdmin).
+ * Bỏ row trống (order_code=null). Lookup SĐT + tên chủ bé server-side (dữ liệu NHẠY —
+ * chỉ trả trong API admin-gated, KHÔNG ở endpoint public nào).
+ */
+export async function listFosterOrders(): Promise<any[]> {
+  const r = await listRows<any>(ORDERS, { size: 200 });
+  const rows = r.results.filter((o: any) => o.order_code); // bỏ 2 row trống mặc định
+  const out: any[] = [];
+  for (const o of rows) {
+    const petName = Array.isArray(o.pet_id) && o.pet_id[0] ? (o.pet_id[0].value || null) : null;
+    let ownerPhone: string | null = null;
+    let ownerName: string | null = null;
+    const ownerId = typeof o.pet_owner_id === "number" ? o.pet_owner_id : (o.pet_owner_id ? Number(o.pet_owner_id) : null);
+    if (ownerId) {
+      try {
+        const u = (await getRow<any>("users", ownerId));
+        ownerPhone = u.phone || null;
+        ownerName = u.name || null;
+      } catch (e) { /* user xoá/lỗi → để null */ }
+    }
+    out.push({
+      order_code: o.order_code,
+      pet_name: petName,
+      package_title: o.package_title || null,
+      package_price: o.package_price != null ? Number(o.package_price) : null,
+      status: (o.status && typeof o.status === "object") ? o.status.value : (o.status || null),
+      created_at: o.created_at || null,
+      donor_name: o.donor_name || null,
+      owner_phone: ownerPhone,
+      owner_name: ownerName,
+    });
+  }
+  out.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))); // mới nhất trước
+  return out;
+}
+
+/** L5b — đổi status đơn (admin). Validate status ∈ 4 option. */
+export async function updateOrderStatus(orderCode: string, status: string): Promise<void> {
+  if (!FOSTER_ORDER_STATUSES.includes(status)) throw new FosterOrderError("BAD_STATUS", "Trạng thái không hợp lệ", 400);
+  const r = await listRows<any>(ORDERS, { filter: { order_code__equal: orderCode }, size: 1 });
+  const row = r.results[0];
+  if (!row) throw new FosterOrderError("NOT_FOUND", "Không tìm thấy đơn", 404);
+  await updateRow(ORDERS, row.id, { status });
 }
