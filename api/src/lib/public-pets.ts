@@ -6,7 +6,14 @@
  * View + share counter increment (fire-and-forget).
  */
 import { listRows, getRow, updateRow } from "@shared/baserow.ts";
-import { sanitizePetPublic } from "@shared/public-pet-fields.ts";
+import {
+  sanitizePetPublic,
+  sanitizePetFoster,
+  pickFosterChild,
+  FOSTER_VACCINE_FIELDS,
+  FOSTER_WEIGHTLOG_FIELDS,
+  FOSTER_DAILY_FIELDS,
+} from "@shared/public-pet-fields.ts";
 import { ensureUniqueSlug, findPetBySlug } from "./slug.ts";
 import { getOwnedPet, PetAccessError } from "./pets.ts";
 
@@ -29,11 +36,33 @@ export interface PublicPetData {
  * GET public pet by slug — return null nếu not found HOẶC is_public=false.
  * (KHÔNG reveal existence cho client.)
  */
-export async function getPublicPetBySlug(slug: string): Promise<PublicPetData | null> {
+export async function getPublicPetBySlug(slug: string): Promise<PublicPetData | Record<string, any> | null> {
   const pet = await findPetBySlug(slug);
   if (!pet) return null;
   if (pet.is_public !== true) return null;
-  return sanitizePetPublic(pet) as PublicPetData;
+
+  // Bé THƯỜNG → whitelist gốc (medical vẫn giấu). KHÔNG đổi.
+  if ((pet as any).foster_public !== true) {
+    return sanitizePetPublic(pet) as PublicPetData;
+  }
+
+  // FOSTER → whitelist mở rộng + fetch dữ liệu chứng minh chăm sóc (CHỈ cột whitelist).
+  const base = sanitizePetFoster(pet) as Record<string, any>;
+  base.is_foster_public = true; // cờ cho FE chọn layout (L2)
+
+  const petId = (pet as any).id;
+  const [vac, wlogs, daily] = await Promise.all([
+    listRows<any>("vaccines", { filter: { pet_id__link_row_has: String(petId) }, size: 200 })
+      .then((r) => r.results).catch(() => []),
+    listRows<any>("weight_logs", { filter: { pet_id__link_row_has: String(petId) }, size: 200 })
+      .then((r) => r.results).catch(() => []),
+    listRows<any>("daily_check_ins", { filter: { pet_id__link_row_has: String(petId) }, size: 200 })
+      .then((r) => r.results).catch(() => []),
+  ]);
+  base.foster_vaccines = vac.map((v: any) => pickFosterChild(v, FOSTER_VACCINE_FIELDS));
+  base.foster_weight_logs = wlogs.map((w: any) => pickFosterChild(w, FOSTER_WEIGHTLOG_FIELDS));
+  base.foster_daily = daily.map((d: any) => pickFosterChild(d, FOSTER_DAILY_FIELDS));
+  return base;
 }
 
 /** Increment view counter (fire-and-forget — don't await). */
@@ -72,7 +101,7 @@ export function incrementShareCount(slug: string): void {
 export async function enablePublicProfile(
   petId: number,
   ownerId: number,
-  data: { public_bio?: string | null; public_quote?: string | null } = {}
+  data: { public_bio?: string | null; public_quote?: string | null; foster_public?: boolean } = {}
 ): Promise<{ slug: string; pet: any }> {
   const pet = await getOwnedPet(petId, ownerId);
 
@@ -89,6 +118,8 @@ export async function enablePublicProfile(
   };
   if (data.public_bio !== undefined) updates.public_bio = data.public_bio || null;
   if (data.public_quote !== undefined) updates.public_quote = data.public_quote || null;
+  // FOSTER L1: bật/tắt cờ khoe bệnh án (default DB false). Chỉ ghi khi client gửi rõ.
+  if (data.foster_public !== undefined) updates.foster_public = data.foster_public === true;
 
   const updated = await updateRow("pets", petId, updates);
   return { slug, pet: updated };
@@ -97,7 +128,8 @@ export async function enablePublicProfile(
 /** Owner disable — set is_public=false, giữ slug để re-enable không đổi link. */
 export async function disablePublicProfile(petId: number, ownerId: number): Promise<void> {
   await getOwnedPet(petId, ownerId); // verify ownership
-  await updateRow("pets", petId, { is_public: false });
+  // Tắt public = tắt luôn foster_public (không để cờ treo khi card đã ẩn).
+  await updateRow("pets", petId, { is_public: false, foster_public: false });
 }
 
 /** Owner update public_bio + public_quote. */

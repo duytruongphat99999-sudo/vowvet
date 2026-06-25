@@ -51,6 +51,10 @@ if (!publicPet && slug) {
 // Determine mode + error reason for UX
 const mode: "public" | "qr" | "notfound" = publicPet ? "public" : legacyQrPet ? "qr" : "notfound";
 
+// FOSTER L1: server đã chọn whitelist (foster_public → FOSTER_PUBLIC_FIELDS + dữ liệu
+// chăm sóc). Cờ này để L2 nhánh layout "chứng thư foster"; L1 CHƯA đổi giao diện.
+const isFosterPublic = mode === "public" && publicPet?.is_foster_public === true;
+
 // Error reason for friendlier message
 type NotFoundReason = "invalid_format" | "not_found" | "private" | "network";
 let notFoundReason: NotFoundReason = "not_found";

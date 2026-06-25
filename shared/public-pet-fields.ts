@@ -75,3 +75,76 @@ export function calculatePetAge(dobIso: string | null | undefined): { years: num
   if (years < 0) return null;
   return { years, months };
 }
+
+/* ============================================================
+ * FOSTER public card (L1) — CHỈ áp khi pet.foster_public === true.
+ * Mở rộng public card thường + dữ liệu "chứng minh chăm sóc" (vaccine/cân/
+ * nhật-ký/bệnh-án) để người tài trợ thấy bé được nuôi tử tế.
+ * KHÔNG đụng PUBLIC_PET_FIELDS / sanitizePetPublic ở trên.
+ *
+ * STRIP tuyệt đối (kể cả foster): user_id, *_phone, emergency_*, địa chỉ,
+ * DOB đầy đủ (chỉ year-month), microchip_id, insurance_* — mọi field KHÔNG
+ * nằm trong FOSTER_PUBLIC_FIELDS đều bị loại.
+ * ============================================================ */
+
+/** Field scalar trên pet được public cho foster (= public card + bệnh án + nguồn gốc). */
+export const FOSTER_PUBLIC_FIELDS = [
+  ...PUBLIC_PET_FIELDS,
+  "foster_status",
+  "adoption_story",
+  "neutered",
+  "neutered_date",
+  "health_conditions",
+  "current_medications",
+] as const;
+
+export type FosterPublicField = (typeof FOSTER_PUBLIC_FIELDS)[number];
+
+/** Vaccine summary công khai (table vaccines 637) — CHỈ loại + trạng thái + mốc ngày. */
+export const FOSTER_VACCINE_FIELDS = ["vaccine_type", "status", "administered_date", "next_due_date"] as const;
+
+/** Weight curve công khai (table weight_logs 647) — số cân + ngày + BCS. */
+export const FOSTER_WEIGHTLOG_FIELDS = ["weight_kg", "logged_at", "body_condition_score"] as const;
+
+/**
+ * RB-1 — nhật ký hằng ngày công khai (table daily_check_ins 639): CHỈ 4 metric + ngày.
+ * CẤM (không bao giờ public ở L1): notes, symptoms, urgency_level, ai_summary, photo_url
+ * (chưa có cờ "ảnh công khai từng tấm" → ảnh check-in KHÔNG public).
+ */
+export const FOSTER_DAILY_FIELDS = ["appetite", "energy", "stool_quality", "water_ml", "check_date"] as const;
+
+/** Flatten 1 giá trị Baserow: single_select {value} → value; link/multi array → array value. */
+function flattenBaserowValue(value: any): any {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "object" && "value" in value && !Array.isArray(value)) {
+    return (value as { value: any }).value;
+  }
+  if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object" && "value" in value[0]) {
+    return value.map((v: any) => v.value);
+  }
+  return value;
+}
+
+/**
+ * Sanitize raw pet → foster-public-safe object (giống sanitizePetPublic nhưng
+ * dùng FOSTER_PUBLIC_FIELDS). DOB → year-month. Field ngoài whitelist bị loại.
+ */
+export function sanitizePetFoster(rawPet: any): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const field of FOSTER_PUBLIC_FIELDS) {
+    out[field] = flattenBaserowValue(rawPet[field]);
+  }
+  if (out.dob && typeof out.dob === "string") {
+    const m = out.dob.match(/^(\d{4})-(\d{2})/);
+    out.dob_yearmonth = m ? `${m[1]}-${m[2]}` : null;
+    delete out.dob; // strip raw ngày sinh
+  }
+  return out;
+}
+
+/** Pick CHỈ các cột whitelist từ 1 child row (vaccine/weight/daily). Field khác bị loại. */
+export function pickFosterChild(row: any, fields: readonly string[]): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const f of fields) out[f] = flattenBaserowValue(row?.[f]);
+  return out;
+}
