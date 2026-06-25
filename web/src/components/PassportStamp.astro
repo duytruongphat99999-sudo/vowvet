@@ -1,0 +1,88 @@
+---
+/**
+ * PassportStamp — con dấu "CERTIFIED · PASSPORT · OFFICIAL" (tách từ pets/[id].astro · L2a).
+ *
+ * Markup TĨNH 100% (mọi text cố định, không phụ thuộc state/pet). CSS định vị + entrance
+ * (`.hero-stamp` / `hero-stamp-in`, wired vào page-state pge-run/pge-seen) SỐNG ở global.css —
+ * component TÁI DÙNG class global để render Y HỆT pet-detail (KHÔNG bê CSS ra → tránh phá
+ * wiring page-state + giữ SL-4). Chỉ THÊM scoped style cho prop `animate`.
+ *
+ * Props:
+ *   animate (default false) — true: hiệu ứng "dập xuống" (scale 1.4→0.95→1 + fade ~0.5s,
+ *     reduced-motion safe). Pet-detail nhúng animate=false (giữ entrance global cũ). Dành cho L2b.
+ *   class — passthrough class để định vị khi tái dùng nơi khác. Default "".
+ */
+interface Props {
+  animate?: boolean;
+  class?: string;
+}
+const { animate = false, class: className = "" } = Astro.props;
+---
+
+<span class:list={["hero-stamp", "no-print", className, { "passport-stamp--anim": animate }]} aria-hidden="true">
+  <svg class="hero-stamp-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mon Min Pet Certified Passport Official">
+    <defs>
+      <filter id="hsp-ink-rough" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="11" result="t"/>
+        <feDisplacementMap in="SourceGraphic" in2="t" scale="0.9"/>
+      </filter>
+      <filter id="hsp-logo-gold" x="-40%" y="-40%" width="180%" height="180%">
+        <feColorMatrix type="matrix" values="0 0 0 0 0.706  0 0 0 0 0.525  0 0 0 0 0.031  0 0 0 1.4 0" result="goldLogo"/>
+        <feGaussianBlur in="goldLogo" stdDeviation="2" result="glowInner"/>
+        <feGaussianBlur in="goldLogo" stdDeviation="5" result="glowOuter"/>
+        <feFlood flood-color="#ecb921" flood-opacity="0.7" result="glowColor1"/>
+        <feComposite in="glowColor1" in2="glowInner" operator="in" result="glow1"/>
+        <feFlood flood-color="#ecb921" flood-opacity="0.4" result="glowColor2"/>
+        <feComposite in="glowColor2" in2="glowOuter" operator="in" result="glow2"/>
+        <feMerge>
+          <feMergeNode in="glow2"/>
+          <feMergeNode in="glow1"/>
+          <feMergeNode in="goldLogo"/>
+        </feMerge>
+      </filter>
+      <path id="hsp-arc-top" d="M 24 100 A 76 76 0 0 1 176 100" fill="none"/>
+      <path id="hsp-arc-bot" d="M 24 100 A 76 76 0 0 0 176 100" fill="none"/>
+    </defs>
+
+    <g filter="url(#hsp-ink-rough)" fill="#B48608" stroke="#B48608">
+      <circle cx="100" cy="100" r="92" fill="none" stroke-width="3.8" stroke-opacity="0.95"/>
+      <circle cx="100" cy="100" r="84" fill="none" stroke-width="1.6" stroke-opacity="0.85"/>
+      <circle cx="100" cy="100" r="64" fill="none" stroke-width="0.8" stroke-opacity="0.55"/>
+
+      <text font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="11.5" letter-spacing="2.6" fill-opacity="0.96" stroke="none">
+        <textPath href="#hsp-arc-top" startOffset="50%" text-anchor="middle">CERTIFIED · PASSPORT · OFFICIAL</textPath>
+      </text>
+      <text font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="11" letter-spacing="3" fill-opacity="0.96" stroke="none">
+        <textPath href="#hsp-arc-bot" startOffset="50%" text-anchor="middle">★ BY MON MIN PET ★</textPath>
+      </text>
+
+      <text x="20" y="107" text-anchor="middle" font-size="16" font-weight="900" fill-opacity="0.92" stroke="none">✦</text>
+      <text x="180" y="107" text-anchor="middle" font-size="16" font-weight="900" fill-opacity="0.92" stroke="none">✦</text>
+
+      <text x="100" y="115" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-style="italic" font-weight="700" font-size="18" letter-spacing="0.4" fill-opacity="1" stroke="none">VowVet</text>
+
+      <line x1="60" y1="126" x2="140" y2="126" stroke-width="0.8" stroke-opacity="0.7"/>
+
+      <text x="100" y="138" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="700" font-size="7.5" letter-spacing="1.4" fill-opacity="0.95" stroke="none">VERIFIED · MAY 2026</text>
+      <text x="100" y="150" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="600" font-size="7" letter-spacing="1" fill-opacity="0.88" stroke="none">HCM CITY · VIETNAM</text>
+    </g>
+
+    <image href="/logo-mmp.png" x="76" y="46" width="48" height="48" preserveAspectRatio="xMidYMid meet" opacity="0.98" filter="url(#hsp-logo-gold)"/>
+  </svg>
+</span>
+
+<style>
+  /* Prop animate (L2b): "dập xuống" — scale 1.4→0.95→1 + fade. Reduced-motion safe.
+     Pet-detail dùng animate=false → KHÔNG class này → giữ entrance global .hero-stamp cũ. */
+  .passport-stamp--anim {
+    animation: passport-stamp-drop 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  @keyframes passport-stamp-drop {
+    0%   { opacity: 0;    transform: scale(1.4); }
+    60%  { opacity: 1;    transform: scale(0.95); }
+    100% { opacity: 0.96; transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .passport-stamp--anim { animation: none; }
+  }
+</style>
