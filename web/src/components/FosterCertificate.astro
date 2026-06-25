@@ -243,6 +243,8 @@ const weightLine = hasChart
             </template>
           </div>
 
+          <input type="text" x-model="donorName" maxlength="60" x-show="!notice" style="display:none;"
+            placeholder="Tên bạn (không bắt buộc — bỏ trống = ẩn danh)" class="fp-donor" />
           <button type="button" class="fp-continue" @click="proceed()" x-show="!notice">Tiếp tục</button>
 
           <div class="fp-notice" x-show="notice" style="display:none;">
@@ -364,7 +366,10 @@ const weightLine = hasChart
   .fp-card__price { display: block; font-family: "Azeret Mono", monospace; font-weight: 700; font-size: 18px; color: #7a5e0c; margin-top: 2px; }
   .fp-card__contents { display: block; font-size: 12.5px; color: #6b5d3c; margin-top: 5px; line-height: 1.45; }
   .fp-check { position: absolute; top: 12px; right: 14px; width: 22px; height: 22px; border-radius: 50%; background: #B48608; color: #fff; font-size: 13px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
-  .fp-continue { width: 100%; margin-top: 16px; padding: 14px; border: none; border-radius: 14px; cursor: pointer; background: linear-gradient(100deg, #B48608, #ecb921); color: #1a1208; font-weight: 800; font-size: 16px; box-shadow: 0 10px 26px rgba(236,185,33,0.3); }
+  .fp-donor { width: 100%; margin-top: 14px; padding: 11px 13px; border-radius: 12px; border: 1px solid rgba(236,185,33,0.25); background: #0c0a08; color: #f3ecdd; font-size: 13.5px; }
+  .fp-donor::placeholder { color: #6f6346; }
+  .fp-donor:focus { outline: none; border-color: rgba(236,185,33,0.55); }
+  .fp-continue { width: 100%; margin-top: 12px; padding: 14px; border: none; border-radius: 14px; cursor: pointer; background: linear-gradient(100deg, #B48608, #ecb921); color: #1a1208; font-weight: 800; font-size: 16px; box-shadow: 0 10px 26px rgba(236,185,33,0.3); }
   .fp-continue:hover { filter: brightness(1.05); }
   .fp-notice { margin-top: 16px; padding: 14px; border-radius: 12px; background: rgba(236,185,33,0.1); border: 1px solid rgba(236,185,33,0.3); color: #ecd9a0; font-size: 13.5px; line-height: 1.5; text-align: center; }
   .fp-notice__t { color: #ecd9a0; font-size: 13.5px; line-height: 1.5; margin: 0 0 10px; }
@@ -422,6 +427,7 @@ const weightLine = hasChart
       selectedId: (pop && pop.id) || (list[0] && list[0].id) || null,
       zaloUrl: "https://zalo.me/1136810892220003266",
       lastMsg: "",
+      donorName: "",
       open: function () { this.show = true; this.notice = false; this.copyOk = false; document.body.style.overflow = "hidden"; },
       close: function () { this.show = false; document.body.style.overflow = ""; },
       select: function (id) { this.selectedId = id; },
@@ -429,15 +435,32 @@ const weightLine = hasChart
         var id = this.selectedId;
         return this.packages.filter(function (p) { return p.id === id; })[0] || null;
       },
-      buildMessage: function () {
+      buildMessage: function (orderCode) {
         var p = this.selected;
         var pkg = p ? (p.title + " – " + p.priceLabel) : "gói góp nuôi";
-        var code = this.petCode ? (" (mã " + this.petCode + ")") : "";
-        return "Mình muốn góp [" + pkg + "] cho bé " + this.petName + code +
+        var ref = orderCode ? (" (đơn " + orderCode + ")") : (this.petCode ? (" (mã " + this.petCode + ")") : "");
+        return "Mình muốn góp [" + pkg + "] cho bé " + this.petName + ref +
           " trên VowVet. Gói giao tới nơi đang chăm bé giúp mình nhé.";
       },
-      proceed: function () {
-        var msg = this.buildMessage();
+      proceed: async function () {
+        var p = this.selected;
+        // L5a: ghi đơn TRƯỚC để lấy mã. Lỗi ghi đơn KHÔNG chặn người góp (vẫn copy tin fallback).
+        var orderCode = "";
+        try {
+          var res = await fetch("/api/v1/public/foster-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pet_slug: this.petCode,
+              package_id: p ? p.id : 0,
+              package_title: p ? p.title : "",
+              package_price: p ? p.price : 0,
+              donor_name: this.donorName ? this.donorName.trim() : null
+            })
+          });
+          if (res.ok) { var j = await res.json(); orderCode = j.order_code || ""; }
+        } catch (e) { /* offline/lỗi → fallback tin không mã */ }
+        var msg = this.buildMessage(orderCode);
         this.lastMsg = msg;
         this.notice = true;
         var self = this;

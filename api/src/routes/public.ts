@@ -19,6 +19,8 @@ import { listRows } from "@shared/baserow.ts";
 import { loadFoodBrands } from "../lib/nutrition.ts";
 import { loadMonMinSupplements } from "../lib/monmin-supplements.ts";
 import { getPublicPetBySlug, incrementViewCount, incrementShareCount, listFosterPets } from "../lib/public-pets.ts";
+import { createFosterOrder, FosterOrderError } from "../lib/foster-orders.ts";
+import { FosterOrderSchema } from "@shared/zod-schemas/public-pet.ts";
 
 export const publicRoute = new Hono();
 
@@ -32,6 +34,22 @@ publicRoute.get("/foster", async (c) => {
     return c.json({ pets });
   } catch (err) {
     console.error("[public/foster] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== POST /public/foster-order — ghi đơn góp (FOSTER L5a, public) =====
+publicRoute.post("/foster-order", async (c) => {
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
+  const parsed = FosterOrderSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: { code: "VALIDATION", message: "Dữ liệu đơn không hợp lệ" } }, 400);
+  try {
+    const result = await createFosterOrder(parsed.data);
+    return c.json(result, 201);
+  } catch (err) {
+    if (err instanceof FosterOrderError) return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 403 | 404 | 500);
+    console.error("[public/foster-order] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });
