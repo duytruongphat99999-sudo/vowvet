@@ -1,0 +1,138 @@
+---
+/**
+ * /foster — BOARD công khai bé foster (FOSTER L4a). NO AUTH (khai middleware PUBLIC_EXACT).
+ * Liệt kê bé foster_public=true (GET /api/v1/public/foster, đã sanitize FOSTER_PUBLIC_FIELDS).
+ * Dashboard tổng đếm TỪ LIST (Cách 1, client-side). Card → /p/[public_slug] (chứng thư L2b).
+ * Style đồng bộ chứng thư: nền đen + vàng đồng + card giấy ngà. CHƯA có nút "Góp gói" (L4b).
+ */
+import Layout from "../layouts/Layout.astro";
+
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+let pets: any[] = [];
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/public/foster`);
+  if (r.ok) pets = (await r.json()).pets || [];
+} catch (_) {}
+
+const initialData = JSON.stringify({ pets });
+---
+
+<Layout title="Bé foster cần nhà · VowVet" description="Hồ sơ minh bạch các bé đang được foster — bệnh án, cân nặng, nhật ký chăm sóc thật. Mỗi bé một chứng thư công khai.">
+  <main class="foster-board min-h-screen" style="background:#0c0a08;">
+    <div class="max-w-4xl mx-auto px-4 py-10 sm:py-14" x-data={`fosterBoard(${initialData})`}>
+
+      <header class="text-center mb-10">
+        <p class="fb-eyebrow">Mon Min Pet · Foster</p>
+        <h1 class="fb-title">Những bé đang được chăm</h1>
+        <p class="fb-sub">Mỗi bé có hồ sơ công khai minh bạch — bệnh án, hành trình cân nặng, nhật ký chăm sóc thật.</p>
+      </header>
+
+      {/* Dashboard tổng — đếm từ list (Cách 1) */}
+      <div class="fb-stats">
+        <div class="fb-stat">
+          <span class="fb-stat__n" x-text="countBy('cần tài trợ')">0</span>
+          <span class="fb-stat__l">Cần tài trợ</span>
+        </div>
+        <div class="fb-stat">
+          <span class="fb-stat__n" x-text="countBy('đang foster')">0</span>
+          <span class="fb-stat__l">Đang foster</span>
+        </div>
+        <div class="fb-stat">
+          <span class="fb-stat__n" x-text="countBy('đã về nhà')">0</span>
+          <span class="fb-stat__l">Đã về nhà</span>
+        </div>
+        <div class="fb-stat fb-stat--total">
+          <span class="fb-stat__n" x-text="total">0</span>
+          <span class="fb-stat__l">Tổng hồ sơ</span>
+        </div>
+      </div>
+
+      {/* Empty state */}
+      <template x-if="total === 0">
+        <div class="fb-empty">
+          <p class="text-4xl mb-3">🐾</p>
+          <p class="fb-empty__t">Chưa có bé nào đang cần</p>
+          <p class="fb-empty__s">Quay lại sau nhé — các bé foster sẽ xuất hiện ở đây khi có hồ sơ công khai.</p>
+        </div>
+      </template>
+
+      {/* Grid card */}
+      <div class="fb-grid" x-show="total > 0" style="display:none;">
+        <template x-for="p in pets" :key="p.public_slug || p.id">
+          <a :href="'/p/' + p.public_slug" class="fb-card">
+            <div class="fb-card__media">
+              <template x-if="p.photo_url">
+                <img :src="p.photo_url" :alt="p.name" class="fb-card__img" loading="lazy" />
+              </template>
+              <template x-if="!p.photo_url">
+                <div class="fb-card__ph" x-text="p.species === 'cat' ? '🐱' : (p.species === 'dog' ? '🐶' : '🐾')"></div>
+              </template>
+              <template x-if="p.foster_status">
+                <span class="fb-ribbon" x-text="p.foster_status"></span>
+              </template>
+            </div>
+            <div class="fb-card__body">
+              <h3 class="fb-card__name" x-text="p.name"></h3>
+              <p class="fb-card__meta" x-text="[p.breed].filter(Boolean).join(' · ')"></p>
+              <span class="fb-card__verified">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Chứng thực
+              </span>
+            </div>
+          </a>
+        </template>
+      </div>
+
+      <footer class="fb-footer">
+        Powered by <a href="/" class="underline hover:text-[#ecb921]">Mon Min Pet</a>
+      </footer>
+    </div>
+  </main>
+
+  <style>
+    .foster-board { color: #f3ecdd; }
+    .fb-eyebrow { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #B48608; font-weight: 700; }
+    .fb-title { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 600; font-size: clamp(2.2rem, 6vw, 3.2rem); line-height: 1.05; margin-top: 8px;
+      background: linear-gradient(100deg, #B48608, #ecb921 45%, #fff3c4 58%, #ecb921 72%, #8a6505); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+    .fb-sub { color: #cdbfa0; font-size: 14.5px; margin-top: 10px; max-width: 52ch; margin-left: auto; margin-right: auto; line-height: 1.6; }
+
+    .fb-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 32px; }
+    @media (min-width: 640px) { .fb-stats { grid-template-columns: repeat(4, 1fr); } }
+    .fb-stat { background: radial-gradient(120% 90% at 80% 0%, #1c160c, #0c0a08 70%); border: 1px solid rgba(236,185,33,0.22); border-radius: 18px; padding: 16px; text-align: center; }
+    .fb-stat--total { border-color: rgba(236,185,33,0.45); }
+    .fb-stat__n { display: block; font-family: "Azeret Mono", monospace; font-size: 30px; font-weight: 700; color: #ecb921; line-height: 1; }
+    .fb-stat__l { display: block; font-size: 11px; letter-spacing: 0.04em; color: #cdbfa0; margin-top: 6px; }
+
+    .fb-empty { text-align: center; padding: 48px 16px; border: 1px dashed rgba(236,185,33,0.3); border-radius: 22px; background: #15110a; }
+    .fb-empty__t { font-family: "Fraunces", serif; font-style: italic; font-size: 20px; color: #ecb921; }
+    .fb-empty__s { color: #8a7a52; font-size: 13.5px; margin-top: 6px; }
+
+    .fb-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    @media (min-width: 640px) { .fb-grid { grid-template-columns: repeat(3, 1fr); } }
+    .fb-card { display: block; background: #FAF6EC; border: 1px solid #e6dcc3; border-radius: 18px; overflow: hidden; text-decoration: none; color: #1a1408;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.4); transition: transform 0.16s ease, box-shadow 0.16s ease; }
+    .fb-card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0,0,0,0.55); }
+    .fb-card__media { position: relative; aspect-ratio: 1 / 1; background: #efe6cf; display: flex; align-items: center; justify-content: center; }
+    .fb-card__img { width: 100%; height: 100%; object-fit: cover; }
+    .fb-card__ph { font-size: 54px; opacity: 0.55; }
+    .fb-ribbon { position: absolute; top: 10px; left: 10px; padding: 4px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+      background: rgba(12,10,8,0.82); color: #ecb921; border: 1px solid rgba(236,185,33,0.5); backdrop-filter: blur(2px); }
+    .fb-card__body { padding: 12px 14px 14px; }
+    .fb-card__name { font-family: "Fraunces", serif; font-style: italic; font-weight: 600; font-size: 19px; color: #1a1408; line-height: 1.1; }
+    .fb-card__meta { font-size: 12.5px; color: #6b5d3c; margin-top: 2px; min-height: 1em; }
+    .fb-card__verified { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; font-size: 11px; font-weight: 700; color: #7a5e0c;
+      background: rgba(180,134,8,0.12); padding: 3px 9px; border-radius: 999px; }
+
+    .fb-footer { text-align: center; color: #6f6346; font-size: 12px; margin-top: 40px; }
+  </style>
+
+  <script is:inline>
+    function fosterBoard(initial) {
+      return {
+        pets: Array.isArray(initial.pets) ? initial.pets : [],
+        get total() { return this.pets.length; },
+        countBy(status) { return this.pets.filter(function (p) { return p.foster_status === status; }).length; },
+      };
+    }
+  </script>
+</Layout>

@@ -18,11 +18,23 @@ import { speciesEnToVi } from "@shared/enum-mappers.ts";
 import { listRows } from "@shared/baserow.ts";
 import { loadFoodBrands } from "../lib/nutrition.ts";
 import { loadMonMinSupplements } from "../lib/monmin-supplements.ts";
-import { getPublicPetBySlug, incrementViewCount, incrementShareCount } from "../lib/public-pets.ts";
+import { getPublicPetBySlug, incrementViewCount, incrementShareCount, listFosterPets } from "../lib/public-pets.ts";
 
 export const publicRoute = new Hono();
 
 publicRoute.use("*", ipRateLimit("public-passport", 30, 60));
+
+// ===== GET /public/foster — board bé foster công khai (FOSTER L4a) =====
+publicRoute.get("/foster", async (c) => {
+  try {
+    const pets = await listFosterPets();
+    c.header("Cache-Control", "public, max-age=120");
+    return c.json({ pets });
+  } catch (err) {
+    console.error("[public/foster] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
 
 // ===== GET /public/pets/:qr_code =====
 publicRoute.get("/pets/:qr_code", async (c) => {

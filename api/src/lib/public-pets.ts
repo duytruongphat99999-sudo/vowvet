@@ -65,6 +65,19 @@ export async function getPublicPetBySlug(slug: string): Promise<PublicPetData | 
   return base;
 }
 
+/**
+ * FOSTER L4a — list bé foster công khai (foster_public=true) cho board /foster.
+ * Sanitize bằng FOSTER_PUBLIC_FIELDS (KHÔNG leak field cấm). Double-guard is_public.
+ * KHÔNG fetch child tables (vaccine/weight/daily) — tránh N+1; card chỉ cần field pet,
+ * chi tiết + chart ở /p/[slug].
+ */
+export async function listFosterPets(): Promise<Record<string, any>[]> {
+  const res = await listRows<any>("pets", { filter: { foster_public__boolean: "true" }, size: 200 });
+  return res.results
+    .filter((p) => p.foster_public === true && p.is_public === true)
+    .map((p) => sanitizePetFoster(p));
+}
+
 /** Increment view counter (fire-and-forget — don't await). */
 export function incrementViewCount(slug: string): void {
   (async () => {

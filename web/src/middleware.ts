@@ -40,6 +40,7 @@ const PUBLIC_EXACT = new Set<string>([
   "/faq",
   "/triage",                          // tree picker is public; /triage/[petId] is NOT (see below)
   "/community",
+  "/foster",                          // FOSTER L4a — board bé foster công khai
   "/leaderboard",
   "/heroes/leaderboard",
   "/map",                             // explore map of places
