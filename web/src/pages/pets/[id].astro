@@ -1174,19 +1174,22 @@ const storyExcerpt = hasStory
             <div x-show="fosterPublic" style="display:none;" class="mt-4 space-y-3">
               <div>
                 <label class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60">Trạng thái</label>
-                <select x-model="status" class="w-full mt-1 px-3 py-2 rounded-xl border border-mmp-ink/15 bg-mmp-cream/40 text-sm text-mmp-ink">
+                <select x-model="status" @change="saved = false" class="w-full mt-1 px-3 py-2 rounded-xl border border-mmp-ink/15 bg-mmp-cream/40 text-sm text-mmp-ink">
                   <option value="">— Chọn trạng thái —</option>
                   <template x-for="opt in statusOptions" :key="opt"><option :value="opt" x-text="opt"></option></template>
                 </select>
               </div>
               <div>
                 <label class="text-[10px] uppercase tracking-widest font-bold text-mmp-ink/60">Chuyện cứu</label>
-                <textarea x-model="story" rows="3" maxlength="2000" placeholder="Bé được cứu trong hoàn cảnh nào, đã hồi phục ra sao…"
+                <textarea x-model="story" @input="saved = false" rows="3" maxlength="2000" placeholder="Bé được cứu trong hoàn cảnh nào, đã hồi phục ra sao…"
                   class="w-full mt-1 px-3 py-2 rounded-xl border border-mmp-ink/15 bg-mmp-cream/40 text-sm text-mmp-ink leading-relaxed"></textarea>
               </div>
               <div class="flex items-center gap-4">
-                <button @click="saveMeta()" :disabled="busy"
-                  class="px-4 py-2 rounded-xl bg-mmp-ink text-white text-sm font-bold disabled:opacity-50">Lưu</button>
+                <button @click="saveMeta()" :disabled="busy || saved"
+                  :class="saved ? 'bg-mmp-ink/30 cursor-default' : 'bg-mmp-ink'"
+                  class="px-4 py-2 rounded-xl text-white text-sm font-bold transition disabled:opacity-100">
+                  <span x-text="saved ? '✓ Đã lưu' : 'Lưu'"></span>
+                </button>
                 <a :href="previewUrl" x-show="slug" target="_blank" rel="noopener"
                   class="text-sm font-semibold text-mmp-ink underline inline-flex items-center gap-1">Xem trước chứng thư →</a>
               </div>
@@ -1208,6 +1211,7 @@ const storyExcerpt = hasStory
               slug: "",
               loading: true,
               busy: false,
+              saved: false,
               msg: "",
               err: "",
               statusOptions: ["cần tài trợ", "đang foster", "sắp có nhà", "đã về nhà"],
@@ -1224,6 +1228,7 @@ const storyExcerpt = hasStory
                     this.status = j.foster_status || "";
                     this.story = j.adoption_story || "";
                     this.slug = j.public_slug || "";
+                    this.saved = true; // vừa load = khớp server
                   }
                 } catch (e) {
                   /* im lặng — form vẫn dùng được, lỗi hiện khi thao tác */
@@ -1275,6 +1280,7 @@ const storyExcerpt = hasStory
                     throw new Error(m);
                   }
                   this.msg = "Đã lưu.";
+                  this.saved = true;
                 } catch (e) {
                   this.err = e.message || "Lỗi kết nối";
                 } finally {

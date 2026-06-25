@@ -211,9 +211,15 @@ const weightLine = hasChart
     )}
 
     {/* ===== CTA + MODAL gói (L4b) ===== */}
-    <div class="text-center mt-9" x-data={`fosterSponsor(${JSON.stringify(FOSTER_PACKAGES)}, ${JSON.stringify(name)}, ${JSON.stringify(petCode)})`}>
+    <div class="text-center mt-9" x-data={`fosterSponsor(${JSON.stringify(FOSTER_PACKAGES)}, ${JSON.stringify(name)}, ${JSON.stringify(petCode)}, ${JSON.stringify(shareUrl)})`}>
       <button type="button" class="cert-cta" @click="open()">Góp gói nuôi {name}</button>
       <p class="cert-cta__note">Mỗi gói = thức ăn + chăm sóc thật, minh bạch qua hồ sơ trên.</p>
+
+      {/* L4d-B: Share — lan bé tìm nhà */}
+      <div class="mt-4">
+        <button type="button" class="cert-share" @click="share()">Chia sẻ bé {name}</button>
+        <p class="cert-share__toast" x-show="shareToast" style="display:none;">✓ Đã copy link! Dán lên Facebook/Zalo để giúp bé tìm nhà 💛</p>
+      </div>
 
       {/* Modal */}
       <div x-show="show" style="display:none;" class="fp-overlay"
@@ -334,6 +340,9 @@ const weightLine = hasChart
   }
   .cert-cta:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(236,185,33,0.45); }
   .cert-cta__note { color: #8a7a52; font-size: 12.5px; margin-top: 12px; }
+  .cert-share { display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: 999px; background: transparent; border: 1.5px solid rgba(236,185,33,0.55); color: #ecb921; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+  .cert-share:hover { background: rgba(236,185,33,0.12); border-color: #ecb921; }
+  .cert-share__toast { color: #ecd9a0; font-size: 12.5px; margin-top: 10px; }
   .cert-footer { text-align: center; color: #6f6346; font-size: 12px; margin-top: 36px; }
 
   /* ── MODAL gói (L4b) ── */
@@ -398,13 +407,15 @@ const weightLine = hasChart
 </script>
 
 <script is:inline>
-  function fosterSponsor(packages, petName, petCode) {
+  function fosterSponsor(packages, petName, petCode, shareUrl) {
     var list = Array.isArray(packages) ? packages : [];
     var pop = list.filter(function (p) { return p.popular; })[0];
     return {
       show: false,
       notice: false,
       copyOk: false,
+      shareToast: false,
+      shareUrl: shareUrl || "",
       petName: petName,
       petCode: petCode || "",
       packages: list,
@@ -437,6 +448,20 @@ const weightLine = hasChart
           );
         } else {
           this.copyOk = false;
+        }
+      },
+      share: function () {
+        var url = this.shareUrl;
+        if (!url) return;
+        var title = "Giúp bé " + this.petName + " — VowVet";
+        if (navigator.share) {
+          navigator.share({ title: title, url: url }).catch(function () {});
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          var self = this;
+          navigator.clipboard.writeText(url).then(
+            function () { self.shareToast = true; setTimeout(function () { self.shareToast = false; }, 3000); },
+            function () {}
+          );
         }
       }
     };
