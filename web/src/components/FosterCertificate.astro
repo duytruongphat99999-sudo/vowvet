@@ -14,6 +14,7 @@
  */
 import PassportStamp from "./PassportStamp.astro";
 import { calculatePetAge } from "@shared/public-pet-fields.ts";
+import { FOSTER_PACKAGES } from "../lib/foster-packages.ts";
 
 interface Props {
   pet: any;
@@ -208,13 +209,39 @@ const weightLine = hasChart
       </div>
     )}
 
-    {/* ===== CTA (placeholder — modal gói = L4) ===== */}
-    <div class="text-center mt-9">
-      <button type="button" class="cert-cta" data-cta="foster-sponsor"
-        onclick="this.dispatchEvent(new CustomEvent('foster-sponsor-click',{bubbles:true}));window.alert('Sắp ra mắt — chức năng góp gói nuôi đang được hoàn thiện 💛');">
-        Góp gói nuôi {name}
-      </button>
+    {/* ===== CTA + MODAL gói (L4b) ===== */}
+    <div class="text-center mt-9" x-data={`fosterSponsor(${JSON.stringify(FOSTER_PACKAGES)}, ${JSON.stringify(name)})`}>
+      <button type="button" class="cert-cta" @click="open()">Góp gói nuôi {name}</button>
       <p class="cert-cta__note">Mỗi gói = thức ăn + chăm sóc thật, minh bạch qua hồ sơ trên.</p>
+
+      {/* Modal */}
+      <div x-show="show" style="display:none;" class="fp-overlay"
+        @keydown.escape.window="close()" @click.self="close()">
+        <div class="fp-modal" role="dialog" aria-modal="true" aria-label="Chọn gói góp nuôi">
+          <button type="button" class="fp-close" @click="close()" aria-label="Đóng">✕</button>
+          <h3 class="fp-title">Góp gói nuôi <span x-text="petName"></span></h3>
+          <p class="fp-sub">Chọn 1 gói — MonMin lo phần còn lại.</p>
+
+          <div class="fp-list">
+            <template x-for="pkg in packages" :key="pkg.id">
+              <button type="button" class="fp-card"
+                :class="{ 'fp-card--sel': selectedId === pkg.id, 'fp-card--pop': pkg.popular }"
+                @click="select(pkg.id)">
+                <span class="fp-badge" x-show="pkg.popular">Phổ biến nhất</span>
+                <span class="fp-card__title" x-text="pkg.title"></span>
+                <span class="fp-card__price" x-text="pkg.priceLabel"></span>
+                <span class="fp-card__contents" x-text="pkg.contents"></span>
+                <span class="fp-check" x-show="selectedId === pkg.id" aria-hidden="true">✓</span>
+              </button>
+            </template>
+          </div>
+
+          <button type="button" class="fp-continue" @click="proceed()" x-show="!notice">Tiếp tục</button>
+          <p class="fp-notice" x-show="notice" style="display:none;">Thanh toán sắp ra mắt — sẽ chuyển sang MonMin để hoàn tất. Cảm ơn bạn đã thương bé 💛</p>
+
+          <p class="fp-legal">MonMin giao thẳng tới nơi chăm · bạn không xử lý tiền mặt.</p>
+        </div>
+      </div>
     </div>
 
     <footer class="cert-footer">
@@ -300,6 +327,31 @@ const weightLine = hasChart
   .cert-cta__note { color: #8a7a52; font-size: 12.5px; margin-top: 12px; }
   .cert-footer { text-align: center; color: #6f6346; font-size: 12px; margin-top: 36px; }
 
+  /* ── MODAL gói (L4b) ── */
+  .fp-overlay { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(6,5,3,0.78); backdrop-filter: blur(3px); }
+  .fp-modal { position: relative; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; background: radial-gradient(120% 80% at 80% 0%, #1c160c, #0c0a08 70%); border: 1px solid rgba(236,185,33,0.32); border-radius: 22px; padding: 24px 20px 20px; box-shadow: 0 30px 70px rgba(0,0,0,0.6); animation: fp-in 0.28s cubic-bezier(0.22,0.61,0.36,1) both; }
+  @keyframes fp-in { 0% { opacity: 0; transform: translateY(16px) scale(0.97); } 100% { opacity: 1; transform: none; } }
+  .fp-close { position: absolute; top: 12px; right: 14px; background: none; border: none; color: #8a7a52; font-size: 20px; cursor: pointer; line-height: 1; }
+  .fp-close:hover { color: #ecb921; }
+  .fp-title { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 600; font-size: 22px; color: #ecb921; padding-right: 24px; }
+  .fp-sub { color: #cdbfa0; font-size: 13px; margin-top: 4px; margin-bottom: 16px; }
+  .fp-list { display: flex; flex-direction: column; gap: 10px; }
+  .fp-card { position: relative; display: block; width: 100%; text-align: left; background: #FAF6EC; color: #1a1408; border: 2px solid #e6dcc3; border-radius: 16px; padding: 14px 16px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s; }
+  .fp-card:hover { transform: translateY(-1px); }
+  .fp-card--sel { border-color: #B48608; box-shadow: 0 0 0 3px rgba(236,185,33,0.28); }
+  .fp-card--pop { border-color: #ecb921; box-shadow: 0 0 18px rgba(236,185,33,0.32); }
+  .fp-card--pop.fp-card--sel { box-shadow: 0 0 0 3px rgba(236,185,33,0.4), 0 0 20px rgba(236,185,33,0.4); }
+  .fp-badge { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #1a1208; background: linear-gradient(100deg, #B48608, #ecb921); padding: 2px 9px; border-radius: 999px; margin-bottom: 6px; }
+  .fp-card__title { display: block; font-weight: 800; font-size: 16px; color: #1a1408; line-height: 1.2; }
+  .fp-card__price { display: block; font-family: "Azeret Mono", monospace; font-weight: 700; font-size: 18px; color: #7a5e0c; margin-top: 2px; }
+  .fp-card__contents { display: block; font-size: 12.5px; color: #6b5d3c; margin-top: 5px; line-height: 1.45; }
+  .fp-check { position: absolute; top: 12px; right: 14px; width: 22px; height: 22px; border-radius: 50%; background: #B48608; color: #fff; font-size: 13px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+  .fp-continue { width: 100%; margin-top: 16px; padding: 14px; border: none; border-radius: 14px; cursor: pointer; background: linear-gradient(100deg, #B48608, #ecb921); color: #1a1208; font-weight: 800; font-size: 16px; box-shadow: 0 10px 26px rgba(236,185,33,0.3); }
+  .fp-continue:hover { filter: brightness(1.05); }
+  .fp-notice { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(236,185,33,0.1); border: 1px solid rgba(236,185,33,0.3); color: #ecd9a0; font-size: 13.5px; line-height: 1.5; text-align: center; }
+  .fp-legal { text-align: center; color: #8a7a52; font-size: 11.5px; margin-top: 14px; line-height: 1.5; }
+  @media (prefers-reduced-motion: reduce) { .fp-modal { animation: none; } }
+
   /* ── PASSPORT STAMP: định vị RIÊNG cho chứng thư (override .hero-stamp global) ── */
   :global(.cert-stamp.hero-stamp) {
     position: absolute; top: 18px; right: 18px; bottom: auto; left: auto;
@@ -330,4 +382,22 @@ const weightLine = hasChart
     if (document.readyState !== "loading") drawCurve();
     else document.addEventListener("DOMContentLoaded", drawCurve);
   })();
+</script>
+
+<script is:inline>
+  function fosterSponsor(packages, petName) {
+    var list = Array.isArray(packages) ? packages : [];
+    var pop = list.filter(function (p) { return p.popular; })[0];
+    return {
+      show: false,
+      notice: false,
+      petName: petName,
+      packages: list,
+      selectedId: (pop && pop.id) || (list[0] && list[0].id) || null,
+      open: function () { this.show = true; this.notice = false; document.body.style.overflow = "hidden"; },
+      close: function () { this.show = false; document.body.style.overflow = ""; },
+      select: function (id) { this.selectedId = id; },
+      proceed: function () { this.notice = true; }
+    };
+  }
 </script>
