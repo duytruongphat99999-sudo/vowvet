@@ -122,3 +122,55 @@ export async function updateOrderStatus(orderCode: string, status: string): Prom
   if (!row) throw new FosterOrderError("NOT_FOUND", "Không tìm thấy đơn", 404);
   await updateRow(ORDERS, row.id, { status });
 }
+
+// ──────────────────────────────────────────────────────────────
+// L5c — đếm lượt góp công khai. Loại order_code=null + status huỷ.
+// ──────────────────────────────────────────────────────────────
+
+/** Chuẩn hoá status (single_select Baserow trả {value} hoặc string). */
+function orderStatusValue(s: any): string {
+  return s && typeof s === "object" ? (s.value || "") : (s || "");
+}
+
+// "huỷ" = phần tử cuối FOSTER_ORDER_STATUSES → tránh gõ sai glyph tiếng Việt.
+const CANCELLED_STATUS = FOSTER_ORDER_STATUSES[FOSTER_ORDER_STATUSES.length - 1];
+
+/** Đơn hợp lệ = có order_code (loại 2 row trống) AND chưa huỷ. */
+function isValidOrder(o: any): boolean {
+  return !!o.order_code && orderStatusValue(o.status) !== CANCELLED_STATUS;
+}
+
+/** pet_id link_row ([{id,value}] hoặc [id]) → pet row id. */
+function orderPetId(petIdField: any): number | null {
+  if (Array.isArray(petIdField) && petIdField.length > 0) {
+    const v = petIdField[0];
+    if (v && typeof v === "object") return typeof v.id === "number" ? v.id : null;
+    return typeof v === "number" ? v : null;
+  }
+  return null;
+}
+
+/** Đếm lượt góp hợp lệ của 1 bé (chứng thư /p/[slug]). 1 query. */
+export async function countFosterOrders(petId: number): Promise<number> {
+  const r = await listRows<any>(ORDERS, {
+    filter: { pet_id__link_row_has: String(petId) },
+    size: 200,
+  });
+  return r.results.filter(isValidOrder).length;
+}
+
+/** Đếm gộp nhiều bé trong 1 query (board /foster — KHÔNG N+1) → { petId: count }. */
+export async function countFosterOrdersByPetIds(
+  petIds: number[]
+): Promise<Record<number, number>> {
+  const counts: Record<number, number> = {};
+  for (const id of petIds) counts[id] = 0;
+  if (petIds.length === 0) return counts;
+  const r = await listRows<any>(ORDERS, { size: 200 });
+  for (const o of r.results) {
+    if (!isValidOrder(o)) continue;
+    const pid = orderPetId(o.pet_id);
+    if (pid != null && counts[pid] !== undefined) counts[pid]++;
+  }
+  return counts;
+}

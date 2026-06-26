@@ -27,6 +27,7 @@ const petCode = pet.public_slug || (pet.id ? "VV-" + pet.id : ""); // mã bé ch
 const species = pet.species || null;
 const breed = pet.breed || null;
 const fosterStatus = pet.foster_status || null;
+const donationCount = Number(pet.donation_count) || 0;
 const adoptionStory = (pet.adoption_story || "").trim();
 const publicBio = (pet.public_bio || "").trim();
 
@@ -119,6 +120,12 @@ const weightLine = hasChart
           <span class="cert-pill__dot"></span>
           {fosterStatus}
         </span>
+      )}
+
+      {donationCount > 0 ? (
+        <p class="cert-donations">🤝 <span class="cert-donations__n">{donationCount}</span> lượt góp</p>
+      ) : (
+        <p class="cert-donations cert-donations--first">Hãy là người đầu tiên góp cho {name}</p>
       )}
 
       {(summary || weightLine) && (
@@ -297,6 +304,9 @@ const weightLine = hasChart
   .cert-pill__dot { width: 7px; height: 7px; border-radius: 50%; background: #ecb921; box-shadow: 0 0 8px #ecb921; }
   .cert-summary { margin-top: 18px; color: #ddd2b8; font-size: 15px; line-height: 1.65; max-width: 44ch; }
   .cert-summary__w { color: #ecb921; font-weight: 600; font-family: "Azeret Mono", monospace; }
+  .cert-donations { margin-top: 13px; color: #ecd9a0; font-size: 13.5px; }
+  .cert-donations__n { font-family: "Azeret Mono", monospace; font-weight: 700; color: #ecb921; font-size: 15px; }
+  .cert-donations--first { color: #8a7a52; font-style: italic; }
 
   /* ── BLOCK / CHART ── */
   .cert-block { margin-top: 28px; }

@@ -16,6 +16,7 @@ import {
 } from "@shared/public-pet-fields.ts";
 import { ensureUniqueSlug, findPetBySlug } from "./slug.ts";
 import { getOwnedPet, PetAccessError } from "./pets.ts";
+import { countFosterOrders, countFosterOrdersByPetIds } from "./foster-orders.ts";
 
 export interface PublicPetData {
   public_slug: string;
@@ -51,17 +52,19 @@ export async function getPublicPetBySlug(slug: string): Promise<PublicPetData | 
   base.is_foster_public = true; // cờ cho FE chọn layout (L2)
 
   const petId = (pet as any).id;
-  const [vac, wlogs, daily] = await Promise.all([
+  const [vac, wlogs, daily, donationCount] = await Promise.all([
     listRows<any>("vaccines", { filter: { pet_id__link_row_has: String(petId) }, size: 200 })
       .then((r) => r.results).catch(() => []),
     listRows<any>("weight_logs", { filter: { pet_id__link_row_has: String(petId) }, size: 200 })
       .then((r) => r.results).catch(() => []),
     listRows<any>("daily_check_ins", { filter: { pet_id__link_row_has: String(petId) }, size: 200 })
       .then((r) => r.results).catch(() => []),
+    countFosterOrders(petId).catch(() => 0),   // ← L5c THÊM
   ]);
   base.foster_vaccines = vac.map((v: any) => pickFosterChild(v, FOSTER_VACCINE_FIELDS));
   base.foster_weight_logs = wlogs.map((w: any) => pickFosterChild(w, FOSTER_WEIGHTLOG_FIELDS));
   base.foster_daily = daily.map((d: any) => pickFosterChild(d, FOSTER_DAILY_FIELDS));
+  base.donation_count = donationCount;         // ← L5c THÊM
   return base;
 }
 
@@ -73,9 +76,13 @@ export async function getPublicPetBySlug(slug: string): Promise<PublicPetData | 
  */
 export async function listFosterPets(): Promise<Record<string, any>[]> {
   const res = await listRows<any>("pets", { filter: { foster_public__boolean: "true" }, size: 200 });
-  return res.results
-    .filter((p) => p.foster_public === true && p.is_public === true)
-    .map((p) => sanitizePetFoster(p));
+  const valid = res.results.filter((p) => p.foster_public === true && p.is_public === true);
+  const counts = await countFosterOrdersByPetIds(valid.map((p) => p.id)); // 1 query, no N+1
+  return valid.map((p) => {
+    const card = sanitizePetFoster(p) as Record<string, any>;
+    card.donation_count = counts[p.id] || 0;
+    return card;
+  });
 }
 
 /** Increment view counter (fire-and-forget — don't await). */

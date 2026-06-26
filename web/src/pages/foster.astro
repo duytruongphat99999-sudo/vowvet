@@ -74,6 +74,9 @@ const initialData = JSON.stringify({ pets });
             <div class="fb-card__body">
               <h3 class="fb-card__name" x-text="p.name"></h3>
               <p class="fb-card__meta" x-text="[p.breed].filter(Boolean).join(' · ')"></p>
+              <p class="fb-card__donations" x-show="p.donation_count > 0" style="display:none;">
+                🤝 <span x-text="p.donation_count"></span> lượt góp
+              </p>
               <span class="fb-card__verified">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                 Chứng thực
@@ -120,6 +123,7 @@ const initialData = JSON.stringify({ pets });
     .fb-card__body { padding: 12px 14px 14px; }
     .fb-card__name { font-family: "Fraunces", serif; font-style: italic; font-weight: 600; font-size: 19px; color: #1a1408; line-height: 1.1; }
     .fb-card__meta { font-size: 12.5px; color: #6b5d3c; margin-top: 2px; min-height: 1em; }
+    .fb-card__donations { margin-top: 7px; font-size: 12px; font-weight: 700; color: #7a5e0c; }
     .fb-card__verified { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; font-size: 11px; font-weight: 700; color: #7a5e0c;
       background: rgba(180,134,8,0.12); padding: 3px 9px; border-radius: 999px; }
 
