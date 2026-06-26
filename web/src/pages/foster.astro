@@ -9,12 +9,13 @@ import Layout from "../layouts/Layout.astro";
 
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 let pets: any[] = [];
+let leaderboard: any[] = [];
 try {
   const r = await fetch(`${API_INTERNAL}/api/v1/public/foster`);
-  if (r.ok) pets = (await r.json()).pets || [];
+  if (r.ok) { const j = await r.json(); pets = j.pets || []; leaderboard = j.leaderboard || []; }
 } catch (_) {}
 
-const initialData = JSON.stringify({ pets });
+const initialData = JSON.stringify({ pets, leaderboard });
 ---
 
 <Layout title="Bé foster cần nhà · VowVet" description="Hồ sơ minh bạch các bé đang được foster — bệnh án, cân nặng, nhật ký chăm sóc thật. Mỗi bé một chứng thư công khai.">
@@ -89,6 +90,21 @@ const initialData = JSON.stringify({ pets });
         </template>
       </div>
 
+      {/* Bảng vinh danh người nuôi (L6b) — khối tách biệt, dưới grid bé */}
+      <section class="fb-board" x-show="leaderboard.length > 0" style="display:none;">
+        <h2 class="fb-board__title">Bảng vinh danh người nuôi</h2>
+        <p class="fb-board__sub">Những người đang chăm các bé, được cộng đồng góp nhiều nhất.</p>
+        <ol class="fb-lead">
+          <template x-for="(f, i) in leaderboard" :key="f.name + i">
+            <li class="fb-lead__row" :class="{ 'fb-lead__row--1': i === 0 }">
+              <span class="fb-lead__rank" x-text="'#' + (i + 1)"></span>
+              <span class="fb-lead__name" x-text="f.name"></span>
+              <span class="fb-lead__n"><span x-text="f.total_orders"></span> lượt góp</span>
+            </li>
+          </template>
+        </ol>
+      </section>
+
       <footer class="fb-footer">
         Powered by <a href="/" class="underline hover:text-[#ecb921]">Mon Min Pet</a>
       </footer>
@@ -134,6 +150,19 @@ const initialData = JSON.stringify({ pets });
     .fb-card__verified { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; font-size: 11px; font-weight: 700; color: #7a5e0c;
       background: rgba(180,134,8,0.12); padding: 3px 9px; border-radius: 999px; }
 
+    .fb-board { margin-top: 44px; }
+    .fb-board__title { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 600; font-size: clamp(1.6rem, 4vw, 2.2rem); text-align: center; line-height: 1.1;
+      background: linear-gradient(100deg, #B48608, #ecb921 50%, #fff3c4 60%, #ecb921 75%, #8a6505); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+    .fb-board__sub { color: #cdbfa0; font-size: 13.5px; text-align: center; margin-top: 6px; margin-bottom: 18px; }
+    .fb-lead { list-style: none; padding: 0; margin: 0 auto; max-width: 520px; display: flex; flex-direction: column; gap: 10px; }
+    .fb-lead__row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px;
+      background: radial-gradient(120% 90% at 80% 0%, #1c160c, #0c0a08 70%); border: 1px solid rgba(236,185,33,0.22); }
+    .fb-lead__row--1 { border-color: rgba(236,185,33,0.55); box-shadow: 0 0 14px rgba(236,185,33,0.35); }
+    .fb-lead__rank { font-family: "Azeret Mono", monospace; font-weight: 800; font-size: 14px; color: #1a1208;
+      background: linear-gradient(100deg, #B48608, #ecb921); border-radius: 999px; padding: 3px 10px; flex: none; }
+    .fb-lead__name { font-weight: 700; color: #f3ecdd; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fb-lead__n { font-family: "Azeret Mono", monospace; font-weight: 700; color: #ecb921; font-size: 13px; flex: none; }
+
     .fb-footer { text-align: center; color: #6f6346; font-size: 12px; margin-top: 40px; }
   </style>
 
@@ -141,6 +170,7 @@ const initialData = JSON.stringify({ pets });
     function fosterBoard(initial) {
       return {
         pets: Array.isArray(initial.pets) ? initial.pets : [],
+        leaderboard: Array.isArray(initial.leaderboard) ? initial.leaderboard : [],
         get sortedPets() {
           // Sort lượt góp giảm dần. Array.sort stable (ES2019) → bằng điểm giữ thứ tự gốc.
           return this.pets.slice().sort(function (a, b) {

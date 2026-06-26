@@ -174,3 +174,28 @@ export async function countFosterOrdersByPetIds(
   }
   return counts;
 }
+
+/**
+ * L6b — bảng vinh danh người nuôi: gộp đơn HỢP LỆ theo pet_owner_id → { name, total_orders }.
+ * Sort total_orders giảm dần, đã loại total=0 (chỉ owner có đơn mới xuất hiện).
+ * BẢO MẬT: CHỈ trả name + số lượt — KHÔNG id/phone/email/địa chỉ ra response public.
+ */
+export async function getFosterLeaderboard(): Promise<{ name: string; total_orders: number }[]> {
+  const r = await listRows<any>(ORDERS, { size: 200 });
+  const counts: Record<number, number> = {};
+  for (const o of r.results) {
+    if (!isValidOrder(o)) continue; // loại huỷ + order_code=null
+    const ownerId = typeof o.pet_owner_id === "number" ? o.pet_owner_id : (o.pet_owner_id ? Number(o.pet_owner_id) : null);
+    if (ownerId == null || Number.isNaN(ownerId)) continue;
+    counts[ownerId] = (counts[ownerId] || 0) + 1;
+  }
+  const out: { name: string; total_orders: number }[] = [];
+  for (const idStr of Object.keys(counts)) {
+    // dedupe owner → getRow 1 lần/người. CHỈ lấy name; KHÔNG nhét id/phone/email vào output.
+    let name = "Người nuôi ẩn danh";
+    try { const u = await getRow<any>("users", Number(idStr)); if (u && u.name) name = String(u.name); } catch { /* user xoá/lỗi → giữ ẩn danh */ }
+    out.push({ name, total_orders: counts[Number(idStr)] });
+  }
+  out.sort((a, b) => b.total_orders - a.total_orders);
+  return out;
+}

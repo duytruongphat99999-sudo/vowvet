@@ -19,7 +19,7 @@ import { listRows } from "@shared/baserow.ts";
 import { loadFoodBrands } from "../lib/nutrition.ts";
 import { loadMonMinSupplements } from "../lib/monmin-supplements.ts";
 import { getPublicPetBySlug, incrementViewCount, incrementShareCount, listFosterPets } from "../lib/public-pets.ts";
-import { createFosterOrder, FosterOrderError } from "../lib/foster-orders.ts";
+import { createFosterOrder, getFosterLeaderboard, FosterOrderError } from "../lib/foster-orders.ts";
 import { FosterOrderSchema } from "@shared/zod-schemas/public-pet.ts";
 
 export const publicRoute = new Hono();
@@ -29,9 +29,9 @@ publicRoute.use("*", ipRateLimit("public-passport", 30, 60));
 // ===== GET /public/foster — board bé foster công khai (FOSTER L4a) =====
 publicRoute.get("/foster", async (c) => {
   try {
-    const pets = await listFosterPets();
+    const [pets, leaderboard] = await Promise.all([listFosterPets(), getFosterLeaderboard()]);
     c.header("Cache-Control", "public, max-age=120");
-    return c.json({ pets });
+    return c.json({ pets, leaderboard });
   } catch (err) {
     console.error("[public/foster] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
