@@ -39,6 +39,40 @@ export function calculateHeroTier(count: number): HeroTier {
 }
 
 // ============================================================
+// Next-tier derive — READ-ONLY, chỉ phục vụ thanh tiến độ ở profile.
+// KHÔNG dùng cho ghi điểm/tier (đó là recordHeroAct — Phần 3).
+// Ngưỡng hero ĐỌC từ HERO_TIERS có sẵn (không hardcode lại).
+// Ngưỡng foster là const display 1/3/7/15 (chưa có cơ chế ghi — Phần 3).
+// ============================================================
+export const FOSTER_TIER_MIN: Record<string, number> = {
+  foster_helper: 1,
+  foster_caring: 3,
+  foster_devoted: 7,
+  foster_angel: 15,
+};
+
+const HERO_TIER_STEPS: Array<{ tier: string; min: number }> =
+  (["helper", "hero", "legend", "guardian"] as HeroTier[]).map((t) => ({ tier: t, min: HERO_TIERS[t].min }));
+const FOSTER_TIER_STEPS: Array<{ tier: string; min: number }> =
+  (["foster_helper", "foster_caring", "foster_devoted", "foster_angel"]).map((t) => ({ tier: t, min: FOSTER_TIER_MIN[t] }));
+
+export interface NextTier {
+  tier: string;     // tier kế tiếp cần đạt
+  at: number;       // ngưỡng count của tier kế
+  from: number;     // ngưỡng count của tier hiện tại (đầu band) — để vẽ % bar
+  remaining: number; // còn bao nhiêu bé nữa
+}
+
+function deriveNextTier(count: number, steps: Array<{ tier: string; min: number }>): NextTier | null {
+  let from = 0;
+  for (const s of steps) {
+    if (count < s.min) return { tier: s.tier, at: s.min, from, remaining: s.min - count };
+    from = s.min;
+  }
+  return null; // đã đạt cấp cao nhất
+}
+
+// ============================================================
 // Types
 // ============================================================
 
@@ -190,6 +224,10 @@ export interface HeroStats {
   public_slug: string | null;
   hero_first_at: string | null;
   hero_last_at: string | null;
+  foster_acts_count: number;        // pass-through (Phần 2); scoring wired in Phần 3
+  foster_badge_tier: string | null; // pass-through; null = chưa có badge foster
+  hero_next: NextTier | null;       // derive READ-ONLY cho thanh tiến độ
+  foster_next: NextTier | null;     // derive READ-ONLY cho thanh tiến độ
 }
 
 export async function getHeroProfile(userId: number): Promise<HeroStats | null> {
@@ -211,6 +249,10 @@ export async function getHeroProfile(userId: number): Promise<HeroStats | null> 
     public_slug: user.public_profile_slug || null,
     hero_first_at: user.hero_first_at || null,
     hero_last_at: user.hero_last_at || null,
+    foster_acts_count: Number(user.foster_acts_count) || 0,
+    foster_badge_tier: flatVal<string>(user.foster_badge_tier) || null,
+    hero_next: deriveNextTier(Number(user.pet_heroes_count) || 0, HERO_TIER_STEPS),
+    foster_next: deriveNextTier(Number(user.foster_acts_count) || 0, FOSTER_TIER_STEPS),
   };
 }
 
@@ -247,8 +289,11 @@ export interface LeaderboardEntry {
   heroes_count: number;        // count within period
   total_rewards: number;       // within period
   lifetime_count: number;      // total ever (from user.pet_heroes_count)
+  pet_heroes_count: number;    // alias of lifetime count — dùng cho FE sort 3 tab
   badge_tier: HeroTier;
   public_slug: string | null;
+  foster_acts_count: number;        // pass-through (Phần 2)
+  foster_badge_tier: string | null; // pass-through; null = chưa có badge foster
 }
 
 export async function getLeaderboard(period: Period = "all", limit = 20): Promise<LeaderboardEntry[]> {
@@ -298,8 +343,11 @@ export async function getLeaderboard(period: Period = "all", limit = 20): Promis
       heroes_count: st.count,
       total_rewards: st.rewards,
       lifetime_count: Number(user.pet_heroes_count) || 0,
+      pet_heroes_count: Number(user.pet_heroes_count) || 0,
       badge_tier: (flatVal<HeroTier>(user.hero_badge_tier) || "none") as HeroTier,
       public_slug: user.public_profile_slug || null,
+      foster_acts_count: Number(user.foster_acts_count) || 0,
+      foster_badge_tier: flatVal<string>(user.foster_badge_tier) || null,
     });
   }
   return entries;

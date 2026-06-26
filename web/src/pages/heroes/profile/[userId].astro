@@ -2,8 +2,8 @@
 /**
  * /heroes/profile/[userId] — Public Pet Hero profile.
  *
- * Avatar + name + badge tier + stats + recent acts timeline.
- * Owner sees a "privacy toggle" button.
+ * 3 ô thống kê (count-up) + thanh tiến độ next-tier (shine) + 2 lưới huy hiệu
+ * (foster trước, cứu hộ sau) + activity timeline (icon theo act_type).
  */
 import Layout from "../../../layouts/Layout.astro";
 import { getZaloLink } from "../../../../../shared/contact-info.ts";
@@ -37,50 +37,127 @@ const initialData = JSON.stringify({
 });
 ---
 
-<Layout title={`🦸 ${profile.name} · Pet Hero`} description={`${profile.name} đã giúp ${profile.heroes_count} bé tìm về nhà`}>
-  <main class="min-h-screen bg-gradient-to-b from-amber-50 via-yellow-50 to-orange-50 px-4 py-6 pb-16">
-    <div class="max-w-xl mx-auto" x-data={`heroProfile(${initialData})`}>
+<Layout title={`${profile.name} · Pet Hero`} description={`${profile.name} đã giúp ${profile.heroes_count} bé tìm về nhà`}>
+  <main class="min-h-screen bg-mmp-cream px-4 py-6 pb-16">
+    <div class="max-w-xl mx-auto" x-data={`heroProfile(${initialData})`} x-init="init()">
 
       <header class="flex items-center justify-between mb-5 gap-3">
-        <a href="/heroes/leaderboard" class="text-sm text-slate-500 hover:text-slate-700">← Leaderboard</a>
-        <h1 class="text-base font-bold text-slate-900">🦸 Pet Hero</h1>
-        <button @click="share()" class="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">📤 Share</button>
+        <a href="/heroes/leaderboard" class="text-sm text-mmp-brown hover:text-mmp-ink">← Leaderboard</a>
+        <h1 class="text-base font-bold text-mmp-ink">Pet Hero</h1>
+        <button @click="share()" class="text-xs bg-white border border-black/10 px-2.5 py-1 rounded-lg text-mmp-brown">Share</button>
       </header>
 
       <!-- Hero card -->
-      <div :class="profile.badge_tier === 'guardian' ? 'bg-gradient-to-br from-amber-500 to-yellow-500 text-white' : 'bg-white border-2 border-amber-200'"
-        class="rounded-3xl p-6 shadow-xl mb-5 text-center">
+      <div :class="profile.badge_tier === 'guardian' ? 'ring-2 ring-mmp-gold' : 'border border-black/5'"
+        class="relative bg-white rounded-3xl p-6 shadow-xl mb-4 text-center overflow-hidden">
+        <template x-if="profile.badge_tier === 'guardian'">
+          <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full opacity-40 blur-2xl pointer-events-none"
+               style="background: radial-gradient(circle, rgba(236,185,33,0.5) 0%, transparent 70%);"></div>
+        </template>
         <template x-if="profile.avatar_url">
-          <img :src="profile.avatar_url" alt="" class="w-24 h-24 rounded-full object-cover mx-auto border-4 border-white shadow-lg" />
+          <img :src="profile.avatar_url" alt="" class="relative w-24 h-24 rounded-full object-cover mx-auto border-4 border-white shadow-lg ring-2 ring-mmp-gold/30" />
         </template>
         <template x-if="!profile.avatar_url">
-          <div class="w-24 h-24 rounded-full bg-amber-100 mx-auto flex items-center justify-center text-4xl border-4 border-white shadow-lg">🦸</div>
+          <div class="relative w-24 h-24 rounded-full bg-mmp-cream mx-auto flex items-center justify-center text-4xl font-extrabold text-mmp-ink border-4 border-white shadow-lg"
+            x-text="(profile.name || '?').charAt(0).toUpperCase()"></div>
         </template>
-        <h2 class="text-2xl font-extrabold mt-3" x-text="profile.name"></h2>
-        <p :class="profile.badge_tier === 'guardian' ? 'bg-white/30 text-white' : tierBadge.color_class"
-          class="inline-block px-3 py-1 rounded-full text-xs font-bold mt-2"
-          x-text="`${tierBadge.emoji} ${tierBadge.label_vi}`"></p>
-        <p class="text-3xl font-extrabold mt-4">
-          <span x-text="profile.heroes_count"></span>
-          <span class="text-base font-normal" x-text="profile.badge_tier === 'guardian' ? 'bé được cứu' : 'bé đã giúp'"></span>
-        </p>
-        <template x-if="profile.total_rewards > 0">
-          <p class="text-sm mt-1 opacity-90" x-text="`Tổng thưởng đã nhận: ${profile.total_rewards.toLocaleString('vi-VN')}đ`"></p>
-        </template>
+        <h2 class="relative text-2xl font-extrabold text-mmp-ink mt-3" x-text="profile.name"></h2>
+        <div class="relative flex flex-wrap items-center justify-center gap-1.5 mt-2">
+          <span :class="tierBadge.color_class" class="inline-block px-3 py-1 rounded-full text-xs font-bold"
+            x-show="tierBadge.label_vi" x-text="tierBadge.label_vi"></span>
+          <template x-if="profile.foster_badge_tier">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-mmp-gold/15 text-mmp-ink border border-mmp-gold/40">
+              <span class="w-1.5 h-1.5 rounded-full bg-mmp-gold"></span>
+              <span x-text="fosterLabel(profile.foster_badge_tier)"></span>
+            </span>
+          </template>
+        </div>
         <template x-if="profile.hero_first_at">
-          <p class="text-[11px] mt-3 opacity-75" x-text="`Pet Hero từ ${fmtDate(profile.hero_first_at)}`"></p>
+          <p class="relative text-[11px] text-mmp-brown/80 mt-3" x-text="`Pet Hero từ ${fmtDate(profile.hero_first_at)}`"></p>
         </template>
+      </div>
+
+      <!-- Stats (3 ô + count-up) + progress bar -->
+      <div class="bg-white rounded-2xl border border-black/5 p-5 mb-4 shadow-sm">
+        <div class="grid grid-cols-3 divide-x divide-black/10">
+          <div class="px-2 text-center">
+            <p class="text-2xl font-extrabold text-mmp-ink tabular-nums" x-text="disp.rescue"></p>
+            <p class="text-[11px] text-mmp-brown mt-0.5">bé cứu hộ</p>
+          </div>
+          <div class="px-2 text-center">
+            <p class="text-2xl font-extrabold text-mmp-ink tabular-nums" x-text="disp.foster"></p>
+            <p class="text-[11px] text-mmp-brown mt-0.5">bé nuôi tạm</p>
+          </div>
+          <div class="px-2 text-center">
+            <p class="text-2xl font-extrabold text-mmp-ink tabular-nums" x-text="disp.rewards.toLocaleString('vi-VN')"></p>
+            <p class="text-[11px] text-mmp-brown mt-0.5">thưởng (đ)</p>
+          </div>
+        </div>
+
+        <!-- Progress to next tier -->
+        <div class="mt-5">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-semibold text-mmp-ink" x-text="progress.label"></span>
+            <span class="text-[11px] text-mmp-brown" x-text="progress.maxed ? '' : `${progress.cur}/${progress.at}`"></span>
+          </div>
+          <div class="hp-bar h-2.5 rounded-full bg-mmp-ink/8">
+            <div class="hp-bar-fill relative h-full rounded-full bg-mmp-gold" :style="`width:${progress.pct}%`">
+              <span class="hp-shine" aria-hidden="true"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Badge grids: foster TRƯỚC, cứu hộ SAU -->
+      <div class="bg-white rounded-2xl border border-black/5 p-5 mb-4 shadow-sm">
+        <p class="text-xs font-bold text-mmp-ink mb-3">Huy hiệu nuôi tạm</p>
+        <div class="grid grid-cols-4 gap-2 mb-5">
+          <template x-for="k in fosterOrder" :key="k">
+            <div class="text-center">
+              <div class="relative w-full aspect-square rounded-2xl flex items-center justify-center mx-auto"
+                :class="fosterAchieved(k) ? 'hp-badge-disc' : 'bg-mmp-ink/5'">
+                <template x-if="!fosterAchieved(k)">
+                  <svg class="absolute top-1 right-1 w-3 h-3 text-mmp-ink/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+                  </svg>
+                </template>
+                <span class="w-2 h-2 rounded-full" :class="fosterAchieved(k) ? 'bg-mmp-ink/70' : 'bg-mmp-ink/15'"></span>
+              </div>
+              <p class="text-[9px] mt-1 leading-tight" :class="fosterAchieved(k) ? 'text-mmp-ink font-semibold' : 'text-mmp-brown/60'"
+                x-text="fosterGridLabel(k)"></p>
+            </div>
+          </template>
+        </div>
+
+        <p class="text-xs font-bold text-mmp-ink mb-3">Huy hiệu cứu hộ</p>
+        <div class="grid grid-cols-4 gap-2">
+          <template x-for="k in heroOrder" :key="k">
+            <div class="text-center">
+              <div class="relative w-full aspect-square rounded-2xl flex items-center justify-center mx-auto"
+                :class="heroAchieved(k) ? 'hp-badge-disc' : 'bg-mmp-ink/5'">
+                <template x-if="!heroAchieved(k)">
+                  <svg class="absolute top-1 right-1 w-3 h-3 text-mmp-ink/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+                  </svg>
+                </template>
+                <span class="w-2 h-2 rounded-full" :class="heroAchieved(k) ? 'bg-mmp-ink/70' : 'bg-mmp-ink/15'"></span>
+              </div>
+              <p class="text-[9px] mt-1 leading-tight" :class="heroAchieved(k) ? 'text-mmp-ink font-semibold' : 'text-mmp-brown/60'"
+                x-text="heroGridLabel(k)"></p>
+            </div>
+          </template>
+        </div>
       </div>
 
       <!-- Privacy toggle (owner only) -->
       <template x-if="isOwner">
-        <div class="bg-white rounded-2xl border border-slate-100 p-4 mb-5 flex items-center justify-between">
+        <div class="bg-white rounded-2xl border border-black/5 p-4 mb-4 flex items-center justify-between">
           <div>
-            <p class="text-sm font-bold text-slate-900">Hiển thị công khai profile</p>
-            <p class="text-[11px] text-slate-500">Người khác có thể xem badge + acts của bạn</p>
+            <p class="text-sm font-bold text-mmp-ink">Hiển thị công khai profile</p>
+            <p class="text-[11px] text-mmp-brown">Người khác có thể xem badge + acts của bạn</p>
           </div>
           <button @click="togglePrivate()" :disabled="toggling"
-            class="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+            class="bg-mmp-ink hover:bg-mmp-ink/90 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
             <span x-show="!toggling">Tắt profile công khai</span>
             <span x-show="toggling">...</span>
           </button>
@@ -88,32 +165,35 @@ const initialData = JSON.stringify({
       </template>
 
       <!-- Timeline -->
-      <h2 class="text-sm font-bold text-slate-900 mb-3">📜 Hero Acts gần đây</h2>
+      <h2 class="text-sm font-bold text-mmp-ink mb-3">Hoạt động gần đây</h2>
       <template x-if="acts.length === 0">
-        <p class="text-xs text-slate-500 italic text-center py-4">Chưa có hoạt động nào.</p>
+        <p class="text-xs text-mmp-brown italic text-center py-4">Chưa có hoạt động nào.</p>
       </template>
       <div class="space-y-2">
         <template x-for="act in acts" :key="act.id">
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
-            <div :class="actMeta(act.act_type).bg" class="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0">
-              <span x-text="actMeta(act.act_type).emoji"></span>
-            </div>
+          <div class="bg-white rounded-2xl border border-black/5 p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-mmp-cream flex items-center justify-center shrink-0 text-mmp-ink" x-html="actMeta(act.act_type).icon"></div>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-bold text-slate-900" x-text="actMeta(act.act_type).label"></p>
-              <p class="text-[11px] text-slate-500" x-text="`Bé ${act.pet_name || 'ẩn danh'} · ${fmtDateTime(act.created_at)}`"></p>
+              <p class="text-sm font-bold text-mmp-ink" x-text="actMeta(act.act_type).label"></p>
+              <p class="text-[11px] text-mmp-brown" x-text="`Bé ${act.pet_name || 'ẩn danh'} · ${fmtDateTime(act.created_at)}`"></p>
             </div>
-            <template x-if="act.reward_received > 0">
-              <p class="text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-0.5 font-bold whitespace-nowrap"
-                x-text="`+${(act.reward_received/1000).toFixed(0)}k`"></p>
+            <!-- foster act: tag "+1 bé" (không tiền) — sẵn sàng cho Phần 3 -->
+            <template x-if="act.act_type === 'foster_care'">
+              <p class="text-xs bg-mmp-gold/15 text-mmp-ink rounded-full px-2 py-0.5 font-bold whitespace-nowrap">+1 bé</p>
+            </template>
+            <!-- hero act: thưởng format từ value thật -->
+            <template x-if="act.act_type !== 'foster_care' && act.reward_received > 0">
+              <p class="text-xs bg-mmp-gold/15 text-mmp-ink rounded-full px-2 py-0.5 font-bold whitespace-nowrap"
+                x-text="formatVnd(act.reward_received)"></p>
             </template>
           </div>
         </template>
       </div>
 
       <!-- Footer CTA -->
-      <div class="mt-8 p-5 rounded-2xl bg-mmp-cream border border-mmp-cream text-center">
-        <p class="font-bold text-mmp-ink mb-2">Cảm ơn <span x-text="profile.name"></span> đã giúp cộng đồng!</p>
-        <a href="/heroes/leaderboard" class="inline-block bg-mmp-ink hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-sm">
+      <div class="mt-8 p-5 rounded-2xl bg-mmp-ink text-white text-center">
+        <p class="font-bold mb-2">Cảm ơn <span x-text="profile.name"></span> đã giúp cộng đồng!</p>
+        <a href="/heroes/leaderboard" class="inline-block bg-mmp-gold hover:bg-mmp-gold/90 text-mmp-ink font-bold px-4 py-2 rounded-xl text-sm">
           Xem leaderboard →
         </a>
       </div>
@@ -121,31 +201,117 @@ const initialData = JSON.stringify({
     </div>
   </main>
 
+  <style>
+    .hp-bar-fill { overflow: hidden; }
+    .hp-shine {
+      position: absolute; inset: 0; transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+      animation: hp-shine 2.2s ease-in-out infinite;
+    }
+    .hp-badge-disc {
+      background: radial-gradient(circle at 35% 30%, #f9e27a 0%, #ecb921 55%, #b8860b 100%);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.55), 0 2px 5px rgba(0,0,0,0.15);
+    }
+    @keyframes hp-shine { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(100%); } }
+    @media (prefers-reduced-motion: reduce) {
+      .hp-shine { animation: none !important; }
+    }
+  </style>
+
   <script is:inline>
     function heroProfile(initial) {
       const HERO_TIERS = {
-        none:     { emoji: '🙂', label_vi: 'Không có',      color_class: 'bg-slate-100 text-slate-600' },
-        helper:   { emoji: '🤝', label_vi: 'Pet Helper',   color_class: 'bg-mmp-cream text-mmp-ink' },
-        hero:     { emoji: '🦸', label_vi: 'Pet Hero',     color_class: 'bg-mmp-cream text-mmp-ink' },
-        legend:   { emoji: '🏆', label_vi: 'Pet Legend',   color_class: 'bg-amber-100 text-amber-700' },
-        guardian: { emoji: '👑', label_vi: 'Pet Guardian', color_class: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white' },
+        none:     { label_vi: 'Chưa có cấp',  color_class: 'bg-mmp-cream text-mmp-brown' },
+        helper:   { label_vi: 'Pet Helper',   color_class: 'bg-mmp-cream text-mmp-ink' },
+        hero:     { label_vi: 'Pet Hero',     color_class: 'bg-mmp-cream text-mmp-ink' },
+        legend:   { label_vi: 'Pet Legend',   color_class: 'bg-mmp-gold/15 text-mmp-ink' },
+        guardian: { label_vi: 'Pet Guardian', color_class: 'bg-mmp-gold/25 text-mmp-ink' },
       };
+      const FOSTER_LABELS = {
+        foster_helper:  'Người nuôi tạm',
+        foster_caring:  'Tận tâm',
+        foster_devoted: 'Mái ấm tạm thời',
+        foster_angel:   'Thiên thần nuôi tạm',
+      };
+      const ICONS = {
+        rescue: '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>',
+        share:  '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>',
+        home:   '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M9 20v-6h6v6"/></svg>',
+      };
+      const fosterOrder = ['foster_helper', 'foster_caring', 'foster_devoted', 'foster_angel'];
+      const heroOrder = ['helper', 'hero', 'legend', 'guardian'];
+
       return {
         profile: initial.profile,
         acts: initial.acts,
         zaloUrl: initial.zaloUrl,
         isOwner: initial.isOwner,
         toggling: false,
+        fosterOrder,
+        heroOrder,
+        disp: { rescue: 0, foster: 0, rewards: 0 },
 
-        get tierBadge() {
-          return HERO_TIERS[this.profile.badge_tier] || HERO_TIERS.none;
+        init() {
+          const targets = {
+            rescue: Number(this.profile.heroes_count) || 0,
+            foster: Number(this.profile.foster_acts_count) || 0,
+            rewards: Number(this.profile.total_rewards) || 0,
+          };
+          const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          if (reduce) { this.disp = { ...targets }; return; }
+          const dur = 900, t0 = performance.now();
+          const tick = (now) => {
+            const p = Math.min(1, (now - t0) / dur);
+            const e = 1 - Math.pow(1 - p, 3);
+            this.disp = {
+              rescue: Math.round(targets.rescue * e),
+              foster: Math.round(targets.foster * e),
+              rewards: Math.round(targets.rewards * e),
+            };
+            if (p < 1) requestAnimationFrame(tick); else this.disp = { ...targets };
+          };
+          requestAnimationFrame(tick);
         },
 
+        get tierBadge() { return HERO_TIERS[this.profile.badge_tier] || HERO_TIERS.none; },
+        fosterLabel(v) { return FOSTER_LABELS[v] || ''; },
+        fosterGridLabel(k) { return FOSTER_LABELS[k] || ''; },
+        heroGridLabel(k) { return (HERO_TIERS[k] && HERO_TIERS[k].label_vi) || ''; },
+
+        // Đạt/khoá theo THỨ TỰ tier + tier hiện tại backend trả (KHÔNG hardcode ngưỡng FE).
+        fosterAchieved(k) {
+          const cur = this.profile.foster_badge_tier;
+          const ci = cur ? fosterOrder.indexOf(cur) : -1;
+          return fosterOrder.indexOf(k) <= ci;
+        },
+        heroAchieved(k) {
+          const cur = (this.profile.badge_tier && this.profile.badge_tier !== 'none') ? this.profile.badge_tier : null;
+          const ci = cur ? heroOrder.indexOf(cur) : -1;
+          return heroOrder.indexOf(k) <= ci;
+        },
+
+        // Thanh tiến độ: ưu tiên foster nếu user có foster, không thì hero. Dùng next-tier backend.
+        get progress() {
+          const useFoster = (Number(this.profile.foster_acts_count) || 0) > 0;
+          const next = useFoster ? this.profile.foster_next : this.profile.hero_next;
+          const cur = useFoster ? (Number(this.profile.foster_acts_count) || 0) : (Number(this.profile.heroes_count) || 0);
+          if (!next) {
+            return { maxed: true, pct: 100, cur, at: cur, label: 'Đã đạt cấp cao nhất' };
+          }
+          const span = Math.max(1, next.at - next.from);
+          const pct = Math.max(0, Math.min(100, ((cur - next.from) / span) * 100));
+          const label = useFoster ? (FOSTER_LABELS[next.tier] || '') : ((HERO_TIERS[next.tier] && HERO_TIERS[next.tier].label_vi) || '');
+          return { maxed: false, pct, cur, at: next.at, label: `Còn ${next.remaining} bé → ${label}` };
+        },
+
+        formatVnd(v) { return '+' + (Number(v) || 0).toLocaleString('vi-VN') + 'đ'; },
+
         actMeta(type) {
-          if (type === 'sighting_confirmed') return { emoji: '👀', label: 'Báo thấy được chủ xác nhận', bg: 'bg-emerald-100' };
-          if (type === 'direct_rescue')      return { emoji: '🦸', label: 'Trực tiếp cứu hộ',           bg: 'bg-mmp-cream' };
-          if (type === 'broadcast_shared')   return { emoji: '📣', label: 'Chia sẻ broadcast',          bg: 'bg-mmp-cream' };
-          return { emoji: '🐾', label: type, bg: 'bg-slate-100' };
+          if (type === 'sighting_confirmed') return { label: 'Báo thấy được chủ xác nhận', icon: ICONS.rescue };
+          if (type === 'direct_rescue')      return { label: 'Trực tiếp cứu hộ',           icon: ICONS.rescue };
+          if (type === 'broadcast_shared')   return { label: 'Chia sẻ broadcast',          icon: ICONS.share };
+          if (type === 'foster_care')        return { label: 'Nhận nuôi tạm một bé',       icon: ICONS.home };
+          return { label: type, icon: ICONS.rescue };
         },
 
         fmtDate(iso) {
@@ -153,7 +319,6 @@ const initialData = JSON.stringify({
           try { return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }); }
           catch { return iso.slice(0, 10); }
         },
-
         fmtDateTime(iso) {
           if (!iso) return "—";
           try { return new Date(iso).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
@@ -163,7 +328,7 @@ const initialData = JSON.stringify({
         share() {
           const url = window.location.href;
           if (navigator.share) {
-            navigator.share({ title: `🦸 ${this.profile.name} - Pet Hero`, url });
+            navigator.share({ title: `${this.profile.name} - Pet Hero`, url });
           } else {
             navigator.clipboard.writeText(url);
             alert("Đã copy link!");
