@@ -25,7 +25,10 @@ try {
 } catch (_) {}
 
 if (!profile) {
-  return new Response("Profile riêng tư hoặc không tồn tại", { status: 404 });
+  return new Response("Profile riêng tư hoặc không tồn tại", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
 }
 
 const user = Astro.locals.user;
