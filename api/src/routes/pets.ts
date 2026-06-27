@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
-import { listUserPets, createPet, findUserById, findUserByPhone, type BaserowPet } from "../lib/users.ts";
+import { listUserPets, createPet, findUserById, findUserByPhone, findUserByEmail, type BaserowPet } from "../lib/users.ts";
 import { transferPet, TransferError } from "../lib/foster-transfer.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import {
@@ -441,8 +441,9 @@ petsRoute.patch(
 );
 
 // ===== POST /pets/:id/transfer — chuyển giao bé A→B (foster handover, IRREVERSIBLE) =====
-// Body: { recipient_phone }. Người nhận PHẢI có tài khoản VowVet (lookup theo phone).
-// Chỉ CHỦ hiện tại mới trao được bé mình. Logic ở service transferPet (route chỉ validate + gọi).
+// Body: { recipient } — SĐT HOẶC email người nhận (giữ tương thích recipient_phone cũ).
+// Người nhận PHẢI có tài khoản VowVet. Chỉ CHỦ hiện tại mới trao được bé mình.
+// Logic trao ở service transferPet (route chỉ tìm người nhận + validate + gọi).
 petsRoute.post("/:id{[0-9]+}/transfer", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
@@ -450,13 +451,24 @@ petsRoute.post("/:id{[0-9]+}/transfer", async (c) => {
   try { body = await c.req.json(); } catch {
     return c.json({ error: { code: "BAD_JSON", message: "Body JSON không hợp lệ" } }, 400);
   }
-  let phone: string;
-  try { phone = normalizePhone(String(body?.recipient_phone || "")); }
-  catch { return c.json({ error: { code: "BAD_PHONE", message: "Số điện thoại người nhận không hợp lệ" } }, 400); }
+  // Người nhận: field "recipient" (SĐT hoặc email); fallback "recipient_phone" (tương thích cũ).
+  const raw = String(body?.recipient ?? body?.recipient_phone ?? "").trim();
+  const isEmail = raw.includes("@");
+  let phone = "";
+  if (isEmail) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+      return c.json({ error: { code: "BAD_RECIPIENT", message: "Nhập SĐT hoặc email hợp lệ" } }, 400);
+    }
+  } else {
+    try { phone = normalizePhone(raw); }
+    catch { return c.json({ error: { code: "BAD_RECIPIENT", message: "Nhập SĐT hoặc email hợp lệ" } }, 400); }
+  }
 
   try {
     await getOwnedPet(petId, session.sub); // chỉ chủ mới trao bé mình (throws 403/404)
-    const recipient = await findUserByPhone(phone);
+    const recipient = isEmail
+      ? await findUserByEmail(raw.toLowerCase())
+      : await findUserByPhone(phone);
     if (!recipient) {
       return c.json({ error: { code: "RECIPIENT_NOT_FOUND", message: "Người nhận chưa có tài khoản VowVet" } }, 404);
     }
