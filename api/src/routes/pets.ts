@@ -89,7 +89,7 @@ import { PublicEnableSchema, PublicUpdateSchema, FosterUpdateSchema } from "@sha
 // Baserow raw helpers — needed for care_plan_completions reads/writes + activity timeline aggregation.
 // Previously omitted (regression from Phase 2.2 of Care Plan WOW), causing
 // ReferenceError: listRows is not defined → 500 → frontend "Lỗi mạng" toast.
-import { listRows, createRow, updateRow } from "@shared/baserow.ts";
+import { listRows, createRow, updateRow, getRow } from "@shared/baserow.ts";
 
 export const petsRoute = new Hono();
 
@@ -478,6 +478,40 @@ petsRoute.post("/:id{[0-9]+}/transfer", async (c) => {
     if (err instanceof TransferError) {
       return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 403 | 404 | 500);
     }
+    return petErrorResponse(c, err);
+  }
+});
+
+// ===== Foster carer flag (cấp USER) — cờ TỰ NGUYỆN "tôi nhận nuôi tạm" =====
+// is_foster_carer tách HẲN thành tích trao bé (foster_acts_count/foster_badge_tier):
+// bật/tắt cờ KHÔNG gọi recordFosterAct, KHÔNG cộng điểm — chỉ đánh dấu user
+// sẵn sàng nhận nuôi tạm. Route tĩnh "/foster/..." không đụng "/:id{[0-9]+}".
+
+// GET: đọc cờ của 1 user (profile dùng cho badge read-only người khác + state ban đầu của chính mình).
+petsRoute.get("/foster/carer/:userId{[0-9]+}", async (c) => {
+  const userId = Number(c.req.param("userId"));
+  try {
+    const u = await getRow("users", userId);
+    return c.json({ is_foster_carer: (u as any)?.is_foster_carer === true });
+  } catch (err) {
+    return petErrorResponse(c, err);
+  }
+});
+
+// POST: chính chủ bật/tắt cờ của mình.
+petsRoute.post("/foster/toggle", async (c) => {
+  const session = c.get("user");
+  let body: any;
+  try { body = await c.req.json(); } catch {
+    return c.json({ error: { code: "BAD_JSON", message: "Body JSON không hợp lệ" } }, 400);
+  }
+  if (typeof body?.enabled !== "boolean") {
+    return c.json({ error: { code: "BAD_ENABLED", message: "Trường enabled phải là boolean" } }, 400);
+  }
+  try {
+    await updateRow("users", session.sub, { is_foster_carer: body.enabled });
+    return c.json({ ok: true, is_foster_carer: body.enabled });
+  } catch (err) {
     return petErrorResponse(c, err);
   }
 });

@@ -29,11 +29,21 @@ if (!profile) {
 const user = Astro.locals.user;
 const isOwner = user?.sub === userId;
 
+// Cờ "nhận nuôi tạm" (is_foster_carer) — đọc qua API (route đọc cờ, auth); forward cookie SSR.
+let isFosterCarer = false;
+try {
+  const fcRes = await fetch(`${API_INTERNAL}/api/v1/pets/foster/carer/${userId}`, {
+    headers: { cookie: Astro.request.headers.get("cookie") || "" },
+  });
+  if (fcRes.ok) isFosterCarer = (await fcRes.json()).is_foster_carer === true;
+} catch (_) {}
+
 const initialData = JSON.stringify({
   profile,
   acts,
   zaloUrl: getZaloLink(),
   isOwner,
+  isFosterCarer,
 });
 ---
 
@@ -69,6 +79,13 @@ const initialData = JSON.stringify({
             <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-mmp-gold/15 text-mmp-ink border border-mmp-gold/40">
               <span class="w-1.5 h-1.5 rounded-full bg-mmp-gold"></span>
               <span x-text="fosterLabel(profile.foster_badge_tier)"></span>
+            </span>
+          </template>
+          <!-- Cờ tự nguyện "nhận nuôi tạm" (read-only khi xem người khác); ẩn nếu đã có huy hiệu foster để tránh nhãn trùng -->
+          <template x-if="isFosterCarer && !isOwner && !profile.foster_badge_tier">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-mmp-cream text-mmp-ink border border-mmp-gold/40">
+              <span class="w-1.5 h-1.5 rounded-full bg-mmp-gold"></span>
+              Người nuôi tạm
             </span>
           </template>
         </div>
@@ -164,6 +181,22 @@ const initialData = JSON.stringify({
         </div>
       </template>
 
+      <!-- Foster carer toggle (owner only) -->
+      <template x-if="isOwner">
+        <div class="bg-white rounded-2xl border border-black/5 p-4 mb-4 flex items-center justify-between">
+          <div>
+            <p class="text-sm font-bold text-mmp-ink">Tôi nhận nuôi tạm</p>
+            <p class="text-[11px] text-mmp-brown">Đánh dấu bạn sẵn sàng nhận nuôi tạm các bé</p>
+          </div>
+          <button @click="toggleFosterCarer()" :disabled="fosterToggling"
+            :class="isFosterCarer ? 'bg-mmp-gold text-mmp-ink' : 'bg-mmp-cream text-mmp-brown border border-black/10'"
+            class="disabled:opacity-50 text-xs font-bold px-3 py-1.5 rounded-lg min-w-[64px]">
+            <span x-show="!fosterToggling" x-text="isFosterCarer ? 'Bật' : 'Tắt'"></span>
+            <span x-show="fosterToggling">...</span>
+          </button>
+        </div>
+      </template>
+
       <!-- Timeline -->
       <h2 class="text-sm font-bold text-mmp-ink mb-3">Hoạt động gần đây</h2>
       <template x-if="acts.length === 0">
@@ -246,7 +279,9 @@ const initialData = JSON.stringify({
         acts: initial.acts,
         zaloUrl: initial.zaloUrl,
         isOwner: initial.isOwner,
+        isFosterCarer: initial.isFosterCarer,
         toggling: false,
+        fosterToggling: false,
         fosterOrder,
         heroOrder,
         disp: { rescue: 0, foster: 0, rewards: 0 },
@@ -351,6 +386,27 @@ const initialData = JSON.stringify({
           } catch (_) {
             alert("Lỗi kết nối.");
           } finally { this.toggling = false; }
+        },
+
+        async toggleFosterCarer() {
+          this.fosterToggling = true;
+          const next = !this.isFosterCarer;
+          try {
+            const res = await fetch('/api/v1/pets/foster/toggle', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ enabled: next }),
+            });
+            if (res.ok) {
+              const j = await res.json();
+              this.isFosterCarer = j.is_foster_carer === true;
+            } else {
+              alert("Không cập nhật được. Thử lại.");
+            }
+          } catch (_) {
+            alert("Lỗi kết nối.");
+          } finally { this.fosterToggling = false; }
         },
       };
     }
