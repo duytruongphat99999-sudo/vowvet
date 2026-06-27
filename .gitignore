@@ -29,3 +29,6 @@ data/api/gemini-usage.log.jsonl
 # harness/probe/ảnh test + dist-verify (A1) — đồ thí nghiệm, KHÔNG commit (bài học data/pgdata 1571 file)
 tmp/
 .claude/
+# CONTEXT_SYNC scratchpad (PII + ghi chu noi bo) — KHONG commit
+CONTEXT_SYNC*.md
+docs/CONTEXT_SYNC.md
