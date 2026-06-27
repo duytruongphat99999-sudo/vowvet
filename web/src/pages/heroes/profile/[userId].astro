@@ -13,10 +13,12 @@ const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
 let profile: any = null;
 let acts: any[] = [];
+// Forward cookie để BE nhận diện chủ (viewerId) → chủ xem được profile private của mình.
+const cookie = Astro.request.headers.get("cookie") || "";
 try {
   const [pRes, aRes] = await Promise.all([
-    fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}`),
-    fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}/acts`),
+    fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}`, { headers: { cookie } }),
+    fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}/acts`, { headers: { cookie } }),
   ]);
   if (pRes.ok) profile = (await pRes.json()).profile;
   if (aRes.ok) acts = (await aRes.json()).acts || [];

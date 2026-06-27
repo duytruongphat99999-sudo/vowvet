@@ -272,10 +272,11 @@ export interface HeroStats {
   foster_next: NextTier | null;     // derive READ-ONLY cho thanh tiến độ
 }
 
-export async function getHeroProfile(userId: number): Promise<HeroStats | null> {
+export async function getHeroProfile(userId: number, viewerId?: number): Promise<HeroStats | null> {
   const user: any = await findUserById(userId);
   if (!user) return null;
-  if (user.public_profile_enabled === false) return null;
+  // Chủ (viewerId===userId) xem được profile private của chính mình; khách/người khác vẫn ẩn.
+  if (user.public_profile_enabled === false && viewerId !== userId) return null;
   const actsRes = await listRows<HeroActRow>("hero_acts", {
     filter: { user_id__equal: String(userId) },
     size: 200,
@@ -305,6 +306,7 @@ export async function getHeroProfileBySlug(slug: string): Promise<HeroStats | nu
   });
   const u = res.results[0];
   if (!u) return null;
+  // public-only: cố ý KHÔNG truyền viewerId — slug = link công khai, tắt public phải chết link.
   return getHeroProfile(u.id);
 }
 
@@ -404,5 +406,6 @@ export async function togglePublicProfile(userId: number, enabled: boolean): Pro
   const updates: any = { public_profile_enabled: enabled };
   if (enabled && !user.public_profile_slug) updates.public_profile_slug = genSlug();
   await updateRow("users", userId, updates);
-  return getHeroProfile(userId);
+  // chủ vừa toggle → trả profile của chính chủ (viewerId===userId), KHÔNG null kể cả khi tắt public.
+  return getHeroProfile(userId, userId);
 }

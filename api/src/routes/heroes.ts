@@ -12,7 +12,10 @@
  *   POST   /heroes/toggle-public                             — AUTH (body: {enabled: bool})
  */
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { requireAuth } from "../middleware/auth.ts";
+import { verifySession } from "@shared/jwt.ts";
+import { SESSION_COOKIE } from "@shared/auth.ts";
 import {
   getLeaderboard,
   getHeroProfile,
@@ -44,8 +47,10 @@ heroesRoute.get("/leaderboard", async (c) => {
 
 heroesRoute.get("/profile/:userId{[0-9]+}", async (c) => {
   const userId = Number(c.req.param("userId"));
+  // Optional session (KHÔNG requireAuth): khách vẫn xem được profile public; chủ thấy profile private của mình.
+  const viewerId = verifySession(getCookie(c, SESSION_COOKIE))?.sub;
   try {
-    const profile = await getHeroProfile(userId);
+    const profile = await getHeroProfile(userId, viewerId);
     if (!profile) return c.json({ error: { code: "NOT_FOUND", message: "Profile riêng tư hoặc không tồn tại" } }, 404);
     return c.json({ profile });
   } catch (err) {
@@ -66,8 +71,10 @@ heroesRoute.get("/profile/slug/:slug", async (c) => {
 
 heroesRoute.get("/profile/:userId{[0-9]+}/acts", async (c) => {
   const userId = Number(c.req.param("userId"));
+  // Acts gate qua chính getHeroProfile (private → null → 404); truyền viewerId để chủ xem được acts của mình.
+  const viewerId = verifySession(getCookie(c, SESSION_COOKIE))?.sub;
   try {
-    const profile = await getHeroProfile(userId);
+    const profile = await getHeroProfile(userId, viewerId);
     if (!profile) return c.json({ error: { code: "NOT_FOUND", message: "Profile riêng tư hoặc không tồn tại" } }, 404);
     const acts = await listHeroActsForUser(userId, 20);
     return c.json({ acts, total: acts.length });
@@ -82,7 +89,8 @@ heroesRoute.get("/profile/:userId{[0-9]+}/acts", async (c) => {
 heroesRoute.get("/my-stats", requireAuth, async (c) => {
   const session = c.get("user");
   try {
-    const profile = await getHeroProfile(session.sub);
+    // Chủ-xem-mình: viewerId === userId để chủ thấy stats của mình kể cả khi tắt public.
+    const profile = await getHeroProfile(session.sub, session.sub);
     return c.json({ profile });
   } catch (err) {
     return c.json({ error: { code: "INTERNAL", message: "Lỗi" } }, 500);
