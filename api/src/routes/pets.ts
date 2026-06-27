@@ -6,7 +6,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
-import { listUserPets, createPet, findUserById, type BaserowPet } from "../lib/users.ts";
+import { listUserPets, createPet, findUserById, findUserByPhone, type BaserowPet } from "../lib/users.ts";
+import { transferPet, TransferError } from "../lib/foster-transfer.ts";
+import { normalizePhone } from "@shared/auth.ts";
 import {
   getOwnedPet,
   patchPet,
@@ -437,6 +439,36 @@ petsRoute.patch(
     }
   }
 );
+
+// ===== POST /pets/:id/transfer — chuyển giao bé A→B (foster handover, IRREVERSIBLE) =====
+// Body: { recipient_phone }. Người nhận PHẢI có tài khoản VowVet (lookup theo phone).
+// Chỉ CHỦ hiện tại mới trao được bé mình. Logic ở service transferPet (route chỉ validate + gọi).
+petsRoute.post("/:id{[0-9]+}/transfer", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  let body: any;
+  try { body = await c.req.json(); } catch {
+    return c.json({ error: { code: "BAD_JSON", message: "Body JSON không hợp lệ" } }, 400);
+  }
+  let phone: string;
+  try { phone = normalizePhone(String(body?.recipient_phone || "")); }
+  catch { return c.json({ error: { code: "BAD_PHONE", message: "Số điện thoại người nhận không hợp lệ" } }, 400); }
+
+  try {
+    await getOwnedPet(petId, session.sub); // chỉ chủ mới trao bé mình (throws 403/404)
+    const recipient = await findUserByPhone(phone);
+    if (!recipient) {
+      return c.json({ error: { code: "RECIPIENT_NOT_FOUND", message: "Người nhận chưa có tài khoản VowVet" } }, 404);
+    }
+    const result = await transferPet(petId, session.sub, recipient.id);
+    return c.json(result);
+  } catch (err) {
+    if (err instanceof TransferError) {
+      return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 403 | 404 | 500);
+    }
+    return petErrorResponse(c, err);
+  }
+});
 
 // ===== POST /pets/:id/photo — upload to R2 =====
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5 MB

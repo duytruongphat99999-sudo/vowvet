@@ -72,6 +72,15 @@ function deriveNextTier(count: number, steps: Array<{ tier: string; min: number 
   return null; // đã đạt cấp cao nhất
 }
 
+/** Tính foster tier theo ngưỡng FOSTER_TIER_MIN (1/3/7/15). null = chưa đạt cấp nào. */
+export function calculateFosterTier(count: number): string | null {
+  if (count >= FOSTER_TIER_MIN.foster_angel) return "foster_angel";
+  if (count >= FOSTER_TIER_MIN.foster_devoted) return "foster_devoted";
+  if (count >= FOSTER_TIER_MIN.foster_caring) return "foster_caring";
+  if (count >= FOSTER_TIER_MIN.foster_helper) return "foster_helper";
+  return null;
+}
+
 // ============================================================
 // Types
 // ============================================================
@@ -208,6 +217,39 @@ export async function recordHeroAct(input: RecordHeroActInput): Promise<HeroActA
   }
 
   return toActApi(row);
+}
+
+// ============================================================
+// Foster act — GHI ĐIỂM cho NGƯỜI TRAO bé (carer). HÀM MỚI, tách hẳn recordHeroAct.
+// +1 foster_acts_count, tính lại foster_badge_tier, log 1 row hero_acts act_type="foster_care".
+// KHÔNG đụng pet_heroes_count / hero_badge_tier / pet_score_bonus (không lẫn hero cứu hộ).
+// ============================================================
+export async function recordFosterAct(
+  fromUserId: number,
+  petId: number,
+  petName: string
+): Promise<{ foster_acts_count: number; foster_badge_tier: string | null }> {
+  const user: any = await findUserById(fromUserId);
+  const newCount = (Number(user?.foster_acts_count) || 0) + 1;
+  const newTier = calculateFosterTier(newCount);
+
+  await updateRow("users", fromUserId, {
+    foster_acts_count: newCount,
+    foster_badge_tier: newTier, // single_select value ("foster_helper"…) hoặc null
+  });
+
+  await createRow<HeroActRow>("hero_acts", {
+    user_id: fromUserId,
+    pet_id: [petId],
+    report_id: 0,
+    sighting_id: 0,
+    act_type: "foster_care",
+    reward_received: 0,
+    bonus_score: 0,
+    created_at: new Date().toISOString(),
+  } as any);
+
+  return { foster_acts_count: newCount, foster_badge_tier: newTier };
 }
 
 // ============================================================
