@@ -36,8 +36,9 @@
 ---
 
 ## 2. 【SAU】 — Nghi thức kết thúc MỌI task (làm đủ, đúng thứ tự)
-1. Sửa `.astro` → `docker restart vowvet-web`. Có đụng api/.env → thêm `vowvet-api`.
-   → vì: mount Win→Linux **KHÔNG hot-reload** (.astro kẹt module cache Vite). File tĩnh (sw.js) thì cập nhật ngay.
+1. **Web (SSR prod)**: sửa `.astro` → **KHÔNG chỉ `restart`** (prod chạy `dist` baked trong image, `restart` nạp lại bản build cũ). Phải **rebuild image**:
+   `docker compose -f docker/docker-compose.yml up -d --build vowvet-web`
+   → **API** (`--watch`): sửa `.ts` → **hot-reload tự động**, không cần restart. → **Static/public** (sw.js, ảnh): **live ngay** qua mount, không cần gì.
 2. Có sửa `<script is:inline>` → `node --check` từng file. Inline script = **JS THUẦN**, không TS (vd `as number[]` → Alpine SyntaxError).
 3. **Bump SW version** `vXXX` trong `web/public/sw.js` (để qua cache PWA).
 4. Verify thật: trang cần login → mint session cookie, mở `localhost:4322`, **chụp/đo DOM thật + console SẠCH**. KHÔNG đoán "browser sẽ đúng".
@@ -73,7 +74,7 @@
 ---
 
 ## 6. Docker / Windows (bẫy hay quên)
-- `.astro` đổi → **restart** `vowvet-web` (§2.1).
+- `.astro` đổi → **rebuild** `vowvet-web` (`docker compose -f docker/docker-compose.yml up -d --build vowvet-web`) — KHÔNG phải `restart` (§2.1).
 - `.env` đổi → `docker compose -f docker/docker-compose.yml up -d --force-recreate vowvet-api vowvet-web`.
   **`docker restart` KHÔNG nạp lại `.env`** (env baked lúc tạo container).
 - File tĩnh (sw.js, ảnh) đọc từ disk mỗi request → cập nhật ngay, không cần restart.

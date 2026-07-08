@@ -21,6 +21,41 @@ import Layout from "../../layouts/Layout.astro";
         </p>
       </header>
 
+      {/* FOSTER Hướng B — queue yêu cầu lấy lại (chủ cũ gửi, admin duyệt) */}
+      <div x-show="!loading && !forbidden && reclaimRequests.length > 0" style="display:none;" class="mb-5">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 flex items-center gap-2">
+          <span class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full" x-text="reclaimRequests.length"></span>
+          <span class="text-red-700 text-sm font-medium">yêu cầu lấy lại đang chờ duyệt</span>
+        </div>
+        <template x-for="req in reclaimRequests" :key="req.id">
+          <div class="bg-white border border-slate-200 rounded-xl p-4 mb-2 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-medium text-slate-900">Bé <span x-text="req.pet_name"></span> (<span x-text="req.passport_code"></span>)</p>
+              <p class="text-sm text-slate-500">Chủ cũ: <span x-text="req.requester_name"></span> · <span x-text="timeAgo(req.created_at)"></span></p>
+            </div>
+            <button @click="approveReclaim(req)" :disabled="approvingId === req.id" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-bold">
+              <span x-show="approvingId !== req.id">✅ Duyệt</span>
+              <span x-show="approvingId === req.id" style="display:none;">Đang duyệt…</span>
+            </button>
+          </div>
+        </template>
+      </div>
+
+      {/* FOSTER P3b — lấy lại bé trao nhầm (admin, hoàn tác 1 bước) */}
+      <section x-show="!loading && !forbidden" style="display:none;" class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <h2 class="font-bold text-slate-900 mb-1">Lấy lại bé (trao nhầm)</h2>
+        <p class="text-xs text-slate-600 mb-3">Hoàn tác 1 bước: trả bé về chủ ngay trước + trừ credit người trao. Chỉ được khi bé vẫn ở tay người vừa nhận.</p>
+        <div class="flex items-center gap-2">
+          <input type="text" x-model="reclaimPetId" placeholder="Mã passport (VD: 2CQFYXFY-GE)" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-56 uppercase" />
+          <button @click="reclaim()" :disabled="reclaiming || !reclaimPetId" class="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-bold px-4 py-1.5 rounded-lg">
+            <span x-show="!reclaiming">Lấy lại</span>
+            <span x-show="reclaiming">Đang xử lý…</span>
+          </button>
+        </div>
+        <p x-show="reclaimMsg" style="display:none;" role="status" class="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-sm text-emerald-700" x-text="reclaimMsg"></p>
+        <p x-show="reclaimErr" style="display:none;" role="alert" class="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700" x-text="reclaimErr"></p>
+      </section>
+
       {/* Loading */}
       <template x-if="loading">
         <p class="text-slate-500 text-sm">Đang tải…</p>
@@ -94,6 +129,12 @@ import Layout from "../../layouts/Layout.astro";
         forbidden: false,
         error: "",
         statuses: ["mới", "đã liên hệ", "đã giao", "huỷ"],
+        reclaimPetId: "",
+        reclaiming: false,
+        reclaimMsg: "",
+        reclaimErr: "",
+        reclaimRequests: [],
+        approvingId: null,
         async load() {
           this.loading = true; this.error = ""; this.forbidden = false;
           try {
@@ -102,6 +143,11 @@ import Layout from "../../layouts/Layout.astro";
             if (!r.ok) { this.error = "Lỗi tải đơn (" + r.status + ")"; return; }
             const j = await r.json();
             this.orders = Array.isArray(j.orders) ? j.orders : [];
+            // FOSTER Hướng B — queue yêu cầu lấy lại (không vỡ trang nếu lỗi)
+            try {
+              const rr = await fetch("/api/v1/admin/reclaim-requests", { credentials: "include" });
+              if (rr.ok) { const rj = await rr.json(); this.reclaimRequests = Array.isArray(rj.requests) ? rj.requests : []; }
+            } catch (e2) {}
           } catch (e) {
             this.error = "Lỗi kết nối";
           } finally {
@@ -123,11 +169,58 @@ import Layout from "../../layouts/Layout.astro";
             o.status = prev; this.error = "Lỗi kết nối";
           }
         },
+        async reclaim() {
+          this.reclaimMsg = ""; this.reclaimErr = "";
+          var code = (this.reclaimPetId || "").trim().toUpperCase();
+          if (!code) { this.reclaimErr = "Nhập mã passport bé"; return; }
+          // Xác nhận 1 bước trước khi hoàn tác (không undo được).
+          if (!confirm("Chắc chắn lấy lại bé mã " + code + "? Hành động này trả bé về chủ ngay trước.")) return;
+          this.reclaiming = true;
+          try {
+            const r = await fetch("/api/v1/admin/pets/" + encodeURIComponent(code) + "/reclaim", { method: "POST", credentials: "include" });
+            const j = await r.json().catch(function () { return {}; });
+            if (r.status === 403) { this.reclaimErr = "Không có quyền admin"; return; }
+            if (!r.ok) { this.reclaimErr = (j.error && j.error.message) || ("Thất bại (" + r.status + ")"); return; }
+            var petNm = j.pet_name || ("#" + j.pet_id);
+            var pass = j.passport_code ? " (" + j.passport_code + ")" : "";
+            var owner = j.previous_owner_name || ("user " + j.returned_to);
+            this.reclaimMsg = "✅ Đã trả bé " + petNm + pass + " về chủ trước " + owner + ", trừ credit người trao (còn " + j.new_count + ").";
+          } catch (e) {
+            this.reclaimErr = "Lỗi kết nối";
+          } finally {
+            this.reclaiming = false;
+          }
+        },
         fmtPrice(v) { try { return new Intl.NumberFormat("vi-VN").format(v) + "đ"; } catch (e) { return v + "đ"; } },
         fmtDate(iso) {
           if (!iso) return "";
           var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
           return m ? (m[3] + "/" + m[2] + "/" + m[1]) : String(iso).slice(0, 10);
+        },
+        async approveReclaim(req) {
+          if (this.approvingId) return;
+          if (!confirm("Duyệt yêu cầu lấy lại bé " + (req.pet_name || ("#" + req.pet_id)) + "? Bé sẽ được trả về chủ cũ.")) return;
+          this.approvingId = req.id;
+          try {
+            const r = await fetch("/api/v1/admin/reclaim-requests/" + req.id + "/approve", { method: "POST", credentials: "include" });
+            const j = await r.json().catch(function () { return {}; });
+            if (!r.ok) { alert((j.error && j.error.message) || ("Duyệt thất bại (" + r.status + ")")); return; }
+            this.reclaimRequests = this.reclaimRequests.filter(function (x) { return x.id !== req.id; });
+          } catch (e) {
+            alert("Lỗi kết nối");
+          } finally {
+            this.approvingId = null;
+          }
+        },
+        timeAgo(iso) {
+          if (!iso) return "";
+          var t = new Date(iso).getTime();
+          if (!t) return "";
+          var s = Math.floor((Date.now() - t) / 1000);
+          if (s < 60) return s + " giây trước";
+          var mn = Math.floor(s / 60); if (mn < 60) return mn + " phút trước";
+          var h = Math.floor(mn / 60); if (h < 24) return h + " giờ trước";
+          return Math.floor(h / 24) + " ngày trước";
         }
       };
     }

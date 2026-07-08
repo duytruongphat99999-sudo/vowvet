@@ -96,13 +96,18 @@ const tierNudge = (nudges?.opportunities || []).find((o: any) => o.type === "tie
 const communityEvents = community?.events || [];
 // Urgent alerts list
 const urgentList = urgentAlerts?.alerts || [];
+
+// FOSTER Hướng B — reclaim data cho chủ cũ (user-level, độc lập primaryPet)
+const _reclaimSummary = await safeJson(`${API_INTERNAL}/api/v1/users/me/reclaim-summary`);
+const reclaimEligible: any[] = _reclaimSummary?.eligible || [];
+const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
 ---
 
 <Layout title={`${primaryPet ? primaryPet.name + " · " : ""}VowVet`}>
   <main class="min-h-screen pb-24 relative" style="background: linear-gradient(180deg, #f5f1eb 0%, #fafaf7 30%, #fafafa 60%, #f5f1eb 100%);">
 
     <!-- ─── Sticky TopBar (shared component — GĐ1) ─── -->
-    <TopBar pet={primaryPet} />
+    <TopBar pet={primaryPet} isAdmin={user.is_admin} />
 
     <div class="max-w-screen-md mx-auto px-4 py-5 space-y-4 sm:space-y-5">
 
@@ -125,6 +130,35 @@ const urgentList = urgentAlerts?.alerts || [];
           Đã setup email + mật khẩu. Lần sau bạn có thể đăng nhập 1-click.
         </div>
       )}
+
+      <!-- FOSTER Hướng B — banner "yêu cầu đã được duyệt" (chủ cũ) -->
+      {reclaimResolved.map((n: any) => (
+        <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3" data-reclaim-notif={n.id}>
+          <p class="text-emerald-800 text-sm flex-1 min-w-0">
+            ✅ Yêu cầu lấy lại bé <strong>{n.pet_name}</strong> ({n.passport_code}) đã được duyệt. Bé đã về với bạn!
+          </p>
+          <button type="button" data-reclaim-dismiss={n.id} aria-label="Đóng" class="shrink-0 text-emerald-500 hover:text-emerald-700 text-lg leading-none">✕</button>
+        </div>
+      ))}
+
+      <!-- FOSTER Hướng B — card "yêu cầu lấy lại bé" (chủ cũ, trong 72h) -->
+      {reclaimEligible.map((e: any) => (
+        <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 shadow-sm flex items-center gap-4" data-reclaim-card={e.pet_id}>
+          <div class="w-11 h-11 rounded-full bg-amber-100 flex items-center justify-center text-xl flex-shrink-0">🔄</div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-gray-900 text-sm">Bé <span class="text-amber-700">{e.pet_name}</span> đang chờ bạn lấy lại</p>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-mono font-medium">{e.passport_code}</span>
+              <span class="text-xs text-gray-400">·</span>
+              <span class="text-xs text-gray-500">Còn {e.hours_left}h để yêu cầu</span>
+            </div>
+            <p data-reclaim-msg={e.pet_id} style="display:none;" class="text-xs mt-1"></p>
+          </div>
+          <button type="button" data-reclaim-pet={e.pet_id} data-reclaim-name={e.pet_name} class="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors whitespace-nowrap">
+            Lấy lại bé →
+          </button>
+        </div>
+      ))}
 
       {!primaryPet ? (
         <!-- Empty state — no pets yet -->
@@ -204,7 +238,7 @@ const urgentList = urgentAlerts?.alerts || [];
           {communityEvents.length > 0 && <CommunityMini events={communityEvents} />}
 
           <!-- Multi-pet switcher (if user has ≥2 pets) -->
-          {pets.length > 1 && (
+          {pets.length >= 1 && (
             <section class="space-y-3">
               <div class="flex items-center justify-between">
                 <h2 class="font-bold text-mmp-ink">Pet của bạn ({pets.length})</h2>
@@ -288,6 +322,58 @@ const urgentList = urgentAlerts?.alerts || [];
           setTimeout(() => el.classList.remove("animate-progress-pulse"), 2400);
         });
       } catch (_) {}
+    })();
+  </script>
+
+  <!-- FOSTER Hướng B — chủ cũ gửi yêu cầu lấy lại + tắt banner "đã duyệt" -->
+  <script is:inline>
+    (() => {
+      document.addEventListener("click", async (ev) => {
+        var t = ev.target;
+        if (!t || !t.closest) return;
+
+        // Nút "Yêu cầu lấy lại"
+        var reqBtn = t.closest("[data-reclaim-pet]");
+        if (reqBtn) {
+          var petId = reqBtn.getAttribute("data-reclaim-pet");
+          var name = reqBtn.getAttribute("data-reclaim-name") || "bé";
+          if (!confirm("Gửi yêu cầu lấy lại bé " + name + "?")) return;
+          var msg = document.querySelector('[data-reclaim-msg="' + petId + '"]');
+          reqBtn.disabled = true;
+          try {
+            var r = await fetch("/api/v1/pets/" + petId + "/reclaim-request", { method: "POST", credentials: "include" });
+            var j = await r.json().catch(function () { return {}; });
+            if (r.ok && j.ok) {
+              if (msg) { msg.textContent = "✅ Đã gửi yêu cầu. Admin sẽ xét duyệt sớm."; msg.style.color = "#047857"; msg.style.display = "block"; }
+              reqBtn.remove();
+            } else {
+              var reason = (j.error && j.error.message) || ("Thất bại (" + r.status + ")");
+              if (msg) { msg.textContent = "⚠️ " + reason; msg.style.color = "#dc2626"; msg.style.display = "block"; }
+              reqBtn.disabled = false;
+            }
+          } catch (e) {
+            if (msg) { msg.textContent = "⚠️ Lỗi kết nối"; msg.style.color = "#dc2626"; msg.style.display = "block"; }
+            reqBtn.disabled = false;
+          }
+          return;
+        }
+
+        // Nút ✕ tắt banner "đã duyệt"
+        var dis = t.closest("[data-reclaim-dismiss]");
+        if (dis) {
+          var requestId = Number(dis.getAttribute("data-reclaim-dismiss"));
+          var card = dis.closest("[data-reclaim-notif]");
+          try {
+            await fetch("/api/v1/users/me/notifications/mark-read", {
+              method: "POST", credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestId: requestId }),
+            });
+          } catch (e) {}
+          if (card) { card.style.transition = "opacity .2s"; card.style.opacity = "0"; setTimeout(function () { card.remove(); }, 200); }
+          return;
+        }
+      });
     })();
   </script>
 </Layout>

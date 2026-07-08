@@ -17,8 +17,9 @@ import FeatureIcon from "./FeatureIcon.astro";
 
 interface Props {
   pet?: { id: number | string; name?: string; photo_url?: string | null } | null;
+  isAdmin?: boolean;
 }
-const { pet = null } = Astro.props;
+const { pet = null, isAdmin = false } = Astro.props;
 ---
 
 <header class="tb sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-mmp-cream">
@@ -67,6 +68,17 @@ const { pet = null } = Astro.props;
           x-text="chatUnread > 99 ? '99+' : chatUnread"
         ></span>
       </a>
+
+      {isAdmin && (
+        <a
+          href="/admin/foster-orders"
+          class="inline-flex items-center justify-center w-10 h-10 rounded-xl text-mmp-ink/65 hover:text-mmp-ink hover:bg-mmp-cream/60 transition"
+          title="Admin"
+          aria-label="Admin"
+        >
+          <FeatureIcon name="shield-check" class="w-5 h-5" strokeWidth={1.7} />
+        </a>
+      )}
 
       <a
         href="/settings"
