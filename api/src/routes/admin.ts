@@ -13,7 +13,7 @@
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
-import { listRows } from "@shared/baserow.ts";
+import { listRows, updateRow } from "@shared/baserow.ts";
 import { getPlace, listPendingPlaces, verifyPlace, rejectPlace } from "../lib/places.ts";
 import { findUserById, softDeleteUser } from "../lib/users.ts";
 import { adminAnalyticsOverview } from "../lib/analytics.ts";
@@ -22,6 +22,7 @@ import { normalizePhone } from "@shared/auth.ts";
 import { listFosterOrders, updateOrderStatus, FosterOrderError } from "../lib/foster-orders.ts";
 import { reclaimPet, reclaimPetByPassport } from "../lib/foster-reclaim.ts";
 import { getPendingRequests, approveRequest } from "../lib/reclaim-requests.ts";
+import { getAllConversations, getAdminSupportUnread } from "../lib/conversations.ts";
 
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -110,18 +111,199 @@ adminRoute.post("/reclaim-requests/:requestId/approve", async (c) => {
   }
 });
 
+// ===== ADMIN DASHBOARD — list users (kèm petCount) =====
+adminRoute.get("/users", async (c) => {
+  try {
+    const [usersRes, petsRes] = await Promise.all([
+      listRows<any>("users", { size: 200 }),
+      listRows<any>("pets", { size: 200 }),
+    ]);
+    const petCount = new Map<number, number>();
+    for (const p of petsRes.results) {
+      if (!p.name) continue; // bỏ 2 row trống
+      const f = p.user_id;
+      const uid = Array.isArray(f) && f[0] ? (typeof f[0] === "object" ? f[0].id : f[0]) : null;
+      if (uid != null) petCount.set(Number(uid), (petCount.get(Number(uid)) || 0) + 1);
+    }
+    const flat = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+    const users = usersRes.results
+      .filter((u: any) => u.phone || u.email || u.name) // bỏ 2 row trống mặc định
+      .map((u: any) => ({
+        id: u.id,
+        name: u.name || null,
+        phone: u.phone || null,
+        email: u.email || null,
+        tier: flat(u.foster_badge_tier) || null,
+        petCount: petCount.get(u.id) || 0,
+        created_at: u.created_at || null,
+        deleted_at: u.deleted_at || null,
+      }));
+    return c.json({ users });
+  } catch (err) {
+    console.error("[admin/users] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== ADMIN DASHBOARD — list pets (kèm tên chủ, bỏ đã xoá) =====
+adminRoute.get("/pets", async (c) => {
+  try {
+    const [petsRes, usersRes] = await Promise.all([
+      listRows<any>("pets", { size: 200 }),
+      listRows<any>("users", { size: 200 }),
+    ]);
+    const userName = new Map<number, string>();
+    for (const u of usersRes.results) userName.set(u.id, u.name || u.phone || u.email || `user ${u.id}`);
+    const flat = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+    const ownerId = (f: any) => (Array.isArray(f) && f[0] ? (typeof f[0] === "object" ? f[0].id : f[0]) : null);
+    const pets = petsRes.results
+      .filter((p: any) => p.name && !p.deleted_at) // bỏ stub + đã soft-delete
+      .map((p: any) => {
+        const oid = ownerId(p.user_id);
+        return {
+          id: p.id,
+          name: p.name,
+          species: flat(p.species) || "other",
+          qr_code: p.qr_code || "",
+          ownerName: oid != null ? userName.get(Number(oid)) || `user ${oid}` : "—",
+          created_at: p.created_at || null,
+        };
+      });
+    return c.json({ pets });
+  } catch (err) {
+    console.error("[admin/pets] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== ADMIN DASHBOARD — soft-delete pet (set deleted_at, field 6599) =====
+adminRoute.post("/pets/:petId/delete", async (c) => {
+  const petId = Number(c.req.param("petId"));
+  if (!Number.isInteger(petId) || petId <= 0) {
+    return c.json({ ok: false, reason: "ID không hợp lệ" }, 400);
+  }
+  try {
+    await updateRow("pets", petId, { deleted_at: new Date().toISOString() });
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/pet-delete] error:", err);
+    return c.json({ ok: false, reason: "Lỗi server" }, 500);
+  }
+});
+
+// ===== ADMIN DASHBOARD — user detail (info + pets + lịch sử trao) =====
+adminRoute.get("/users/:id{[0-9]+}", async (c) => {
+  const id = Number(c.req.param("id"));
+  try {
+    const [usersRes, petsRes, hRes] = await Promise.all([
+      listRows<any>("users", { size: 200 }),
+      listRows<any>("pets", { size: 200 }),
+      listRows<any>("foster_handovers" as any, { size: 200 }),
+    ]);
+    const flat = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+    const oid = (f: any) => (Array.isArray(f) && f[0] ? (typeof f[0] === "object" ? f[0].id : f[0]) : null);
+    const u = usersRes.results.find((x: any) => x.id === id);
+    if (!u) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy user" } }, 404);
+    const userName = new Map<number, string>();
+    for (const x of usersRes.results) userName.set(x.id, x.name || x.phone || x.email || `user ${x.id}`);
+    const pets = petsRes.results
+      .filter((p: any) => p.name && !p.deleted_at && oid(p.user_id) === id)
+      .map((p: any) => ({ id: p.id, name: p.name, species: flat(p.species) || "other", qr_code: p.qr_code || "", created_at: p.created_at || null }));
+    const handovers = hRes.results
+      .filter((h: any) => h.from_user_id != null && (Number(h.from_user_id) === id || Number(h.to_user_id) === id))
+      .map((h: any) => ({
+        pet_name: flat(h.pet_name) || "",
+        from: userName.get(Number(h.from_user_id)) || "user " + h.from_user_id,
+        to: userName.get(Number(h.to_user_id)) || "user " + h.to_user_id,
+        direction: Number(h.from_user_id) === id ? "out" : "in",
+        created_at: h.created_at || null,
+      }))
+      .sort((a: any, b: any) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    return c.json({
+      user: { id: u.id, name: u.name || null, phone: u.phone || null, email: u.email || null, tier: flat(u.foster_badge_tier) || null, created_at: u.created_at || null, petCount: pets.length },
+      pets,
+      handovers,
+    });
+  } catch (err) {
+    console.error("[admin/user-detail] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== ADMIN DASHBOARD — pet detail (info + chủ + lịch sử trao) =====
+adminRoute.get("/pets/:id{[0-9]+}", async (c) => {
+  const id = Number(c.req.param("id"));
+  try {
+    const [petsRes, usersRes, hRes] = await Promise.all([
+      listRows<any>("pets", { size: 200 }),
+      listRows<any>("users", { size: 200 }),
+      listRows<any>("foster_handovers" as any, { size: 200 }),
+    ]);
+    const flat = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+    const oid = (f: any) => (Array.isArray(f) && f[0] ? (typeof f[0] === "object" ? f[0].id : f[0]) : null);
+    const hasPet = (f: any, pid: number) => Array.isArray(f) && f.some((v: any) => (v && typeof v === "object" ? v.id : v) === pid);
+    const p = petsRes.results.find((x: any) => x.id === id);
+    if (!p) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy bé" } }, 404);
+    const userName = new Map<number, string>();
+    for (const x of usersRes.results) userName.set(x.id, x.name || x.phone || x.email || `user ${x.id}`);
+    const owner = oid(p.user_id);
+    const handovers = hRes.results
+      .filter((h: any) => h.from_user_id != null && hasPet(h.pet_id, id))
+      .map((h: any) => ({
+        from: userName.get(Number(h.from_user_id)) || "user " + h.from_user_id,
+        to: userName.get(Number(h.to_user_id)) || "user " + h.to_user_id,
+        created_at: h.created_at || null,
+      }))
+      .sort((a: any, b: any) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    return c.json({
+      pet: {
+        id: p.id, name: p.name, species: flat(p.species) || "other", qr_code: p.qr_code || "",
+        ownerName: owner != null ? userName.get(Number(owner)) || "user " + owner : "—",
+        created_at: p.created_at || null, deleted: !!p.deleted_at,
+      },
+      handovers,
+    });
+  } catch (err) {
+    console.error("[admin/pet-detail] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== ADMIN — badge: tổng unread trong admin_support =====
+adminRoute.get("/conversations/unread-count", async (c) => {
+  const s = c.get("user");
+  try {
+    return c.json({ count: await getAdminSupportUnread(s.sub) });
+  } catch (err) {
+    console.error("[admin/conv-unread] error:", err);
+    return c.json({ count: 0 });
+  }
+});
+
+// ===== ADMIN — tất cả conversations (chat support/foster) =====
+adminRoute.get("/conversations", async (c) => {
+  try {
+    return c.json({ conversations: await getAllConversations() });
+  } catch (err) {
+    console.error("[admin/conversations] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
 // ============================================================
 // GET /admin/stats
 // ============================================================
 adminRoute.get("/stats", async (c) => {
   try {
-    const [usersRes, petsRes, alertsRes, vaccinesRes, plansRes, checkInsRes] = await Promise.all([
+    const [usersRes, petsRes, alertsRes, vaccinesRes, plansRes, checkInsRes, handoversRes, reclaimRes] = await Promise.all([
       listRows<any>("users", { size: 200 }),
       listRows<any>("pets", { size: 200 }),
       listRows<any>("climate_alerts", { size: 200 }),
       listRows<any>("vaccines", { size: 200 }),
       listRows<any>("care_plans", { size: 50 }),
       listRows<any>("daily_check_ins", { size: 50 }),
+      listRows<any>("foster_handovers" as any, { size: 200 }),
+      listRows<any>("reclaim_requests" as any, { size: 200 }),
     ]);
 
     // Recent signups (7 days)
@@ -163,7 +345,44 @@ adminRoute.get("/stats", async (c) => {
       }).length;
     } catch (_) {}
 
+    // FOSTER admin overview — transfers + reclaims + activity feed + weekly buckets
+    const handovers = handoversRes.results.filter((h: any) => h.from_user_id != null); // bỏ 2 row trống
+    const transfersThisWeek = handovers.filter((h: any) => {
+      const t = h.created_at ? new Date(h.created_at).getTime() : 0;
+      return t >= sevenDaysAgo;
+    }).length;
+    const pendingReclaims = reclaimRes.results.filter((r: any) => String(r.status) === "pending").length;
+
+    const userNameById = new Map<number, string>();
+    for (const u of usersRes.results) userNameById.set(u.id, u.name || u.phone || `user ${u.id}`);
+    const nm = (id: any) => userNameById.get(Number(id)) || `user ${id}`;
+    const flatVal = (v: any) => (v && typeof v === "object" && "value" in v ? String(v.value) : v == null ? "" : String(v));
+
+    const recentActivity = [
+      ...handovers.map((h: any) => ({ type: "transfer", petName: flatVal(h.pet_name), userName: nm(h.from_user_id), createdAt: h.created_at })),
+      ...reclaimRes.results
+        .filter((r: any) => String(r.status) === "resolved")
+        .map((r: any) => ({ type: "reclaim", petName: flatVal(r.pet_name), userName: flatVal(r.requester_name), createdAt: r.created_at })),
+    ]
+      .filter((a) => a.createdAt)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .slice(0, 10);
+
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const nowMs = Date.now();
+    const transfersByWeek = Array(8).fill(0); // index 7 = tuần này, 0 = 7 tuần trước
+    for (const h of handovers) {
+      const t = h.created_at ? new Date(h.created_at).getTime() : 0;
+      if (!t) continue;
+      const weeksAgo = Math.floor((nowMs - t) / WEEK_MS);
+      if (weeksAgo >= 0 && weeksAgo < 8) transfersByWeek[7 - weeksAgo]++;
+    }
+
     return c.json({
+      transfers: { total: handovers.length, thisWeek: transfersThisWeek },
+      pendingReclaims,
+      recentActivity,
+      transfersByWeek,
       users: {
         total: usersRes.count,
         active: activeUsers.length,

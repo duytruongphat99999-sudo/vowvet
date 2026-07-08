@@ -9,6 +9,7 @@ import { getRow, createRow, updateRow } from "@shared/baserow.ts";
 import type { TableName } from "@shared/baserow-config.ts";
 import { recordFosterAct } from "./pet-heroes.ts";
 import { findUserById } from "./users.ts";
+import { findOrCreateConversation } from "./conversations.ts";
 
 // foster_handovers chưa nằm trong union TableName (typing) — cast; runtime đọc theo config.
 const HANDOVERS = "foster_handovers" as TableName;
@@ -84,6 +85,10 @@ export async function transferPet(
 
   // 4. +1 foster cho NGƯỜI TRAO.
   const foster = await recordFosterAct(fromUserId, petId, petName);
+
+  // 5. Tạo foster chat A↔B (fire-and-forget — KHÔNG block/hỏng transfer nếu chat lỗi).
+  findOrCreateConversation("foster", fromUserId, toUserId, handover.id, "foster_handover")
+    .catch((err) => console.error("[transferPet] tạo foster chat lỗi (bỏ qua):", err?.message || err));
 
   return {
     pet_id: petId,

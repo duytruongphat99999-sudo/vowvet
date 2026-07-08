@@ -37,6 +37,8 @@ import {
   triageSessionRoute,
 } from "./routes/triage.ts";
 import { chatRoutes } from "./routes/chat.ts";
+import { conversationsRoute } from "./routes/conversations.ts";
+import { cleanupOldMessages } from "./lib/conversations.ts";
 import { vetRoutes } from "./routes/vet.ts";
 import { firstAidRoutes } from "./routes/first-aid.ts";
 import { faqRoutes } from "./routes/faq.ts";
@@ -160,6 +162,17 @@ app.route("/api/v1/pets", petTriageRoute);            // /pets/:id/triage[/histo
 app.route("/api/v1/triage", triageSessionRoute);      // /sessions/:id[/feedback|/escalate-to-chat]
 // M9.2: Telehealth chat (owner + vet routes)
 app.route("/api/v1/chat", chatRoutes);                // /threads[/:id][/messages|/close]
+app.route("/api/v1/conversations", conversationsRoute); // chat support/foster (KHÁC telehealth)
+
+// Cleanup message chat > 30 ngày — chạy mỗi 24h (first fire sau 24h, không chặn startup).
+setInterval(async () => {
+  try {
+    const deleted = await cleanupOldMessages();
+    if (deleted > 0) console.log(`[chat-cleanup] deleted ${deleted} old messages`);
+  } catch (err) {
+    console.error("[chat-cleanup] error:", (err as any)?.message || err);
+  }
+}, 24 * 60 * 60 * 1000);
 app.route("/api/v1/vet", vetRoutes);                  // /threads/queue|/:id/claim|/mine|/:id/messages
 // M9.3: First aid hotline + library
 app.route("/api/v1/first-aid", firstAidRoutes);       // /articles[/:slug] | /clinic-info
