@@ -49,6 +49,7 @@ const initial = ((u.name || u.phone || "?").trim().charAt(0) || "?").toUpperCase
         <span>Tier: {tierLabel}</span><span>·</span><span>{u.petCount} pets</span><span>·</span><span>Tham gia {fmtDate(u.created_at)}</span>
       </div>
     </div>
+    <button id="disable-btn" data-user-id={u.id} data-user-name={u.name || u.phone || `#${u.id}`} class="flex-shrink-0 text-xs text-red-400 hover:text-red-600 font-medium border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors">Vô hiệu hoá</button>
   </div>
 
   <h3 class="text-sm font-bold text-gray-900 mb-3">Thú cưng ({pets.length})</h3>
@@ -80,4 +81,20 @@ const initial = ((u.name || u.phone || "?").trim().charAt(0) || "?").toUpperCase
       ))}
     </ol>
   )}
+
+  <script is:inline>
+    (() => {
+      var b = document.getElementById("disable-btn");
+      if (!b) return;
+      b.addEventListener("click", async () => {
+        if (!confirm("Vô hiệu hoá tài khoản " + (b.dataset.userName || "") + "? Người dùng sẽ bị đánh dấu xoá mềm (deleted_at).")) return;
+        b.disabled = true;
+        try {
+          var r = await fetch("/api/v1/admin/users/" + b.dataset.userId + "/disable", { method: "POST", credentials: "include" });
+          if (r.ok) { window.location.href = "/admin/users"; }
+          else { alert("Vô hiệu hoá thất bại (" + r.status + ")"); b.disabled = false; }
+        } catch (e) { alert("Lỗi kết nối"); b.disabled = false; }
+      });
+    })();
+  </script>
 </AdminLayout>

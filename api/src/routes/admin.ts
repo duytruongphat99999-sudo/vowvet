@@ -127,7 +127,7 @@ adminRoute.get("/users", async (c) => {
     }
     const flat = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
     const users = usersRes.results
-      .filter((u: any) => u.phone || u.email || u.name) // bỏ 2 row trống mặc định
+      .filter((u: any) => (u.phone || u.email || u.name) && !u.deleted_at) // bỏ row trống + đã soft-delete (đồng bộ pets list)
       .map((u: any) => ({
         id: u.id,
         name: u.name || null,

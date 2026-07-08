@@ -201,8 +201,13 @@ export async function getConversationRow(conversationId: number): Promise<any | 
 }
 
 /**
- * ADMIN badge — tổng tin CHƯA ĐỌC trong các hội thoại admin_support
- * (read_at="" && sender_id !== adminId → tin user cần admin trả lời).
+ * ADMIN badge — tổng tin CHƯA ĐỌC trong các hội thoại admin_support.
+ * Đếm tin do USER THƯỜNG gửi & chưa đọc (read_at="" && sender_id === conv.user1_id).
+ * FIX (đa-admin): trước đây lọc `sender_id !== adminId` → khi có NHIỀU admin, admin A
+ * thấy tin do admin B gửi là "chưa đọc". Trong admin_support, user1_id LUÔN là user
+ * thường (user2_id = 0 = admin, xem findOrCreateConversation("admin_support", s.sub, 0)),
+ * nên đếm theo user1_id là chuẩn và an toàn với nhiều admin.
+ * `adminId` giữ nguyên trong signature (không đổi caller) dù không còn dùng để lọc.
  */
 export async function getAdminSupportUnread(adminId: number): Promise<number> {
   const res = await listRows<any>(CONVERSATIONS, { size: 200 });
@@ -213,7 +218,9 @@ export async function getAdminSupportUnread(adminId: number): Promise<number> {
       filter: { conversation_id__equal: String(conv.id) },
       size: 200,
     });
-    total += msgs.results.filter((m) => !flat(m.read_at) && Number(m.sender_id) !== adminId).length;
+    total += msgs.results.filter(
+      (m) => !flat(m.read_at) && Number(m.sender_id) === Number(conv.user1_id)
+    ).length;
   }
   return total;
 }
