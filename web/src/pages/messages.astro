@@ -1,10 +1,84 @@
 ---
 /**
- * /messages — alias redirect to /chat.
- *
- * Mega-prompt referenced "/messages" but the actual messaging hub is at /chat.
- * This alias makes the user's mental model work without breaking the existing
- * /chat route (which both vets and playdate matches depend on).
+ * /messages — hub chat support/foster (KHÁC telehealth /chat).
+ * Trước đây file này 308-redirect sang /chat (stopgap); nay là trang danh sách hội thoại thật.
+ * Telehealth vẫn truy cập trực tiếp qua /chat (vet + playdate).
  */
-return Astro.redirect("/chat", 308);
+import Layout from "../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let conversations: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/conversations`, { headers: { cookie: cookieHeader } });
+  if (res.ok) conversations = (await res.json()).conversations || [];
+} catch (_) {}
+
+function timeAgo(iso: string) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!t) return "";
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return "vừa xong";
+  const m = Math.floor(s / 60); if (m < 60) return `${m} phút`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h} giờ`;
+  return `${Math.floor(h / 24)} ngày`;
+}
+const typeBadge = (t: string) =>
+  t === "admin_support" ? { label: "Hỗ trợ VowVet", cls: "bg-blue-50 text-blue-600" }
+  : t === "foster" ? { label: "Trao bé", cls: "bg-amber-50 text-amber-600" }
+  : { label: "Kết đôi", cls: "bg-gray-100 text-gray-500" };
+const initials = (name: string) => ((name || "?").trim().charAt(0) || "?").toUpperCase();
 ---
+
+<Layout title="Tin nhắn · VowVet">
+  <main class="min-h-screen bg-gray-50 pb-24">
+    <div class="max-w-screen-md mx-auto">
+      <header class="sticky top-0 bg-white border-b border-gray-100 px-4 py-4 z-10">
+        <h1 class="text-lg font-bold text-gray-900">Tin nhắn</h1>
+      </header>
+
+      {conversations.length === 0 ? (
+        <div class="text-center py-16 text-gray-400">
+          <p class="text-sm">Chưa có tin nhắn nào</p>
+          <button onclick="startSupport()" class="mt-3 text-sm text-[#d4a520] font-medium">Nhắn tin với VowVet →</button>
+        </div>
+      ) : (
+        <div class="bg-white">
+          {conversations.map((conv: any) => {
+            const tb = typeBadge(conv.type);
+            return (
+              <a href={`/messages/${conv.id}`} class="flex items-center gap-3 p-4 hover:bg-gray-50 border-b border-gray-50 transition-colors">
+                <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-600 flex-shrink-0">{initials(conv.otherUserName)}</div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="font-semibold text-sm text-gray-900 truncate">{conv.otherUserName}</p>
+                    <span class="text-xs text-gray-400 flex-shrink-0">{timeAgo(conv.last_msg_at)}</span>
+                  </div>
+                  <p class="text-xs text-gray-500 truncate mt-0.5">{conv.lastMessage || "—"}</p>
+                  <span class:list={["inline-block text-[10px] px-1.5 py-0.5 rounded mt-1", tb.cls]}>{tb.label}</span>
+                </div>
+                {conv.unreadCount > 0 && <span class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">{conv.unreadCount}</span>}
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </main>
+
+  <script is:inline>
+    async function startSupport() {
+      try {
+        var r = await fetch("/api/v1/conversations/support", { method: "POST", credentials: "include" });
+        var j = await r.json();
+        if (j.conversationId) window.location.href = "/messages/" + j.conversationId;
+        else alert("Không tạo được hội thoại");
+      } catch (e) { alert("Lỗi kết nối"); }
+    }
+  </script>
+</Layout>

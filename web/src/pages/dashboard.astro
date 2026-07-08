@@ -157,6 +157,7 @@ const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
           <button type="button" data-reclaim-pet={e.pet_id} data-reclaim-name={e.pet_name} class="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors whitespace-nowrap">
             Lấy lại bé →
           </button>
+          <button type="button" data-dismiss-pet={e.pet_id} aria-label="Ẩn thẻ" class="flex-shrink-0 text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
         </div>
       ))}
 
@@ -263,6 +264,28 @@ const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
         </>
       )}
 
+      {/* Chat hỗ trợ VowVet — entry point (support/foster chat, KHÁC telehealth) */}
+      <button onclick="startSupportChat()" class="w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#d4a520] transition-colors text-left mt-4">
+        <span class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520] flex-shrink-0">
+          <FeatureIcon name="mail" class="w-5 h-5" strokeWidth={1.7} />
+        </span>
+        <div class="min-w-0">
+          <p class="font-semibold text-sm text-gray-900">Nhắn tin với VowVet</p>
+          <p class="text-xs text-gray-400">Hỗ trợ tính năng · Giải đáp thắc mắc</p>
+        </div>
+        <span class="ml-auto text-gray-300">→</span>
+      </button>
+      <script is:inline>
+        async function startSupportChat() {
+          try {
+            var r = await fetch("/api/v1/conversations/support", { method: "POST", credentials: "include" });
+            var j = await r.json();
+            if (j.conversationId) window.location.href = "/messages/" + j.conversationId;
+            else alert("Không tạo được hội thoại");
+          } catch (e) { alert("Lỗi kết nối"); }
+        }
+      </script>
+
       <!-- ─── Ecosystem nav ─── -->
       <div class="pt-2">
         <EcosystemNav active="vowvet" />
@@ -358,6 +381,19 @@ const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
           return;
         }
 
+        // Nút ✕ ẩn card "yêu cầu lấy lại" (sessionStorage, chỉ phiên này)
+        var dp = t.closest("[data-dismiss-pet]");
+        if (dp) {
+          var pid = dp.getAttribute("data-dismiss-pet");
+          try {
+            var arr = JSON.parse(sessionStorage.getItem("dismissed_reclaims") || "[]");
+            if (arr.indexOf(pid) === -1) { arr.push(pid); sessionStorage.setItem("dismissed_reclaims", JSON.stringify(arr)); }
+          } catch (e) {}
+          var c2 = dp.closest("[data-reclaim-card]");
+          if (c2) { c2.style.transition = "opacity .2s"; c2.style.opacity = "0"; setTimeout(function () { c2.remove(); }, 200); }
+          return;
+        }
+
         // Nút ✕ tắt banner "đã duyệt"
         var dis = t.closest("[data-reclaim-dismiss]");
         if (dis) {
@@ -374,6 +410,14 @@ const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
           return;
         }
       });
+
+      // On load: ẩn ngay card đã dismiss trong phiên này
+      try {
+        JSON.parse(sessionStorage.getItem("dismissed_reclaims") || "[]").forEach(function (pid) {
+          var el = document.querySelector('[data-reclaim-card="' + pid + '"]');
+          if (el) el.remove();
+        });
+      } catch (e) {}
     })();
   </script>
 </Layout>

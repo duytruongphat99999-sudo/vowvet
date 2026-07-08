@@ -69,6 +69,22 @@ const { pet = null, isAdmin = false } = Astro.props;
         ></span>
       </a>
 
+      <a
+        href="/messages"
+        class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl text-mmp-ink/65 hover:text-mmp-ink hover:bg-mmp-cream/60 transition"
+        title="Hỗ trợ VowVet"
+        aria-label="Hỗ trợ VowVet"
+      >
+        <FeatureIcon name="mail" class="w-5 h-5" strokeWidth={1.7} />
+        <span
+          x-cloak
+          x-show="msgUnread > 0"
+          x-transition
+          x-text="msgUnread > 99 ? '99+' : msgUnread"
+          class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-[16px] px-1 rounded-full inline-flex items-center justify-center"
+        ></span>
+      </a>
+
       {isAdmin && (
         <a
           href="/admin/foster-orders"
@@ -96,17 +112,27 @@ const { pet = null, isAdmin = false } = Astro.props;
   function topBar() {
     return {
       chatUnread: 0,
+      msgUnread: 0,
       hasUrgentAlert: false,
       async loadCounts() {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 5000);
         const opts = { credentials: "include", signal: ctrl.signal };
 
-        const [chatRes, alertRes] = await Promise.allSettled([
+        const [chatRes, alertRes, msgRes] = await Promise.allSettled([
           fetch("/api/v1/chat/threads?limit=50", opts),
           fetch("/api/v1/alerts/today", opts),
+          fetch("/api/v1/conversations/unread-count", opts),
         ]);
         clearTimeout(timer);
+
+        // Support/foster chat unread (fail-soft)
+        try {
+          if (msgRes.status === "fulfilled" && msgRes.value.ok) {
+            const d = await msgRes.value.json();
+            this.msgUnread = d.count || 0;
+          }
+        } catch (_) {}
 
         // Chat unread — Σ unread_count_owner (fail-soft)
         try {

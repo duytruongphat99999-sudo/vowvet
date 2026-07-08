@@ -35,7 +35,7 @@ const navPath = Astro.url.pathname;
 const routePattern = Astro.routePattern ?? "";
 const NAV_HIDDEN_ROUTES = ["/404", "/500"];
 const NAV_HIDDEN_EXACT = ["/", "/login", "/onboarding", "/offline"];
-const NAV_HIDDEN_PREFIX = ["/login", "/p/", "/memorial/", "/personality-card/"];
+const NAV_HIDDEN_PREFIX = ["/login", "/p/", "/memorial/", "/personality-card/", "/messages/"];
 const showBottomNav =
   !!Astro.locals.user &&
   !NAV_HIDDEN_ROUTES.includes(routePattern) &&
