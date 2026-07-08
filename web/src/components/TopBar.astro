@@ -71,11 +71,12 @@ const { pet = null, isAdmin = false } = Astro.props;
 
       <a
         href="/messages"
-        class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl text-mmp-ink/65 hover:text-mmp-ink hover:bg-mmp-cream/60 transition"
-        title="Hỗ trợ VowVet"
-        aria-label="Hỗ trợ VowVet"
+        class="relative flex flex-col items-center justify-center gap-0.5 h-10 px-1.5 rounded-xl text-mmp-ink/65 hover:text-mmp-ink hover:bg-mmp-cream/60 transition"
+        title="Chat với hỗ trợ"
+        aria-label="Chat với hỗ trợ"
       >
-        <FeatureIcon name="mail" class="w-5 h-5" strokeWidth={1.7} />
+        <FeatureIcon name="mailbox" class="w-5 h-5" strokeWidth={1.7} />
+        <span class="text-[10px] font-semibold leading-none text-amber-600">Hỗ trợ</span>
         <span
           x-cloak
           x-show="msgUnread > 0"

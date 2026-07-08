@@ -38,7 +38,7 @@ const chatJson = JSON.stringify({ messages, myId, convId }).replace(/</g, "\\u00
 <Layout title={`${conv.otherUserName} · Tin nhắn`}>
   <div x-data="chatWindow()" x-init="init()" class="flex flex-col h-[100dvh] bg-white">
     <div class="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 z-10">
-      <a href="/messages" class="text-gray-400 hover:text-gray-600 text-xl leading-none">←</a>
+      <a href="/messages" class="text-gray-400 hover:text-gray-600 text-sm font-medium leading-none whitespace-nowrap">← Quay lại</a>
       <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">{initials}</div>
       <div class="min-w-0">
         <p class="font-semibold text-sm text-gray-900 truncate">{conv.otherUserName}</p>
