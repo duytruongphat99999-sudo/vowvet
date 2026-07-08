@@ -36,9 +36,44 @@ import {
 import { sendPush, getVapidPublicKey } from "../lib/web-push.ts";
 import { CITIES, DEFAULT_CITY } from "@shared/cities.ts";
 import { clearSessionCookie } from "../lib/session-cookie.ts";
+import { markNotified, getReclaimEligible, getUnnotifiedResolved } from "../lib/reclaim-requests.ts";
 
 export const usersRoute = new Hono();
 usersRoute.use("*", requireAuth);
+
+// ===== FOSTER Hướng B — data reclaim cho dashboard chủ cũ =====
+//   eligible: bé đủ điều kiện gửi yêu cầu (card + countdown 72h)
+//   resolved: yêu cầu đã được duyệt nhưng chưa báo (banner "bé đã về")
+usersRoute.get("/me/reclaim-summary", async (c) => {
+  const session = c.get("user");
+  try {
+    const [eligible, resolved] = await Promise.all([
+      getReclaimEligible(session.sub),
+      getUnnotifiedResolved(session.sub),
+    ]);
+    return c.json({ eligible, resolved });
+  } catch (err) {
+    console.error("[users/reclaim-summary] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER Hướng B — chủ cũ tắt banner "yêu cầu đã được duyệt" trên dashboard =====
+usersRoute.post("/me/notifications/mark-read", async (c) => {
+  let body: any;
+  try { body = await c.req.json(); } catch { body = {}; }
+  const requestId = Number(body?.requestId);
+  if (!Number.isInteger(requestId) || requestId <= 0) {
+    return c.json({ error: { code: "BAD_ID", message: "requestId không hợp lệ" } }, 400);
+  }
+  try {
+    await markNotified(requestId);
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error("[users/mark-read] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
 
 /** Parse notification_preferences từ stored JSON (default nếu null). */
 function parsePrefs(raw: string | null | undefined) {

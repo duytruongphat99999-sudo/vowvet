@@ -25,6 +25,7 @@ export interface MeResponse {
     phone: string;
     name: string | null;
     onboarding_completed: boolean;
+    is_admin?: boolean;
   };
   pets: ApiPet[];
 }

@@ -189,6 +189,9 @@ authRoute.post("/logout", (c) => {
 });
 
 // ===== GET /me  (protected, refresh-on-use) =====
+// Admin check — dùng chung whitelist với admin.ts (env ADMIN_PHONES).
+const ADMIN_PHONES = (process.env.ADMIN_PHONES || "").split(",").map((s) => s.trim()).filter(Boolean);
+
 authRoute.get("/me", requireAuth, async (c) => {
   const session = c.get("user");
   // M8: lookup theo user_id thay vì phone (Google OAuth users không có phone)
@@ -227,6 +230,7 @@ authRoute.get("/me", requireAuth, async (c) => {
       phone: user.phone,
       name: user.name,
       onboarding_completed: is_onboarded,
+      is_admin: !!session.phone && ADMIN_PHONES.includes(session.phone),
       // Đợt 2b: popup nhắc cân 1 lần/ngày/user (food-brands đọc + so sánh ngày)
       last_seen_food_brands: (user as any).last_seen_food_brands ?? null,
     },

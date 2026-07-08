@@ -8,6 +8,7 @@ import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
 import { listUserPets, createPet, findUserById, findUserByPhone, findUserByEmail, type BaserowPet } from "../lib/users.ts";
 import { transferPet, TransferError } from "../lib/foster-transfer.ts";
+import { createReclaimRequest } from "../lib/reclaim-requests.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import {
   getOwnedPet,
@@ -439,6 +440,31 @@ petsRoute.patch(
     }
   }
 );
+
+// ===== POST /pets/:id/reclaim-request — chủ CŨ gửi yêu cầu lấy lại bé đã trao (Hướng B) =====
+// Không phải chủ hiện tại → dùng getRow (không getOwnedPet). Guard 72h + đúng người trao ở lib.
+petsRoute.post("/:id{[0-9]+}/reclaim-request", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  const flat = (v: any) => (v && typeof v === "object" && "value" in v ? String(v.value) : v == null ? "" : String(v));
+  try {
+    const pet: any = await getRow<any>("pets", petId).catch(() => null);
+    if (!pet) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy bé" } }, 404);
+    const user: any = await findUserById(session.sub);
+    const result = await createReclaimRequest({
+      petId,
+      petName: flat(pet.name),
+      passportCode: flat(pet.qr_code),
+      requesterId: session.sub,
+      requesterName: flat(user?.name),
+    });
+    if (!result.ok) return c.json({ error: { code: "CANNOT_REQUEST", message: result.reason } }, 409);
+    return c.json(result);
+  } catch (err) {
+    console.error("[pets/reclaim-request] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
 
 // ===== POST /pets/:id/transfer — chuyển giao bé A→B (foster handover, IRREVERSIBLE) =====
 // Body: { recipient } — SĐT HOẶC email người nhận (giữ tương thích recipient_phone cũ).

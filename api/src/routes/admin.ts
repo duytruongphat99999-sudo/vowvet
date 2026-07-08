@@ -20,6 +20,8 @@ import { adminAnalyticsOverview } from "../lib/analytics.ts";
 import { getZaloStatus, sendOtp } from "../lib/otp-sender.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import { listFosterOrders, updateOrderStatus, FosterOrderError } from "../lib/foster-orders.ts";
+import { reclaimPet, reclaimPetByPassport } from "../lib/foster-reclaim.ts";
+import { getPendingRequests, approveRequest } from "../lib/reclaim-requests.ts";
 
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -57,6 +59,53 @@ adminRoute.patch("/foster-orders/:code/status", async (c) => {
   } catch (err) {
     if (err instanceof FosterOrderError) return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 404 | 500);
     console.error("[admin/foster-orders status] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER P3b — admin lấy lại bé trao nhầm (reclaim, hoàn tác 1 bước) =====
+// :petId nhận MÃ PASSPORT (qr_code, có chữ) — dễ dùng thật. Vẫn chấp nhận ID số
+// (chuỗi toàn digit) cho gọi nội bộ/backward-compat.
+adminRoute.post("/pets/:petId/reclaim", async (c) => {
+  const raw = (c.req.param("petId") || "").trim();
+  if (!raw) {
+    return c.json({ error: { code: "BAD_PET_ID", message: "Thiếu mã passport bé" } }, 400);
+  }
+  try {
+    const result = /^\d+$/.test(raw)
+      ? await reclaimPet(Number(raw))
+      : await reclaimPetByPassport(raw);
+    // Guard RECON fail (không có handover / trạng thái lệch / sai mã) → 409, không phải lỗi server.
+    if (!result.ok) return c.json({ error: { code: "CANNOT_RECLAIM", message: result.reason } }, 409);
+    return c.json(result);
+  } catch (err) {
+    console.error("[admin/reclaim] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER Hướng B — queue yêu cầu lấy lại bé (admin duyệt) =====
+adminRoute.get("/reclaim-requests", async (c) => {
+  try {
+    const requests = await getPendingRequests();
+    return c.json({ requests });
+  } catch (err) {
+    console.error("[admin/reclaim-requests] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+adminRoute.post("/reclaim-requests/:requestId/approve", async (c) => {
+  const requestId = Number(c.req.param("requestId"));
+  if (!Number.isInteger(requestId) || requestId <= 0) {
+    return c.json({ error: { code: "BAD_ID", message: "requestId không hợp lệ" } }, 400);
+  }
+  try {
+    const result = await approveRequest(requestId);
+    if (!result.ok) return c.json({ error: { code: "CANNOT_APPROVE", message: result.reason } }, 409);
+    return c.json(result);
+  } catch (err) {
+    console.error("[admin/reclaim-approve] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });
