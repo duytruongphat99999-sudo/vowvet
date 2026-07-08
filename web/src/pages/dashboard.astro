@@ -101,6 +101,10 @@ const urgentList = urgentAlerts?.alerts || [];
 const _reclaimSummary = await safeJson(`${API_INTERNAL}/api/v1/users/me/reclaim-summary`);
 const reclaimEligible: any[] = _reclaimSummary?.eligible || [];
 const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
+
+// FOSTER #3 — bé user vừa NHẬN (receiver) trong 7 ngày → card "bé mới nhận"
+const _fosterReceived = await safeJson(`${API_INTERNAL}/api/v1/users/me/foster-received`);
+const fosterReceived: any[] = _fosterReceived?.received || [];
 ---
 
 <Layout title={`${primaryPet ? primaryPet.name + " · " : ""}VowVet`}>
@@ -158,6 +162,25 @@ const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
             Lấy lại bé →
           </button>
           <button type="button" data-dismiss-pet={e.pet_id} aria-label="Ẩn thẻ" class="flex-shrink-0 text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+      ))}
+
+      <!-- FOSTER #3 — card "bé mới nhận" (receiver): vừa nhận bé → nhắn người trao -->
+      {fosterReceived.map((h: any) => (
+        <div class="bg-gradient-to-br from-blue-50 to-emerald-50 border border-blue-200 rounded-2xl p-4 shadow-sm flex items-start gap-3" data-foster-card={h.handover_id}>
+          <span class="w-11 h-11 rounded-full bg-white border-2 border-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
+            <FeatureIcon name="paw" class="w-6 h-6" />
+          </span>
+          <div class="flex-1 min-w-0">
+            <span class="inline-block text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded mb-1">Bé mới nhận</span>
+            <p class="text-sm font-semibold text-gray-900 leading-snug">Bạn vừa nhận bé <span class="text-blue-700">{h.pet_name}</span> từ <span class="text-blue-700">{h.giver_name}</span></p>
+            <p class="text-xs text-gray-500 mt-0.5 mb-2.5">Nhắn tin để hỏi thăm về bé nhé</p>
+            <button type="button" data-foster-msg={h.handover_id} class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
+              <FeatureIcon name="message-circle" class="w-4 h-4" strokeWidth={2} />
+              Nhắn tin
+            </button>
+          </div>
+          <button type="button" data-dismiss-foster={h.handover_id} aria-label="Ẩn thẻ" class="flex-shrink-0 text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
         </div>
       ))}
 
@@ -415,6 +438,55 @@ const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
       try {
         JSON.parse(sessionStorage.getItem("dismissed_reclaims") || "[]").forEach(function (pid) {
           var el = document.querySelector('[data-reclaim-card="' + pid + '"]');
+          if (el) el.remove();
+        });
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- FOSTER #3 — card "bé mới nhận" (receiver): mở chat foster (B1) + dismiss (sessionStorage, giống reclaim) -->
+  <script is:inline>
+    (() => {
+      document.addEventListener("click", async (ev) => {
+        var t = ev.target;
+        if (!t || !t.closest) return;
+
+        // Nút "Nhắn tin" → get-or-create foster conv (B1) → phòng chat
+        var mb = t.closest("[data-foster-msg]");
+        if (mb) {
+          var hid = mb.getAttribute("data-foster-msg");
+          mb.disabled = true;
+          try {
+            var r = await fetch("/api/v1/conversations/foster", {
+              method: "POST", credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ handover_id: Number(hid) }),
+            });
+            var j = await r.json().catch(function () { return {}; });
+            if (r.ok && j.conversationId) { window.location.href = "/messages/" + j.conversationId; }
+            else { window.location.href = "/messages"; }
+          } catch (e) { window.location.href = "/messages"; }
+          return;
+        }
+
+        // Nút ✕ ẩn card "bé mới nhận" (sessionStorage, chỉ phiên này — giống dismissed_reclaims)
+        var df = t.closest("[data-dismiss-foster]");
+        if (df) {
+          var fid = df.getAttribute("data-dismiss-foster");
+          try {
+            var arr = JSON.parse(sessionStorage.getItem("dismissed_fosters") || "[]");
+            if (arr.indexOf(fid) === -1) { arr.push(fid); sessionStorage.setItem("dismissed_fosters", JSON.stringify(arr)); }
+          } catch (e) {}
+          var card = df.closest("[data-foster-card]");
+          if (card) { card.style.transition = "opacity .2s"; card.style.opacity = "0"; setTimeout(function () { card.remove(); }, 200); }
+          return;
+        }
+      });
+
+      // On load: ẩn ngay card foster đã dismiss trong phiên này
+      try {
+        JSON.parse(sessionStorage.getItem("dismissed_fosters") || "[]").forEach(function (fid) {
+          var el = document.querySelector('[data-foster-card="' + fid + '"]');
           if (el) el.remove();
         });
       } catch (e) {}

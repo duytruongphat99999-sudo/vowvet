@@ -3058,11 +3058,18 @@ const storyExcerpt = hasStory
           <!-- Step 3: xong -->
           <template x-if="transferStep === 3">
             <div class="text-center py-2">
-              <div class="w-12 h-12 rounded-full bg-mmp-gold/15 mx-auto mb-3 flex items-center justify-center">
-                <FeatureIcon name="handshake" class="w-6 h-6 text-mmp-ink" />
+              <div class="w-16 h-16 rounded-full bg-emerald-100 mx-auto mb-4 flex items-center justify-center">
+                <FeatureIcon name="check" class="w-8 h-8 text-emerald-600" />
               </div>
-              <h3 class="text-lg font-semibold text-mmp-ink">Đã trao bé <span x-text="pet.name"></span></h3>
-              <p class="text-sm text-slate-600 mt-2">Bé giờ thuộc về <span class="font-semibold" x-text="transferPhone"></span>. Cảm ơn bạn đã nuôi tạm!</p>
+              <h3 class="text-xl font-bold text-mmp-ink">Đã trao bé <span x-text="pet.name"></span> thành công!</h3>
+              <p class="text-sm text-slate-600 mt-2 mb-6">Bé giờ thuộc về <span class="font-semibold text-mmp-ink" x-text="transferPhone"></span>.<br>Nhắn vài lời dặn dò cho người nhận nhé.</p>
+              <button @click="messageRecipient()" :disabled="transferMsgLoading"
+                class="w-full flex items-center justify-center gap-2 bg-mmp-gold hover:bg-mmp-gold/90 disabled:opacity-60 text-mmp-ink font-bold py-3.5 rounded-xl mb-2.5">
+                <FeatureIcon name="message-circle" class="w-5 h-5" strokeWidth={2} />
+                <span x-show="!transferMsgLoading">Nhắn cho người nhận</span>
+                <span x-show="transferMsgLoading">Đang mở…</span>
+              </button>
+              <a href="/dashboard" class="block w-full text-slate-500 hover:text-slate-700 font-medium py-2.5 text-sm">Về trang chính</a>
             </div>
           </template>
         </div>
@@ -3216,6 +3223,9 @@ const storyExcerpt = hasStory
       transferPhone: "",
       transferLoading: false,
       transferError: "",
+      transferHandoverId: 0,   // B: bắt từ response transfer → nút "Nhắn cho người nhận"
+      transferNewOwner: 0,     // id người nhận (response new_owner)
+      transferMsgLoading: false,
 
       // ===== Climate tab state (M5) =====
       climate: {
@@ -4529,12 +4539,33 @@ const storyExcerpt = hasStory
             return;
           }
           // Thành công → bé đã thuộc người khác, mình rời quyền sở hữu.
-          this.transferStep = 3;
-          setTimeout(() => { window.location.href = "/dashboard"; }, 1600);
+          this.transferHandoverId = Number(json.handover_id) || 0;
+          this.transferNewOwner = Number(json.new_owner) || 0;
+          this.transferStep = 3; // KHÔNG auto-redirect — để user chọn "Nhắn cho người nhận" hoặc "Về trang chính"
         } catch (err) {
           this.transferError = "Lỗi kết nối";
         } finally {
           this.transferLoading = false;
+        }
+      },
+      // B: mở/tạo hội thoại foster với người nhận rồi vào phòng chat. Fallback /messages nếu lỗi.
+      async messageRecipient() {
+        if (!this.transferHandoverId) { window.location.href = "/messages"; return; }
+        this.transferMsgLoading = true;
+        try {
+          const r = await fetch("/api/v1/conversations/foster", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ handover_id: this.transferHandoverId }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok && j.conversationId) { window.location.href = "/messages/" + j.conversationId; }
+          else { window.location.href = "/messages"; }
+        } catch (e) {
+          window.location.href = "/messages";
+        } finally {
+          this.transferMsgLoading = false;
         }
       },
     };

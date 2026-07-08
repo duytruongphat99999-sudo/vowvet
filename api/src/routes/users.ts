@@ -26,7 +26,7 @@ import {
 } from "../lib/users.ts";
 import { setSessionCookie } from "../lib/session-cookie.ts";
 import { signSession } from "@shared/jwt.ts";
-import { updateRow } from "@shared/baserow.ts";
+import { listRows, updateRow } from "@shared/baserow.ts";
 import {
   UpdateCitySchema,
   SubscribePushSchema,
@@ -55,6 +55,41 @@ usersRoute.get("/me/reclaim-summary", async (c) => {
   } catch (err) {
     console.error("[users/reclaim-summary] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER #3 — bé user vừa NHẬN (receiver) trong 7 ngày → card dashboard "bé mới nhận" =====
+// Chỉ listRows foster_handovers + users lookup (KHÔNG table/field mới). Nút card dùng B1 /conversations/foster.
+usersRoute.get("/me/foster-received", async (c) => {
+  const session = c.get("user");
+  try {
+    const cutoff = Date.now() - 7 * 24 * 3600 * 1000; // 7 ngày gần đây
+    const hRes = await listRows<any>("foster_handovers" as any, { size: 200 });
+    const mine = hRes.results.filter((h: any) => {
+      if (Number(h.to_user_id) !== session.sub) return false;
+      const t = h.created_at ? new Date(h.created_at).getTime() : 0;
+      return t >= cutoff;
+    });
+    if (mine.length === 0) return c.json({ received: [] });
+
+    // tên người trao — 1 listRows users, map id→tên (giống admin/reclaim)
+    const uRes = await listRows<any>("users", { size: 200 });
+    const nameById = new Map<number, string>();
+    for (const u of uRes.results) nameById.set(u.id, u.name || u.phone || u.email || `user ${u.id}`);
+    const flat = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+
+    const received = mine
+      .sort((a: any, b: any) => String(b.created_at || "").localeCompare(String(a.created_at || "")))
+      .map((h: any) => ({
+        handover_id: h.id,
+        pet_name: flat(h.pet_name) || "bé",
+        giver_name: nameById.get(Number(h.from_user_id)) || `user ${h.from_user_id}`,
+        created_at: h.created_at || null,
+      }));
+    return c.json({ received });
+  } catch (err) {
+    console.error("[users/foster-received] error:", err);
+    return c.json({ received: [] });
   }
 });
 

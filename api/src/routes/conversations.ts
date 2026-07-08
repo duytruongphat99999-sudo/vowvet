@@ -4,6 +4,7 @@
  */
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
+import { getRow } from "@shared/baserow.ts";
 import {
   getConversations,
   findOrCreateConversation,
@@ -64,6 +65,40 @@ conversationsRoute.post("/support", async (c) => {
     return c.json({ conversationId });
   } catch (err) {
     console.error("[conversations/support] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// POST /conversations/foster — tìm/tạo hội thoại foster người trao ↔ người nhận.
+// Input: { handover_id } (suy giver/receiver từ foster_handovers). Idempotent:
+// findOrCreateConversation match theo cặp user + context_id=handoverId → gọi lại trả conv cũ,
+// đồng thời VÁ ca transfer cũ fire-and-forget lỡ chưa tạo conv. Chỉ giver/receiver/admin gọi được.
+conversationsRoute.post("/foster", async (c) => {
+  const s = c.get("user");
+  let body: any;
+  try { body = await c.req.json(); } catch { body = {}; }
+  const handoverId = Number(body?.handover_id);
+  if (!Number.isInteger(handoverId) || handoverId <= 0) {
+    return c.json({ error: { code: "BAD_INPUT", message: "Thiếu handover_id hợp lệ" } }, 400);
+  }
+  try {
+    let handover: any = null;
+    try { handover = await getRow<any>("foster_handovers" as any, handoverId); } catch { handover = null; }
+    if (!handover) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy lượt trao bé" } }, 404);
+    }
+    const giverId = Number(handover.from_user_id);
+    const receiverId = Number(handover.to_user_id);
+    if (!giverId || !receiverId) {
+      return c.json({ error: { code: "BAD_HANDOVER", message: "Lượt trao thiếu thông tin người dùng" } }, 422);
+    }
+    if (!isAdmin(c) && s.sub !== giverId && s.sub !== receiverId) {
+      return c.json({ error: { code: "FORBIDDEN", message: "Không có quyền mở hội thoại này" } }, 403);
+    }
+    const conversationId = await findOrCreateConversation("foster", giverId, receiverId, handoverId, "foster_handover");
+    return c.json({ conversationId });
+  } catch (err) {
+    console.error("[conversations/foster] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });
