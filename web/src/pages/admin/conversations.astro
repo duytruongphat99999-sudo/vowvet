@@ -1,0 +1,63 @@
+---
+/**
+ * /admin/conversations — admin xem TẤT CẢ hội thoại chat support/foster.
+ */
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let conversations: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/admin/conversations`, { headers: { cookie: cookieHeader } });
+  if (res.ok) conversations = (await res.json()).conversations || [];
+} catch (_) {}
+
+function timeAgo(iso: string) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!t) return "";
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return "vừa xong";
+  const m = Math.floor(s / 60); if (m < 60) return `${m} phút`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h} giờ`;
+  return `${Math.floor(h / 24)} ngày`;
+}
+const typeBadge = (t: string) =>
+  t === "admin_support" ? { label: "Hỗ trợ", cls: "bg-blue-50 text-blue-600" }
+  : t === "foster" ? { label: "Trao bé", cls: "bg-amber-50 text-amber-600" }
+  : { label: "Kết đôi", cls: "bg-gray-100 text-gray-500" };
+---
+
+<AdminLayout title="Tin nhắn" currentPage="chat">
+  {conversations.length === 0 ? (
+    <p class="text-sm text-gray-400">Chưa có hội thoại nào.</p>
+  ) : (
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+      {conversations.map((conv: any) => {
+        const tb = typeBadge(conv.type);
+        return (
+          <a href={`/admin/conversations/${conv.id}`} class="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <p class="font-semibold text-sm text-gray-900 truncate">{conv.otherUserName}</p>
+                <span class:list={["text-[10px] px-1.5 py-0.5 rounded flex-shrink-0", tb.cls]}>{tb.label}</span>
+              </div>
+              <p class="text-xs text-gray-500 truncate mt-0.5">{conv.lastMessage || "—"}</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <p class="text-xs text-gray-400">{timeAgo(conv.last_msg_at)}</p>
+              {conv.unreadCount > 0 && <span class="inline-block mt-1 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{conv.unreadCount}</span>}
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  )}
+</AdminLayout>

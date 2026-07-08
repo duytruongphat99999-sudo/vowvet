@@ -1,0 +1,119 @@
+---
+/**
+ * /admin/pets — bảng thú cưng (admin). Auth server-side + fetch /admin/pets (đã lọc deleted_at).
+ * FIX: data qua global (set:html, tránh IIFE) + hàm global + escape "<" chống XSS.
+ */
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let petsData: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/admin/pets`, { headers: { cookie: cookieHeader } });
+  if (res.ok) petsData = (await res.json()).pets || [];
+} catch (_) {}
+
+const petsJson = JSON.stringify(petsData).replace(/</g, "\\u003c");
+---
+
+<AdminLayout title="Thú cưng" currentPage="pets">
+  <div x-data="petsTable()">
+    <div class="flex gap-3 mb-4">
+      <input
+        x-model="search"
+        placeholder="Tên, passport, chủ..."
+        class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#d4a520]"
+      />
+      <select x-model="filterSpecies" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+        <option value="">Tất cả loài</option>
+        <option value="cat">Mèo</option>
+        <option value="dog">Chó</option>
+      </select>
+    </div>
+    <p class="text-xs text-gray-400 mb-3" x-text="filtered.length + ' / ' + allPets.length + ' bé'"></p>
+
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100 text-left text-gray-500">
+          <tr>
+            <th class="px-4 py-3 font-semibold">Passport</th>
+            <th class="px-4 py-3 font-semibold">Tên</th>
+            <th class="px-4 py-3 font-semibold">Loài</th>
+            <th class="px-4 py-3 font-semibold">Chủ</th>
+            <th class="px-4 py-3 font-semibold">Đăng ký</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="p in filtered" :key="p.id">
+            <tr @click="location.href = '/admin/pets/' + p.id" class="border-t border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer">
+              <td class="px-4 py-3"><span class="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600" x-text="p.qr_code || '—'"></span></td>
+              <td class="px-4 py-3 font-medium text-gray-900" x-text="p.name"></td>
+              <td class="px-4 py-3 text-gray-500" x-text="speciesLabel(p.species)"></td>
+              <td class="px-4 py-3 text-gray-600" x-text="p.ownerName"></td>
+              <td class="px-4 py-3 text-gray-400 text-xs" x-text="fmtDate(p.created_at)"></td>
+              <td class="px-4 py-3 text-right">
+                <button @click.stop="del(p)" :disabled="deletingId === p.id" class="text-xs text-red-400 hover:text-red-600 font-medium transition-colors disabled:opacity-40">
+                  <span x-show="deletingId !== p.id">Xoá</span>
+                  <span x-show="deletingId === p.id" style="display:none;">…</span>
+                </button>
+              </td>
+            </tr>
+          </template>
+          <template x-if="filtered.length === 0">
+            <tr><td colspan="6" class="text-center py-12 text-gray-400 text-sm">Không tìm thấy bé nào</td></tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script is:inline set:html={`window.__adminPets = ${petsJson};`}></script>
+  <script is:inline>
+    function petsTable() {
+      return {
+        allPets: window.__adminPets || [],
+        search: "",
+        filterSpecies: "",
+        deletingId: null,
+        get filtered() {
+          var q = this.search.trim().toLowerCase();
+          var sp = this.filterSpecies;
+          return this.allPets.filter(function (p) {
+            if (sp && p.species !== sp) return false;
+            if (!q) return true;
+            return (p.name || "").toLowerCase().includes(q) || (p.qr_code || "").toLowerCase().includes(q) || (p.ownerName || "").toLowerCase().includes(q);
+          });
+        },
+        speciesLabel(s) { return s === "cat" ? "Mèo" : s === "dog" ? "Chó" : "Khác"; },
+        fmtDate(iso) {
+          if (!iso) return "—";
+          var p = String(iso).slice(0, 10).split("-");
+          return p.length === 3 ? (p[2] + "/" + p[1] + "/" + p[0]) : String(iso).slice(0, 10);
+        },
+        async del(p) {
+          if (this.deletingId) return;
+          if (!confirm("Xoá bé " + (p.name || "") + "? Hành động này ảnh hưởng dữ liệu thật.")) return;
+          this.deletingId = p.id;
+          try {
+            var r = await fetch("/api/v1/admin/pets/" + p.id + "/delete", { method: "POST", credentials: "include" });
+            var j = await r.json().catch(function () { return {}; });
+            if (!r.ok || !j.ok) { alert(j.reason || ("Xoá thất bại (" + r.status + ")")); return; }
+            this.allPets = this.allPets.filter(function (x) { return x.id !== p.id; });
+          } catch (e) {
+            alert("Lỗi kết nối");
+          } finally {
+            this.deletingId = null;
+          }
+        },
+      };
+    }
+  </script>
+</AdminLayout>

@@ -1,0 +1,113 @@
+---
+/**
+ * AdminLayout — shell chung cho mọi trang admin (sidebar tối + main).
+ * Auth: MỖI page tự check Astro.locals.user.phone ∈ ADMIN_PHONES (không gate ở đây).
+ * Foster nav badge: Alpine fetch /admin/reclaim-requests client-side.
+ */
+import FeatureIcon from "../components/FeatureIcon.astro";
+
+interface Props {
+  title: string;
+  currentPage: "overview" | "users" | "pets" | "foster" | "chat";
+}
+const { title, currentPage } = Astro.props;
+
+const FOSTER_BADGE = "fetch('/api/v1/admin/reclaim-requests', { credentials: 'include' }).then(r => r.ok ? r.json() : { requests: [] }).then(j => { c = (j.requests || []).length }).catch(() => {})";
+const CHAT_BADGE = "fetch('/api/v1/admin/conversations/unread-count', { credentials: 'include' }).then(r => r.ok ? r.json() : { count: 0 }).then(j => { c = j.count || 0 }).catch(() => {})";
+
+const navItems = [
+  { key: "overview", label: "Tổng quan", href: "/admin", desc: "Số liệu & hoạt động", badgeInit: "" },
+  { key: "users", label: "Người dùng", href: "/admin/users", desc: "Quản lý tài khoản", badgeInit: "" },
+  { key: "pets", label: "Thú cưng", href: "/admin/pets", desc: "Hồ sơ & hộ chiếu", badgeInit: "" },
+  { key: "foster", label: "Foster", href: "/admin/foster-orders", desc: "Yêu cầu & trao bé", badgeInit: FOSTER_BADGE },
+  { key: "chat", label: "Tin nhắn", href: "/admin/conversations", desc: "Chat với người dùng", badgeInit: CHAT_BADGE },
+] as const;
+
+const activeCls = "bg-white/10 text-[#d4a520] border-l-2 border-[#d4a520] pl-[18px]";
+const inactiveCls = "text-white/50 hover:text-white hover:bg-white/5 pl-5";
+
+const dateLabel = new Date().toLocaleDateString("vi-VN", {
+  weekday: "long", year: "numeric", month: "long", day: "numeric",
+});
+---
+
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} · Admin · VowVet</title>
+    <slot name="head" />
+  </head>
+  <body class="bg-gray-50 flex h-screen overflow-hidden">
+    <!-- SIDEBAR -->
+    <aside class="w-52 bg-[#111] flex flex-col flex-shrink-0 h-screen">
+      <div class="px-5 py-5 border-b border-white/10">
+        <div class="text-white font-bold text-base">Vow<span class="text-[#d4a520]">Vet</span></div>
+        <div class="text-[10px] text-white/40 font-medium tracking-widest mt-0.5">ADMIN PANEL</div>
+      </div>
+
+      <nav class="flex-1 py-3">
+        {navItems.map((item) => (
+          <a
+            href={item.href}
+            class:list={["group block py-2.5 pr-5 text-sm font-medium transition-colors", currentPage === item.key ? activeCls : inactiveCls]}
+            {...(item.badgeInit ? { "x-data": "{ c: 0 }", "x-init": item.badgeInit } : {})}
+          >
+            <div class="flex items-center justify-between">
+              <span>{item.label}</span>
+              {item.badgeInit && (
+                <span x-show="c > 0" x-cloak x-text="c" class="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full inline-flex items-center justify-center"></span>
+              )}
+            </div>
+            <span class:list={["block text-[10px] text-white/30 mt-0.5", currentPage === item.key ? "" : "opacity-0 group-hover:opacity-100 transition-opacity"]}>{item.desc}</span>
+          </a>
+        ))}
+      </nav>
+
+      <div class="px-4 py-4 border-t border-white/10">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-7 h-7 rounded-full bg-[#d4a520]/20 flex items-center justify-center text-[#d4a520] text-xs font-bold flex-shrink-0">A</div>
+          <span class="text-white/60 text-xs truncate">Admin VowVet</span>
+        </div>
+        <div class="space-y-1">
+          <a href="/dashboard?as=user" class="flex items-center gap-2 text-white/40 hover:text-white/70 text-xs py-1.5 transition-colors rounded-lg hover:bg-white/5 px-2">
+            <FeatureIcon name="home" class="w-3.5 h-3.5" strokeWidth={1.6} />
+            Về app
+          </a>
+          <a href="/settings" class="flex items-center gap-2 text-white/40 hover:text-white/70 text-xs py-1.5 transition-colors rounded-lg hover:bg-white/5 px-2">
+            <FeatureIcon name="settings" class="w-3.5 h-3.5" strokeWidth={1.6} />
+            Cài đặt
+          </a>
+          <button type="button" onclick="adminLogout()" class="w-full text-left flex items-center gap-2 text-red-400/70 hover:text-red-400 text-xs py-1.5 transition-colors rounded-lg hover:bg-red-500/10 px-2">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+            Đăng xuất
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="bg-white border-b border-gray-100 px-8 py-5">
+        <h1 class="text-xl font-bold text-gray-900">{title}</h1>
+        <p class="text-xs text-gray-400 mt-0.5">{dateLabel}</p>
+      </div>
+      <div class="p-8">
+        <slot />
+      </div>
+    </main>
+
+    <style is:global>@import "../styles/global.css";</style>
+    <style is:global>[x-cloak] { display: none !important; }</style>
+    <script is:inline defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.7/dist/cdn.min.js"></script>
+    <script is:inline>
+      async function adminLogout() {
+        try { await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" }); } catch (e) {}
+        window.location.href = "/login";
+      }
+    </script>
+  </body>
+</html>

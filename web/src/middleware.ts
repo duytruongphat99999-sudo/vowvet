@@ -283,6 +283,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   // ──────────────────────────────────────────────────────────
+  // Step 5.5: Admin dùng admin panel — /pets* → /admin/pets, /dashboard → /admin
+  // ──────────────────────────────────────────────────────────
+  if (isLoggedIn && session?.phone) {
+    const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+      .split(",").map((s: string) => s.trim()).filter(Boolean);
+    if (ADMIN_PHONES.includes(session.phone)) {
+      if (path.startsWith("/pets")) return context.redirect("/admin/pets");
+      // ?as=user → admin chủ động xem dashboard cá nhân (họ cũng là user thật)
+      if (path === "/dashboard" && url.searchParams.get("as") !== "user") return context.redirect("/admin");
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
   // Step 6: Default — logged in + onboarded → pass through
   // ──────────────────────────────────────────────────────────
   return next();

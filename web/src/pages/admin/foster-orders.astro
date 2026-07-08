@@ -6,20 +6,15 @@
  * SĐT chủ bé CHỈ về từ API admin-gated này (③ — dùng để liên hệ lấy địa chỉ giao).
  * KHÔNG gate ở web middleware — bảo vệ ở API.
  */
-import Layout from "../../layouts/Layout.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
 ---
 
-<Layout title="Đơn góp Foster · Admin" description="Quản lý đơn góp gói foster (admin).">
-  <main class="min-h-screen bg-slate-50 px-4 py-8">
-    <div class="max-w-5xl mx-auto" x-data="fosterOrdersAdmin()" x-init="load()">
+<AdminLayout title="Đơn góp Foster" currentPage="foster">
+    <div x-data="fosterOrdersAdmin()" x-init="load()">
 
-      <header class="mb-5">
-        <h1 class="text-2xl font-bold text-slate-900">Đơn góp Foster</h1>
-        <p class="text-sm text-slate-600 mt-1">Liên hệ chủ bé qua SĐT để lấy địa chỉ giao gói.</p>
-        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 inline-block">
-          🔒 SĐT chủ bé chỉ hiển thị cho admin — dùng để liên hệ lấy địa chỉ giao. Không chia sẻ.
-        </p>
-      </header>
+      <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-5 inline-block">
+        🔒 SĐT chủ bé chỉ hiển thị cho admin — dùng để liên hệ lấy địa chỉ giao. Không chia sẻ.
+      </p>
 
       {/* FOSTER Hướng B — queue yêu cầu lấy lại (chủ cũ gửi, admin duyệt) */}
       <div x-show="!loading && !forbidden && reclaimRequests.length > 0" style="display:none;" class="mb-5">
@@ -31,7 +26,7 @@ import Layout from "../../layouts/Layout.astro";
           <div class="bg-white border border-slate-200 rounded-xl p-4 mb-2 flex items-center justify-between gap-3">
             <div class="min-w-0">
               <p class="font-medium text-slate-900">Bé <span x-text="req.pet_name"></span> (<span x-text="req.passport_code"></span>)</p>
-              <p class="text-sm text-slate-500">Chủ cũ: <span x-text="req.requester_name"></span> · <span x-text="timeAgo(req.created_at)"></span></p>
+              <p class="text-sm text-slate-500">Chủ cũ: <span x-text="req.requester_name || 'Ẩn danh'"></span> · <span x-text="timeAgo(req.created_at)"></span></p>
             </div>
             <button @click="approveReclaim(req)" :disabled="approvingId === req.id" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-bold">
               <span x-show="approvingId !== req.id">✅ Duyệt</span>
@@ -41,9 +36,10 @@ import Layout from "../../layouts/Layout.astro";
         </template>
       </div>
 
-      {/* FOSTER P3b — lấy lại bé trao nhầm (admin, hoàn tác 1 bước) */}
-      <section x-show="!loading && !forbidden" style="display:none;" class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
-        <h2 class="font-bold text-slate-900 mb-1">Lấy lại bé (trao nhầm)</h2>
+      {/* FOSTER P3b — lấy lại khẩn; ẩn khi có queue yêu cầu (Bug 1 fix) */}
+      <section x-show="!loading && !forbidden && reclaimRequests.length === 0" style="display:none;" class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <h2 class="font-bold text-slate-900 mb-1">Lấy lại khẩn (không qua yêu cầu)</h2>
+        <p class="text-xs text-gray-400 mb-1">Dùng khi user chưa gửi yêu cầu qua app</p>
         <p class="text-xs text-slate-600 mb-3">Hoàn tác 1 bước: trả bé về chủ ngay trước + trừ credit người trao. Chỉ được khi bé vẫn ở tay người vừa nhận.</p>
         <div class="flex items-center gap-2">
           <input type="text" x-model="reclaimPetId" placeholder="Mã passport (VD: 2CQFYXFY-GE)" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-56 uppercase" />
@@ -119,7 +115,6 @@ import Layout from "../../layouts/Layout.astro";
         </table>
       </div>
     </div>
-  </main>
 
   <script is:inline>
     function fosterOrdersAdmin() {
@@ -225,4 +220,4 @@ import Layout from "../../layouts/Layout.astro";
       };
     }
   </script>
-</Layout>
+</AdminLayout>

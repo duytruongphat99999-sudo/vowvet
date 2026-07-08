@@ -1,23 +1,18 @@
 ---
 /**
- * /admin — admin dashboard (M8).
- * Frontend: phone whitelist check (env ADMIN_PHONES) at Astro.locals.user.phone
- * Backend: same check via requireAdmin middleware.
- *
- * Non-admin → redirect /dashboard.
+ * /admin — Overview (redesign v2: sidebar AdminLayout).
+ * Auth: Astro.locals.user.phone ∈ ADMIN_PHONES (server-side). Non-admin → /dashboard.
+ * Data: GET /admin/stats (đã mở rộng: transfers/pendingReclaims/recentActivity/transfersByWeek).
  */
-import Layout from "../layouts/Layout.astro";
+import AdminLayout from "../layouts/AdminLayout.astro";
 
 const user = Astro.locals.user;
 if (!user) return Astro.redirect("/login");
 
 const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
-  .split(",")
-  .map((s: string) => s.trim())
-  .filter(Boolean);
-
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
 if (!user.phone || !ADMIN_PHONES.includes(user.phone)) {
-  return new Response("403 Forbidden — admin only", { status: 403 });
+  return Astro.redirect("/dashboard");
 }
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -25,235 +20,122 @@ const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
 let stats: any = null;
 try {
-  const res = await fetch(`${API_INTERNAL}/api/v1/admin/stats`, {
-    headers: { cookie: cookieHeader },
-  });
+  const res = await fetch(`${API_INTERNAL}/api/v1/admin/stats`, { headers: { cookie: cookieHeader } });
   if (res.ok) stats = await res.json();
 } catch (_) {}
 
-// M10: Analytics overview
-let analytics: any = null;
-try {
-  const res = await fetch(`${API_INTERNAL}/api/v1/admin/analytics`, {
-    headers: { cookie: cookieHeader },
-  });
-  if (res.ok) analytics = await res.json();
-} catch (_) {}
+const usersTotal = stats?.users?.total ?? 0;
+const usersWeek = stats?.users?.recent_signups_7d ?? 0;
+const petsTotal = stats?.pets?.total ?? 0;
+const species = stats?.pets?.by_species ?? { cat: 0, dog: 0, other: 0 };
+const transfersTotal = stats?.transfers?.total ?? 0;
+const transfersWeek = stats?.transfers?.thisWeek ?? 0;
+const pending = stats?.pendingReclaims ?? 0;
+const weeks: number[] = stats?.transfersByWeek ?? [0, 0, 0, 0, 0, 0, 0, 0];
+const activity: any[] = stats?.recentActivity ?? [];
+
+const maxW = Math.max(...weeks, 1);
+const speciesTotal = Math.max((species.cat || 0) + (species.dog || 0) + (species.other || 0), 1);
+
+function timeAgo(iso: string): string {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!t) return "";
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return `${s} giây trước`;
+  const m = Math.floor(s / 60); if (m < 60) return `${m} phút trước`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h} giờ trước`;
+  return `${Math.floor(h / 24)} ngày trước`;
+}
+
+const kpis = [
+  { label: "Người dùng", value: usersTotal, sub: `+${usersWeek} tuần này`, red: false },
+  { label: "Thú cưng", value: petsTotal, sub: `${species.cat || 0} mèo · ${species.dog || 0} chó`, red: false },
+  { label: "Lượt trao bé", value: transfersTotal, sub: `+${transfersWeek} tuần này`, red: false },
+  { label: "Chờ duyệt lấy lại", value: pending, sub: pending > 0 ? "cần xử lý" : "trống", red: pending > 0 },
+];
+
+const speciesRows = [
+  { key: "Mèo", n: species.cat || 0, color: "#d4a520" },
+  { key: "Chó", n: species.dog || 0, color: "#8b6f47" },
+  { key: "Khác", n: species.other || 0, color: "#cbd5e1" },
+];
 ---
 
-<Layout title="Admin · VowVet" description="Admin dashboard">
-  <main class="min-h-screen bg-slate-50 px-4 sm:px-6 py-6">
-    <div class="max-w-5xl mx-auto">
-      <header class="flex items-center justify-between mb-6">
-        <a href="/dashboard" class="text-sm text-slate-500 hover:text-slate-700">← Dashboard</a>
-        <h1 class="text-xl font-bold text-slate-900">🛠️ Admin</h1>
-        <span class="text-xs text-slate-400 font-mono truncate max-w-[140px]">{user.phone}</span>
-      </header>
-
-      {!stats && (
-        <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 mb-4">
-          ⚠️ Không load được stats. Kiểm tra API logs.
-        </div>
-      )}
-
-      {stats && (
-        <>
-          <!-- Counters grid -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <div class="bg-white rounded-2xl border border-slate-100 p-4">
-              <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Users</p>
-              <p class="text-3xl font-bold text-sky-700">{stats.users.active}</p>
-              <p class="text-xs text-slate-400 mt-1">{stats.users.total} tổng · {stats.users.recent_signups_7d} mới 7d</p>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-100 p-4">
-              <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Pets</p>
-              <p class="text-3xl font-bold text-emerald-700">{stats.pets.total}</p>
-              <p class="text-xs text-slate-400 mt-1">🐶 {stats.pets.by_species.dog} · 🐱 {stats.pets.by_species.cat}</p>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-100 p-4">
-              <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Alerts active</p>
-              <p class="text-3xl font-bold text-amber-700">{stats.alerts.active}</p>
-              <p class="text-xs text-slate-400 mt-1">🚨 {stats.alerts.critical} critical</p>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-100 p-4">
-              <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Vaccines</p>
-              <p class="text-3xl font-bold text-mmp-ink">{stats.vaccines.total}</p>
-              <p class="text-xs text-slate-400 mt-1">{stats.vaccines.reminders_sent_today} push gửi today</p>
-            </div>
-          </div>
-
-          <!-- Care plans + AI cost -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-            <div class="bg-white rounded-2xl border border-slate-100 p-4">
-              <h3 class="text-sm font-semibold text-slate-700 mb-2">🤖 AI Care Plans</h3>
-              <p class="text-2xl font-bold text-slate-900">{stats.care_plans.total_today} <span class="text-sm font-normal text-slate-500">plans today</span></p>
-              <p class="text-xs text-slate-500 mt-1">{stats.care_plans.total_check_ins_recent} check-ins recent</p>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-100 p-4">
-              <h3 class="text-sm font-semibold text-slate-700 mb-2">💰 AI Cost</h3>
-              {analytics?.ai_cost ? (
-                <>
-                  <p class="text-2xl font-bold text-slate-900">${analytics.ai_cost.today_usd.toFixed(4)} <span class="text-sm font-normal text-slate-500">today</span></p>
-                  <p class="text-[10px] text-slate-400 mt-1">
-                    Tuần: ${analytics.ai_cost.week_usd.toFixed(2)} · Tháng: ${analytics.ai_cost.month_usd.toFixed(2)} · All-time: ${analytics.ai_cost.all_time_usd.toFixed(2)}
-                  </p>
-                  <p class="text-[10px] text-slate-400 mt-0.5">{analytics.ai_cost.total_calls} total calls</p>
-                </>
-              ) : (
-                <p class="text-xs text-slate-400">Loading…</p>
-              )}
-            </div>
-          </div>
-
-          <!-- M10: AI cost by feature + last 7 days trend -->
-          {analytics?.ai_cost && (
-            <section class="bg-white rounded-2xl border border-slate-100 p-4 mb-6">
-              <h2 class="text-sm font-semibold text-slate-700 mb-3">📊 AI Cost — 7 ngày qua</h2>
-              <div class="flex items-end gap-1 h-24 mb-2">
-                {analytics.ai_cost.by_day_last_7.map((d: any) => {
-                  const max = Math.max(...analytics.ai_cost.by_day_last_7.map((x: any) => x.cost_usd), 0.0001);
-                  const heightPct = Math.max(2, Math.round((d.cost_usd / max) * 100));
-                  return (
-                    <div class="flex-1 flex flex-col items-center gap-1" title={`${d.date}: $${d.cost_usd.toFixed(4)} (${d.calls} calls)`}>
-                      <div class="text-[9px] text-slate-500 font-mono">${d.cost_usd.toFixed(3)}</div>
-                      <div class="w-full bg-gradient-to-t from-sky-500 to-sky-300 rounded-t" style={`height: ${heightPct}%`}></div>
-                      <div class="text-[9px] text-slate-400">{d.date.slice(5)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div class="text-xs text-slate-500 mt-2 flex gap-3 flex-wrap">
-                {Object.entries(analytics.ai_cost.by_feature).map(([feat, info]: [string, any]) => (
-                  <span><span class="font-semibold">{feat}</span>: {info.calls} calls / ${info.cost_usd.toFixed(4)}</span>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <!-- M10: Triage analytics -->
-          {analytics?.triage && (
-            <section class="bg-white rounded-2xl border border-slate-100 p-4 mb-6">
-              <h2 class="text-sm font-semibold text-slate-700 mb-3">🩺 Triage Analytics ({analytics.triage.total_sessions} sessions)</h2>
-              <div class="grid grid-cols-5 gap-2 mb-3">
-                {[1,2,3,4,5].map((level) => {
-                  const count = analytics.triage.by_urgency[level] || 0;
-                  const bg = level === 5 ? "bg-red-100 text-red-900" : level === 4 ? "bg-orange-100 text-orange-900" : level === 3 ? "bg-amber-100 text-amber-900" : level === 2 ? "bg-sky-100 text-sky-900" : "bg-emerald-100 text-emerald-900";
-                  return (
-                    <div class={`${bg} rounded-lg p-2 text-center`}>
-                      <p class="text-[10px] font-semibold opacity-80">L{level}</p>
-                      <p class="text-xl font-bold">{count}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              <p class="text-xs text-slate-600">
-                🚩 Red flag triggers: <span class="font-semibold text-red-700">{analytics.triage.red_flag_hits}</span>
-                {" · "}
-                Avg cost: ${analytics.triage.avg_cost_usd.toFixed(4)}/session
-              </p>
-              {analytics.triage.top_symptoms.length > 0 && (
-                <div class="mt-3">
-                  <p class="text-xs font-semibold text-slate-600 mb-1">Top 5 triệu chứng:</p>
-                  <div class="space-y-1">
-                    {analytics.triage.top_symptoms.slice(0, 5).map((s: any) => (
-                      <div class="flex justify-between text-xs">
-                        <span class="text-slate-700 truncate">{s.name_vi}</span>
-                        <span class="font-mono text-slate-500 shrink-0 ml-2">{s.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-
-          <!-- M10: SLA breaches (waiting_vet >2h) -->
-          {analytics?.sla_breaches && analytics.sla_breaches.length > 0 && (
-            <section class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 mb-6">
-              <h2 class="text-sm font-bold text-amber-900 mb-3">
-                ⏰ SLA BREACH — {analytics.sla_breaches.length} thread chờ vet &gt;2h
-              </h2>
-              <div class="space-y-1.5">
-                {analytics.sla_breaches.slice(0, 10).map((b: any) => (
-                  <a href={`/chat/${b.thread_id}`}
-                     class="block bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs hover:bg-amber-50 transition">
-                    <div class="flex justify-between gap-2">
-                      <span class="font-semibold text-slate-900 truncate flex-1">{b.subject}</span>
-                      <span class="text-red-700 font-bold shrink-0">{Math.round(b.waiting_minutes / 60)}h{b.waiting_minutes % 60}m</span>
-                    </div>
-                    <p class="text-slate-500 mt-0.5">Owner: {b.owner_user_id} · Pet: {b.pet_name || "—"}</p>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <!-- Recent signups table -->
-          {stats.users.signups_list.length > 0 && (
-            <section class="bg-white rounded-2xl border border-slate-100 p-4 mb-6">
-              <h2 class="text-sm font-semibold text-slate-700 mb-3">🆕 Recent signups (7d)</h2>
-              <div class="overflow-x-auto">
-                <table class="w-full text-xs">
-                  <thead class="text-slate-500">
-                    <tr class="border-b border-slate-100">
-                      <th class="text-left py-1.5 pr-2">ID</th>
-                      <th class="text-left py-1.5 pr-2">Phone</th>
-                      <th class="text-left py-1.5 pr-2">Email</th>
-                      <th class="text-left py-1.5 pr-2">Tên</th>
-                      <th class="text-left py-1.5">Created</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats.users.signups_list.map((u: any) => (
-                      <tr class="border-b border-slate-50">
-                        <td class="py-1.5 pr-2 font-mono">{u.id}</td>
-                        <td class="py-1.5 pr-2 font-mono">{u.phone || "—"}</td>
-                        <td class="py-1.5 pr-2 truncate max-w-[160px]">{u.email || "—"}</td>
-                        <td class="py-1.5 pr-2">{u.name || "—"}</td>
-                        <td class="py-1.5 text-slate-400">{u.created_at?.slice(0, 16).replace("T", " ") || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-
-          <!-- Quick actions -->
-          <section class="bg-white rounded-2xl border border-slate-100 p-4 mb-6">
-            <h2 class="text-sm font-semibold text-slate-700 mb-3">⚡ Quick actions</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <a href="/admin/places" class="bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-medium px-3 py-2.5 rounded-lg text-sm text-center">
-                Duyệt địa điểm
-              </a>
-              <a href="/api/v1/admin/export/users" download class="bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-medium px-3 py-2.5 rounded-lg text-sm text-center">
-                📥 Export users CSV
-              </a>
-              <a href="/api/v1/admin/export/pets" download class="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-medium px-3 py-2.5 rounded-lg text-sm text-center">
-                📥 Export pets CSV
-              </a>
-              <button disabled class="bg-slate-50 border border-slate-200 text-slate-400 font-medium px-3 py-2.5 rounded-lg text-sm cursor-not-allowed" title="Defer M9">
-                📢 Broadcast (M9)
-              </button>
-            </div>
-            <p class="text-[10px] text-slate-400 mt-3">
-              Whitelist: {stats.admin.whitelist_count} admin phone(s) trong ADMIN_PHONES env.
-              Disable user qua API: <code class="bg-slate-100 px-1 rounded">POST /api/v1/admin/users/:id/disable</code>
-            </p>
-          </section>
-
-          <!-- Diagnostics link -->
-          <section class="bg-white rounded-2xl border border-slate-100 p-4">
-            <h2 class="text-sm font-semibold text-slate-700 mb-2">🔧 System</h2>
-            <div class="grid grid-cols-2 gap-2 text-sm">
-              <a href="/health" class="text-sky-600 hover:underline">/health — system status</a>
-              <a href="/food-brands" class="text-sky-600 hover:underline">/food-brands — public catalog</a>
-              <a href="/" class="text-sky-600 hover:underline">/ — landing page</a>
-              <a href="/dashboard" class="text-sky-600 hover:underline">/dashboard — user view</a>
-            </div>
-          </section>
-        </>
-      )}
+<AdminLayout title="Tổng quan" currentPage="overview">
+  {!stats && (
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 mb-6 text-sm">
+      ⚠️ Không load được số liệu. Kiểm tra API logs.
     </div>
-  </main>
-</Layout>
+  )}
+
+  <!-- KPI row -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    {kpis.map((k) => (
+      <div class:list={["rounded-2xl border p-5", k.red ? "bg-red-50 border-red-200" : "bg-white border-gray-100"]}>
+        <p class="text-xs font-medium text-gray-400">{k.label}</p>
+        <p class:list={["text-3xl font-bold mt-1 font-mono", k.red ? "text-red-600" : "text-gray-900"]}>{k.value}</p>
+        <p class:list={["text-xs mt-1", k.red ? "text-red-500" : "text-gray-400"]}>{k.sub}</p>
+      </div>
+    ))}
+  </div>
+
+  <!-- Row 2: bar chart + species -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
+      <h3 class="text-sm font-bold text-gray-900 mb-4">Lượt trao bé theo tuần (8 tuần)</h3>
+      <svg viewBox="0 0 336 140" class="w-full" style="height:150px" role="img" aria-label="Biểu đồ lượt trao bé 8 tuần">
+        {weeks.map((w, i) => {
+          const h = Math.round((w / maxW) * 108);
+          const x = 8 + i * 40;
+          return (
+            <g>
+              <rect x={x} y={118 - h} width="26" height={Math.max(h, 2)} rx="4" fill="#d4a520" opacity={i === 7 ? 1 : 0.5} />
+              <text x={x + 13} y={132} text-anchor="middle" font-size="9" fill="#9ca3af">{i === 7 ? "nay" : `-${7 - i}`}</text>
+              {w > 0 && <text x={x + 13} y={112 - h} text-anchor="middle" font-size="9" fill="#6b7280" font-weight="600">{w}</text>}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6">
+      <h3 class="text-sm font-bold text-gray-900 mb-4">Theo loài</h3>
+      <div class="space-y-3">
+        {speciesRows.map((s) => (
+          <div>
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="text-gray-600 font-medium">{s.key}</span>
+              <span class="text-gray-900 font-mono font-bold">{s.n}</span>
+            </div>
+            <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div class="h-full rounded-full" style={`width:${Math.round((s.n / speciesTotal) * 100)}%;background:${s.color}`}></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity feed -->
+  <div class="bg-white rounded-2xl border border-gray-100 p-6">
+    <h3 class="text-sm font-bold text-gray-900 mb-4">Hoạt động gần nhất</h3>
+    {activity.length === 0 ? (
+      <p class="text-sm text-gray-400">Chưa có hoạt động nào.</p>
+    ) : (
+      <ul class="space-y-3">
+        {activity.map((a) => (
+          <li class="flex items-center gap-3">
+            <span class:list={["w-2 h-2 rounded-full flex-shrink-0", a.type === "reclaim" ? "bg-emerald-500" : "bg-amber-500"]}></span>
+            <p class="text-sm text-gray-700 flex-1 min-w-0 truncate">
+              <span class="font-medium text-gray-900">{a.userName}</span>
+              {a.type === "reclaim" ? " lấy lại bé " : " trao bé "}
+              <span class="font-medium text-gray-900">{a.petName}</span>
+            </p>
+            <span class="text-xs text-gray-400 flex-shrink-0">{timeAgo(a.createdAt)}</span>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</AdminLayout>

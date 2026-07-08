@@ -1,0 +1,84 @@
+---
+/**
+ * /admin/pets/[id] — chi tiết bé (admin): info + chủ + lịch sử trao + xoá mềm.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+
+const id = Number(Astro.params.id);
+if (!Number.isFinite(id) || id <= 0) return Astro.redirect("/admin/pets");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let data: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/admin/pets/${id}`, { headers: { cookie: cookieHeader } });
+  if (res.ok) data = await res.json();
+} catch (_) {}
+if (!data?.pet) return Astro.redirect("/admin/pets");
+
+const p = data.pet;
+const handovers: any[] = data.handovers || [];
+
+function fmtDate(iso: string) {
+  if (!iso) return "—";
+  const parts = String(iso).slice(0, 10).split("-");
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(iso).slice(0, 10);
+}
+const speciesLabel = p.species === "cat" ? "Mèo" : p.species === "dog" ? "Chó" : "Khác";
+---
+
+<AdminLayout title={p.name} currentPage="pets">
+  <a href="/admin/pets" class="text-xs text-gray-400 hover:text-gray-600 mb-4 inline-block">← Danh sách thú cưng</a>
+
+  <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+    <div class="flex items-start justify-between gap-4">
+      <div class="min-w-0">
+        <p class="text-lg font-bold text-gray-900">{p.name}</p>
+        <span class="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded inline-block mt-1">{p.qr_code || "—"}</span>
+        <p class="text-xs text-gray-400 mt-2">{speciesLabel} · Chủ hiện tại: <span class="text-gray-600">{p.ownerName}</span> · Đăng ký {fmtDate(p.created_at)}</p>
+        {p.deleted && <p class="text-xs text-red-500 mt-1">⚠ Bé này đã bị xoá mềm (deleted_at).</p>}
+      </div>
+      {!p.deleted && (
+        <button id="del-btn" data-pet-id={p.id} data-pet-name={p.name} class="flex-shrink-0 text-xs text-red-400 hover:text-red-600 font-medium border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors">Xoá mềm</button>
+      )}
+    </div>
+  </div>
+
+  <h3 class="text-sm font-bold text-gray-900 mb-3">Lịch sử trao bé ({handovers.length})</h3>
+  {handovers.length === 0 ? (
+    <p class="text-sm text-gray-400">Chưa có lịch sử trao.</p>
+  ) : (
+    <ol class="space-y-3 border-l border-gray-100 pl-4">
+      {handovers.map((h: any) => (
+        <li class="relative">
+          <span class="absolute -left-[21px] top-1.5 w-2 h-2 rounded-full bg-amber-500"></span>
+          <p class="text-sm text-gray-900"><span class="font-medium">{h.from}</span> → <span class="font-medium">{h.to}</span></p>
+          <p class="text-xs text-gray-400">{fmtDate(h.created_at)}</p>
+        </li>
+      ))}
+    </ol>
+  )}
+
+  <script is:inline>
+    (() => {
+      var b = document.getElementById("del-btn");
+      if (!b) return;
+      b.addEventListener("click", async () => {
+        if (!confirm("Xoá bé " + (b.dataset.petName || "") + "? Hành động này ảnh hưởng dữ liệu thật.")) return;
+        b.disabled = true;
+        try {
+          var r = await fetch("/api/v1/admin/pets/" + b.dataset.petId + "/delete", { method: "POST", credentials: "include" });
+          if (r.ok) { window.location.href = "/admin/pets"; }
+          else { alert("Xoá thất bại (" + r.status + ")"); b.disabled = false; }
+        } catch (e) { alert("Lỗi kết nối"); b.disabled = false; }
+      });
+    })();
+  </script>
+</AdminLayout>

@@ -1,0 +1,117 @@
+---
+/**
+ * /admin/conversations/[id] — admin trả lời hội thoại (tư cách Admin VowVet).
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+
+const convId = Number(Astro.params.id);
+if (!Number.isFinite(convId) || convId <= 0) return Astro.redirect("/admin/conversations");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let conversations: any[] = [];
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/admin/conversations`, { headers: { cookie: cookieHeader } });
+  if (r.ok) conversations = (await r.json()).conversations || [];
+} catch (_) {}
+const conv = conversations.find((c: any) => c.id === convId);
+if (!conv) return Astro.redirect("/admin/conversations");
+
+let messages: any[] = [];
+try {
+  const r = await fetch(`${API_INTERNAL}/api/v1/conversations/${convId}/messages`, { headers: { cookie: cookieHeader } });
+  if (r.ok) messages = (await r.json()).messages || [];
+} catch (_) {}
+
+const myId = Number((user as any).sub);
+const typeLabel = conv.type === "admin_support" ? "Hỗ trợ VowVet" : conv.type === "foster" ? "Trao bé" : "Kết đôi";
+const chatJson = JSON.stringify({ messages, myId, convId }).replace(/</g, "\\u003c");
+---
+
+<AdminLayout title="Tin nhắn" currentPage="chat">
+  <a href="/admin/conversations" class="text-xs text-gray-400 hover:text-gray-600 mb-3 inline-block">← Danh sách hội thoại</a>
+
+  <div x-data="chatWindow()" x-init="init()" class="bg-white rounded-2xl border border-gray-100 flex flex-col overflow-hidden" style="height: calc(100vh - 12rem)">
+    <div class="border-b border-gray-100 px-5 py-3">
+      <p class="font-semibold text-sm text-gray-900">{conv.otherUserName}</p>
+      <p class="text-xs text-gray-400">{typeLabel} · Bạn đang trả lời với tư cách <span class="text-[#d4a520] font-medium">Admin VowVet</span></p>
+    </div>
+
+    <div x-ref="msgList" class="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+      <template x-for="msg in messages" :key="msg.id">
+        <div :class="msg.sender_id === myId ? 'flex justify-end' : 'flex justify-start'">
+          <div class="px-4 py-2 max-w-[75%] text-sm" :class="msg.sender_id === myId ? 'bg-[#d4a520] text-white rounded-2xl rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-2xl rounded-bl-sm'">
+            <p class="whitespace-pre-wrap break-words" x-text="msg.content"></p>
+            <p class="text-[10px] mt-1 opacity-60 text-right" x-text="timeAgo(msg.created_at)"></p>
+          </div>
+        </div>
+      </template>
+      <p x-show="messages.length === 0" class="text-center text-gray-400 text-sm py-8">Chưa có tin nhắn.</p>
+    </div>
+
+    <div class="border-t border-gray-100 px-5 py-3 flex gap-2">
+      <input x-model="draft" @keydown.enter="send()" maxlength="2000" placeholder="Trả lời với tư cách Admin..." class="flex-1 bg-gray-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#d4a520]" />
+      <button @click="send()" :disabled="!draft.trim() || sending" class="bg-[#d4a520] text-white px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40">Gửi</button>
+    </div>
+  </div>
+
+  <script is:inline set:html={`window.__chat = ${chatJson};`}></script>
+  <script is:inline>
+    function chatWindow() {
+      return {
+        messages: (window.__chat && window.__chat.messages) || [],
+        myId: (window.__chat && window.__chat.myId) || 0,
+        convId: (window.__chat && window.__chat.convId) || 0,
+        draft: "",
+        sending: false,
+        lastId: 0,
+        init() {
+          this.lastId = this.messages.length ? this.messages[this.messages.length - 1].id : 0;
+          this.scrollToBottom();
+          setInterval(() => this.poll(), 5000);
+        },
+        scrollToBottom() {
+          this.$nextTick(() => { var el = this.$refs.msgList; if (el) el.scrollTop = el.scrollHeight; });
+        },
+        async poll() {
+          try {
+            var r = await fetch("/api/v1/conversations/" + this.convId + "/messages?after=" + this.lastId, { credentials: "include" });
+            if (!r.ok) return;
+            var nm = (await r.json()).messages || [];
+            if (nm.length) { this.messages.push.apply(this.messages, nm); this.lastId = nm[nm.length - 1].id; this.scrollToBottom(); }
+          } catch (e) {}
+        },
+        async send() {
+          var content = this.draft.trim();
+          if (!content || this.sending) return;
+          this.sending = true; this.draft = "";
+          try {
+            var r = await fetch("/api/v1/conversations/" + this.convId + "/messages", {
+              method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+              body: JSON.stringify({ content: content }),
+            });
+            var j = await r.json();
+            if (j.message) { this.messages.push(j.message); this.lastId = j.message.id; this.scrollToBottom(); }
+            else { alert((j.error && j.error.message) || "Gửi thất bại"); this.draft = content; }
+          } catch (e) { alert("Lỗi kết nối"); this.draft = content; } finally { this.sending = false; }
+        },
+        timeAgo(iso) {
+          if (!iso) return "";
+          var t = new Date(iso).getTime(); if (!t) return "";
+          var s = Math.floor((Date.now() - t) / 1000);
+          if (s < 60) return "vừa xong";
+          var m = Math.floor(s / 60); if (m < 60) return m + " phút";
+          var h = Math.floor(m / 60); if (h < 24) return h + " giờ";
+          return Math.floor(h / 24) + " ngày";
+        },
+      };
+    }
+  </script>
+</AdminLayout>

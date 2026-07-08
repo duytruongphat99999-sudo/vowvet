@@ -1,0 +1,102 @@
+---
+/**
+ * /admin/users — bảng người dùng (admin). Auth server-side + fetch /admin/users.
+ * FIX: data qua global (set:html, KHÔNG define:vars → tránh IIFE bọc hàm) + hàm global.
+ * Escape "<" trong JSON → chống stored-XSS (user đặt tên chứa </script> tấn công admin).
+ */
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let usersData: any[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/admin/users`, { headers: { cookie: cookieHeader } });
+  if (res.ok) usersData = (await res.json()).users || [];
+} catch (_) {}
+
+const usersJson = JSON.stringify(usersData).replace(/</g, "\\u003c");
+---
+
+<AdminLayout title="Người dùng" currentPage="users">
+  <div x-data="usersTable()">
+    <input
+      x-model="search"
+      placeholder="Tìm tên, phone, email..."
+      class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#d4a520]"
+    />
+    <p class="text-xs text-gray-400 mb-3" x-text="filtered.length + ' / ' + allUsers.length + ' người dùng'"></p>
+
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100 text-left text-gray-500">
+          <tr>
+            <th class="px-4 py-3 font-semibold">Người dùng</th>
+            <th class="px-4 py-3 font-semibold">Liên hệ</th>
+            <th class="px-4 py-3 font-semibold text-center">#Pets</th>
+            <th class="px-4 py-3 font-semibold">Tier</th>
+            <th class="px-4 py-3 font-semibold">Tham gia</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="u in filtered" :key="u.id">
+            <tr @click="location.href = '/admin/users/' + u.id" class="border-t border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-3">
+                  <span class="w-8 h-8 rounded-full bg-gray-800 text-white text-xs font-bold inline-flex items-center justify-center flex-shrink-0" x-text="initials(u)"></span>
+                  <span class="font-medium text-gray-900" x-text="u.name || '(chưa đặt tên)'"></span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-gray-600" x-text="u.phone || u.email || '—'"></td>
+              <td class="px-4 py-3 text-center font-mono text-gray-700" x-text="u.petCount"></td>
+              <td class="px-4 py-3">
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="tierCls(u.tier)" x-text="tierLabel(u.tier)"></span>
+              </td>
+              <td class="px-4 py-3 text-gray-400 text-xs" x-text="fmtDate(u.created_at)"></td>
+            </tr>
+          </template>
+          <template x-if="filtered.length === 0">
+            <tr><td colspan="5" class="text-center py-12 text-gray-400 text-sm">Không tìm thấy user nào</td></tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script is:inline set:html={`window.__adminUsers = ${usersJson};`}></script>
+  <script is:inline>
+    function usersTable() {
+      return {
+        allUsers: window.__adminUsers || [],
+        search: "",
+        get filtered() {
+          var q = this.search.trim().toLowerCase();
+          if (!q) return this.allUsers;
+          return this.allUsers.filter(function (u) {
+            return (u.name || "").toLowerCase().includes(q) || (u.phone || "").includes(q) || (u.email || "").toLowerCase().includes(q);
+          });
+        },
+        initials(u) { return (((u.name || u.phone || "?").trim().charAt(0)) || "?").toUpperCase(); },
+        tierLabel(t) { return t === "foster_caring" ? "Caring" : t === "foster_helper" ? "Helper" : "Mới"; },
+        tierCls(t) {
+          return t === "foster_caring"
+            ? "bg-amber-100 text-amber-700"
+            : t === "foster_helper"
+            ? "bg-blue-100 text-blue-700"
+            : "bg-gray-100 text-gray-500";
+        },
+        fmtDate(iso) {
+          if (!iso) return "—";
+          var p = String(iso).slice(0, 10).split("-");
+          return p.length === 3 ? (p[2] + "/" + p[1] + "/" + p[0]) : String(iso).slice(0, 10);
+        },
+      };
+    }
+  </script>
+</AdminLayout>

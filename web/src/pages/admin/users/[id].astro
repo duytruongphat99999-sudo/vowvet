@@ -1,0 +1,83 @@
+---
+/**
+ * /admin/users/[id] — chi tiết user (admin): info + pets grid + lịch sử trao.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+
+const id = Number(Astro.params.id);
+if (!Number.isFinite(id) || id <= 0) return Astro.redirect("/admin/users");
+
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
+
+let data: any = null;
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/admin/users/${id}`, { headers: { cookie: cookieHeader } });
+  if (res.ok) data = await res.json();
+} catch (_) {}
+if (!data?.user) return Astro.redirect("/admin/users");
+
+const u = data.user;
+const pets: any[] = data.pets || [];
+const handovers: any[] = data.handovers || [];
+
+function fmtDate(iso: string) {
+  if (!iso) return "—";
+  const p = String(iso).slice(0, 10).split("-");
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(iso).slice(0, 10);
+}
+const tierLabel = u.tier === "foster_caring" ? "Caring" : u.tier === "foster_helper" ? "Helper" : "Mới";
+const speciesLabel = (s: string) => (s === "cat" ? "Mèo" : s === "dog" ? "Chó" : "Khác");
+const initial = ((u.name || u.phone || "?").trim().charAt(0) || "?").toUpperCase();
+---
+
+<AdminLayout title={u.name || `Người dùng #${u.id}`} currentPage="users">
+  <a href="/admin/users" class="text-xs text-gray-400 hover:text-gray-600 mb-4 inline-block">← Danh sách người dùng</a>
+
+  <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6 flex items-center gap-4">
+    <span class="w-14 h-14 rounded-full bg-gray-800 text-white text-lg font-bold inline-flex items-center justify-center flex-shrink-0">{initial}</span>
+    <div class="flex-1 min-w-0">
+      <p class="text-lg font-bold text-gray-900">{u.name || "(chưa đặt tên)"}</p>
+      <p class="text-sm text-gray-500">{u.phone || u.email || "—"}</p>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-400">
+        <span>Tier: {tierLabel}</span><span>·</span><span>{u.petCount} pets</span><span>·</span><span>Tham gia {fmtDate(u.created_at)}</span>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="text-sm font-bold text-gray-900 mb-3">Thú cưng ({pets.length})</h3>
+  {pets.length === 0 ? (
+    <p class="text-sm text-gray-400 mb-8">Không có bé nào.</p>
+  ) : (
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+      {pets.map((p: any) => (
+        <a href={`/admin/pets/${p.id}`} class="block bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-300 transition-colors">
+          <p class="font-medium text-gray-900 text-sm truncate">{p.name}</p>
+          <span class="font-mono text-[11px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded inline-block mt-1">{p.qr_code || "—"}</span>
+          <p class="text-xs text-gray-400 mt-1">{speciesLabel(p.species)} · {fmtDate(p.created_at)}</p>
+        </a>
+      ))}
+    </div>
+  )}
+
+  <h3 class="text-sm font-bold text-gray-900 mb-3">Lịch sử trao bé</h3>
+  {handovers.length === 0 ? (
+    <p class="text-sm text-gray-400">Chưa có lịch sử.</p>
+  ) : (
+    <ol class="space-y-3 border-l border-gray-100 pl-4">
+      {handovers.map((h: any) => (
+        <li class="relative">
+          <span class:list={["absolute -left-[21px] top-1.5 w-2 h-2 rounded-full", h.direction === "out" ? "bg-amber-500" : "bg-emerald-500"]}></span>
+          <p class="text-sm text-gray-900"><span class="font-medium">{h.pet_name}</span> — {h.direction === "out" ? "Trao đi" : "Nhận về"}</p>
+          <p class="text-xs text-gray-400">{h.from} → {h.to} · {fmtDate(h.created_at)}</p>
+        </li>
+      ))}
+    </ol>
+  )}
+</AdminLayout>
