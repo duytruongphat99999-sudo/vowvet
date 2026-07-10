@@ -1974,7 +1974,7 @@ petsRoute.get("/:id{[0-9]+}/activity", async (c) => {
     // Helper: safely list a table — never throw, never break the response.
     async function safeList(table: string, filter: any, opts: any = {}): Promise<any[]> {
       try {
-        const r = await listRows<any>(table, { filter, size: opts.size || 100, orderBy: opts.orderBy });
+        const r = await listRows<any>(table as import("@shared/baserow-config.ts").TableName, { filter, size: opts.size || 100, orderBy: opts.orderBy });
         return r.results || [];
       } catch (err) {
         console.warn(`[pets/activity] ${table} fail-soft:`, String((err as any)?.message || err).slice(0, 100));

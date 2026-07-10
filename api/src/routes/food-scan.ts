@@ -127,7 +127,7 @@ foodScanRoute.post("/:id{[0-9]+}/food/scan", async (c) => {
     if (P != null && F != null) {
       if ((ocr as any)?.ash_pct != null) { ash_pct = (ocr as any).ash_pct; }
       else { ash_pct = 7; ash_estimated = true; }
-      carb_pct = Math.max(0, Math.round((100 - P - F - (FB || 0) - (M || 0) - ash_pct) * 10) / 10);
+      carb_pct = Math.max(0, Math.round((100 - P - F - (FB || 0) - (M || 0) - ash_pct!) * 10) / 10);
     }
 
     // Persist scan_logs — fire-and-forget (lỗi ghi KHÔNG làm fail scan; pattern community-feed).
