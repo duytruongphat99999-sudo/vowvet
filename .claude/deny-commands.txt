@@ -5,6 +5,12 @@ docker\s+volume\s+(rm|prune)
 docker\s+system\s+prune
 # Không cho agent deploy
 wrangler\s+deploy
+# Chặn chạy script từ thư mục tạm (agent viết script ra ngoài repo rồi chạy = né mọi luật soi file)
+(python|python3|node|bash|sh)\s+[^|;&]*(scratch|tmp|[/\\][Tt]emp[/\\]|\.tmp)
+# Chặn code inline -c (cũng là đường né luật)
+(python|python3|node)\s+-c
+# Chặn gọi thẳng GitHub API — agent không cầm token; mở PR thì dùng gh (credential nằm trong keyring)
+curl[^|;&]*api\.github\.com
 # Baserow: cấm xoá cứng row qua API (luật soft-delete — set deleted_at)
 -X\s*DELETE[^|;&]*(baserow|database/rows)
 (baserow|database/rows)[^|;&]*-X\s*DELETE

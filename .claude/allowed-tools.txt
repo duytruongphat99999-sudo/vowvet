@@ -13,3 +13,5 @@ Bash(curl http://localhost:*)
 # Bàn giao: agent ĐƯỢC push nhánh auto/* để mở PR (main bị guard.sh chặn cứng)
 Bash(git push -u origin auto/:*)
 Bash(git push origin auto/:*)
+# Mở PR qua gh — credential trong keyring, agent không bao giờ thấy token
+Bash(gh pr create:*)
