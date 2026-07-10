@@ -1,0 +1,14 @@
+# on-edit.rules — VowVet (2026-07-10). Định dạng: <glob><TAB><lệnh shell>
+# Phân cách BẮT BUỘC là TAB. Biến có sẵn: $FILE (tuyệt đối), $REL (tương đối gốc repo).
+# Lệnh fail (exit ≠ 0) chỉ hiện cảnh báo cho Claude thấy — dùng làm "lời nhắc".
+
+# bun --watch không hot-reload đáng tin trên bind-mount Windows → restart API
+api/src/*	docker restart vowvet-api
+shared/*	docker restart vowvet-api
+
+# web SSR prod chạy dist baked trong image — restart KHÔNG đủ. Rebuild thì nặng,
+# làm MỘT LẦN cuối task (nhắc qua cảnh báo, không tự chạy mỗi lần sửa file):
+web/src/*	echo "web/src đổi → CUỐI TASK: docker compose -f docker/docker-compose.yml up -d --build vowvet-web" >&2; false
+
+# Đụng file được service worker cache → nhắc bump version
+web/public/*	echo "Nhớ bump CACHE_VERSION (vXXX, tăng dần) trong web/public/sw.js" >&2; false

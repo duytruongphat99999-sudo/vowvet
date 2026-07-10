@@ -1,0 +1,74 @@
+epic: chat-user-to-user
+base: main
+
+# ═══════════════════════════════════════════════════════════════════════
+# LUẬT 1 — HỢP ĐỒNG TRƯỚC, CODE SAU
+#   Chỗ A gặp B (types, API schema, DB schema) là MỘT task riêng,
+#   contract: true, không có needs, chạy một mình ở wave 0.
+#   Mọi task sau đều đọc nó thay vì tự phát minh.
+#
+# LUẬT 2 — ĐỒ THỊ, KHÔNG PHẢI DANH SÁCH
+#   Thứ tự do 'needs' quyết định, không do vị trí dòng.
+#
+# LUẬT 3 — CHỦ QUYỀN FILE
+#   'touches' khai file task sẽ sửa. Hai task cùng wave đụng cùng file
+#   → plan.py CHẶN trước khi chạy, không đợi merge conflict.
+# ═══════════════════════════════════════════════════════════════════════
+
+tasks:
+  # ── WAVE 0 ────────────────────────────────────────────── hợp đồng ──
+  - id: contract
+    contract: true
+    goal: >
+      Định nghĩa hợp đồng chat: type Message, Conversation, ConversationMember;
+      Baserow table schema (có deleted_at cho soft-delete);
+      OpenAPI cho 4 endpoint: list conversations, get messages, send, mark-read.
+      CHỈ viết type + schema + stub trả 501. KHÔNG implement logic.
+    touches:
+      - src/shared/types/chat.ts
+      - src/api/routes/chat/*.ts
+      - docs/api/chat.yaml
+    verify: bun run typecheck
+
+  # ── WAVE 1 ──────────────── A và B chạy song song, không đụng nhau ──
+  - id: A1-backend-crud
+    needs: [contract]
+    goal: Implement 4 endpoint chat theo docs/api/chat.yaml. Soft-delete, không hard-delete.
+    touches: [src/api/routes/chat/*.ts, src/api/services/chat.ts]
+    verify: bun test api/chat
+
+  - id: B1-ui-shell
+    needs: [contract]
+    goal: >
+      Dựng ChatWindow + ConversationList, dùng type từ shared/types/chat.ts.
+      Dữ liệu mock, chưa gọi API thật.
+    touches: [src/components/chat/**]
+    verify: bun test components/chat
+
+  # ── WAVE 2 ───────────────────────── chỗ A và B thật sự thông luồng ──
+  - id: A2-realtime
+    needs: [A1-backend-crud]
+    goal: WebSocket broadcast message mới tới các member của conversation.
+    touches: [src/api/ws/**]
+    verify: bun test api/ws
+
+  - id: B2-wire-api
+    needs: [A1-backend-crud, B1-ui-shell]
+    goal: Bỏ mock, nối ChatWindow vào 4 endpoint thật.
+    touches: [src/components/chat/hooks/**]
+    verify: bun test components/chat
+
+  # ── WAVE 3 ────────────────────────────────── kiểm chứng liên thông ──
+  - id: integration
+    needs: [A2-realtime, B2-wire-api]
+    goal: >
+      Test e2e: user 1 gửi tin → user 2 nhận realtime không cần refresh.
+      Soft-delete tin nhắn → biến mất ở cả hai phía, badge unread giảm đúng.
+    touches: [tests/e2e/chat.spec.ts]
+    verify: bun test e2e/chat
+
+  - id: entrypoint
+    needs: [B2-wire-api]
+    goal: Thêm nút "Nhắn tin" vào ProfileHeader, mở ChatWindow đúng conversation.
+    touches: [src/components/profile/ProfileHeader.astro]
+    verify: bun test components/profile

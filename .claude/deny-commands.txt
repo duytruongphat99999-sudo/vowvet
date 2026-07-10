@@ -1,0 +1,10 @@
+# deny-commands.txt — VowVet. Regex ERE, guard.sh chặn cứng (PreToolUse).
+# Hạ stack / bay dữ liệu Baserow
+docker\s+compose\s+.*\bdown\b
+docker\s+volume\s+(rm|prune)
+docker\s+system\s+prune
+# Không cho agent deploy
+wrangler\s+deploy
+# Baserow: cấm xoá cứng row qua API (luật soft-delete — set deleted_at)
+-X\s*DELETE[^|;&]*(baserow|database/rows)
+(baserow|database/rows)[^|;&]*-X\s*DELETE

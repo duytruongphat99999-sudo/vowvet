@@ -1,0 +1,7 @@
+# PROJECT.md — tri thức riêng của dự án
+#
+# ĐỪNG viết tay file này. Chạy `/onboard` để Claude tự khảo sát repo và sinh ra.
+# Sau đó bạn đọc lại, sửa chỗ nó đoán sai, rồi commit.
+#
+# Đây là file DUY NHẤT chứa thông tin riêng của dự án.
+# Mọi thứ khác trong .claude/ là generic, copy sang repo khác dùng được ngay.

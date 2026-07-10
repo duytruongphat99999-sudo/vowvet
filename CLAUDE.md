@@ -128,3 +128,13 @@ LƯU Ý    : <bẫy / điều kiện biên>
 ## 11. Backup
 - Bundle off-machine: `git bundle --all` → `C:\docker\backups\vowvet-<YYYYMMDD-HHMM>.bundle` → verify + clone-test → kéo lên cloud.
 - Tạo bundle mới mỗi mốc lớn (release / nhiều commit).
+
+---
+
+## 12. claude-harness (cài 2026-07-10) — /task, /epic, hàng đợi
+- Harness đã cài trong `.claude/` (commands + scripts + hooks). **Tri thức dự án ở `.claude/PROJECT.md`** — /task và /epic đọc nó trước tiên.
+- **Việc mới → gõ `/task <mô tả thô>`** (tự chuẩn hoá spec → code → verify → mở PR). Tính năng lớn đan xen BE↔FE → `/epic <mục tiêu>` → duyệt sơ đồ wave → chạy tay `.claude/scripts/run-plan.sh`.
+- "XONG" = `bash .claude/scripts/verify.sh` XANH (typecheck api + build web). Repo CHƯA có test — không khai "test pass".
+- **NGOẠI LỆ cho §2.5 + §3 (push)**: trong luồng harness, nhánh `auto/*` và `epic/*` ĐƯỢC push lên origin để mở PR — đó là điểm bàn giao. `main` vẫn CẤM push thẳng (guard.sh chặn cứng, không thương lượng). Người merge PR là Duy; agent không bao giờ merge.
+- Hooks đang bật: `guard.sh` (PreToolUse — chặn lệnh nguy hiểm + `deny-commands.txt`), `after-edit.sh` (PostToolUse — tự `docker restart vowvet-api` khi sửa `api/src/*`/`shared/*`, nhắc rebuild web + bump SW theo `on-edit.rules`).
+- **Không sửa `.claude/scripts/`, `.claude/settings.json`, `deny-commands.txt` từ trong phiên** — đó là lớp phòng thủ.

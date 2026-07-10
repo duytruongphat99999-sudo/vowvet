@@ -1,0 +1,37 @@
+{
+  "$comment": "Harness settings. Commit file này vào git — luật của repo phải versioned.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/after-edit.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/notify.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

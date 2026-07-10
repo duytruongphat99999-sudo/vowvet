@@ -28,7 +28,13 @@ data/api/gemini-usage.log.jsonl
 *.bundle
 # harness/probe/ảnh test + dist-verify (A1) — đồ thí nghiệm, KHÔNG commit (bài học data/pgdata 1571 file)
 tmp/
-.claude/
+# claude-harness (2026-07-10): .claude/ ĐƯỢC commit (luật repo phải versioned).
+# Chỉ ignore phần máy-cục-bộ / runtime:
+.claude/launch.json
+.claude/plan.yaml
 # CONTEXT_SYNC scratchpad (PII + ghi chu noi bo) — KHONG commit
 CONTEXT_SYNC*.md
 docs/CONTEXT_SYNC.md
+
+.claude/runs/
+.claude/.queue.lock

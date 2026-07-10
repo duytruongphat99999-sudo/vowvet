@@ -1,0 +1,15 @@
+# allowed-tools.txt — VowVet. run-task.sh (headless) nạp file này.
+# NGUYÊN TẮC: không bao giờ ghi "Bash" trần — scope theo từng lệnh.
+Bash(bun install)
+Bash(bun run typecheck:*)
+Bash(bun run build:*)
+Bash(node --check:*)
+Bash(bash .claude/scripts/verify.sh)
+Bash(docker restart vowvet-api)
+Bash(docker compose -f docker/docker-compose.yml up -d --build vowvet-web)
+Bash(docker ps:*)
+Bash(docker logs:*)
+Bash(curl http://localhost:*)
+# Bàn giao: agent ĐƯỢC push nhánh auto/* để mở PR (main bị guard.sh chặn cứng)
+Bash(git push -u origin auto/:*)
+Bash(git push origin auto/:*)
