@@ -32,24 +32,32 @@ deny() {
 # glob sẽ che phần lậu ("bun run x && python evil.py").
 INTERP_OK=0
 case "$CMD" in
-  *';'*|*'&'*|*'|'*) ;;                                    # lệnh ghép: không miễn trừ
-  python\ .claude/scripts/*|python3\ .claude/scripts/*) INTERP_OK=1 ;;
-  bash\ .claude/scripts/*)                               INTERP_OK=1 ;;
-  bun\ run\ *|bun\ install*|bun\ test*)                  INTERP_OK=1 ;;
+  *';'*|*'&'*|*'|'*|*'$('*|*'`'*|*'..'*) ;;               # ghép / subst / traversal: KHÔNG miễn trừ
+  python\ .claude/scripts/*.py|python3\ .claude/scripts/*.py) INTERP_OK=1 ;;
+  bash\ .claude/scripts/*.sh)                            INTERP_OK=1 ;;
+  bun\ install|bun\ install\ --cwd\ *)                   INTERP_OK=1 ;;
+  bun\ test|bun\ test\ *)                                INTERP_OK=1 ;;
+  "bun run "*|"npm run "*|"pnpm run "*|"yarn "*|"yarn run "*)
+    # CHỈ cho tên-script bareword ở token CUỐI (typecheck/build/…). Chặn `bun run <file>`,
+    # `./x`, `.mjs/.ts`, `--cwd <file>` — vì bun run <file> = chạy code tuỳ ý (bài học task #2).
+    # `bun run --cwd api typecheck` vẫn qua (token cuối = typecheck).
+    case "${CMD##* }" in
+      typecheck|build|lint|test|dev|start|preview|check) INTERP_OK=1 ;;
+    esac ;;
 esac
 if [ "$INTERP_OK" != 1 ]; then
-  deny '(^|[;&|][[:space:]]*)(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?[[:space:]]+[^-]' \
+  deny '(^|[;&|][[:space:]]*)(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php|npm|pnpm|yarn|corepack)(\.exe)?[[:space:]]+[^-]' \
        'Interpreter chỉ được chạy: script trong .claude/scripts/, hoặc bun run/install/test dạng lệnh ĐƠN (lệnh ghép thì tách ra từng lệnh). Cần thứ khác → DỪNG và hỏi người duyệt, đừng tìm đường vòng.'
   # Cờ chạy-code-inline: -c/-e/-r/--eval/--exec/-p/--print. Rule trên bỏ qua (vì cố ý cho -- qua như node --check),
   # nên phải bắt riêng. node --check / --version vẫn qua (không khớp các cờ này).
-  deny '(^|[;&|][[:space:]]*)(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*(-c|-e|-r|-p|--eval|--exec|--print)([[:space:]"'"'"'=]|$)' \
+  deny '(^|[;&|][[:space:]]*)(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php|npm|pnpm|yarn|corepack)(\.exe)?[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*(-c|-e|-r|-p|--eval|--exec|--print)([[:space:]"'"'"'=]|$)' \
        'Interpreter với cờ chạy-code-inline (-c/-e/-r/--eval/--print) bị cấm — đó là đường né soi file.'
-  deny '\|[[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?([[:space:]]|$)' \
+  deny '\|[[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php|npm|pnpm|yarn|corepack)(\.exe)?([[:space:]]|$)' \
        'Không pipe dữ liệu vào interpreter.'
   # Command substitution $(...) và backtick nhúng interpreter — vector chạy code không qua tên file
-  deny '\$\([[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?([[:space:]]|$)' \
+  deny '\$\([[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php|npm|pnpm|yarn|corepack)(\.exe)?([[:space:]]|$)' \
        'Không nhúng interpreter trong $(...).'
-  deny '`[[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?([[:space:]]|$)' \
+  deny '`[[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php|npm|pnpm|yarn|corepack)(\.exe)?([[:space:]]|$)' \
        'Không nhúng interpreter trong backtick.'
   deny '(^|[;&|][[:space:]]*)(source|\.)[[:space:]]+' \
        'Không source file vào shell.'
@@ -81,8 +89,12 @@ deny 'curl[^|;&]*(TOKEN|KEY|SECRET|PASSWORD)' 'Có vẻ đang gửi secret ra ng
 deny '(cat|cp|scp)[^|;&]*(id_rsa|id_ed25519|\.ssh/)' 'Đụng tới SSH key.'
 
 # ── 4. Không sửa chính lớp phòng thủ ──────────────────────────────────
-deny '(>|>>|tee|sed[[:space:]]+-i|rm)[^|;&]*\.claude/(scripts|settings\.json|deny-commands)' \
+deny '(>|>>|tee|sed[[:space:]]+-i|rm|cp|mv|install)[^|;&]*\.claude/(scripts|settings\.json|settings\.local\.json|deny-commands|allowed-tools|on-edit)' \
      'Không sửa file harness từ trong phiên.'
+# Stamp verify: CHỈ verify.sh được tạo (touch từ trong script, không qua tool). Chặn mọi
+# đường giả mạo qua Bash — touch/redirect/cp. (Write tool thì protect-harness.sh chặn.)
+deny '(>|>>|tee|touch|cp|mv|install|printf|echo)[^|;&]*\.claude/\.verify-ok' \
+     'Chỉ verify.sh được tạo stamp .verify-ok. Cấm giả mạo — chạy verify.sh thật.'
 
 # ── 5. Luật riêng dự án ───────────────────────────────────────────────
 DENYFILE="${CLAUDE_PROJECT_DIR:-.}/.claude/deny-commands.txt"

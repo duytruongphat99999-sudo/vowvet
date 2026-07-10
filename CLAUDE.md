@@ -13,11 +13,13 @@
 
 → Claude Code chỉ làm trong **【SCOPE】**. Gặp việc ngoài scope / đụng file cấm → **DỪNG, báo, đợi duyệt**. Không tự quyết.
 
+> **Ngoại lệ /task và /epic** (phiên harness headless): chuỗi **verify → commit → nhánh `auto/*` → `gh pr create`** là hành vi **MONG ĐỢI, KHÔNG hỏi**. **PR là điểm dừng** để người duyệt — KHÔNG dừng ở "viết code xong", KHÔNG hỏi "commit không?". SAFE MODE "dừng-hỏi" ở trên chỉ áp **phiên tương tác thường**. Xem §12.
+
 ---
 
 ## 1. Stack & vị trí file
 - **Stack**: Astro 5 (SSR) · Bun · Alpine.js · Tailwind v4 · Baserow (DB/backend) · Leaflet (map) · Docker trên **Windows server**.
-- **Domain**: `vowvet.monminpet.com` — **LOCAL-ONLY, CHƯA push GitHub**.
+- **Domain**: `vowvet.monminpet.com`. Repo **đã trên GitHub** (`github.com/duytruongphat99999-sudo/vowvet`, origin/main hiện hành). Deploy vẫn là Docker local trên Windows server.
 - **Container**: `vowvet-web` (Astro SSR) · `vowvet-api`.
 - **Đường dẫn chính**:
   - `web/src/pages/…` — trang (`pets/[id].astro`, `pets/[id]/pet-score.astro`, `food-brands.astro`, `pets/new` wizard, `dev/reset-onboarding`…)
@@ -38,11 +40,11 @@
 ## 2. 【SAU】 — Nghi thức kết thúc MỌI task (làm đủ, đúng thứ tự)
 1. **Web (SSR prod)**: sửa `.astro` → **KHÔNG chỉ `restart`** (prod chạy `dist` baked trong image, `restart` nạp lại bản build cũ). Phải **rebuild image**:
    `docker compose -f docker/docker-compose.yml up -d --build vowvet-web`
-   → **API** (`--watch`): sửa `.ts` → **hot-reload tự động**, không cần restart. → **Static/public** (sw.js, ảnh): **live ngay** qua mount, không cần gì.
+   → **API**: sửa `.ts` → **PHẢI `docker restart vowvet-api`**. Bun `--watch` KHÔNG hot-reload đáng tin trên bind-mount Windows (sự kiện file-change không truyền qua ranh giới host↔container) — hook `after-edit.sh` tự restart. **ĐỪNG nói "không cần restart vì có --watch"** — câu đó SAI trên môi trường này. → **Static/public** (sw.js, ảnh): **live ngay** qua mount, không cần gì.
 2. Có sửa `<script is:inline>` → `node --check` từng file. Inline script = **JS THUẦN**, không TS (vd `as number[]` → Alpine SyntaxError).
 3. **Bump SW version** `vXXX` trong `web/public/sw.js` (để qua cache PWA).
 4. Verify thật: trang cần login → mint session cookie, mở `localhost:4322`, **chụp/đo DOM thật + console SẠCH**. KHÔNG đoán "browser sẽ đúng".
-5. Commit **LOCAL** (xem §3). **KHÔNG push** nếu chưa được bảo.
+5. **Phiên tương tác thường**: commit LOCAL, hỏi trước khi push. **Phiên /task, /epic**: verify → commit → nhánh `auto/*` → mở PR, KHÔNG hỏi (xem §0 ngoại lệ + §12).
 
 ---
 
@@ -51,7 +53,7 @@
 - **Commit msg**: conventional + đuôi version → `type: mô tả (vXXX)`
   (vd `perf: cache+parallelize loading + skeleton mượt mobile (v276)`).
 - **Co-author**: `Claude Opus 4.8 (1M context)`.
-- **LOCAL ONLY** — không `git push` trừ khi Duy yêu cầu. **Secret-scan** trước mỗi commit.
+- **Push**: `main` CẤM push thẳng (guard.sh chặn cứng). Nhánh `auto/*` và `epic/*` ĐƯỢC push để mở PR — đó là bàn giao chuẩn của /task, /epic. Phiên tương tác thường: hỏi trước khi push. **Secret-scan** trước mỗi commit.
 
 ---
 

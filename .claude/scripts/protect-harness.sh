@@ -26,8 +26,10 @@ case "$F" in
 esac
 
 # 2) Lớp phòng thủ: agent KHÔNG được sửa từ trong phiên
+#    .verify-ok = bằng chứng verify (require-verify.sh dựa vào). CHỈ verify.sh touch nó.
+#    Nếu agent Write/Edit thẳng file này = giả mạo cổng verify → chặn.
 case "$F" in
-  */.claude/scripts/*|*/.claude/settings.json|*/.claude/settings.local.json|*/.claude/deny-commands.txt|*/.claude/allowed-tools.txt|*/.claude/on-edit.rules|*/.claude/commands/*|*/.claude/agents/*|*/CLAUDE.md|*/.gitattributes)
+  */.claude/scripts/*|*/.claude/settings.json|*/.claude/settings.local.json|*/.claude/deny-commands.txt|*/.claude/allowed-tools.txt|*/.claude/on-edit.rules|*/.claude/commands/*|*/.claude/agents/*|*/.claude/.verify-ok|*/CLAUDE.md|*/.gitattributes)
     echo "⛔ HOOK CHẶN: '$F' là lớp phòng thủ của harness. Sửa bằng tay, ngoài phiên agent." >&2
     exit 2 ;;
 esac
