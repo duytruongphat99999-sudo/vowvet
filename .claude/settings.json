@@ -32,6 +32,7 @@
       "Bash(docker compose -f docker/docker-compose.yml up -d --build vowvet-web)",
       "Bash(docker ps:*)",
       "Bash(docker logs:*)",
+      "Bash(curl -s http://localhost:*)",
       "Bash(curl http://localhost:*)"
     ],
     "deny": [
@@ -51,6 +52,10 @@
           {
             "type": "command",
             "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/require-verify.sh"
           }
         ]
       },

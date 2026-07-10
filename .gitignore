@@ -32,6 +32,7 @@ tmp/
 # Chỉ ignore phần máy-cục-bộ / runtime:
 .claude/launch.json
 .claude/plan.yaml
+.claude/.verify-ok
 # CONTEXT_SYNC scratchpad (PII + ghi chu noi bo) — KHONG commit
 CONTEXT_SYNC*.md
 docs/CONTEXT_SYNC.md

@@ -24,6 +24,13 @@
 - Sửa `api/src/*` hoặc `shared/*` xong **PHẢI**: `docker restart vowvet-api`
   (bun --watch không hot-reload đáng tin trên bind-mount Windows — hook after-edit tự chạy,
   kiểm lại có dòng 🔁 hiện ra).
+- **Vì sao có luật restart này**: API mount code từ Windows host qua bind-mount Docker. Sự kiện
+  file-change không truyền tin cậy qua ranh giới đó → `bun --watch` thường KHÔNG nạp lại code mới.
+  Đó là lý do `after-edit.sh` tự `docker restart vowvet-api`. **ĐỪNG nói "không cần restart vì có --watch"** —
+  câu đó SAI trên môi trường này. Hook là bảo đảm; luật này giải thích để không ai gỡ nhầm hook.
+- **verify.sh là CƠ CHẾ, không phải lời khuyên**: hook `require-verify.sh` CHẶN `git commit` và
+  `gh pr create` nếu chưa `bash .claude/scripts/verify.sh` cho XANH sau lần sửa nguồn cuối.
+  Bỏ qua verify = không bàn giao được. Đo endpoint bằng curl là BỔ SUNG, KHÔNG thay verify.sh.
 - Sửa `web/src/*`: restart **KHÔNG đủ** — prod chạy `dist` baked trong image.
   Cuối task: `docker compose -f docker/docker-compose.yml up -d --build vowvet-web`.
 - Đụng file được service worker cache → **bump `CACHE_VERSION` (vXXX, tăng dần)** trong `web/public/sw.js`.
