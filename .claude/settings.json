@@ -53,11 +53,20 @@
             "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/protect-harness.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
