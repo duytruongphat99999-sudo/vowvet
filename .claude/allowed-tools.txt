@@ -1,8 +1,12 @@
 # allowed-tools.txt — VowVet. run-task.sh (headless) nạp file này.
 # NGUYÊN TẮC: không bao giờ ghi "Bash" trần — scope theo từng lệnh.
 Bash(bun install)
+Bash(bun install --cwd:*)
 Bash(bun run typecheck:*)
 Bash(bun run build:*)
+Bash(bun run --cwd api typecheck)
+Bash(bun run --cwd web build)
+Bash(python .claude/scripts/plan.py:*)
 Bash(node --check:*)
 Bash(bash .claude/scripts/verify.sh)
 Bash(docker restart vowvet-api)

@@ -25,6 +25,38 @@ deny() {
   fi
 }
 
+# ── 0. Interpreter: ALLOWLIST trước — deny-list không bao giờ đoán hết đường vòng ──
+# Câu hỏi không phải "file này có nằm trong tmp không?" mà là "đây có phải script
+# của harness / lệnh vàng không?". Câu thứ hai không có đường vòng.
+# Miễn trừ CHỈ áp cho lệnh ĐƠN — lệnh ghép (;, &&, |) không được miễn, vì đuôi
+# glob sẽ che phần lậu ("bun run x && python evil.py").
+INTERP_OK=0
+case "$CMD" in
+  *';'*|*'&'*|*'|'*) ;;                                    # lệnh ghép: không miễn trừ
+  python\ .claude/scripts/*|python3\ .claude/scripts/*) INTERP_OK=1 ;;
+  bash\ .claude/scripts/*)                               INTERP_OK=1 ;;
+  bun\ run\ *|bun\ install*|bun\ test*)                  INTERP_OK=1 ;;
+esac
+if [ "$INTERP_OK" != 1 ]; then
+  deny '(^|[;&|][[:space:]]*)(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?[[:space:]]+[^-]' \
+       'Interpreter chỉ được chạy: script trong .claude/scripts/, hoặc bun run/install/test dạng lệnh ĐƠN (lệnh ghép thì tách ra từng lệnh). Cần thứ khác → DỪNG và hỏi người duyệt, đừng tìm đường vòng.'
+  # Cờ chạy-code-inline: -c/-e/-r/--eval/--exec/-p/--print. Rule trên bỏ qua (vì cố ý cho -- qua như node --check),
+  # nên phải bắt riêng. node --check / --version vẫn qua (không khớp các cờ này).
+  deny '(^|[;&|][[:space:]]*)(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*(-c|-e|-r|-p|--eval|--exec|--print)([[:space:]"'"'"'=]|$)' \
+       'Interpreter với cờ chạy-code-inline (-c/-e/-r/--eval/--print) bị cấm — đó là đường né soi file.'
+  deny '\|[[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?([[:space:]]|$)' \
+       'Không pipe dữ liệu vào interpreter.'
+  # Command substitution $(...) và backtick nhúng interpreter — vector chạy code không qua tên file
+  deny '\$\([[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?([[:space:]]|$)' \
+       'Không nhúng interpreter trong $(...).'
+  deny '`[[:space:]]*(env[[:space:]]+)?(py|python3?|node|bunx?|npx|deno|bash|sh|zsh|ruby|perl|php)(\.exe)?([[:space:]]|$)' \
+       'Không nhúng interpreter trong backtick.'
+  deny '(^|[;&|][[:space:]]*)(source|\.)[[:space:]]+' \
+       'Không source file vào shell.'
+  deny '(^|[;&|][[:space:]]*)\.{1,2}/' \
+       'Không thực thi file trực tiếp (./ hay ../).'
+fi
+
 # ── 1. Agent chỉ được đi tới PR ───────────────────────────────────────
 deny 'git[[:space:]]+push([^|;&]*[[:space:]])?(origin[[:space:]]+)?(main|master|prod|production)([[:space:]]|$)' \
      'Cấm push thẳng nhánh production. Tạo branch auto/* và mở PR.'

@@ -1,5 +1,48 @@
 {
-  "$comment": "Harness settings. Commit file này vào git — luật của repo phải versioned.",
+  "$comment": "Harness settings. Commit file này vào git — luật của repo phải versioned. settings.local.json (gitignored) chỉ dành cho khác biệt máy-cục-bộ, KHÔNG phải chỗ đặt biên phòng thủ.",
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git push -u origin auto/:*)",
+      "Bash(git push origin auto/:*)",
+      "Bash(git push -u origin epic/:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(bun run typecheck:*)",
+      "Bash(bun run build:*)",
+      "Bash(bun run --cwd api typecheck)",
+      "Bash(bun run --cwd web build)",
+      "Bash(bun install)",
+      "Bash(bun install --cwd:*)",
+      "Bash(bun test:*)",
+      "Bash(node --check:*)",
+      "Bash(bash .claude/scripts/verify.sh)",
+      "Bash(python .claude/scripts/plan.py:*)",
+      "Bash(docker restart vowvet-api)",
+      "Bash(docker compose -f docker/docker-compose.yml up -d --build vowvet-web)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(curl http://localhost:*)"
+    ],
+    "deny": [
+      "Bash(git push origin main:*)",
+      "Bash(git push -u origin main:*)",
+      "Bash(git push --force:*)",
+      "Bash(rm -rf:*)",
+      "Edit(**/nutrition-engine.ts)",
+      "Write(**/nutrition-engine.ts)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

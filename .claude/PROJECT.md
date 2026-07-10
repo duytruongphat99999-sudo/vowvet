@@ -11,11 +11,11 @@
 - Docker Desktop trên **Windows server** · stack: `docker/docker-compose.yml`
 - `shared/` — code dùng chung 2 phía (`nutrition-engine.ts` CANONICAL, `health-conditions.ts`)
 
-## Lệnh vàng
-- Cài:       `(cd web && bun install)` và `(cd api && bun install)`
+## Lệnh vàng (LỆNH ĐƠN — guard chặn interpreter trong lệnh ghép, đừng `cd X && bun ...`)
+- Cài:       `bun install --cwd web` và `bun install --cwd api`
 - Dev stack: `docker compose -f docker/docker-compose.yml up -d`
-- Typecheck: `cd api && bun run typecheck`
-- Build web: `cd web && bun run build`
+- Typecheck: `bun run --cwd api typecheck`
+- Build web: `bun run --cwd web build`
 - Test:      **CHƯA CÓ** — đừng bao giờ khai "test pass". "Xong" = typecheck + build.
 - Verify:    `bash .claude/scripts/verify.sh`  ← định nghĩa "XONG" duy nhất
 
