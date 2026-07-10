@@ -1,0 +1,4 @@
+# claude-harness: script bash/python PHẢI giữ LF — autocrlf biến thành CRLF là vỡ trên Git Bash
+*.sh	text eol=lf
+*.py	text eol=lf
+.claude/**	text eol=lf
