@@ -51,9 +51,10 @@ done
 
 # ── Lập lịch. plan.py chặn ngay nếu plan sai. ─────────────────────────
 SCHED=$("$PY" "$ROOT/.claude/scripts/plan.py" waves --plan "$PLAN" --json) || exit 1
-EPIC=$(echo "$SCHED" | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["epic"])')
-BASE=$(echo "$SCHED" | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["base"])')
-NWAVE=$(echo "$SCHED" | "$PY" -c 'import sys,json;print(len(json.load(sys.stdin)["waves"]))')
+# tr -d '\r': Python trên Windows print ra \r\n → \r dính vào tên nhánh/biến, phải cắt.
+EPIC=$(echo "$SCHED" | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["epic"])' | tr -d '\r')
+BASE=$(echo "$SCHED" | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["base"])' | tr -d '\r')
+NWAVE=$(echo "$SCHED" | "$PY" -c 'import sys,json;print(len(json.load(sys.stdin)["waves"]))' | tr -d '\r')
 
 EPIC_BR="epic/$EPIC"
 echo "📐 epic=$EPIC  base=$BASE  waves=$NWAVE" | tee -a "$LOG"
@@ -68,12 +69,12 @@ for (( w=0; w<NWAVE; w++ )); do
 
   mapfile -t IDS < <(echo "$SCHED" | "$PY" -c "
 import sys,json
-for t in json.load(sys.stdin)['waves'][$w]: print(t['id'])")
+for t in json.load(sys.stdin)['waves'][$w]: print(t['id'])" | tr -d '\r')
 
   for id in "${IDS[@]}"; do
     GOAL=$(echo "$SCHED" | "$PY" -c "
 import sys,json
-print(next(t['goal'] for t in json.load(sys.stdin)['waves'][$w] if t['id']=='$id'))")
+print(next(t['goal'] for t in json.load(sys.stdin)['waves'][$w] if t['id']=='$id'))" | tr -d '\r')
 
     echo -e "\n── [$id] ──" | tee -a "$LOG"
 
