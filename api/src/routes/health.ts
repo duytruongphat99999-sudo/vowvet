@@ -13,6 +13,9 @@ healthRoute.get("/", async (c) => {
   const [baserowOk, r2Ok] = await Promise.all([pingBaserow(), pingR2()]);
   const allOk = baserowOk && r2Ok;
 
+  // Liveness result must never be cached by proxy/CDN/monitoring.
+  c.header("Cache-Control", "no-store");
+
   return c.json(
     {
       status: allOk ? "ok" : "degraded",
