@@ -34,7 +34,8 @@ INTERP_OK=0
 case "$CMD" in
   *';'*|*'&'*|*'|'*|*'$('*|*'`'*|*'..'*) ;;               # ghép / subst / traversal: KHÔNG miễn trừ
   python\ .claude/scripts/*.py|python3\ .claude/scripts/*.py) INTERP_OK=1 ;;
-  bash\ .claude/scripts/*.sh)                            INTERP_OK=1 ;;
+  python\ .claude/scripts/*.py\ *|python3\ .claude/scripts/*.py\ *) INTERP_OK=1 ;;  # .py + đối số (plan.py validate / waves --json)
+  bash\ .claude/scripts/*.sh|bash\ .claude/scripts/*.sh\ *) INTERP_OK=1 ;;
   bun\ install|bun\ install\ --cwd\ *)                   INTERP_OK=1 ;;
   bun\ test|bun\ test\ *)                                INTERP_OK=1 ;;
   "bun run "*|"npm run "*|"pnpm run "*|"yarn "*|"yarn run "*)
