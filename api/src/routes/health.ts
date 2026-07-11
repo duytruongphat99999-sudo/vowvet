@@ -20,6 +20,7 @@ healthRoute.get("/", async (c) => {
         baserow: baserowOk ? "ok" : "fail",
         r2: r2Ok ? "ok" : "fail",
       },
+      uptime_seconds: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
     },
     allOk ? 200 : 503
