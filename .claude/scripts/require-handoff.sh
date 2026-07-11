@@ -25,24 +25,31 @@ is_work() { case "$1" in auto/*|epic/*|task/*) return 0 ;; *) return 1 ;; esac; 
 
 # ── Cây sạch (không còn sửa nguồn chưa commit) ──
 if [ -z "$DIRTY" ]; then
-  # Chỉ nhánh auto/* mới bắt buộc có PR (quy ước bàn giao /task đơn).
-  # task/*, epic/* do run-plan.sh tự merge → commit xong là đủ.
+  # So với ORIGIN/main (không phải main local — main local có thể đã bị lỡ commit vào).
+  AHEAD=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
   case "$BR" in
     auto/*)
-      AHEAD=$(git rev-list --count main..HEAD 2>/dev/null || echo 0)
       [ "${AHEAD:-0}" = "0" ] && exit 0                       # chưa commit gì để PR
       if gh pr view "$BR" --json state -q .state 2>/dev/null | grep -q OPEN; then
         exit 0                                                # ĐÃ có PR → bàn giao xong
       fi
       echo "⛔ CHƯA BÀN GIAO XONG: đã commit trên '$BR' nhưng chưa có PR mở. Chạy: git push -u origin $BR && gh pr create --base main --head $BR --title '<type: mô tả>' --body '<spec + output verify.sh>'." >&2
       exit 2 ;;
-    *) exit 0 ;;                                              # main sạch / task branch đã commit → xong
+    task/*|epic/*)
+      exit 0 ;;                                               # run-plan.sh tự merge → không ép PR
+    *)
+      # main/nhánh khác, cây sạch: có commit NGUỒN chưa push = agent lỡ commit vào main
+      if [ "${AHEAD:-0}" != "0" ] && [ -n "$(git diff --name-only origin/main..HEAD -- '*.ts' '*.astro' 2>/dev/null)" ]; then
+        echo "⛔ CHƯA BÀN GIAO: đã commit file nguồn vào '$BR' (chưa push) thay vì nhánh việc. Chuyển: git checkout -b auto/<slug> (mang commit sang), rồi push + gh pr create. TUYỆT ĐỐI KHÔNG commit vào main." >&2
+        exit 2
+      fi
+      exit 0 ;;
   esac
 fi
 
 # ── Có sửa file nguồn chưa bàn giao. Ép theo thứ tự. ──
 if ! is_work "$BR"; then
-  echo "⛔ CHƯA BÀN GIAO: đã sửa file nguồn nhưng còn trên '$BR'. Tạo nhánh: git checkout -b auto/<slug-ngắn>." >&2
+  echo "⛔ CHƯA BÀN GIAO: đã sửa file nguồn nhưng còn trên '$BR'. Tạo nhánh TRƯỚC (CHỈ tạo, ĐỪNG gộp commit vào cùng lệnh — commit chưa được phép tới khi verify.sh XANH): git checkout -b auto/<slug-ngắn>." >&2
   exit 2
 fi
 
