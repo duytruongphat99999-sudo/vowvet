@@ -90,6 +90,16 @@ print(next(t['goal'] for t in json.load(sys.stdin)['waves'][$w] if t['id']=='$id
       exit 1
     fi
 
+    # ── Bug C — FAIL-LOUD: agent PHẢI commit vào task/$id. Rỗng = commit sai chỗ (auto/*?) ──
+    # KHÔNG merge nhánh rỗng: merge no-op báo "✅ đã merge" là FALSE-POSITIVE giết người —
+    # epic rỗng mà mọi wave xanh (vì epic==base), wave sau branch từ epic rỗng → không thấy
+    # contract → tự phát minh lại (đúng "lắc nhắc" harness sinh ra để diệt). Dừng to, ngay đây.
+    if [ "$(git rev-list --count "$EPIC_BR".."task/$EPIC/$id" 2>/dev/null || echo 0)" = "0" ]; then
+      echo "⛔ DỪNG: task/$EPIC/$id RỖNG — agent không commit vào đúng nhánh (có thể đã tạo auto/* thay vì commit tại chỗ). KHÔNG merge no-op. Log: $LOG" | tee -a "$LOG"
+      git checkout -q "$EPIC_BR"
+      exit 1
+    fi
+
     # SCRIPT merge, không phải agent.
     git checkout -q "$EPIC_BR"
     if ! git merge --no-ff -q -m "merge($EPIC): $id" "task/$EPIC/$id"; then
