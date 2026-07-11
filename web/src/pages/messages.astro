@@ -31,6 +31,7 @@ function timeAgo(iso: string) {
 const typeBadge = (t: string) =>
   t === "admin_support" ? { label: "Hỗ trợ VowVet", cls: "bg-blue-50 text-blue-600" }
   : t === "foster" ? { label: "Trao bé", cls: "bg-amber-50 text-amber-600" }
+  : t === "direct" ? { label: "Nhắn tin", cls: "bg-gray-100 text-gray-500" }
   : { label: "Kết đôi", cls: "bg-gray-100 text-gray-500" };
 const initials = (name: string) => ((name || "?").trim().charAt(0) || "?").toUpperCase();
 ---
