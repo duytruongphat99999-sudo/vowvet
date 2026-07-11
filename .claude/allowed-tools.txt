@@ -16,8 +16,9 @@ Bash(docker logs:*)
 # curl chỉ localhost, có/không cờ -s (KHÔNG dùng Bash(curl:*) — quá rộng, curl -d @.env sẽ lọt)
 Bash(curl -s http://localhost:*)
 Bash(curl http://localhost:*)
-# Bàn giao: agent ĐƯỢC push nhánh auto/* để mở PR (main bị guard.sh chặn cứng)
-Bash(git push -u origin auto/:*)
-Bash(git push origin auto/:*)
+# Bàn giao: agent ĐƯỢC push. Wildcard :* chỉ khớp đối-số-sau-dấu-cách nên
+# "auto/:*" KHÔNG khớp "auto/health-uptime" (dính token) → dùng category rộng,
+# guard.sh chặn cứng main/master/prod + --force (tuyến hai).
+Bash(git push:*)
 # Mở PR qua gh — credential trong keyring, agent không bao giờ thấy token
 Bash(gh pr create:*)
