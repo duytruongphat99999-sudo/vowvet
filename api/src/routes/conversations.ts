@@ -103,6 +103,20 @@ conversationsRoute.post("/foster", async (c) => {
   }
 });
 
+// POST /conversations/direct — STUB (hợp đồng "direct message từ profile", CHƯA implement).
+// Input: { targetUserId: number } — user muốn nhắn tin trực tiếp.
+// Response THÀNH CÔNG (khi implement sau): { conversationId: number }.
+// Hiện trả 501 NOT_IMPLEMENTED — logic tìm/tạo conversation type "direct" làm ở task sau.
+conversationsRoute.post("/direct", async (c) => {
+  let body: any;
+  try { body = await c.req.json(); } catch { body = {}; }
+  const targetUserId = Number(body?.targetUserId);
+  return c.json(
+    { error: { code: "NOT_IMPLEMENTED", message: "Chức năng nhắn tin trực tiếp chưa khả dụng" } },
+    501
+  );
+});
+
 // GET /conversations/:id/messages?after=0 — auto mark-read
 conversationsRoute.get("/:id{[0-9]+}/messages", async (c) => {
   const s = c.get("user");
