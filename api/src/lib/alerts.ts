@@ -13,7 +13,6 @@ export interface BaserowAlert {
   severity?: string | { id: number; value: string };
   title?: string;
   message?: string;
-  body?: string;
   weather_snapshot?: string;
   triggered_at?: string;
   sent_push?: boolean;

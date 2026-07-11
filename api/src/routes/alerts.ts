@@ -119,7 +119,7 @@ alertsRoute.get("/urgent/:petId{[0-9]+}", async (c) => {
           severity: "critical",
           icon: "🌡️",
           title: critical.title || "Cảnh báo khí hậu nguy hiểm",
-          message: critical.body?.slice?.(0, 80) || "Mở để xem hành động khuyến nghị",
+          message: critical.message?.slice?.(0, 80) || "Mở để xem hành động khuyến nghị",
           cta_link: "/alerts",
           cta_label: "Xem",
           priority: 80,
