@@ -85,6 +85,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/require-handoff.sh"
+          },
+          {
+            "type": "command",
             "command": "\"C:\\Program Files\\Git\\bin\\bash.exe\" .claude/scripts/notify.sh"
           }
         ]

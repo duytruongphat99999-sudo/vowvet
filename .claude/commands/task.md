@@ -46,18 +46,22 @@ LUẬT ÁP DỤNG : <trích từ PROJECT.md > Luật bất khả xâm phạm, nh
 
 Đây là chỗ quyết định harness có đáng tin không. Tự chấm bài mình một cách thù địch.
 
-1. Chạy đủ **Lệnh vàng**: test → lint → build. Fail thì sửa, chạy lại. Tối đa 3 vòng, quá 3 vòng thì dừng và báo tôi thay vì cố đấm.
+1. **BƯỚC ĐẦU TIÊN, BẮT BUỘC**: chạy `bash .claude/scripts/verify.sh` cho tới khi XANH. Đây là ĐỊNH NGHĨA "verify" — **KHÔNG** dùng `curl`/hit endpoint thay cho nó (endpoint fail không có nghĩa là verify fail; verify.sh không cần network). Fail thì sửa, chạy lại. Tối đa 3 vòng, quá 3 vòng thì dừng và báo tôi. `curl` chỉ để kiểm chứng THÊM sau khi verify.sh đã XANH.
 2. Gọi subagent `verifier` để review độc lập diff của bạn. Đưa cho nó spec + output `git diff`.
 3. Verifier trả về `BLOCKER` → sửa rồi verify lại. Trả về `NIT` → ghi vào mô tả PR, không cần sửa.
 
 ---
 
-## Giai đoạn 4 — BÀN GIAO
+## Giai đoạn 4 — BÀN GIAO (KHÔNG TÙY CHỌN trong /task, /epic)
 
-1. Tạo branch: `auto/<slug-ngắn-gọn>`
+Đây là điểm dừng — KHÔNG dừng ở "viết code xong", KHÔNG hỏi "commit không?".
+Có sửa file nguồn thì PHẢI đi trọn 4 bước sau; Stop hook `require-handoff.sh` chặn
+kết thúc lượt cho tới khi có PR mở.
+
+1. Tạo branch: `auto/<slug-ngắn-gọn>` (nếu đang trên main).
 2. Commit theo đúng quy ước trong PROJECT.md.
-3. **Mở PR. TUYỆT ĐỐI KHÔNG MERGE.** Người merge là tôi.
-4. Mô tả PR gồm: spec ở Giai đoạn 1, output lệnh test, danh sách NIT của verifier.
+3. `git push -u origin auto/<slug>` rồi **mở PR bằng `gh pr create`. TUYỆT ĐỐI KHÔNG MERGE.** Người merge là tôi.
+4. Mô tả PR gồm: spec ở Giai đoạn 1, output `verify.sh`, danh sách NIT của verifier.
 
 Kết thúc bằng đúng 3 dòng cho tôi đọc trên điện thoại:
 

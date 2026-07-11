@@ -20,6 +20,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 export HARNESS_HEADLESS=1
+export HARNESS_TASK=1   # bật require-handoff.sh (Stop hook) — ép bàn giao trọn: verify→commit→PR
 
 # Danh sách tool cho phép. Nguyên tắc: KHÔNG BAO GIỜ cho "Bash" trần.
 # Scope theo từng lệnh cụ thể — đây là tuyến phòng thủ đầu tiên, guard.sh là tuyến hai.
