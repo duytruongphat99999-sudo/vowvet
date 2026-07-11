@@ -52,21 +52,29 @@ LUẬT ÁP DỤNG : <trích từ PROJECT.md > Luật bất khả xâm phạm, nh
 
 ---
 
-## Giai đoạn 4 — BÀN GIAO (KHÔNG TÙY CHỌN trong /task, /epic)
+## Giai đoạn 4 — BÀN GIAO (KHÔNG TÙY CHỌN)
 
 Đây là điểm dừng — KHÔNG dừng ở "viết code xong", KHÔNG hỏi "commit không?".
-Có sửa file nguồn thì PHẢI đi trọn 4 bước sau; Stop hook `require-handoff.sh` chặn
-kết thúc lượt cho tới khi có PR mở.
+Có sửa file nguồn thì PHẢI bàn giao; Stop hook `require-handoff.sh` chặn kết thúc lượt cho tới khi xong.
 
-1. Tạo branch: `auto/<slug-ngắn-gọn>` (nếu đang trên main).
+**TRƯỚC TIÊN đọc nhánh hiện tại: `git branch --show-current`. Nó quyết định — chỉ có một đường đúng cho mỗi ca:**
+
+### A. Đang ở `task/*` hoặc `epic/*` (bạn đang TRONG một epic do `run-plan.sh` điều phối)
+1. Commit thẳng vào **NHÁNH HIỆN TẠI** (script đã tạo sẵn nhánh này cho bạn).
+2. **TUYỆT ĐỐI KHÔNG** tạo nhánh `auto/*`. **KHÔNG** `git push`. **KHÔNG** `gh pr create`.
+   `run-plan.sh` sẽ tự merge nhánh của bạn vào epic. Bạn chỉ **commit rồi DỪNG**.
+   (Tạo `auto/*` ở đây = việc của bạn lạc khỏi task branch → script không thấy → epic rỗng.)
+
+### B. Đang ở `main` (một `/task` đơn lẻ)
+1. Tạo branch: `git checkout -b auto/<slug-ngắn-gọn>`.
 2. Commit theo đúng quy ước trong PROJECT.md.
 3. `git push -u origin auto/<slug>` rồi **mở PR bằng `gh pr create`. TUYỆT ĐỐI KHÔNG MERGE.** Người merge là tôi.
 4. Mô tả PR gồm: spec ở Giai đoạn 1, output `verify.sh`, danh sách NIT của verifier.
 
-Kết thúc bằng đúng 3 dòng cho tôi đọc trên điện thoại:
+Kết thúc bằng đúng 3 dòng cho tôi đọc trên điện thoại (ca A: 🔗 ghi tên nhánh, chưa có PR):
 
 ```
 ✅ <mục tiêu, 1 câu>
-🔗 <link PR>
+🔗 <link PR — hoặc "nhánh <tên>, script sẽ merge" nếu ca A>
 ⚠️ <thứ tôi cần để mắt tới, hoặc "không có">
 ```
