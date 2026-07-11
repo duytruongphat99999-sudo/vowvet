@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
 import { getRow } from "@shared/baserow.ts";
+import { findUserById } from "../lib/users.ts";
 import {
   getConversations,
   findOrCreateConversation,
@@ -99,6 +100,34 @@ conversationsRoute.post("/foster", async (c) => {
     return c.json({ conversationId });
   } catch (err) {
     console.error("[conversations/foster] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// POST /conversations/direct — tìm/tạo hội thoại nhắn trực tiếp từ profile.
+// Input: { targetUserId: number } — user muốn nhắn trực tiếp. Idempotent:
+// findOrCreateConversation match cặp user (type "direct", context_id 0) → gọi lại trả conv cũ.
+// Response: { conversationId: number }.
+conversationsRoute.post("/direct", async (c) => {
+  const s = c.get("user");
+  let body: any;
+  try { body = await c.req.json(); } catch { body = {}; }
+  const targetUserId = Number(body?.targetUserId);
+  if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+    return c.json({ error: { code: "BAD_INPUT", message: "Thiếu targetUserId hợp lệ" } }, 400);
+  }
+  if (s.sub === targetUserId) {
+    return c.json({ error: { code: "SELF", message: "Không thể tự nhắn chính mình" } }, 400);
+  }
+  try {
+    const target = await findUserById(targetUserId);
+    if (!target) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy người dùng" } }, 404);
+    }
+    const conversationId = await findOrCreateConversation("direct", s.sub, targetUserId, 0, "direct");
+    return c.json({ conversationId });
+  } catch (err) {
+    console.error("[conversations/direct] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });

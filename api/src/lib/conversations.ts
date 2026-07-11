@@ -10,7 +10,7 @@ const MESSAGES = "messages" as TableName;
 const THIRTY_DAYS_MS = 30 * 24 * 3600 * 1000;
 const MAX_CONTENT = 2000;
 
-export type ConversationType = "admin_support" | "foster" | "matchmaking";
+export type ConversationType = "admin_support" | "foster" | "matchmaking" | "direct";
 
 export interface Conversation {
   id: number;
