@@ -39,11 +39,15 @@ case "$CMD" in
   bun\ install|bun\ install\ --cwd\ *)                   INTERP_OK=1 ;;
   bun\ test|bun\ test\ *)                                INTERP_OK=1 ;;
   "bun run "*|"npm run "*|"pnpm run "*|"yarn "*|"yarn run "*)
-    # CHỈ cho tên-script bareword ở token CUỐI (typecheck/build/…). Chặn `bun run <file>`,
-    # `./x`, `.mjs/.ts`, `--cwd <file>` — vì bun run <file> = chạy code tuỳ ý (bài học task #2).
-    # `bun run --cwd api typecheck` vẫn qua (token cuối = typecheck).
-    case "${CMD##* }" in
+    # CHỈ cho tên-script bareword ở token CUỐI. Chặn `bun run <file>`, ./x, .mjs/.ts, --cwd <file>
+    # (bun run <file> = chạy code tuỳ ý — bài học task #2). `bun run --cwd api typecheck` qua (token cuối=typecheck).
+    _tok="${CMD##* }"
+    case "$_tok" in
       typecheck|build|lint|test|dev|start|preview|check) INTERP_OK=1 ;;
+      *[/.\\]*) ;;   # có path/ext → KHÔNG cho (đây chính là lỗ bun run <file>)
+      *)             # tên script riêng dự án: khai trong .claude/allowed-scripts.txt (bareword, không path/ext)
+        _SF="${CLAUDE_PROJECT_DIR:-.}/.claude/allowed-scripts.txt"
+        [ -f "$_SF" ] && grep -qxF "$_tok" "$_SF" && INTERP_OK=1 ;;
     esac ;;
 esac
 if [ "$INTERP_OK" != 1 ]; then

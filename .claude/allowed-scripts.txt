@@ -1,0 +1,5 @@
+# allowed-scripts.txt — tên script package.json được phép chạy qua `bun run <tên>`.
+# guard.sh (Vá 4) mặc định chỉ cho: typecheck build lint test dev start preview check.
+# Khai THÊM tên script riêng dự án ở đây, MỖI DÒNG MỘT TÊN, bareword (KHÔNG path, KHÔNG .ext).
+# guard vẫn chặn `bun run <file.ts>` / `bun run ./x` bất kể file này — đây chỉ mở TÊN SCRIPT.
+smoke:chat

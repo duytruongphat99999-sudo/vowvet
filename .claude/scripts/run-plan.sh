@@ -112,6 +112,13 @@ print(next(t['goal'] for t in json.load(sys.stdin)['waves'][$w] if t['id']=='$id
     echo "⚠️  chưa có .claude/scripts/verify.sh — bỏ qua cổng liên thông" | tee -a "$LOG"
   fi
   echo "✅ WAVE $w xanh" | tee -a "$LOG"
+
+  # Dừng-sau-wave (giám sát lần đầu): HARNESS_STOP_AFTER_WAVE=0 → chạy hết wave 0 rồi dừng,
+  # KHÔNG push, KHÔNG PR, giữ nguyên epic branch để con người kiểm.
+  if [ -n "${HARNESS_STOP_AFTER_WAVE:-}" ] && [ "$w" -ge "${HARNESS_STOP_AFTER_WAVE}" ]; then
+    echo "⏸ DỪNG sau WAVE $w (HARNESS_STOP_AFTER_WAVE=$HARNESS_STOP_AFTER_WAVE). Nhánh $EPIC_BR giữ nguyên, chưa bàn giao." | tee -a "$LOG"
+    exit 0
+  fi
 done
 
 # ── Bàn giao: đúng MỘT PR cho con người ───────────────────────────────

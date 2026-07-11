@@ -26,6 +26,8 @@
       "Bash(node --check:*)",
       "Bash(bash .claude/scripts/verify.sh)",
       "Bash(python .claude/scripts/plan.py:*)",
+      "Write(.claude/plan.yaml)",
+      "Edit(.claude/plan.yaml)",
       "Bash(docker restart vowvet-api)",
       "Bash(docker compose -f docker/docker-compose.yml up -d --build vowvet-web)",
       "Bash(docker ps:*)",
