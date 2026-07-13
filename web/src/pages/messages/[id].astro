@@ -37,7 +37,7 @@ try {
 const myId = Number(user.id);
 const typeLabel = conv.type === "admin_support" ? "Hỗ trợ VowVet" : conv.type === "foster" ? "Trao bé" : "Kết đôi";
 const initials = ((conv.otherUserName || "?").trim().charAt(0) || "?").toUpperCase();
-const chatJson = JSON.stringify({ messages, myId, convId }).replace(/</g, "\\u003c");
+const chatJson = JSON.stringify({ messages, myId, convId, memberIds: [Number(conv.user1_id), Number(conv.user2_id)] }).replace(/</g, "\\u003c");
 ---
 
 <Layout title={`${conv.otherUserName} · Tin nhắn`}>
@@ -55,8 +55,10 @@ const chatJson = JSON.stringify({ messages, myId, convId }).replace(/</g, "\\u00
 
     <div x-ref="msgList" class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
       <template x-for="msg in messages" :key="msg.id">
-        <div :class="msg.sender_id === myId ? 'flex justify-end' : 'flex justify-start'">
-          <div class="px-4 py-2 max-w-[75%] text-sm" :class="msg.sender_id === myId ? 'bg-[#d4a520] text-white rounded-2xl rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-2xl rounded-bl-sm'">
+        <div :class="msg.sender_id === myId ? 'flex justify-end' : (isAdminMsg(msg) ? 'flex justify-center' : 'flex justify-start')">
+          <div class="px-4 py-2 max-w-[80%] text-sm"
+            :class="msg.sender_id === myId ? 'bg-[#d4a520] text-white rounded-2xl rounded-br-sm' : (isAdminMsg(msg) ? 'bg-blue-50 border border-blue-200 text-gray-900 rounded-2xl' : 'bg-gray-100 text-gray-900 rounded-2xl rounded-bl-sm')">
+            <p x-show="isAdminMsg(msg)" class="text-[11px] font-bold text-blue-600 mb-0.5">Admin VowVet</p>
             <p class="whitespace-pre-wrap break-words" x-text="msg.content"></p>
             <p class="text-[10px] mt-1 opacity-60 text-right" x-text="timeAgo(msg.created_at)"></p>
           </div>
@@ -79,9 +81,14 @@ const chatJson = JSON.stringify({ messages, myId, convId }).replace(/</g, "\\u00
         messages: (window.__chat && window.__chat.messages) || [],
         myId: (window.__chat && window.__chat.myId) || 0,
         convId: (window.__chat && window.__chat.convId) || 0,
+        memberIds: (window.__chat && window.__chat.memberIds) || [],
         draft: "",
         sending: false,
         lastId: 0,
+        // Tin do người KHÔNG thuộc conversation (sender ∉ {user1,user2}) = admin/ban quản trị.
+        isAdminMsg(m) {
+          return m.sender_id !== this.myId && !this.memberIds.includes(m.sender_id);
+        },
         init() {
           this.lastId = this.messages.length ? this.messages[this.messages.length - 1].id : 0;
           this.scrollToBottom();
