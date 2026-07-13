@@ -1,10 +1,10 @@
 ---
 /**
- * /login — Cổng đăng nhập chính = Google (M20-auth).
+ * /login — Cổng đăng nhập: Google + Zalo (M20-auth, Task B).
  *
- * UI chỉ hiện Google. Tab Email đã ẩn (backend email vẫn dùng ở account/*).
+ * UI hiện nút Google + Zalo. Tab Email đã ẩn (backend email vẫn dùng ở account/*).
  * Luồng SĐT OTP còn nhưng ẩn — truy cập qua /login?method=phone (cho admin chỉ-SĐT).
- * Error param from Google OAuth callback shown as banner.
+ * Error param từ Google/Zalo OAuth callback hiện dạng banner.
  */
 import Layout from "../layouts/Layout.astro";
 import Logo from "../components/Logo.astro";
@@ -20,6 +20,12 @@ const ERROR_LABELS: Record<string, string> = {
   email_exists: "Email đã có trên VowVet. Đăng nhập bằng SĐT tại /login?method=phone trước, rồi liên kết Google trong Cài đặt.",
   account_deleted: "Tài khoản đã bị xóa",
   oauth_create_failed: "Không tạo được tài khoản",
+  zalo_denied: "Bạn đã từ chối cấp quyền Zalo — thử lại",
+  zalo_missing_params: "Thiếu thông tin từ Zalo — thử lại",
+  zalo_state_mismatch: "Phiên Zalo đã hết hạn — thử lại",
+  zalo_exchange_failed: "Không kết nối Zalo được — thử lại",
+  zalo_missing_user: "Zalo không trả thông tin tài khoản",
+  zalo_create_failed: "Không tạo được tài khoản",
 };
 const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorParam}`) : null;
 ---
@@ -117,8 +123,17 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
             </svg>
             Đăng nhập bằng Google
           </a>
+
+          <!-- Zalo login (Task B) -->
+          <a href="/api/v1/auth/zalo"
+            class="w-full mt-3 flex items-center justify-center gap-3 py-3 rounded-xl bg-[#0068FF] hover:opacity-95 active:scale-[0.98] font-semibold text-white transition">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+            </svg>
+            Đăng nhập bằng Zalo
+          </a>
           <p class="text-xs text-slate-400 mt-4 text-center px-2">
-            ⚠️ Nếu chưa cấu hình GOOGLE_OAUTH_CLIENT_ID/SECRET trên server, route sẽ trả 503.
+            ⚠️ Nếu chưa cấu hình GOOGLE_OAUTH_CLIENT_ID/SECRET hoặc ZALO_APP_ID/SECRET trên server, route sẽ trả 503.
           </p>
         </div>
 

@@ -24,6 +24,7 @@ import {
   forbiddenFoodsRoute,
 } from "./routes/nutrition.ts";
 import { authGoogleRoute, googleLinkRoute } from "./routes/auth-google.ts";
+import { authZaloRoute } from "./routes/auth-zalo.ts";
 import { authEmailRoute } from "./routes/auth-email.ts";
 import { adminRoute } from "./routes/admin.ts";
 import { devRoute } from "./routes/dev.ts";
@@ -133,6 +134,8 @@ app.route("/api/v1/health", healthRoute);
 app.route("/api/v1/auth", authRoute);
 // M8: Google OAuth (login + create) mounted at /api/v1/auth/google
 app.route("/api/v1/auth/google", authGoogleRoute);
+// Task B: Zalo OAuth v4 (login + create) mounted at /api/v1/auth/zalo
+app.route("/api/v1/auth/zalo", authZaloRoute);
 // M20-auth: Email + Password
 app.route("/api/v1/auth/email", authEmailRoute);
 app.route("/api/v1/onboarding", onboardingRoute);

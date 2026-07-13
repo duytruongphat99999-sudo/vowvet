@@ -8,7 +8,7 @@
  */
 import { listRows, getRow, createRow, updateRow } from "@shared/baserow.ts";
 
-export type AuthMethod = "phone_otp" | "google_oauth" | "both";
+export type AuthMethod = "phone_otp" | "google_oauth" | "both" | "zalo_oauth";
 
 export interface BaserowUser {
   id: number;
@@ -20,6 +20,7 @@ export interface BaserowUser {
   // M8 fields
   email?: string | null;
   google_oauth_id?: string | null;
+  zalo_user_id?: string | null; // Task B: định danh Zalo OAuth (KHÔNG lấy SĐT)
   avatar_url?: string | null;
   auth_method?: AuthMethod | { id: number; value: AuthMethod } | null;
   deleted_at?: string | null;
@@ -136,6 +137,36 @@ export async function createUserViaGoogle(data: {
     plan_tier: "free",
     last_login_at: new Date().toISOString(),
     auth_method: "google_oauth",
+    onboarded: false, // M21: explicit
+  });
+  return user;
+}
+
+/** Task B: tìm user theo zalo_user_id (returning Zalo OAuth user). */
+export async function findUserByZaloId(zaloId: string): Promise<BaserowUser | null> {
+  if (!zaloId) return null;
+  const res = await listRows<BaserowUser>("users", {
+    filter: { zalo_user_id__equal: zaloId },
+    size: 1,
+  });
+  return res.results[0] || null;
+}
+
+/** Task B: tạo user mới qua Zalo OAuth (phone=null, email=null, định danh bằng zalo_user_id). */
+export async function createUserViaZalo(data: {
+  zalo_user_id: string;
+  name?: string | null;
+  avatar_url?: string | null;
+}): Promise<BaserowUser> {
+  const user = await createRow<BaserowUser>("users", {
+    phone: null,
+    email: null,
+    zalo_user_id: data.zalo_user_id,
+    name: data.name || null,
+    avatar_url: data.avatar_url || null,
+    plan_tier: "free",
+    last_login_at: new Date().toISOString(),
+    auth_method: "zalo_oauth",
     onboarded: false, // M21: explicit
   });
   return user;
