@@ -1,8 +1,9 @@
 ---
 /**
- * /login — Multi-method auth (M20-auth).
+ * /login — Cổng đăng nhập chính = Google (M20-auth).
  *
- * 3 tabs: 📱 SĐT OTP / 🔑 Email mật khẩu / 🌐 Google
+ * UI chỉ hiện Google. Tab Email đã ẩn (backend email vẫn dùng ở account/*).
+ * Luồng SĐT OTP còn nhưng ẩn — truy cập qua /login?method=phone (cho admin chỉ-SĐT).
  * Error param from Google OAuth callback shown as banner.
  */
 import Layout from "../layouts/Layout.astro";
@@ -16,7 +17,7 @@ const ERROR_LABELS: Record<string, string> = {
   oauth_exchange_failed: "Không kết nối Google được — thử lại",
   oauth_missing_user: "Google không trả thông tin tài khoản",
   oauth_email_unverified: "Email Google chưa xác thực — verify trước",
-  email_exists: "Email đã có trên VowVet. Đăng nhập bằng SĐT trước, rồi liên kết Google trong Cài đặt.",
+  email_exists: "Email đã có trên VowVet. Đăng nhập bằng SĐT tại /login?method=phone trước, rồi liên kết Google trong Cài đặt.",
   account_deleted: "Tài khoản đã bị xóa",
   oauth_create_failed: "Không tạo được tài khoản",
 };
@@ -51,25 +52,7 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
 
       <div class="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 sm:p-8" x-data="loginPage()">
 
-        <!-- Tab bar (M21+ reorder: Email default, then Google, then Phone) -->
-        <div class="flex gap-1 mb-6 p-1 bg-slate-100 rounded-xl">
-          <button @click="setMethod('email')"
-            :class="method === 'email' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500'"
-            class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">🔑 Email</button>
-          <button @click="setMethod('google')"
-            :class="method === 'google' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500'"
-            class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">🌐 Google</button>
-          <button @click="setMethod('phone')"
-            :class="method === 'phone' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500'"
-            class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition">📱 SĐT</button>
-        </div>
-
-        <!-- Hint cho user lần đầu trên tab Email -->
-        <template x-if="method === 'email' && !lastMethod">
-          <p class="text-[11px] text-slate-400 text-center mb-3 italic">
-            💡 Lần đầu? Đăng nhập SĐT trước, rồi setup email+mật khẩu cho lần sau
-          </p>
-        </template>
+        <!-- Cổng đăng nhập chính = Google. Tab Email/SĐT đã ẩn (SĐT còn qua /login?method=phone cho admin). -->
 
         <!-- ═══════════ PHONE ═══════════ -->
         <div x-show="method === 'phone'" x-transition>
@@ -119,97 +102,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
           </div>
         </div>
 
-        <!-- ═══════════ EMAIL ═══════════ -->
-        <div x-show="method === 'email'" x-transition>
-
-          <!-- Login mode -->
-          <div x-show="emailMode === 'login'">
-            <h2 class="text-xl font-bold text-slate-900 mb-1">Đăng nhập Email</h2>
-            <p class="text-sm text-slate-500 mb-4">Dùng email + mật khẩu</p>
-
-            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email</label>
-            <input type="email" x-model="email" placeholder="ban@gmail.com"
-              @input="error = ''"
-              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
-
-            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Mật khẩu</label>
-            <input type="password" x-model="password" placeholder="••••••••"
-              @input="error = ''" @keydown.enter="emailLogin()"
-              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
-
-            <button @click="emailLogin()" :disabled="loading || !email || !password"
-              class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold">
-              <span x-show="!loading">Đăng nhập</span>
-              <span x-show="loading">Đang đăng nhập…</span>
-            </button>
-
-            <div class="flex justify-between mt-3 text-xs">
-              <button @click="emailMode = 'register'; error = ''" class="text-mmp-ink hover:underline">Đăng ký mới</button>
-              <button @click="emailMode = 'forgot'; error = ''" class="text-slate-500 hover:text-slate-800">Quên mật khẩu?</button>
-            </div>
-          </div>
-
-          <!-- Register mode -->
-          <div x-show="emailMode === 'register'">
-            <button @click="emailMode = 'login'; error = ''" class="mb-3 text-xs text-slate-500 hover:text-slate-800">← Quay lại đăng nhập</button>
-            <h2 class="text-xl font-bold text-slate-900 mb-1">Đăng ký tài khoản</h2>
-            <p class="text-sm text-slate-500 mb-4">Email + mật khẩu mới</p>
-
-            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tên (tuỳ chọn)</label>
-            <input type="text" x-model="regName" placeholder="Tên hiển thị" maxlength="60"
-              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
-
-            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email *</label>
-            <input type="email" x-model="email" placeholder="ban@gmail.com"
-              @input="error = ''"
-              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
-
-            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Mật khẩu * <span class="text-slate-400 font-normal">(≥8 ký tự, có chữ + số)</span></label>
-            <input type="password" x-model="password" placeholder="••••••••" autocomplete="new-password"
-              @input="error = ''"
-              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none mb-3" />
-
-            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Nhập lại mật khẩu</label>
-            <input type="password" x-model="password2" placeholder="••••••••" autocomplete="new-password"
-              @input="error = ''"
-              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink focus:ring-2 focus:ring-mmp-gold outline-none" />
-
-            <button @click="emailRegister()" :disabled="loading || !canRegister"
-              class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold">
-              <span x-show="!loading">Tạo tài khoản</span>
-              <span x-show="loading">Đang tạo…</span>
-            </button>
-          </div>
-
-          <!-- Forgot mode -->
-          <div x-show="emailMode === 'forgot'">
-            <button @click="emailMode = 'login'; error = ''" class="mb-3 text-xs text-slate-500 hover:text-slate-800">← Quay lại</button>
-            <template x-if="!forgotSent">
-              <div>
-                <h2 class="text-xl font-bold text-slate-900 mb-1">Quên mật khẩu</h2>
-                <p class="text-sm text-slate-500 mb-4">Nhập email — chúng tôi sẽ gửi link đặt lại</p>
-
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email</label>
-                <input type="email" x-model="email" placeholder="ban@gmail.com"
-                  class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-mmp-ink outline-none" />
-
-                <button @click="emailForgot()" :disabled="loading || !email"
-                  class="w-full mt-4 py-3 rounded-xl bg-mmp-ink hover:bg-slate-800 disabled:opacity-50 text-white font-bold">
-                  <span x-show="!loading">Gửi link</span>
-                  <span x-show="loading">Đang gửi…</span>
-                </button>
-              </div>
-            </template>
-            <template x-if="forgotSent">
-              <div class="text-center py-6">
-                <p class="text-4xl mb-3">📧</p>
-                <p class="font-bold text-slate-900 mb-1">Đã gửi link!</p>
-                <p class="text-sm text-slate-500">Kiểm tra email và làm theo hướng dẫn (link sống 1 giờ)</p>
-                <p class="text-xs text-slate-400 mt-3 italic">Phase 0: link được log trong console docker (mock email).</p>
-              </div>
-            </template>
-          </div>
-        </div>
 
         <!-- ═══════════ GOOGLE ═══════════ -->
         <div x-show="method === 'google'" x-transition class="py-2">
@@ -223,7 +115,7 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
               <path fill="#4CAF50" d="M24 44.5c5.4 0 10.4-2 14.1-5.4l-6.5-5.5c-2.1 1.5-4.7 2.4-7.6 2.4-5.3 0-9.7-3.3-11.3-7.9l-6.6 5C9.7 40.1 16.3 44.5 24 44.5z"/>
               <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4 5.6l6.5 5.5C40.7 35.9 44.5 30.5 44.5 24c0-1.4-.1-2.4-.4-3.5z"/>
             </svg>
-            Tiếp tục với Google
+            Đăng nhập bằng Google
           </a>
           <p class="text-xs text-slate-400 mt-4 text-center px-2">
             ⚠️ Nếu chưa cấu hình GOOGLE_OAUTH_CLIENT_ID/SECRET trên server, route sẽ trả 503.
@@ -248,12 +140,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
   <script is:inline>
     const SKIP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-    function readLastMethod() {
-      try {
-        const m = localStorage.getItem("vv_last_login_method");
-        return ["email", "google", "phone"].includes(m) ? m : null;
-      } catch { return null; }
-    }
     function setLastMethod(m) {
       try { localStorage.setItem("vv_last_login_method", m); } catch (_) {}
     }
@@ -294,22 +180,15 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
     }
 
     function loginPage() {
-      const last = readLastMethod();
+      const forced = new URLSearchParams(window.location.search).get("method");
       return {
-        // Default tab: prefer last method, fallback to "email" (user cũ majority)
-        method: last || "email",
-        lastMethod: last, // expose to template (hint visibility)
+        // Cổng chính = Google. Lối SĐT ẩn cho admin: /login?method=phone
+        method: forced === "phone" ? "phone" : "google",
         phoneStep: "input",
-        emailMode: "login",
         phone: "",
         otp: "",
-        email: "",
-        password: "",
-        password2: "",
-        regName: "",
         loading: false,
         error: "",
-        forgotSent: false,
         resendCooldown: 0,
         _cooldownTimer: null,
 
@@ -317,18 +196,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
           return /^(0|\+84)(3|5|7|8|9)\d{8}$/.test(this.phone.replace(/[\s\-\(\)\.]/g, ""));
         },
 
-        setMethod(m) {
-          this.method = m;
-          this.error = "";
-        },
-
-        get canRegister() {
-          if (!this.email || !this.password || !this.password2) return false;
-          if (this.password !== this.password2) return false;
-          if (this.password.length < 8) return false;
-          if (!/[A-Za-z]/.test(this.password) || !/\d/.test(this.password)) return false;
-          return true;
-        },
 
         _startCooldown() {
           this.resendCooldown = 60;
@@ -399,79 +266,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
           }
         },
 
-        // ─── Email login ───
-        async emailLogin() {
-          if (!this.email || !this.password) return;
-          this.error = "";
-          this.loading = true;
-          try {
-            const res = await fetch("/api/v1/auth/email/login", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email: this.email, password: this.password }),
-            });
-            const json = await res.json();
-            if (!res.ok) {
-              this.error = json.error?.message || "Đăng nhập thất bại";
-              return;
-            }
-            // M21: dùng redirect_to từ backend (email user thường KHÔNG cần setup nữa)
-            setLastMethod("email");
-            window.location.href = resolveRedirect(json);
-          } catch (err) {
-            this.error = "Lỗi kết nối. Thử lại sau.";
-          } finally {
-            this.loading = false;
-          }
-        },
-
-        // ─── Email register ───
-        async emailRegister() {
-          if (!this.canRegister) {
-            this.error = "Kiểm tra lại form (mật khẩu ≥8 ký tự + có chữ + số, nhập lại trùng)";
-            return;
-          }
-          this.error = "";
-          this.loading = true;
-          try {
-            const res = await fetch("/api/v1/auth/email/register", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email: this.email, password: this.password, name: this.regName || null }),
-            });
-            const json = await res.json();
-            if (!res.ok) {
-              this.error = json.error?.message || "Tạo tài khoản thất bại";
-              return;
-            }
-            setLastMethod("email");
-            window.location.href = json.redirect_to || "/onboarding";
-          } catch (err) {
-            this.error = "Lỗi kết nối. Thử lại sau.";
-          } finally {
-            this.loading = false;
-          }
-        },
-
-        // ─── Forgot password ───
-        async emailForgot() {
-          if (!this.email) return;
-          this.error = "";
-          this.loading = true;
-          try {
-            const res = await fetch("/api/v1/auth/email/forgot-password", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email: this.email }),
-            });
-            // Always success to avoid email enumeration
-            this.forgotSent = true;
-          } catch (err) {
-            this.error = "Lỗi kết nối. Thử lại sau.";
-          } finally {
-            this.loading = false;
-          }
-        },
       };
     }
   </script>
