@@ -4,14 +4,19 @@
  * (KHÔNG define:vars — Astro bọc IIFE làm hàm x-data mất global).
  */
 import Layout from "../../layouts/Layout.astro";
+import TopBar from "../../components/TopBar.astro";
+import { fetchMe } from "../../lib/api-client.ts";
 
-const user = Astro.locals.user;
-if (!user) return Astro.redirect("/login");
+const cookieHeader = Astro.request.headers.get("cookie") || "";
+const { data, setCookie } = await fetchMe(cookieHeader);
+if (setCookie) Astro.response.headers.append("set-cookie", setCookie);
+if (!data) return Astro.redirect("/login");
+const { user, pets } = data;
+const primaryPet = pets[0];
 
 const convId = Number(Astro.params.id);
 if (!Number.isFinite(convId) || convId <= 0) return Astro.redirect("/messages");
 
-const cookieHeader = Astro.request.headers.get("cookie") || "";
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
 // membership + conv info (nếu conv không nằm trong list của tôi → không phải thành viên)
@@ -29,14 +34,16 @@ try {
   if (r.ok) messages = (await r.json()).messages || [];
 } catch (_) {}
 
-const myId = Number((user as any).sub);
+const myId = Number(user.id);
 const typeLabel = conv.type === "admin_support" ? "Hỗ trợ VowVet" : conv.type === "foster" ? "Trao bé" : "Kết đôi";
 const initials = ((conv.otherUserName || "?").trim().charAt(0) || "?").toUpperCase();
 const chatJson = JSON.stringify({ messages, myId, convId }).replace(/</g, "\\u003c");
 ---
 
 <Layout title={`${conv.otherUserName} · Tin nhắn`}>
-  <div x-data="chatWindow()" x-init="init()" class="flex flex-col h-[100dvh] bg-white">
+  <div class="flex flex-col h-[100dvh] bg-white">
+    <TopBar pet={primaryPet} isAdmin={user.is_admin} />
+    <div x-data="chatWindow()" x-init="init()" class="flex-1 flex flex-col min-h-0">
     <div class="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 z-10">
       <a href="/messages" class="text-gray-400 hover:text-gray-600 text-sm font-medium leading-none whitespace-nowrap">← Quay lại</a>
       <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">{initials}</div>
@@ -61,6 +68,7 @@ const chatJson = JSON.stringify({ messages, myId, convId }).replace(/</g, "\\u00
     <div class="sticky bottom-0 bg-white border-t border-gray-100 px-4 py-3 flex gap-2">
       <input x-model="draft" @keydown.enter="send()" maxlength="2000" placeholder="Nhắn tin..." class="flex-1 bg-gray-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#d4a520]" />
       <button @click="send()" :disabled="!draft.trim() || sending" class="bg-[#d4a520] text-white px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40">Gửi</button>
+    </div>
     </div>
   </div>
 
