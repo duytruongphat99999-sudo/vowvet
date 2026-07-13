@@ -14,6 +14,7 @@ import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
 import { listRows, updateRow } from "@shared/baserow.ts";
+import { isAdminIdentity } from "@shared/admin.ts";
 import { getPlace, listPendingPlaces, verifyPlace, rejectPlace } from "../lib/places.ts";
 import { findUserById, softDeleteUser } from "../lib/users.ts";
 import { adminAnalyticsOverview } from "../lib/analytics.ts";
@@ -26,10 +27,10 @@ import { getAllConversations, getAdminSupportUnread } from "../lib/conversations
 
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || "").split(",").map((s) => s.trim()).filter(Boolean);
 
-/** Middleware: require admin (must be authenticated + phone trong whitelist). */
+/** Middleware: require admin (authenticated + phone HOẶC email trong whitelist). */
 const requireAdmin: MiddlewareHandler = async (c, next) => {
   const session = c.get("user");
-  if (!session?.phone || !ADMIN_PHONES.includes(session.phone)) {
+  if (!isAdminIdentity(session?.phone, session?.email)) {
     return c.json({ error: { code: "FORBIDDEN", message: "Không có quyền admin" } }, 403);
   }
   await next();

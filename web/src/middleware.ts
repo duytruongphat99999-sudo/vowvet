@@ -14,6 +14,7 @@
  */
 import { defineMiddleware } from "astro:middleware";
 import { verifySession } from "../../shared/jwt.ts";
+import { isAdminIdentity } from "../../shared/admin.ts";
 import { SESSION_COOKIE } from "../../shared/auth.ts";
 import {
   DEFAULT_LOCALE,
@@ -285,14 +286,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // ──────────────────────────────────────────────────────────
   // Step 5.5: Admin dùng admin panel — /pets* → /admin/pets, /dashboard → /admin
   // ──────────────────────────────────────────────────────────
-  if (isLoggedIn && session?.phone) {
-    const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
-      .split(",").map((s: string) => s.trim()).filter(Boolean);
-    if (ADMIN_PHONES.includes(session.phone)) {
-      if (path.startsWith("/pets")) return context.redirect("/admin/pets");
-      // ?as=user → admin chủ động xem dashboard cá nhân (họ cũng là user thật)
-      if (path === "/dashboard" && url.searchParams.get("as") !== "user") return context.redirect("/admin");
-    }
+  if (isLoggedIn && isAdminIdentity(session?.phone, session?.email)) {
+    if (path.startsWith("/pets")) return context.redirect("/admin/pets");
+    // ?as=user → admin chủ động xem dashboard cá nhân (họ cũng là user thật)
+    if (path === "/dashboard" && url.searchParams.get("as") !== "user") return context.redirect("/admin");
   }
 
   // ──────────────────────────────────────────────────────────

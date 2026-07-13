@@ -9,6 +9,7 @@ declare namespace App {
     user: {
       sub: number;
       phone: string;
+      email?: string | null; // OAuth (Google/Zalo) — dùng cho isAdminIdentity + hiển thị
       is_onboarded: boolean;
     } | null;
     /**
