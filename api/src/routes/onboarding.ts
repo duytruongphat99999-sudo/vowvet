@@ -67,6 +67,7 @@ onboardingRoute.post("/pet", requireAuth, zValidator("json", petCreateSchema), a
       sub: session.sub,
       phone: session.phone || undefined,
       email: session.email || undefined,
+      zalo_user_id: session.zalo_user_id || undefined, // giữ định danh Zalo sau khi onboarding xong
       is_onboarded: true,
     });
     setSessionCookie(c, refreshed);

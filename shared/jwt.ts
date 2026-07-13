@@ -14,12 +14,13 @@ if (!JWT_SECRET) {
 /** Payload chuẩn dùng cho session VowVet.
  *  M8: phone optional (Google OAuth users chỉ có email).
  *      email optional (phone OTP users chưa nhập email).
- *      Ít nhất một trong hai phải tồn tại.
+ *      Ít nhất một trong: phone / email / zalo_user_id (Zalo OAuth) phải tồn tại.
  */
 export interface SessionPayload {
   sub: number; // user_id (Baserow row id) — luôn có
   phone?: string; // dạng chuẩn hoá +84xxx — null cho Google OAuth user
   email?: string; // M8 — null cho phone OTP user chưa nhập email
+  zalo_user_id?: string; // Zalo OAuth — user Zalo KHÔNG có phone/email, định danh bằng field này
   is_onboarded: boolean; // đã có ít nhất 1 pet
   iat?: number;
   exp?: number;
@@ -74,7 +75,10 @@ export function verifySession(token: string | undefined | null): SessionPayload 
     if (typeof payload.sub !== "number") return null;
     const hasPhone = typeof payload.phone === "string" && payload.phone.length > 0;
     const hasEmail = typeof payload.email === "string" && payload.email.length > 0;
-    if (!hasPhone && !hasEmail) return null;
+    // Zalo OAuth: user không có phone/email → định danh bằng zalo_user_id. CHỈ nới cho Zalo;
+    // token Google/phone vẫn bắt buộc phone hoặc email như cũ (không giảm kiểm tra provider khác).
+    const hasZalo = typeof payload.zalo_user_id === "string" && payload.zalo_user_id.length > 0;
+    if (!hasPhone && !hasEmail && !hasZalo) return null;
     return payload;
   } catch {
     return null;
