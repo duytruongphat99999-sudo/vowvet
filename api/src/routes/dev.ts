@@ -62,6 +62,7 @@ devRoute.post("/reset-onboarding", async (c) => {
     sub: userId,
     phone: (updated?.phone ?? session.phone) || undefined,
     email: (updated?.email ?? session.email) || undefined,
+    zalo_user_id: ((updated as any)?.zalo_user_id ?? session.zalo_user_id) || undefined, // giữ định danh Zalo (dev reset)
     is_onboarded: false,
   });
   setSessionCookie(c, refreshed);

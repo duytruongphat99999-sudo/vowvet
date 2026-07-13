@@ -254,6 +254,7 @@ authZaloRoute.get("/callback", async (c) => {
       sub: existing.id,
       phone: existing.phone || undefined,
       email: (existing as any).email || undefined,
+      zalo_user_id: profile.id,
       is_onboarded,
     });
     setSessionCookie(c, token);
@@ -271,6 +272,7 @@ authZaloRoute.get("/callback", async (c) => {
       sub: newUser.id,
       phone: undefined,
       email: undefined,
+      zalo_user_id: profile.id,
       is_onboarded: false,
     });
     setSessionCookie(c, token);

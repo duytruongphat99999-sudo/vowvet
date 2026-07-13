@@ -216,6 +216,7 @@ authRoute.get("/me", requireAuth, async (c) => {
     sub: user.id,
     phone: user.phone || undefined,
     email: (user as any).email || undefined,
+    zalo_user_id: (user as any).zalo_user_id || undefined, // giữ định danh Zalo qua refresh-on-use
     is_onboarded,
   });
   setSessionCookie(c, refreshed);
