@@ -98,13 +98,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
             <h2 class="text-xl font-bold text-slate-900 mb-1">Nhập mã OTP</h2>
             <p class="text-sm text-slate-500 mb-4">Đã gửi tới <strong x-text="phone"></strong></p>
 
-            <!-- DEV: hiển thị OTP từ server (chỉ khi NODE_ENV != production) -->
-            <template x-if="devOtp">
-              <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3 text-xs text-amber-900">
-                🧪 Dev OTP: <strong class="font-mono" x-text="devOtp"></strong>
-              </div>
-            </template>
-
             <input type="text" inputmode="numeric" maxlength="6"
               x-model="otp"
               @input="error = ''; otp = otp.replace(/[^0-9]/g, '').slice(0, 6)"
@@ -310,7 +303,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
         emailMode: "login",
         phone: "",
         otp: "",
-        devOtp: null,
         email: "",
         password: "",
         password2: "",
@@ -354,7 +346,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
         async sendOtp() {
           this.error = "";
           this.loading = true;
-          this.devOtp = null;
           try {
             const res = await fetch("/api/v1/auth/request-otp", {
               method: "POST",
@@ -366,7 +357,6 @@ const errorMessage = errorParam ? (ERROR_LABELS[errorParam] || `Lỗi: ${errorPa
               this.error = json.error?.message || "Có lỗi xảy ra";
               return;
             }
-            if (json.dev_otp) this.devOtp = json.dev_otp;
             this.phoneStep = "otp";
             this.otp = "";
             this._startCooldown();

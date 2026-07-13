@@ -51,12 +51,8 @@ authRoute.post("/request-otp", zValidator("json", requestOtpSchema), async (c) =
     await sendOtp(phone, code);
     console.log(`[auth/request-otp] phone=${phone} sent OK`);
 
-    // Dev convenience: expose OTP in response body khi không production
-    // (frontend chỉ hiển thị "Test OTP: XXX" cho dev — KHÔNG enable trên prod)
-    const isProd = (process.env.NODE_ENV || "").toLowerCase() === "production";
-    const body: Record<string, unknown> = { success: true, expires_in };
-    if (!isProd) body.dev_otp = code;
-    return c.json(body);
+    // Mã OTP KHÔNG BAO GIỜ ra HTTP response (bảo mật) — chỉ qua kênh gửi + log server.
+    return c.json({ success: true, expires_in });
   } catch (err: any) {
     console.error(`[auth/request-otp] phone=${phone} error:`, err?.code, err?.message);
     const status = err.code === "OTP_LOCKED" || err.code === "RATE_LIMITED" ? 429 : 400;
