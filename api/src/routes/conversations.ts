@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
 import { getRow } from "@shared/baserow.ts";
 import { findUserById } from "../lib/users.ts";
+import { isAdminIdentity } from "@shared/admin.ts";
 import {
   getConversations,
   findOrCreateConversation,
@@ -16,14 +17,12 @@ import {
   getConversationRow,
 } from "../lib/conversations.ts";
 
-const ADMIN_PHONES = (process.env.ADMIN_PHONES || "").split(",").map((s) => s.trim()).filter(Boolean);
-
 export const conversationsRoute = new Hono();
 conversationsRoute.use("*", requireAuth);
 
 function isAdmin(c: any): boolean {
   const s = c.get("user");
-  return !!s?.phone && ADMIN_PHONES.includes(s.phone);
+  return isAdminIdentity(s?.phone, s?.email);
 }
 
 /** Trả conversation row nếu session là thành viên hoặc admin, null nếu không. */

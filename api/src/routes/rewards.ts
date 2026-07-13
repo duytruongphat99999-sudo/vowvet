@@ -25,6 +25,7 @@ import {
   markClaimRedeemed,
 } from "../lib/rewards.ts";
 import { checkFeatureAccess } from "../lib/feature-gates.ts";
+import { isAdminIdentity } from "@shared/admin.ts";
 
 export const rewardsRoute = new Hono();
 rewardsRoute.use("*", requireAuth);
@@ -108,8 +109,7 @@ rewardsRoute.get("/claims/:claimId{[0-9]+}", async (c) => {
 rewardsRoute.post("/admin/:claimId{[0-9]+}/redeem", async (c) => {
   const session = c.get("user");
   // Role check — sessions don't always carry role; treat is_vet or admin phones as authorized
-  const adminPhones = (process.env.ADMIN_PHONES || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const isAdmin = (session as any).role === "admin" || adminPhones.includes((session as any).phone || "");
+  const isAdmin = isAdminIdentity((session as any).phone, (session as any).email);
   if (!isAdmin) {
     return c.json({ error: { code: "FORBIDDEN", message: "Chỉ admin được phép" } }, 403);
   }

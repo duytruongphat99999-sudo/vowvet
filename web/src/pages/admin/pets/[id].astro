@@ -4,11 +4,11 @@
  */
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 
+import { isAdminIdentity } from "../../../../../shared/admin.ts";
+
 const user = Astro.locals.user;
 if (!user) return Astro.redirect("/login");
-const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
-  .split(",").map((s: string) => s.trim()).filter(Boolean);
-if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+if (!isAdminIdentity(user.phone, user.email)) return Astro.redirect("/dashboard");
 
 const id = Number(Astro.params.id);
 if (!Number.isFinite(id) || id <= 0) return Astro.redirect("/admin/pets");

@@ -1,17 +1,17 @@
 ---
 /**
  * /admin — Overview (redesign v2: sidebar AdminLayout).
- * Auth: Astro.locals.user.phone ∈ ADMIN_PHONES (server-side). Non-admin → /dashboard.
+ * Auth: phone ∈ ADMIN_PHONES HOẶC email ∈ ADMIN_EMAILS (isAdminIdentity, server-side). Non-admin → /dashboard.
  * Data: GET /admin/stats (đã mở rộng: transfers/pendingReclaims/recentActivity/transfersByWeek).
  */
 import AdminLayout from "../layouts/AdminLayout.astro";
 
+import { isAdminIdentity } from "../../../shared/admin.ts";
+
 const user = Astro.locals.user;
 if (!user) return Astro.redirect("/login");
 
-const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
-  .split(",").map((s: string) => s.trim()).filter(Boolean);
-if (!user.phone || !ADMIN_PHONES.includes(user.phone)) {
+if (!isAdminIdentity(user.phone, user.email)) {
   return Astro.redirect("/dashboard");
 }
 

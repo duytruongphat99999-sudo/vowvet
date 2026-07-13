@@ -2,21 +2,19 @@
 /**
  * /admin/places — Admin duyệt/từ chối place user thêm (Phase 3, M26).
  *
- * Guard: frontmatter check ADMIN_PHONES (LỚP UX) → redirect /dashboard nếu non-admin.
+ * Guard: frontmatter check isAdminIdentity (phone HOẶC email, LỚP UX) → redirect /dashboard nếu non-admin.
  * AN TOÀN THẬT ở API requireAdmin (GET/POST /admin/places/*, đã verify Phase 1) — defense-in-depth.
  * SSR fetch pending forward cookie (URL nội bộ vowvet-api:3000); client Alpine verify/reject credentials:include.
  */
 import Layout from "../../layouts/Layout.astro";
 import FeatureIcon from "../../components/FeatureIcon.astro";
 
+import { isAdminIdentity } from "../../../../shared/admin.ts";
+
 const user = Astro.locals.user;
 if (!user) return Astro.redirect("/login");
 
-const ADMIN_PHONES = (import.meta.env.ADMIN_PHONES || process.env.ADMIN_PHONES || "")
-  .split(",")
-  .map((s: string) => s.trim())
-  .filter(Boolean);
-if (!user.phone || !ADMIN_PHONES.includes(user.phone)) return Astro.redirect("/dashboard");
+if (!isAdminIdentity(user.phone, user.email)) return Astro.redirect("/dashboard");
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";

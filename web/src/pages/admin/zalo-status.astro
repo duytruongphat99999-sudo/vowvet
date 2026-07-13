@@ -2,7 +2,7 @@
 /**
  * /admin/zalo-status — Zalo ZNS integration status + test sender.
  *
- * Admin-only (whitelist by phone via ADMIN_PHONES env). Page itself doesn't
+ * Admin-only (whitelist phone/email via ADMIN_PHONES/ADMIN_EMAILS env). Page itself doesn't
  * enforce — relies on backend `/admin/*` returning 403 if not admin.
  */
 import Layout from "../../layouts/Layout.astro";
@@ -43,7 +43,7 @@ const initialData = JSON.stringify({ status });
         <div class="bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center">
           <p class="text-4xl mb-2">🚫</p>
           <p class="font-bold text-red-900">Không có quyền admin</p>
-          <p class="text-xs text-red-700 mt-1">Trang này chỉ truy cập được bởi SĐT trong whitelist ADMIN_PHONES env.</p>
+          <p class="text-xs text-red-700 mt-1">Trang này chỉ truy cập được bởi admin (SĐT trong ADMIN_PHONES hoặc email trong ADMIN_EMAILS).</p>
         </div>
       )}
 
