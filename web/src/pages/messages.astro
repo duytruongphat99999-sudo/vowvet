@@ -5,11 +5,16 @@
  * Telehealth vẫn truy cập trực tiếp qua /chat (vet + playdate).
  */
 import Layout from "../layouts/Layout.astro";
-
-const user = Astro.locals.user;
-if (!user) return Astro.redirect("/login");
+import TopBar from "../components/TopBar.astro";
+import { fetchMe } from "../lib/api-client.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
+const { data, setCookie } = await fetchMe(cookieHeader);
+if (setCookie) Astro.response.headers.append("set-cookie", setCookie);
+if (!data) return Astro.redirect("/login");
+const { user, pets } = data;
+const primaryPet = pets[0];
+
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
 let conversations: any[] = [];
@@ -37,9 +42,10 @@ const initials = (name: string) => ((name || "?").trim().charAt(0) || "?").toUpp
 ---
 
 <Layout title="Tin nhắn · VowVet">
+  <TopBar pet={primaryPet} isAdmin={user.is_admin} />
   <main class="min-h-screen bg-gray-50 pb-24">
     <div class="max-w-screen-md mx-auto">
-      <header class="sticky top-0 bg-white border-b border-gray-100 px-4 py-4 z-10">
+      <header class="bg-white border-b border-gray-100 px-4 py-4">
         <h1 class="text-lg font-bold text-gray-900">Tin nhắn</h1>
       </header>
 
