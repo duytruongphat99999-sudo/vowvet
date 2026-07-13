@@ -131,7 +131,7 @@ usersRoute.get("/me/settings", async (c) => {
   const cityValue =
     typeof u.city === "object" ? (u.city as any)?.value : u.city;
   // M8: auth methods snapshot
-  const authMethod = getAuthMethod(user) || "phone_otp";
+  const authMethod = getAuthMethod(user) || (u.zalo_user_id ? "zalo_oauth" : "phone_otp");
   const hasGoogle = !!u.google_oauth_id;
   const hasPhone = !!user.phone;
   return c.json({

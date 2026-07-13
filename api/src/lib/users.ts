@@ -166,7 +166,9 @@ export async function createUserViaZalo(data: {
     avatar_url: data.avatar_url || null,
     plan_tier: "free",
     last_login_at: new Date().toISOString(),
-    auth_method: "zalo_oauth",
+    // KHÔNG set auth_method: single_select Baserow chưa có option "zalo_oauth" (§8 → insert 400).
+    // Định danh Zalo THUẦN qua zalo_user_id; auth_method trống an toàn — admin check dựa
+    // ADMIN_PHONES (phone), KHÔNG dùng auth_method; không có logic chặn user theo field này.
     onboarded: false, // M21: explicit
   });
   return user;
