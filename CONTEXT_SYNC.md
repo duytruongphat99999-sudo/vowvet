@@ -1,5 +1,23 @@
 # CONTEXT SYNC — 2026-07-14
 
+## 🤝 EPIC TRAO-BÉ ĐA-ĐỊNH-DANH (phiên 2026-07-14, SW v345) — CODE XONG, verify HTTP 14/14, chờ eyeball tunnel
+**Mục tiêu**: owner trao bé tới user đăng nhập BẤT KỲ cách nào (Google/Zalo), cover **user Zalo-thuần** (email=null, phone=null) — trước đây KHÔNG thể là recipient. KHÔNG đụng schema, KHÔNG đẻ mã. Tái dùng `findUserById` + `getHeroProfileBySlug`.
+
+**Đã làm (4 file)**:
+- `api/src/routes/pets.ts` — `POST /transfer` MỞ RỘNG resolve `recipient` (server = **chốt chặn thật**): email → link `/heroes/profile/<id>` → link `/heroes/profile/slug/<slug>` → phone → userId số thuần. Helper `heroUserIdFromLink`/`heroSlugFromLink` **anchor domain** (`monminpet.com`/localhost) + path chính xác → chống parse số bừa/domain lạ. Import `getHeroProfileBySlug`, `type BaserowUser`.
+- `web/src/pages/pets/[id].astro` — **nới `transferNext()`** (client chỉ gate "hợp lý", KHÔNG validate thật) nhận thêm link/userId; placeholder + hint "dán link hồ sơ người nhận (Zalo nhờ họ gửi /heroes/profile/…)".
+- `web/public/sw.js` — v345.
+- `CONTEXT_SYNC.md`.
+- **KHÔNG đụng** `foster-transfer.ts` (route đã chuẩn hoá recipient→`recipient.id` trước khi gọi; phần đổi-chủ+chat giữ nguyên).
+
+**Verify HTTP thật (14/14 PASS, throwaway Google/Zalo-thuần/phone)**: email→Google · **link (rel+abs) → Zalo-thuần** · userId số · phone (nhánh cũ) · **case 4 chống-trao-nhầm: rác/câu-có-số/domain-lạ/domain-giả-suffix → 400, id-slug-không-tồn-tại → 404, bé LUÔN còn của owner** · case 6 Zalo-user nhận bé + chat auto (3 conv). Kiêm đóng luôn **case 3 epic trước** (đường email→nhận bé→chat, không đổi, PASS).
+
+**Quyết định**: hướng GỌN (userId/link, 0 schema) thay vì mã VOW-xxxx (đụng schema/insert 400). Nhánh **userId-số là đường chính** (chạy bất kể public toggle); slug chỉ chạy khi hồ sơ public (`getHeroProfileBySlug` null nếu tắt public) — tiện-ích phụ. Chưa làm nút "Copy link hồ sơ" (bỏ cho gọn, thêm sau nếu user vướng).
+
+**⚠️ Eyeball tunnel còn treo** (chung lý do epic trước: localhost không proxy `/api` → không click-through browser local). Verify đã qua HTTP thật (resolve + transfer + chat thật). **Eyeball trên `vowvet.monminpet.com`** do Duy: trao bằng email (case1, đóng luôn case3 cũ) + trao bằng link Zalo-user (case2) + dán rác (case4).
+
+---
+
 ## 🐾 EPIC FOSTER ONBOARDING (phiên 2026-07-14, SW v344) — CODE XONG, verify HTTP XANH, chờ eyeball
 **Mục tiêu**: TK mới chọn "nhận foster, chưa có bé" → KHÔNG bị ép thêm bé giả để qua onboarding. Dùng cờ `is_foster_carer` có sẵn, KHÔNG đụng schema, KHÔNG đẻ loại tài khoản.
 

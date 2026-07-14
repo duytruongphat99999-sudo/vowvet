@@ -3025,10 +3025,11 @@ const storyExcerpt = hasStory
           <template x-if="transferStep === 1">
             <div>
               <h3 class="text-lg font-semibold text-mmp-ink">Trao bé "<span x-text="pet.name"></span>" cho người khác</h3>
-              <p class="text-sm text-slate-600 mt-2">Nhập SĐT hoặc email tài khoản VowVet của người nhận.</p>
-              <input type="text" inputmode="email" x-model="transferPhone" placeholder="0901234567 hoặc email@vidu.com"
+              <p class="text-sm text-slate-600 mt-2">Nhập email, SĐT, hoặc <strong>link hồ sơ</strong> tài khoản VowVet của người nhận.</p>
+              <input type="text" inputmode="email" x-model="transferPhone" placeholder="Email, SĐT, hoặc link /heroes/profile/…"
                 @keydown.enter="transferNext()"
                 class="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-mmp-gold focus:outline-none" />
+              <p class="text-xs text-slate-500 mt-1.5">Người nhận đăng nhập bằng Zalo? Nhờ họ mở hồ sơ của mình rồi gửi bạn đường link trên thanh địa chỉ (dạng <span class="font-mono">/heroes/profile/…</span>).</p>
               <p x-show="transferError" class="text-sm text-red-600 mt-2" x-text="transferError"></p>
               <div class="mt-4 flex gap-2">
                 <button @click="transferStep = 0" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg">Huỷ</button>
@@ -4508,12 +4509,17 @@ const storyExcerpt = hasStory
       // ===== Trao bé A→B (IRREVERSIBLE) — nối route POST /pets/:id/transfer =====
       openTransfer() { this.transferStep = 1; this.transferPhone = ""; this.transferError = ""; },
       transferNext() {
+        // Client CHỈ nới đủ để cho input hợp lý đi tiếp — server (pets.ts) mới là chốt
+        // validate + tra người nhận thật (regex rút userId chặt nằm ở server).
         const raw = (this.transferPhone || "").trim();
+        const cleaned = raw.replace(/[\s.\-]/g, "");
         const isEmail = raw.includes("@");
-        const phoneOk = /^(0|\+84)(3|5|7|8|9)\d{8}$/.test(raw.replace(/[\s.\-]/g, ""));
         const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw);
-        if (!(isEmail ? emailOk : phoneOk)) {
-          this.transferError = "Nhập SĐT hoặc email hợp lệ.";
+        const phoneOk = /^(0|\+84)(3|5|7|8|9)\d{8}$/.test(cleaned);
+        const linkOk = /\/heroes\/profile\/(\d{1,15}|slug\/[a-z0-9]{4,32})\/?$/i.test(raw);
+        const idOk = /^\d{1,9}$/.test(cleaned) && !phoneOk;
+        if (!(isEmail ? emailOk : (phoneOk || linkOk || idOk))) {
+          this.transferError = "Nhập email, SĐT, hoặc link hồ sơ người nhận.";
           return;
         }
         this.transferError = "";

@@ -6,8 +6,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
-import { listUserPets, createPet, findUserById, findUserByPhone, findUserByEmail, type BaserowPet } from "../lib/users.ts";
+import { listUserPets, createPet, findUserById, findUserByPhone, findUserByEmail, type BaserowPet, type BaserowUser } from "../lib/users.ts";
 import { transferPet, TransferError } from "../lib/foster-transfer.ts";
+import { getHeroProfileBySlug } from "../lib/pet-heroes.ts";
 import { createReclaimRequest } from "../lib/reclaim-requests.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import {
@@ -466,8 +467,39 @@ petsRoute.post("/:id{[0-9]+}/reclaim-request", async (c) => {
   }
 });
 
+// ── Trao bé đa-định-danh: rút định danh người nhận từ input (email/phone/userId/link hồ sơ) ──
+// AN TOÀN (chống trao nhầm): CHỈ nhận đúng path /heroes/profile/... của domain mình
+// (relative HOẶC host monminpet.com/localhost). KHÔNG parse số bừa trong chuỗi bất kỳ.
+// Server là CHỐT CHẶN thật — client chỉ nới đủ để gửi đi, KHÔNG tin client tự đoán.
+const HERO_HOST_OK = /(^|\.)monminpet\.com$/i; // vd vowvet.monminpet.com
+function heroHostAllowed(host: string): boolean {
+  const h = host.toLowerCase();
+  return HERO_HOST_OK.test(h) || h === "localhost" || h === "127.0.0.1";
+}
+/** userId số từ link /heroes/profile/<id> (đúng domain) — KHÔNG nhận số thuần ở đây. */
+function heroUserIdFromLink(raw: string): number | null {
+  let path = raw;
+  if (/^https?:\/\//i.test(raw)) {
+    try { const u = new URL(raw); if (!heroHostAllowed(u.hostname)) return null; path = u.pathname; }
+    catch { return null; }
+  }
+  const m = path.match(/^\/heroes\/profile\/(\d{1,15})\/?$/);
+  return m ? Number(m[1]) : null;
+}
+/** slug từ link /heroes/profile/slug/<slug> (đúng domain). */
+function heroSlugFromLink(raw: string): string | null {
+  let path = raw;
+  if (/^https?:\/\//i.test(raw)) {
+    try { const u = new URL(raw); if (!heroHostAllowed(u.hostname)) return null; path = u.pathname; }
+    catch { return null; }
+  }
+  const m = path.match(/^\/heroes\/profile\/slug\/([a-z0-9]{4,32})\/?$/i);
+  return m ? m[1] : null;
+}
+
 // ===== POST /pets/:id/transfer — chuyển giao bé A→B (foster handover, IRREVERSIBLE) =====
-// Body: { recipient } — SĐT HOẶC email người nhận (giữ tương thích recipient_phone cũ).
+// Body: { recipient } — email / SĐT / userId số / link hồ sơ (/heroes/profile/<id|slug/xxx>)
+// người nhận. Nhánh userId/link cover user Zalo-thuần (email=null, phone=null). Giữ recipient_phone cũ.
 // Người nhận PHẢI có tài khoản VowVet. Chỉ CHỦ hiện tại mới trao được bé mình.
 // Logic trao ở service transferPet (route chỉ tìm người nhận + validate + gọi).
 petsRoute.post("/:id{[0-9]+}/transfer", async (c) => {
@@ -477,24 +509,43 @@ petsRoute.post("/:id{[0-9]+}/transfer", async (c) => {
   try { body = await c.req.json(); } catch {
     return c.json({ error: { code: "BAD_JSON", message: "Body JSON không hợp lệ" } }, 400);
   }
-  // Người nhận: field "recipient" (SĐT hoặc email); fallback "recipient_phone" (tương thích cũ).
+  // Người nhận: field "recipient" (đa định danh); fallback "recipient_phone" (tương thích cũ).
   const raw = String(body?.recipient ?? body?.recipient_phone ?? "").trim();
-  const isEmail = raw.includes("@");
-  let phone = "";
-  if (isEmail) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
-      return c.json({ error: { code: "BAD_RECIPIENT", message: "Nhập SĐT hoặc email hợp lệ" } }, 400);
-    }
-  } else {
-    try { phone = normalizePhone(raw); }
-    catch { return c.json({ error: { code: "BAD_RECIPIENT", message: "Nhập SĐT hoặc email hợp lệ" } }, 400); }
+  if (!raw) {
+    return c.json({ error: { code: "BAD_RECIPIENT", message: "Nhập email, SĐT, hoặc link hồ sơ người nhận" } }, 400);
   }
+  const badRecipient = () =>
+    c.json({ error: { code: "BAD_RECIPIENT", message: "Nhập email, SĐT, hoặc link hồ sơ (/heroes/profile/…) của người nhận" } }, 400);
 
   try {
     await getOwnedPet(petId, session.sub); // chỉ chủ mới trao bé mình (throws 403/404)
-    const recipient = isEmail
-      ? await findUserByEmail(raw.toLowerCase())
-      : await findUserByPhone(phone);
+
+    // Resolve người nhận theo thứ tự: email → link userId → link slug → phone → userId số thuần.
+    let recipient: BaserowUser | null = null;
+    if (raw.includes("@")) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return badRecipient();
+      recipient = await findUserByEmail(raw.toLowerCase());
+    } else {
+      const linkUid = heroUserIdFromLink(raw);
+      const linkSlug = linkUid == null ? heroSlugFromLink(raw) : null;
+      const cleaned = raw.replace(/[\s.\-]/g, "");
+      const isPhone = /^(0|\+84)(3|5|7|8|9)\d{8}$/.test(cleaned);
+
+      if (linkUid != null) {
+        recipient = await findUserById(linkUid);
+      } else if (linkSlug) {
+        const prof = await getHeroProfileBySlug(linkSlug);
+        recipient = prof ? await findUserById(prof.user_id) : null;
+      } else if (isPhone) {
+        recipient = await findUserByPhone(normalizePhone(cleaned));
+      } else if (/^\d{1,9}$/.test(cleaned)) {
+        // số thuần ngắn KHÔNG khớp mẫu SĐT → coi là userId người nhận dán thẳng.
+        recipient = await findUserById(Number(cleaned));
+      } else {
+        return badRecipient();
+      }
+    }
+
     if (!recipient) {
       return c.json({ error: { code: "RECIPIENT_NOT_FOUND", message: "Người nhận chưa có tài khoản VowVet" } }, 404);
     }
