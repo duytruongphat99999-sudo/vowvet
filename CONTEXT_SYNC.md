@@ -1,5 +1,23 @@
 # CONTEXT SYNC — 2026-07-14
 
+## 🔗 EPIC NÚT CHIA-SẺ-LINK-NHẬN-BÉ (phiên 2026-07-14, SW v346) — CODE XONG, verify HTTP 9/9, chờ eyeball tunnel
+**Mục tiêu**: user (nhất là **Zalo-thuần**) TỰ lấy link định danh (`/heroes/profile/<id chính mình>`) để đưa người trao bé — 1 nút bấm-copy ngay ở dashboard, khỏi mò Baserow/hồ sơ. Khép kín vòng foster cho Zalo: **đăng ký sạch (v344) → tự lấy link (v346) → được trao bé (v345)**.
+
+**Đã làm (3 file, KHÔNG đụng auth.ts — `user.id` đã có sẵn trong payload /me)**:
+- `web/src/pages/dashboard.astro` — trong empty-state foster (`is_foster_carer` + 0 bé) thêm nút **"Chia sẻ để nhận bé"** + phụ đề + **fallback ô text** (readonly, auto-select) khi clipboard bị chặn. Inline vanilla JS (`navigator.clipboard.writeText` → "Đã copy!" 2s; fail/không secure-context → hiện ô text). `user.id` từ /me.
+- `web/public/sw.js` — v346.
+- `CONTEXT_SYNC.md`.
+
+**⚠️ FIX quan trọng (bẫy "no canonical URL" tái diễn)**: `Astro.url.origin` sau proxy SSR trả **`http://localhost`** → link chia sẻ HỎNG. Đã đổi sang **`Astro.site`** (`https://vowvet.monminpet.com`, khai sẵn ở `astro.config.mjs:6` — KHÔNG hardcode). Verify xác nhận link ra `https://vowvet.monminpet.com/heroes/profile/<id>`. → **Bài học: cần link tuyệt đối công khai ở web SSR thì dùng `Astro.site`, KHÔNG `Astro.url.origin`.**
+
+**Verify HTTP (9/9 PASS, SSR HTML thật)**: foster Zalo-thuần 0-bé → dashboard có nút + `data-share-link` đúng `https://vowvet.monminpet.com/heroes/profile/<id>` + fallback ô text mang đúng link · user thường 0-bé → KHÔNG có nút (chỉ nhánh foster). Copy/clipboard = eyeball tay (browser-only).
+
+**🚧 HẠN CHẾ ĐÃ BIẾT (v1, phải làm sau — đừng để thành lỗ âm thầm)**: nút CHỈ hiện ở empty-state foster (`is_foster_carer` + **0 bé**). **Foster đã nhận ≥1 bé → mất empty-state → mất đường lấy link** để nhận thêm bé. Khi cần: đặt thêm nút ở chỗ luôn thấy (**trang hồ sơ `[userId].astro` hoặc settings**). Chưa làm ở v346.
+
+**⚠️ Eyeball tunnel treo (gộp 3 epic)**: v344 + v345 + v346 cùng chờ mắt người trên `vowvet.monminpet.com` (localhost không click-through được — /api không proxy). Copy nút v346 phải bấm tay (clipboard browser-only) + thử fallback (webview Zalo hay chặn clipboard).
+
+---
+
 ## 🤝 EPIC TRAO-BÉ ĐA-ĐỊNH-DANH (phiên 2026-07-14, SW v345) — CODE XONG, verify HTTP 14/14, chờ eyeball tunnel
 **Mục tiêu**: owner trao bé tới user đăng nhập BẤT KỲ cách nào (Google/Zalo), cover **user Zalo-thuần** (email=null, phone=null) — trước đây KHÔNG thể là recipient. KHÔNG đụng schema, KHÔNG đẻ mã. Tái dùng `findUserById` + `getHeroProfileBySlug`.
 
