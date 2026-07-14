@@ -1,89 +1,113 @@
-# CONTEXT SYNC — 2026-07-08 ~15:15
+# CONTEXT SYNC — 2026-07-14
 
-## 🎯 ĐANG LÀM GÌ
-VowVet — platform quản lý pet (passport, foster, trao bé). Giai đoạn này: hoàn thiện lớp
-Admin Panel + hệ chat (support/foster) + reclaim. Phiên này fix 3 việc & bổ sung entry point:
-badge admin đa-admin (#4), vô hiệu hoá user (#5), user↔user foster chat (#3), + gỡ 1 admin thừa.
-Toàn bộ đã commit LOCAL (9 commit ahead); **push đang bị chặn quyền → Duy chạy `git push` tay**.
+## 🔗 EPIC NÚT CHIA-SẺ-LINK-NHẬN-BÉ (phiên 2026-07-14, SW v346) — CODE XONG, verify HTTP 9/9, chờ eyeball tunnel
+**Mục tiêu**: user (nhất là **Zalo-thuần**) TỰ lấy link định danh (`/heroes/profile/<id chính mình>`) để đưa người trao bé — 1 nút bấm-copy ngay ở dashboard, khỏi mò Baserow/hồ sơ. Khép kín vòng foster cho Zalo: **đăng ký sạch (v344) → tự lấy link (v346) → được trao bé (v345)**.
+
+**Đã làm (3 file, KHÔNG đụng auth.ts — `user.id` đã có sẵn trong payload /me)**:
+- `web/src/pages/dashboard.astro` — trong empty-state foster (`is_foster_carer` + 0 bé) thêm nút **"Chia sẻ để nhận bé"** + phụ đề + **fallback ô text** (readonly, auto-select) khi clipboard bị chặn. Inline vanilla JS (`navigator.clipboard.writeText` → "Đã copy!" 2s; fail/không secure-context → hiện ô text). `user.id` từ /me.
+- `web/public/sw.js` — v346.
+- `CONTEXT_SYNC.md`.
+
+**⚠️ FIX quan trọng (bẫy "no canonical URL" tái diễn)**: `Astro.url.origin` sau proxy SSR trả **`http://localhost`** → link chia sẻ HỎNG. Đã đổi sang **`Astro.site`** (`https://vowvet.monminpet.com`, khai sẵn ở `astro.config.mjs:6` — KHÔNG hardcode). Verify xác nhận link ra `https://vowvet.monminpet.com/heroes/profile/<id>`. → **Bài học: cần link tuyệt đối công khai ở web SSR thì dùng `Astro.site`, KHÔNG `Astro.url.origin`.**
+
+**Verify HTTP (9/9 PASS, SSR HTML thật)**: foster Zalo-thuần 0-bé → dashboard có nút + `data-share-link` đúng `https://vowvet.monminpet.com/heroes/profile/<id>` + fallback ô text mang đúng link · user thường 0-bé → KHÔNG có nút (chỉ nhánh foster). Copy/clipboard = eyeball tay (browser-only).
+
+**🚧 HẠN CHẾ ĐÃ BIẾT (v1, phải làm sau — đừng để thành lỗ âm thầm)**: nút CHỈ hiện ở empty-state foster (`is_foster_carer` + **0 bé**). **Foster đã nhận ≥1 bé → mất empty-state → mất đường lấy link** để nhận thêm bé. Khi cần: đặt thêm nút ở chỗ luôn thấy (**trang hồ sơ `[userId].astro` hoặc settings**). Chưa làm ở v346.
+
+**⚠️ Eyeball tunnel treo (gộp 3 epic)**: v344 + v345 + v346 cùng chờ mắt người trên `vowvet.monminpet.com` (localhost không click-through được — /api không proxy). Copy nút v346 phải bấm tay (clipboard browser-only) + thử fallback (webview Zalo hay chặn clipboard).
+
+---
+
+## 🤝 EPIC TRAO-BÉ ĐA-ĐỊNH-DANH (phiên 2026-07-14, SW v345) — CODE XONG, verify HTTP 14/14, chờ eyeball tunnel
+**Mục tiêu**: owner trao bé tới user đăng nhập BẤT KỲ cách nào (Google/Zalo), cover **user Zalo-thuần** (email=null, phone=null) — trước đây KHÔNG thể là recipient. KHÔNG đụng schema, KHÔNG đẻ mã. Tái dùng `findUserById` + `getHeroProfileBySlug`.
+
+**Đã làm (4 file)**:
+- `api/src/routes/pets.ts` — `POST /transfer` MỞ RỘNG resolve `recipient` (server = **chốt chặn thật**): email → link `/heroes/profile/<id>` → link `/heroes/profile/slug/<slug>` → phone → userId số thuần. Helper `heroUserIdFromLink`/`heroSlugFromLink` **anchor domain** (`monminpet.com`/localhost) + path chính xác → chống parse số bừa/domain lạ. Import `getHeroProfileBySlug`, `type BaserowUser`.
+- `web/src/pages/pets/[id].astro` — **nới `transferNext()`** (client chỉ gate "hợp lý", KHÔNG validate thật) nhận thêm link/userId; placeholder + hint "dán link hồ sơ người nhận (Zalo nhờ họ gửi /heroes/profile/…)".
+- `web/public/sw.js` — v345.
+- `CONTEXT_SYNC.md`.
+- **KHÔNG đụng** `foster-transfer.ts` (route đã chuẩn hoá recipient→`recipient.id` trước khi gọi; phần đổi-chủ+chat giữ nguyên).
+
+**Verify HTTP thật (14/14 PASS, throwaway Google/Zalo-thuần/phone)**: email→Google · **link (rel+abs) → Zalo-thuần** · userId số · phone (nhánh cũ) · **case 4 chống-trao-nhầm: rác/câu-có-số/domain-lạ/domain-giả-suffix → 400, id-slug-không-tồn-tại → 404, bé LUÔN còn của owner** · case 6 Zalo-user nhận bé + chat auto (3 conv). Kiêm đóng luôn **case 3 epic trước** (đường email→nhận bé→chat, không đổi, PASS).
+
+**Quyết định**: hướng GỌN (userId/link, 0 schema) thay vì mã VOW-xxxx (đụng schema/insert 400). Nhánh **userId-số là đường chính** (chạy bất kể public toggle); slug chỉ chạy khi hồ sơ public (`getHeroProfileBySlug` null nếu tắt public) — tiện-ích phụ. Chưa làm nút "Copy link hồ sơ" (bỏ cho gọn, thêm sau nếu user vướng).
+
+**⚠️ Eyeball tunnel còn treo** (chung lý do epic trước: localhost không proxy `/api` → không click-through browser local). Verify đã qua HTTP thật (resolve + transfer + chat thật). **Eyeball trên `vowvet.monminpet.com`** do Duy: trao bằng email (case1, đóng luôn case3 cũ) + trao bằng link Zalo-user (case2) + dán rác (case4).
+
+---
+
+## 🐾 EPIC FOSTER ONBOARDING (phiên 2026-07-14, SW v344) — CODE XONG, verify HTTP XANH, chờ eyeball
+**Mục tiêu**: TK mới chọn "nhận foster, chưa có bé" → KHÔNG bị ép thêm bé giả để qua onboarding. Dùng cờ `is_foster_carer` có sẵn, KHÔNG đụng schema, KHÔNG đẻ loại tài khoản.
+
+**Đã làm (8 file)**:
+- `api/src/routes/auth.ts` — **GATE FIX (mấu chốt)**: `/me` cũ tính `is_onboarded = pets.length>0` → mỗi lần gọi ký lại cookie ghi đè, đá foster 0-bé về /onboarding. Sửa `= pets.length>0 || onboarded===true`. + thêm `is_foster_carer` vào payload `/me`.
+- `api/src/routes/users.ts` — endpoint mới `POST /users/onboard-foster`: guard `onboarded===false` (gọi lại → 409), set `onboarded=true`+`is_foster_carer=true`, **re-sign cookie**, KHÔNG tạo pet.
+- `api/src/lib/users.ts` — helper `markOnboardedAsFoster` (1 updateRow, 2 field boolean).
+- `web/src/pages/onboarding.astro` — thay 1 nút ép "Thêm bé" → **2 lựa chọn** ("Tôi có bé" → /pets/new cũ · "Tôi nhận foster" → gọi endpoint → dashboard) + inline script vanilla. Giữ Đăng xuất.
+- `web/src/pages/dashboard.astro` — empty-state branch theo `is_foster_carer`: foster 0-bé → "Bạn chưa nhận bé nào" + nút /foster; chủ pet 0-bé → "thêm bé" như cũ.
+- `web/src/lib/api-client.ts` — thêm `is_foster_carer?` vào `MeResponse`.
+- `web/public/sw.js` — bump **v344-foster-onboarding**.
+- Mục 3 (công tắc foster ở hồ sơ) **BỎ** — UI đã có sẵn `heroes/profile/[userId].astro:207`.
+
+**Verify (21/21 hành vi PASS, HTTP thật + cookie thật trong container)**: fresh gate đá /onboarding · 2 lựa chọn render · endpoint 200 + 409 guard · **case 4b: /me 3 vòng KHÔNG lật is_onboarded, /dashboard không đá lại** · empty-state foster · login-lại OK (getIsOnboarded đọc field) · case 3 transfer→chủ + chat auto. (1 "fail" là assertion test check nhầm field `pet_id` — foster-received chỉ trả pet_name/handover_id; KHÔNG phải regression.)
+
+**⚠️ CHƯA eyeball browser thật**: web prod (:4322) KHÔNG proxy `/api` (chỉ tunnel prod mới proxy) → client-fetch login/nút foster 404 ở localhost → không click-through browser local được. Đã verify qua HTTP thật (real SSR HTML + decode cookie). **Eyeball cuối trên `vowvet.monminpet.com`** (tunnel đã trỏ container mới rebuild = code này) do Duy.
+
+**Quyết định kỹ thuật**: điểm sửa gate là `/me` (auth.ts:212), KHÔNG phải middleware (middleware chỉ đọc cookie; cookie do /me + login ký). `getIsOnboarded` (đọc field `onboarded`) đã được MỌI login endpoint dùng sẵn → fix 1 dòng ở /me là mắt xích thiếu duy nhất.
+
+---
+
+## 🎯 ĐANG LÀM GÌ (phiên trước — auth overhaul, đã xong)
+Overhaul toàn bộ hệ đăng nhập VowVet: bỏ SĐT/OTP khỏi UI, chuyển sang **Google + Zalo**, admin nhận diện theo **email** thay vì SĐT. Giai đoạn này **đã hoàn tất** (PR #7→#14, tất cả merged + deployed + eyeball). Không còn việc code treo.
 
 ## ✅ ĐÃ XONG PHIÊN NÀY
-- **Đầu phiên — 3 commit nền** (đã commit trước khi vào các fix):
-  - `2655e13` backend chat + reclaim passport + admin API + is_admin + cleanup cron.
-  - `20cc17e` admin dashboard (sidebar, overview, users/pets/foster/chat, detail, `?as=user`).
-  - `de01919` chat user `/messages` polling 5s + dashboard entry + SW v332.
-- **Chat UX — `129e4ee` (SW v334)**: `TopBar.astro` nút hỗ trợ đổi `mail`→`mailbox` + label "Hỗ trợ"
-  (kiểu B, `text-amber-600`, flex-col, giữ badge đỏ) · `messages/[id].astro` nút "← Quay lại".
-- **#4 badge đa-admin — `6568ec4`**: `api/src/lib/conversations.ts` `getAdminSupportUnread` đếm theo
-  `sender_id === conv.user1_id` (user thường) thay `!== adminId` → admin A hết thấy tin admin B là "chưa đọc".
-- **#5 vô hiệu hoá user — `6568ec4`**: LỖI GỐC ở LIST → `api/src/routes/admin.ts` GET /users thêm
-  `&& !u.deleted_at` (copy pattern pets list) · `web/src/pages/admin/users/[id].astro` nút "Vô hiệu hoá"
-  + wire POST `/admin/users/:id/disable` (route disable đã có sẵn admin.ts:557 → không đụng).
-- **#3 user↔user foster chat — `a37da10` (SW v336)**:
-  - `api/src/routes/conversations.ts` +`POST /conversations/foster {handover_id}` — get-or-create foster conv
-    (idempotent, vá transfer cũ fire-and-forget). Guard giver/receiver/admin (403/400/404).
-  - `api/src/routes/users.ts` +`GET /me/foster-received` — handover mình là receiver ≤7 ngày
-    → `[{handover_id, pet_name, giver_name, created_at}]`. Mirror reclaim-summary, KHÔNG schema.
-  - `web/src/pages/pets/[id].astro` step 3 GIVER: ✓ xanh + nút "Nhắn cho người nhận" (→ /foster → /messages/:id,
-    fallback /messages) + "Về trang chính". Bỏ auto-redirect 1.6s, bắt `new_owner`+`handover_id`.
-  - `web/src/pages/dashboard.astro` RECEIVER: card "Bạn vừa nhận bé X từ Y" (gradient blue→emerald, icon paw,
-    nút "Nhắn tin", ✕ dismiss `sessionStorage['dismissed_fosters']`, copy cơ chế card reclaim amber).
-- **Env — admin gỡ còn 1** (KHÔNG commit, .env gitignored): `ADMIN_PHONES` → chỉ `+84779029133` (user 24).
-  `+84939233398` (user 6) hết admin — verify `is_admin=false` + `/admin/users` 403. force-recreate api+web.
-- **Docs — `788ce76`**: `CONTEXT_SYNC.md` bị **force-add** (`-f`, vượt gitignore) → giờ đã TRACK.
+- **#7 vá lỗ OTP lộ**: `api/src/routes/auth.ts` bỏ field `dev_otp` khỏi response `/request-otp`; `web/src/pages/login.astro` bỏ khối "Dev OTP". Mã OTP giờ chỉ ra log server.
+- **#8 login gọn**: `login.astro` bỏ tab **Email + SĐT**, còn nút Google. SĐT ẩn nhưng vào được qua `/login?method=phone`. Backend email `/auth/email/*` giữ (còn dùng ở account/*).
+- **#9→#11 Zalo Login OAuth v4 (QR)**:
+  - `api/src/routes/auth-zalo.ts` (MỚI) — permission/token(PKCE+secret_key)/profile, state cookie HMAC. `api/src/index.ts` mount `/api/v1/auth/zalo`.
+  - `api/src/lib/users.ts` — `findUserByZaloId` + `createUserViaZalo` (email/phone null, `auth_method` NULL). `web/src/pages/login.astro` thêm nút Zalo.
+  - #10: bỏ `auth_method` khỏi payload (né single_select 400). #11: `shared/jwt.ts` `verifySession` nới cho token có `zalo_user_id` + 4 chỗ re-sign (auth.ts /me, onboarding.ts, users.ts, dev.ts) truyền `zalo_user_id`.
+- **#12 admin theo EMAIL**: `shared/admin.ts` (MỚI) `isAdminIdentity(phone,email)`. Áp: `api/src/routes/{admin,auth,conversations,rewards}.ts` + `web/src/middleware.ts` + `web/src/env.d.ts` + 8 trang `web/src/pages/admin*.astro`.
+- **#13 chat header**: `web/src/pages/messages/[id].astro` + `messages.astro` thêm `TopBar` (fetchMe → pet-jump + admin link), full-height restructure, giữ nút "← Quay lại".
+- **#14 nhãn admin**: `messages/[id].astro` — `isAdminMsg` (sender ∉ member) → nhãn "Admin VowVet" (căn giữa/xanh).
+- **Dọn user (Baserow, không code)**: `u28` (+84939233398) soft-delete; admin chuyển email-only (Duy sửa `.env`).
+- SW bump lần cuối: **`vowvet-v343-admin-msg-label`**.
 
 ## 🚧 ĐANG DỞ
-- **PUSH chưa chạy được**: 9 commit ahead `origin/main`, `git push` bị **permission session CHẶN**
-  (thử cả pipe/trần đều denied) → **Duy chạy `git push` thủ công** ở terminal (upstream đã set).
-- KHÔNG có code dở giữa chừng — working tree clean (trừ CONTEXT_SYNC.md này vừa sửa).
+- **Không có việc code dở** — working tree clean (chỉ file CONTEXT_SYNC.md này đang viết lại).
+- 1 commit local `d50eb1e` (docs CONTEXT_SYNC) **ahead origin/main, CHƯA push** (guard chặn push thẳng main → Duy tự push nếu muốn lên origin).
 
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
-1. **PUSH** — Duy tự chạy `git push` (session này chặn quyền). 9 commit → `origin/main`.
-2. **TEST E2E MẮT THẬT (Duy login)** — mới verify data+build, chưa eyeball qua UI:
-   - #3 giver: trao bé thật → màn ✓ xanh + 2 nút đúng mockup, nút chat mở đúng conv?
-   - #3 receiver: login tài khoản nhận → card "bé mới nhận" hiện, nút + ✕ chạy?
-   - #4 badge: gửi tin mới → badge mailbox +1 → admin mở → về 0?
-   - #5: bấm "Vô hiệu hoá" → user biến khỏi `/admin/users`?
-3. **#2 dọn user/pet test** — CẦN Duy xác nhận list (đã STALE sau phiên test: user 18 soft-deleted,
-   có tạo/xoá handover test 13-16). PHẢI verify lại trước khi xoá. Không xoá: user 4,6,10,18,22,23,24.
-4. **#6 feedback/rating** (tương lai).
+1. **Zalo ZNS** (gửi OTP/thông báo THẬT): cần OA + tích vàng + duyệt template + ~300đ/tin. File liên quan: `api/src/lib/otp-sender.ts` (đã có toggle mock/zns_real qua `ZALO_MODE`), `.env` `ZALO_ZNS_*`. Chỉ cần nếu bật lại login SĐT cho user ngoài hoặc nhắc lịch qua Zalo.
+2. **(tuỳ chọn) Chặn hẳn luồng phone-OTP login ở backend**: hiện còn (`auth.ts` `/request-otp|/verify-otp` + `/login?method=phone`), mới chỉ ẩn UI. Nếu làm → HỎI trước (đụng logic auth).
+3. **(nếu muốn) push commit CONTEXT_SYNC lên origin** (Duy chạy tay).
 
 ## 📌 QUYẾT ĐỊNH KỸ THUẬT ĐÃ CHỐT
-- Foster chat dùng CHUNG bảng `conversations`/`messages` + polling 5s (như admin_support);
-  `type="foster"`, `context_id = handover_id`. KHÔNG đụng telehealth `/chat` (hệ khác).
-- Endpoint foster get-or-create nhận **`handover_id`** (KHÔNG pet_id — 1 bé trao nhiều lần).
-- Card receiver: window **7 ngày** + dismiss **sessionStorage** (KHÔNG field DB → tránh schema change;
-  chấp nhận card tái xuất phiên sau trong 7 ngày).
-- Icon card = **paw line-art** (handover không lưu species → khỏi lookup pets; đúng §9 no-emoji).
-- Badge admin đếm theo `user1_id` (an toàn đa-admin). Admin check = `ADMIN_PHONES.includes(session.phone)`,
-  exact match, format `+84xxx`. Chỉ 1 admin: `+84779029133`.
-- CONTEXT_SYNC.md giờ **TRACK trong git** (force-add). Muốn về local: `git rm --cached CONTEXT_SYNC.md`.
+- **Admin = EMAIL-ONLY**: `ADMIN_PHONES=` rỗng, `ADMIN_EMAILS=vowvet.monminpet99@gmail.com`. `isAdminIdentity(phone,email)` = phone∈ADMIN_PHONES **OR** email∈ADMIN_EMAILS, exact match, đọc env mỗi lần. `u24` là admin (đã link Google, email đó).
+- **User Zalo**: định danh THUẦN bằng `zalo_user_id`; email/phone = null; **`auth_method` để NULL** (né bẫy single_select Baserow 400).
+- **verifySession nới CHỈ cho Zalo**: token không phone/email nhưng có `zalo_user_id` → hợp lệ. Google/phone giữ ràng buộc cũ.
+- **Admin foster chat**: quyền ĐÃ CÓ (memberOrAdmin cho admin nhờ #12) → #14 **chỉ thêm nhãn display**, KHÔNG đổi gate.
+- **Chat header**: dùng `TopBar` chung + `fetchMe` (giống dashboard). Layout full-height flex (TopBar / tin scroll / ô nhập).
 
 ## ⚠️ LƯU Ý / CẠM BẪY
-- ⛔ **Sửa `api/**/*.ts` → PHẢI `docker restart vowvet-api`.** `bun --watch` KHÔNG reload trên Windows
-  bind-mount → process chạy code CŨ. (Đã trả giá: fix #5 tưởng xong mà list vẫn hiện user disabled.)
-- ⛔ **Sửa `.env` → `docker compose -f docker/docker-compose.yml up -d --force-recreate vowvet-api vowvet-web`.**
-  `docker restart` KHÔNG nạp lại `.env`. Cả api + web đọc `ADMIN_PHONES` → recreate CẢ 2.
-- **Sửa `.astro` → `docker compose ... up -d --build vowvet-web` + bump SW `vXXX`.** Prod serve `dist` baked,
-  `restart` nạp lại bản build cũ.
-- **`.env` gitignored** (`.gitignore:14 .env*`) → KHÔNG commit, chứa nhiều secret.
-- **`web/src/pages/pets/[id].astro`** trong `git add` PHẢI quote `"..."` → bash/git hiểu `[id]` là glob → add trượt.
-- **Foster conv tạo fire-and-forget** (`foster-transfer.ts:90`) → convId KHÔNG lưu vào handover →
-  entry point phải get-or-create qua endpoint, không giả định có sẵn convId.
-- **Verify trang gated** (dashboard/pets/messages) qua `wget`/preview KHÓ: redirect + cookie HttpOnly →
-  render trực quan để Duy login eyeball; mình verify bằng curl API (mint session container) + grep dist.
-- **KHÔNG đụng** (CLAUDE.md §4): logic DER/gram (`shared/nutrition-engine.ts`), schema/field Baserow,
-  số khẩu phần. Chat = hệ RIÊNG, KHÔNG đụng telehealth `lib/chat.ts`.
+- ⭐ **Admin CHỈ vào bằng Gmail `vowvet.monminpet99@gmail.com` — KHÔNG còn fallback SĐT.** Mất Gmail đó → cứu: thêm lại `ADMIN_PHONES=+84779029133` vào `.env` → force-recreate → login `/login?method=phone`.
+- ⛔ **`shared/*` + `web/src/middleware.ts` + trang `.astro` BUNDLE vào web dist lúc `astro build`** → sửa mấy file này PHẢI **rebuild `vowvet-web` (`--build`)**, KHÔNG chỉ restart api (đã trả giá PR#11, #12).
+- ⛔ **Đổi `.env` → `--force-recreate`** (không phải restart). Vừa đổi `.env` VỪA cần code mới → CẢ `--build` CẢ `--force-recreate`.
+- ⛔ **Zalo callback phải có `/api/v1`** (tunnel: `/api/*`→api, `/*`→web). Thiếu → trúng web → lỗi.
+- ⛔ **`auth_method` single_select**: thêm option mới phải làm ở Baserow UI TRƯỚC, không thì insert 400.
+- ⛔ **Verify gián tiếp (log 302, mint-token, query Baserow) KHÔNG thay được test tận mắt browser** — nhiều lần tưởng xong mà lỗi ở tầng chưa test.
+- **CẤM đụng**: `.env` (secret, Duy tự sửa); `/chat` telehealth (`api/src/lib/chat.ts` — hệ RIÊNG, khác foster/support); nutrition engine (`shared/nutrition-engine.ts`); schema Baserow (thêm field/option phải duyệt).
 
 ## 📂 FILE QUAN TRỌNG ĐÃ ĐỤNG
-- `api/src/routes/conversations.ts` — +endpoint `/conversations/foster` (get-or-create, B1).
-- `api/src/routes/users.ts` — +endpoint `/me/foster-received` (card receiver, B3).
-- `api/src/routes/admin.ts` — GET /users lọc `deleted_at` (#5); route disable admin.ts:557 (đã có).
-- `api/src/lib/conversations.ts` — `getAdminSupportUnread` theo `user1_id` (#4); lib chat 9 hàm.
-- `web/src/pages/pets/[id].astro` — nút giver step 3 trao bé (B2); dialog transfer 3 bước.
-- `web/src/pages/dashboard.astro` — card receiver "bé mới nhận" (B3); cạnh card reclaim.
-- `web/src/pages/admin/users/[id].astro` — nút "Vô hiệu hoá" + wire (#5).
-- `web/src/components/TopBar.astro` — nút hỗ trợ `mailbox` + label "Hỗ trợ" (kiểu B).
-- `web/src/pages/messages/[id].astro` — chat window user, nút "← Quay lại".
-- `web/public/sw.js` — SW version, hiện **v336** (`vowvet-v336-foster-received-card`).
-- `.env` (root, gitignored) — `ADMIN_PHONES=+84779029133` (1 admin).
-- `docker/docker-compose.yml` — 2 service `vowvet-api` (mounted src, --watch) + `vowvet-web` (prod dist baked).
+- `shared/admin.ts` — MỚI. `isAdminIdentity(phone,email)` — helper admin dùng chung api + web.
+- `shared/jwt.ts` — `SessionPayload` có `zalo_user_id`; `verifySession` nới Zalo.
+- `api/src/routes/auth-zalo.ts` — MỚI. Luồng Zalo OAuth v4 (login + callback).
+- `api/src/lib/users.ts` — `findUserByZaloId`, `createUserViaZalo` (+ hàm google/phone cũ).
+- `api/src/routes/auth.ts` — `/request-otp` (bỏ dev_otp), `/me` (`is_admin` = isAdminIdentity, re-sign giữ zalo).
+- `api/src/routes/{admin,conversations,rewards}.ts` — gate admin dùng `isAdminIdentity`.
+- `web/src/middleware.ts` — routing admin dùng `isAdminIdentity`.
+- `web/src/pages/login.astro` — Google + Zalo, ẩn SĐT/Email.
+- `web/src/pages/admin/*.astro` (8 trang) — gate admin dùng `isAdminIdentity`.
+- `web/src/pages/messages/[id].astro` + `messages.astro` — chat TopBar + nhãn admin.
+- `web/public/sw.js` — SW version (hiện `v343-admin-msg-label`).
+- `.env` (gitignored) — `ADMIN_PHONES=` rỗng, `ADMIN_EMAILS=vowvet.monminpet99@gmail.com`, `ZALO_MODE=mock`.

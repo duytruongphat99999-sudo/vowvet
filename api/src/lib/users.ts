@@ -281,6 +281,15 @@ export async function markOnboarded(userId: number): Promise<BaserowUser> {
   return updateRow<BaserowUser>("users", userId, { onboarded: true });
 }
 
+/**
+ * Foster onboarding: đánh dấu onboarded=true + bật cờ nhận nuôi tạm, KHÔNG tạo pet.
+ * Cho phép user chọn "nhận foster, chưa có bé" đi thẳng dashboard mà không bị ép thêm bé.
+ * Dùng cờ boolean is_foster_carer có sẵn — KHÔNG đụng schema.
+ */
+export async function markOnboardedAsFoster(userId: number): Promise<BaserowUser> {
+  return updateRow<BaserowUser>("users", userId, { onboarded: true, is_foster_carer: true });
+}
+
 /** List pets của user (cho dashboard). */
 export async function listUserPets(userId: number, limit = 50): Promise<BaserowPet[]> {
   const res = await listRows<BaserowPet>("pets", {

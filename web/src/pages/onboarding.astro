@@ -39,21 +39,73 @@ const addPetHref =
       </div>
       <p class="text-sm text-mmp-ink/60 mb-1">Chào mừng bạn đến với VowVet <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:inline-block;vertical-align:-2px"><circle cx="9" cy="9" r="3.2" fill="#f0d2d2"/><circle cx="15" cy="9" r="3.2" fill="#f0d2d2"/><circle cx="9" cy="15" r="3.2" fill="#f0d2d2"/><circle cx="15" cy="15" r="3.2" fill="#f0d2d2"/><circle cx="12" cy="12" r="3.6" fill="#ecc7c7"/><circle cx="12" cy="12" r="1.8" fill="#e3b04f"/></svg></p>
       <h1 class="font-display italic text-3xl sm:text-4xl font-semibold text-mmp-ink leading-tight">
-        Thêm bé đầu tiên
+        Bạn muốn bắt đầu thế nào?
       </h1>
-      <p class="mt-4 text-mmp-ink/75 leading-relaxed">
-        Có một sinh linh nhỏ đã chọn bạn làm cả thế giới của nó.
-        Mỗi bé cưng là một câu chuyện — hãy cùng VowVet mở trang đầu tiên:
-        <strong class="text-mmp-ink">Hồ sơ Trọn đời</strong>, nơi tình yêu thương được ghi lại trọn vẹn.
+      <p class="mt-3 text-mmp-ink/75 leading-relaxed">
+        VowVet đồng hành cùng cả người đang có bé và người nhận nuôi tạm.
+        Chọn cách phù hợp với bạn — có thể đổi sau.
       </p>
-      <a href={addPetHref}
-         class="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-mmp-ink text-white font-bold text-base hover:bg-mmp-ink/90 shadow-lg transition">
-        <svg width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="13" cy="19" rx="3.3" ry="4.4"/><ellipse cx="22.5" cy="13.5" rx="3.5" ry="4.8"/><ellipse cx="32.5" cy="14.5" rx="3.4" ry="4.6"/><ellipse cx="39" cy="23" rx="3" ry="4"/><path d="M24 26.5c-5 0-8.8 3.6-8.8 7.5 0 3.1 2.7 4.5 5.7 4.5 2.1 0 2.5-.9 4.1-.9s2 .9 4.1.9c3 0 5.7-1.4 5.7-4.5 0-3.9-3.8-7.5-8.8-7.5Z"/></svg> Thêm bé
-        <span>→</span>
-      </a>
+
+      <div class="mt-8 space-y-3">
+        {/* Lựa chọn 1: có bé → luồng thêm bé cũ (GIỮ NGUYÊN) */}
+        <a href={addPetHref}
+           class="flex items-center gap-3 text-left p-5 rounded-2xl bg-mmp-ink text-white hover:bg-mmp-ink/90 shadow-lg transition">
+          <svg width="26" height="26" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-shrink-0"><ellipse cx="13" cy="19" rx="3.3" ry="4.4"/><ellipse cx="22.5" cy="13.5" rx="3.5" ry="4.8"/><ellipse cx="32.5" cy="14.5" rx="3.4" ry="4.6"/><ellipse cx="39" cy="23" rx="3" ry="4"/><path d="M24 26.5c-5 0-8.8 3.6-8.8 7.5 0 3.1 2.7 4.5 5.7 4.5 2.1 0 2.5-.9 4.1-.9s2 .9 4.1.9c3 0 5.7-1.4 5.7-4.5 0-3.9-3.8-7.5-8.8-7.5Z"/></svg>
+          <span class="flex-1 min-w-0">
+            <span class="block font-bold text-base">Tôi có bé cần chăm sóc</span>
+            <span class="block text-xs text-white/70 mt-0.5">Tạo Hồ sơ Trọn đời cho bé của bạn</span>
+          </span>
+          <span aria-hidden="true">→</span>
+        </a>
+
+        {/* Lựa chọn 2: nhận foster, chưa có bé → gọi /users/onboard-foster → dashboard */}
+        <button type="button" id="foster-onboard-btn"
+          class="w-full flex items-center gap-3 text-left p-5 rounded-2xl bg-white border-2 border-mmp-cream hover:border-mmp-ink/25 text-mmp-ink shadow-sm transition disabled:opacity-60 disabled:cursor-wait">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-shrink-0" style="color:#B48608"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/><path d="M12 21v-5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2"/><path d="M9.5 13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/></svg>
+          <span class="flex-1 min-w-0">
+            <span class="block font-bold text-base">Tôi nhận nuôi tạm thời (foster)</span>
+            <span class="block text-xs text-mmp-ink/60 mt-0.5">Chưa có bé riêng — kết nối với các bé đang cần nhà</span>
+          </span>
+          <span id="foster-onboard-arrow" aria-hidden="true">→</span>
+        </button>
+        <p id="foster-onboard-err" class="text-xs text-red-600 text-left px-1" style="display:none;" role="alert"></p>
+      </div>
+
       <p class="mt-6">
         <a href="/logout" class="text-xs text-mmp-ink/40 hover:text-mmp-ink">← Đăng xuất</a>
       </p>
     </div>
   </main>
+
+  <script is:inline>
+    (function () {
+      var btn = document.getElementById('foster-onboard-btn');
+      if (!btn) return;
+      var arrow = document.getElementById('foster-onboard-arrow');
+      var err = document.getElementById('foster-onboard-err');
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        if (arrow) arrow.textContent = '…';
+        if (err) err.style.display = 'none';
+        fetch('/api/v1/users/onboard-foster', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin'
+        })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (res.ok && res.j && res.j.success) {
+              window.location.href = res.j.redirect_to || '/dashboard';
+            } else {
+              throw new Error((res.j && res.j.error && res.j.error.message) || 'Có lỗi, thử lại nhé');
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            if (arrow) arrow.textContent = '→';
+            if (err) { err.textContent = e.message || 'Có lỗi, thử lại nhé'; err.style.display = 'block'; }
+          });
+      });
+    })();
+  </script>
 </Layout>

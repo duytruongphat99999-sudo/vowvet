@@ -26,6 +26,7 @@ export interface MeResponse {
     name: string | null;
     onboarding_completed: boolean;
     is_admin?: boolean;
+    is_foster_carer?: boolean;
   };
   pets: ApiPet[];
 }
