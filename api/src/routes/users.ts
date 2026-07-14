@@ -22,6 +22,7 @@ import {
   updateUserProfile,
   getAuthMethod,
   markOnboarded,
+  markOnboardedAsFoster,
   type BaserowUser,
 } from "../lib/users.ts";
 import { setSessionCookie } from "../lib/session-cookie.ts";
@@ -186,6 +187,37 @@ usersRoute.post("/me/complete-onboarding", async (c) => {
   } catch (err: any) {
     console.error("[users/complete-onboarding] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi đánh dấu onboarded" } }, 500);
+  }
+});
+
+// ===== POST /users/onboard-foster — foster-carer chưa có bé, bỏ qua ép thêm bé =====
+// User chọn "nhận nuôi tạm, chưa có bé riêng" ở /onboarding → set onboarded=true +
+// is_foster_carer=true (KHÔNG tạo pet) rồi ký lại cookie is_onboarded=true để middleware
+// cho vào dashboard ngay. Guard onboarded===false: chống gọi lại (idempotent-safe).
+usersRoute.post("/onboard-foster", async (c) => {
+  const session = c.get("user");
+  try {
+    const current = await findUserById(session.sub);
+    if (!current) {
+      return c.json({ error: { code: "USER_NOT_FOUND", message: "Phiên đã hết hạn" } }, 401);
+    }
+    if ((current as any).onboarded === true) {
+      return c.json({ error: { code: "ALREADY_ONBOARDED", message: "Bạn đã hoàn tất onboarding rồi" } }, 409);
+    }
+    const user = await markOnboardedAsFoster(session.sub);
+    const refreshed = signSession({
+      sub: user.id,
+      phone: user.phone || undefined,
+      email: (user as any).email || undefined,
+      zalo_user_id: (user as any).zalo_user_id || undefined, // giữ định danh Zalo
+      is_onboarded: true,
+    });
+    setSessionCookie(c, refreshed);
+    console.log(`[users/onboard-foster] uid=${user.id} onboarded=true is_foster_carer=true (no pet)`);
+    return c.json({ success: true, redirect_to: "/dashboard" });
+  } catch (err: any) {
+    console.error("[users/onboard-foster] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi đánh dấu foster onboarding" } }, 500);
   }
 });
 

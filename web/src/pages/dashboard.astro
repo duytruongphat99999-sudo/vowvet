@@ -185,18 +185,36 @@ const fosterReceived: any[] = _fosterReceived?.received || [];
       ))}
 
       {!primaryPet ? (
-        <!-- Empty state — no pets yet -->
-        <section class="bg-white rounded-3xl border border-mmp-cream p-10 text-center">
-          <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-mmp-cream mb-4 text-mmp-ink/40">
-            <FeatureIcon name="paw" class="w-10 h-10" />
-          </div>
-          <h2 class="text-xl font-bold text-mmp-ink mb-2">Chưa có pet nào</h2>
-          <p class="text-sm text-mmp-ink/70 mb-6">Thêm bé đầu tiên để bắt đầu hành trình chăm sóc.</p>
-          <a href="/pets/new" class="inline-flex items-center gap-2 bg-mmp-ink hover:bg-mmp-ink/90 text-white font-bold px-6 py-3 rounded-xl transition">
-            <FeatureIcon name="plus" class="w-4 h-4" strokeWidth={2.5} />
-            Thêm pet đầu tiên
-          </a>
-        </section>
+        user.is_foster_carer ? (
+          <!-- Empty state — foster-carer chưa nhận bé nào -->
+          <section class="bg-white rounded-3xl border border-mmp-cream p-10 text-center">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-mmp-cream mb-4 text-mmp-ink/40">
+              <FeatureIcon name="paw" class="w-10 h-10" />
+            </div>
+            <h2 class="text-xl font-bold text-mmp-ink mb-2">Bạn chưa nhận bé nào</h2>
+            <p class="text-sm text-mmp-ink/70 mb-6">Xem các bé đang cần người nhận nuôi tạm và kết nối với chủ hiện tại của bé.</p>
+            <a href="/foster" class="inline-flex items-center gap-2 bg-mmp-ink hover:bg-mmp-ink/90 text-white font-bold px-6 py-3 rounded-xl transition">
+              <FeatureIcon name="paw" class="w-4 h-4" strokeWidth={2.5} />
+              Xem các bé đang cần nhận nuôi
+            </a>
+            <div class="mt-4">
+              <a href="/pets/new" class="text-xs text-mmp-ink/50 hover:text-mmp-ink underline">hoặc thêm bé của riêng bạn</a>
+            </div>
+          </section>
+        ) : (
+          <!-- Empty state — no pets yet -->
+          <section class="bg-white rounded-3xl border border-mmp-cream p-10 text-center">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-mmp-cream mb-4 text-mmp-ink/40">
+              <FeatureIcon name="paw" class="w-10 h-10" />
+            </div>
+            <h2 class="text-xl font-bold text-mmp-ink mb-2">Chưa có pet nào</h2>
+            <p class="text-sm text-mmp-ink/70 mb-6">Thêm bé đầu tiên để bắt đầu hành trình chăm sóc.</p>
+            <a href="/pets/new" class="inline-flex items-center gap-2 bg-mmp-ink hover:bg-mmp-ink/90 text-white font-bold px-6 py-3 rounded-xl transition">
+              <FeatureIcon name="plus" class="w-4 h-4" strokeWidth={2.5} />
+              Thêm pet đầu tiên
+            </a>
+          </section>
+        )
       ) : (
         <>
           <!-- ─── ZONE 1: Pet Hero (dark ink WOW, clean avatar no overlay) ─── -->

@@ -207,7 +207,9 @@ authRoute.get("/me", requireAuth, async (c) => {
     }
     setMeCache(session.sub, user, pets);
   }
-  const is_onboarded = pets.length > 0;
+  // Foster onboarding: user không có bé nhưng đã chủ động chọn "nhận foster"
+  // (field onboarded=true) vẫn tính là đã onboarded → middleware không đá về /onboarding.
+  const is_onboarded = pets.length > 0 || (user as any).onboarded === true;
 
   // Refresh-on-use: gia hạn cookie với is_onboarded mới nhất
   const refreshed = signSession({
@@ -226,6 +228,7 @@ authRoute.get("/me", requireAuth, async (c) => {
       name: user.name,
       onboarding_completed: is_onboarded,
       is_admin: isAdminIdentity(session.phone, session.email),
+      is_foster_carer: (user as any).is_foster_carer === true,
       // Đợt 2b: popup nhắc cân 1 lần/ngày/user (food-brands đọc + so sánh ngày)
       last_seen_food_brands: (user as any).last_seen_food_brands ?? null,
     },
