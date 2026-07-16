@@ -586,7 +586,12 @@ petsRoute.post("/foster/toggle", async (c) => {
     return c.json({ error: { code: "BAD_ENABLED", message: "Trường enabled phải là boolean" } }, 400);
   }
   try {
-    await updateRow("users", session.sub, { is_foster_carer: body.enabled });
+    // Bật foster → mở luôn profile public (nhận bé qua link /heroes/profile/<id> cần
+    // người lạ mở được trang — gate pet-heroes.ts:279). Tắt foster KHÔNG tắt public
+    // (user có thể public vì lý do khác, vd hero act).
+    const updates: Record<string, unknown> = { is_foster_carer: body.enabled };
+    if (body.enabled === true) updates.public_profile_enabled = true;
+    await updateRow("users", session.sub, updates);
     return c.json({ ok: true, is_foster_carer: body.enabled });
   } catch (err) {
     return petErrorResponse(c, err);
