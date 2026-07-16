@@ -16,6 +16,7 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
   - `web/src/pages/dashboard.astro` — empty-state foster thêm nút "Chia sẻ để nhận bé" (copy link `/heroes/profile/<id mình>`) + **fallback ô text** (webview Zalo hay chặn clipboard). KHÔNG cần đụng auth.ts (`user.id` có sẵn trong /me). SW v346.
 - **Ops**: 4 commit push nhánh `feat/foster-zalo-flow` → **PR #15 MERGED vào main (`23a9b9a`)**: `d50eb1e` + `20d15a9` + `4bc88ee` + `a44dea5`.
 - **Ops**: Eyeball tunnel PASS (Duy xác nhận): Google + Zalo, trao bé, thu hồi bé, nhắn tin, admin chen ngang xử lý — DONE hết.
+- **Survey gate profile + vá**: tìm ra gate `public_profile_enabled` chặn nút "Nhắn tin" + link v346 → **PR #16** (`fix(foster): bật public_profile_enabled khi set is_foster_carer`) — CHƯA merge, xem ĐANG DỞ.
 - **Điều tra vụ chat "F5 mới thấy tin"** (read-only → kết luận KHÔNG PHẢI BUG, xem ĐANG DỞ).
 - **Recon định vị pet** (trả lời câu hỏi): CHỈ có lost-pet network (last-seen + sightings + QR collar in giấy + OSM/Leaflet + Haversine). KHÔNG có GPS tracker/real-time — muốn có phải tích hợp phần cứng mới.
 
@@ -24,15 +25,16 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
   - Triệu chứng "gửi được, 2 bên không nhận" = test bằng 2 nick Zalo KHÁC NHAU: bé trao 14/07 cho u30 "Duy Trường Phát" (zalo 8904438…); browser B hôm nay login ra u49 "Lê Minh Duy" (zalo 5135739…, tạo mới 13:54:46) → u49 không có foster conv → gõ vào phòng Admin #24. Không tin nào lạc phòng, không tin nào mất.
   - Server + client + SW đều sạch: msg 22 có thật trong Baserow; u27 GET conv 22 → 200; POST /message throw mọi non-2xx (`shared/baserow.ts:61-63`), không nuốt lỗi; GET lọc field số thường (không link_row); SSR + poll chung 1 route; cache 20s (`api/src/index.ts:100`) không phủ /conversations.
   - Admin = u24 (vowvet.monminpet99@gmail.com). u27 KHÔNG phải admin.
-  - **CÒN MỞ**: nút "Nhắn tin" (`heroes/profile/[userId].astro:104→399` → POST /conversations/direct) CHƯA TỪNG chạy từ UI thật — conv direct duy nhất (#6) là smoke script server-side. Polling 5s trên tunnel cũng chưa từng test. → 1 lượt test: A(u27) → /heroes/profile/49 → Nhắn tin → B(u49) trả lời → A đợi 10s không F5.
+  - **BUG GATE TÌM RA khi test (16/07 22:29, ảnh eyeball)**: `/heroes/profile/<id>` trả 404 "Profile riêng tư hoặc không tồn tại" với MỌI người lạ (kể cả login) vì `public_profile_enabled=false` mặc định Baserow — chỉ hero act ĐẦU TIÊN bật (`pet-heroes.ts:192`), foster act KHÔNG bật → foster private vĩnh viễn → nút "Nhắn tin" (dòng 104, SAU gate dòng 27) chết từ khai sinh + link v346 "Chia sẻ để nhận bé" phát link 404. **ĐÃ VÁ — PR #16** (`auto/foster-public-profile`, 2 chỗ: `markOnboardedAsFoster` + `POST /pets/foster/toggle` ON; OFF không tắt public; verify 6/6 + verifier PASS). Sau merge: (a) backfill TAY u30+u49 bật `public_profile_enabled` Baserow UI, (b) `git checkout main && git pull && docker restart vowvet-api`, (c) chạy lại lượt test 3 bước: A(u27) → /heroes/profile/49 → Nhắn tin → B(u49) trả lời → A đợi 10s không F5 (đóng nốt nút /direct + polling tunnel).
   - Script recon read-only còn để ở `data/api/_recon_chat*.ts` (chạy: `MSYS_NO_PATHCONV=1 docker exec -w /app/api vowvet-api bun run /app/data/_recon_chat4.ts`) — untracked, KHÔNG commit.
 
 ## ⚠️ BẪY MỚI (chưa vá)
 - **Mỗi transfer đẻ conversation MỚI cho cùng cặp user** (context_id = handover_id mới). Cặp 35↔37 đang có 3 conv: #11,12,15. Hiện 17 foster conv. Về sau sẽ tạo ĐÚNG triệu chứng "nhắn không thấy": A ở phòng cũ, B ở phòng mới. Cần findOrCreate theo CẶP USER thay vì theo handover.
 - **Test bằng nhiều nick Zalo** → nick Zalo app-scoped, tên khác nhau = TK khác nhau thật. Trước khi kết luận bug chat: query user + conversation của nick đang cầm TRƯỚC.
+- **"Thu hồi bé" (`foster-reclaim.ts:107-111`) XOÁ handover + hero_act + trừ foster_acts_count** → conv foster cũ trỏ `context_id` vào handover đã xoá (conv #7→17, #22→31 đang dangling); `POST /conversations/foster` với handover_id đó sẽ 404. Foster act ghi ĐÚNG (đối chiếu u33=1/1, u35=6/6, u39=6/6 khớp handovers) — u27=0 là do reclaim, KHÔNG phải bug ghi.
 
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
-1. **Đóng vụ chat** (1 lượt test 2 phút trên tunnel, không cần code): A(u27) → `/heroes/profile/49` → bấm "Nhắn tin" → gửi "test 1" · B(u49) mở /messages xem có phòng direct mới không (không có → nút UI chết, vệt bẫy v345) · B trả lời "test 2" → A đợi 10s KHÔNG F5 (tin tự hiện = polling tunnel OK). Xong lượt này là đóng cả nút /direct lẫn câu polling gốc.
+1. **Đóng vụ chat**: merge PR #16 → backfill tay u30+u49 (`public_profile_enabled` Baserow UI) → `git checkout main && git pull && docker restart vowvet-api` → lượt test 2 phút trên tunnel: A(u27) → `/heroes/profile/49` → bấm "Nhắn tin" → gửi "test 1" · B(u49) mở /messages xem có phòng direct mới không · B trả lời "test 2" → A đợi 10s KHÔNG F5 (tin tự hiện = polling tunnel OK). Xong lượt này là đóng cả nút /direct lẫn câu polling gốc.
 2. **(đã ghi nợ v346)** Nút share-link cho foster ĐÃ nhận ≥1 bé (hiện chỉ ở empty-state → nhận bé xong là mất nút). Đặt ở hồ sơ `[userId].astro` hoặc settings.
 3. (tồn cũ) Zalo ZNS (OTP/notify thật) · chặn hẳn phone-OTP backend (HỎI trước — đụng auth).
 
