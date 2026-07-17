@@ -22,9 +22,10 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **Ops**: Vụ "chat phải F5" — **ĐÓNG 17/07, KHÔNG PHẢI BUG**. Eyeball tunnel: u27→u30 realtime, không F5, badge đỏ chạy. Nguyên nhân: test bằng nick Zalo sai (u49 ≠ u30). Full điều tra: survey read-only 16/07 (server/client/SW sạch, cache không phủ /conversations).
 - **Recon định vị pet** (trả lời câu hỏi): CHỈ có lost-pet network (last-seen + sightings + QR collar in giấy + OSM/Leaflet + Haversine). KHÔNG có GPS tracker/real-time — muốn có phải tích hợp phần cứng mới.
 - **Ops**: PR #20 merged 17/07 — A1: `foster-transfer.ts:90` + `conversations.ts:98` → `context_id=0` → findOrCreate match theo CẶP USER, 1 phòng/cặp (như Zalo). Zero migration (17 conv cũ giữ nguyên; 4 cặp mồ côi đều nick soft-delete). Verify sau-settle: A↔B 2 transfer → 1 conv #25 context=0. Bonus: fix dangling #7/#22.
+- **Ops**: PR #22 merged 17/07 — B2: tách quyền xem hồ sơ ≠ nhắn tin. Fallback ở route `heroes.ts` GET /profile (KHÔNG đụng `getHeroProfile` → /acts + /my-stats + slug KHÔNG rò) → viewer ĐÃ LOGIN xem hồ sơ private = 200 + `{user_id, name, avatar_url, limited:true}`. Guest → vẫn 404. User soft-delete → 404. FE gate SERVER-SIDE (Astro omit markup + không fetch `is_foster_carer` khi limited) — KHÔNG dùng x-show vì `initialData` lộ view-source. SW v349. Verify 2 tầng API 7/7 + HTML 5/5, state u66 (foster+private) xác nhận thật.
 
 ## 🚧 ĐANG DỞ
-- Không có việc code dở — việc kế xem VIỆC TIẾP THEO (2 item đầu CHƯA QUYẾT HƯỚNG, cần Bồ/Duy chốt trước).
+- Không có việc code dở — việc kế xem VIỆC TIẾP THEO (item 1 "tìm hồ sơ người khác" chưa recon/chưa quyết hướng).
 
 ## ⚠️ BẪY MỚI (chưa vá)
 - ⛔ **CLAUDE.md §1 "Account test" STALE** — pet 12 / u10 / u18 đều CHẾT (query 17/07 xác nhận). Hook `protect-harness.sh` chặn agent sửa CLAUDE.md, chưa sửa tay được. → **Account test dùng `PROJECT.md` làm nguồn** (u26 chủ-pet · u30 Zalo/foster, kèm guard "account THẬT của Duy — chỉ đọc/login/probe GET"). **ĐỪNG tin §1 CLAUDE.md.**
@@ -37,12 +38,15 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **`togglePrivate()` (`heroes/profile/[userId].astro:423-439`) hardcode `enabled:false`** — ONE-WAY, tắt rồi UI đó không bật lại được (alert chỉ đường "vào lại /heroes/profile").
 - **Dòng 432 `if (res.ok)` KHÔNG có else** → request fail là im lặng tuyệt đối, user không biết gì.
 - **Backfill foster trước #16 — XONG**: u34 + u49 ĐÃ tick tay 17/07 (`public_profile_enabled`). Query toàn bảng: 9 foster → chỉ 2 user sống cần backfill, xong. **u34 là USER THẬT (không phải nick test) — bug gate đã dính người ngoài.**
+- ⛔ **Verify server-side (script HTTP + grep HTML) MÙ với client-side fetch.** B2 suýt lọt pill foster vì nó fetch SAU khi trang load → cả 2 tầng verify server-side đều không thấy. Cùng vệt v345 (client validate chặn) · v346 (`Astro.url.origin`) · localhost:4322 (client fetch 404 im lặng). → Vá gì dính client-fetch: **gate SERVER-SIDE để verify thấy được**, hoặc **eyeball tay**.
+- **`GET /pets/foster/carer/:id` (`pets.ts:568`) KHÔNG gate `public_profile_enabled`** → gọi thẳng vẫn rò foster status của user private. Độc lập B2 (trước B2 rò y hệt) — B2 chỉ đóng tầng UI.
+- **Hằng số trong `<script>`** ("Người nuôi tạm" `FOSTER_LABELS` · "Chưa có cấp" `HERO_TIERS`) LUÔN có trong HTML dù pill bị omit → grep chuỗi = **false-negative**. Phải grep MARKUP pill (container/template), không grep nhãn. (Đã dính lúc verify B2b — assertion sai, fix xong.)
+- **foster conv vs direct conv CÙNG CẶP USER = 2 phòng riêng** (type khác nhau → A1 chỉ match trong cùng type). u30↔u27 sẽ có #22 (foster) + phòng direct mới → `/messages` hiện 2 dòng trùng tên. Cùng lớp vấn đề A1 vừa vá, CHƯA đóng hết (A1 chỉ gom foster↔foster).
 
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
-1. **(CHƯA QUYẾT HƯỚNG) Chat 1 chiều**: chủ pet mặc định `public_profile_enabled=false` → `/heroes/profile/<id>` 404 → KHÔNG AI nhắn được họ. Foster thì #16 tự bật nên nhắn được. Chưa chốt hướng — Bồ/Duy quyết trước khi code.
-2. **(CHƯA QUYẾT HƯỚNG, chưa recon) Tìm hồ sơ người khác**: không có đường nào ngoài leaderboard `/heroes` → muốn nhắn ai phải gõ id tay. Chưa recon.
-3. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
-4. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
+1. **(CHƯA QUYẾT HƯỚNG, chưa recon) Tìm hồ sơ người khác**: không có đường nào ngoài leaderboard `/heroes` → muốn nhắn ai phải gõ id tay. Chưa recon.
+2. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
+3. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
 
 ## ✅ QUYẾT ĐỊNH CHỐT 17/07 — auth Zalo + mail, KHÔNG phone-OTP cho user
 - Duy xác nhận: "VowVet chỉ Zalo và mail". Không còn user login bằng phone.
@@ -55,6 +59,7 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **Transfer đa-định-danh**: client chỉ nới validation "cho đi tiếp", **server là chốt chặn thật** (regex chặt + anchor domain). **userId-số là đường chính** (chạy bất kể public toggle); slug là phụ (`getHeroProfileBySlug` trả null khi hồ sơ tắt public). Bỏ hướng mã VOW-xxxx (đụng schema).
 - **Link tuyệt đối công khai ở web SSR**: dùng **`Astro.site`** (`https://vowvet.monminpet.com` khai ở `astro.config.mjs:6`), **KHÔNG** `Astro.url.origin` (sau proxy trả `http://localhost` → link hỏng). Đã dính bẫy này 2 lần.
 - **Chat server ĐÚNG** (đã chứng minh bằng diagnostic) — mọi bản vá chat sau này nhắm CLIENT/môi trường, đừng mò lại server.
+- **B2 đánh đổi (chấp nhận 17/07)**: user ĐÃ LOGIN thấy TÊN của mọi user private → quét `/heroes/profile/1..N` ra danh sách tên. Đổi lại: chat 2 chiều, không ai phải bật gì. **Riêng tư = giấu THÀNH TÍCH, không phải cấm liên lạc.**
 
 ## ⚠️ LƯU Ý / CẠM BẪY
 - **Web prod KHÔNG proxy `/api`** → mọi client-fetch `/api/v1/*` ở localhost:4322 trả 404 (login, poll chat, nút foster...). Chỉ tunnel `vowvet.monminpet.com` mới proxy. → **verify local = HTTP-in-container**: viết script bun vào `data/api/` (mount `/app/data`), chạy `MSYS_NO_PATHCONV=1 docker exec -w /app/api vowvet-api bun run /app/data/_x.ts` (`-w` để resolve `@shared`); web nội bộ = `http://vowvet-web:4321`. Eyeball tận mắt = trên tunnel.
