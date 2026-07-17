@@ -1,7 +1,7 @@
 # CONTEXT SYNC — 2026-07-16 21:00
 
 ## 🎯 ĐANG LÀM GÌ
-Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng ký sạch không ép tạo bé (v344) → tự lấy link định danh (v346) → được trao bé qua link (v345). CẢ 3 EPIC XONG HẲN: code + verify HTTP + eyeball tunnel PASS + **PR #15 MERGED vào main**. Song song: vụ chat "phải F5 / gửi không ai thấy" **ĐÓNG HẲN 17/07 — KHÔNG PHẢI BUG** (polling 5s sống, eyeball tunnel u27→u30 realtime; nguyên nhân: nick Zalo sai u49 ≠ u30). PR #16 (gate profile) **nghiệm thu PASS 17/07** (mắt + data) — merge cùng PR docs. Việc kế: nút "Hồ sơ Pet Hero của tôi" trên dashboard (VIỆC TIẾP THEO #1, vị trí đã duyệt).
+Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng ký sạch không ép tạo bé (v344) → tự lấy link định danh (v346) → được trao bé qua link (v345). CẢ 3 EPIC XONG HẲN: code + verify HTTP + eyeball tunnel PASS + **PR #15 MERGED vào main**. Song song: vụ chat "phải F5 / gửi không ai thấy" **ĐÓNG HẲN 17/07 — KHÔNG PHẢI BUG** (polling 5s sống, eyeball tunnel u27→u30 realtime; nguyên nhân: nick Zalo sai u49 ≠ u30). PR #16 (gate profile) nghiệm thu PASS + **PR #18 (nút "Hồ sơ Pet Hero của tôi") merged 17/07, eyeball PASS**. Backfill foster trước #16 XONG (u34+u49). Việc kế: 2 item đầu VIỆC TIẾP THEO — CHƯA QUYẾT HƯỚNG, chờ Bồ/Duy chốt.
 
 ## ✅ ĐÃ XONG PHIÊN NÀY
 - **v344 Foster onboarding** (commit `20d15a9`, verify HTTP 21/21):
@@ -18,11 +18,12 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **Ops**: Eyeball tunnel PASS (Duy xác nhận): Google + Zalo, trao bé, thu hồi bé, nhắn tin, admin chen ngang xử lý — DONE hết.
 - **Survey gate profile + vá**: bug gate THẬT (16/07 22:29: `/heroes/profile/<id>` 404 với MỌI người lạ vì `public_profile_enabled=false` mặc định, chỉ hero act đầu bật `pet-heroes.ts:192`, foster KHÔNG bật → nút "Nhắn tin" chết + link v346 404) → **PR #16** (`fix(foster): bật public_profile_enabled khi set is_foster_carer`; verify 6/6 + regression u53 chủ-pet-thường vẫn private + verifier PASS).
 - **Ops**: PR #16 nghiệm thu PASS 17/07 (mắt + data): Duy bỏ tick TAY cả public_profile_enabled + is_foster_carer của u30 trong Baserow → /heroes/profile/30 → bấm "Bật" ở "Tôi nhận nuôi tạm" 1 lần → query lại: CẢ 2 = true. Code tự bật, không phải tay. Merged. Kèm: u27 (login thật) mở /heroes/profile/30 → THẤY nút "Nhắn tin" → KHÔNG có bug isOwner; lần trước không thấy là do browser đó chưa login. (Script recon/verify read-only còn ở `data/api/_recon_*.ts` + `_verify_*.ts` — untracked, KHÔNG commit.)
+- **Ops**: PR #18 merged 17/07 — card "Hồ sơ Pet Hero của tôi" ở `dashboard.astro:332` (ngoài ternary, mọi user, cả 2 trạng thái) → `/heroes/profile/{user.id}`. SW v347. Đóng nợ v346. Eyeball tunnel PASS.
 - **Ops**: Vụ "chat phải F5" — **ĐÓNG 17/07, KHÔNG PHẢI BUG**. Eyeball tunnel: u27→u30 realtime, không F5, badge đỏ chạy. Nguyên nhân: test bằng nick Zalo sai (u49 ≠ u30). Full điều tra: survey read-only 16/07 (server/client/SW sạch, cache không phủ /conversations).
 - **Recon định vị pet** (trả lời câu hỏi): CHỈ có lost-pet network (last-seen + sightings + QR collar in giấy + OSM/Leaflet + Haversine). KHÔNG có GPS tracker/real-time — muốn có phải tích hợp phần cứng mới.
 
 ## 🚧 ĐANG DỞ
-- Không có việc code dở — việc kế xem VIỆC TIẾP THEO #1 (nút "Hồ sơ Pet Hero của tôi", vị trí đã duyệt).
+- Không có việc code dở — việc kế xem VIỆC TIẾP THEO (2 item đầu CHƯA QUYẾT HƯỚNG, cần Bồ/Duy chốt trước).
 
 ## ⚠️ BẪY MỚI (chưa vá)
 - **Mỗi transfer đẻ conversation MỚI cho cùng cặp user** (context_id = handover_id mới). Cặp 35↔37 đang có 3 conv: #11,12,15. Hiện 17 foster conv. Về sau sẽ tạo ĐÚNG triệu chứng "nhắn không thấy": A ở phòng cũ, B ở phòng mới. Cần findOrCreate theo CẶP USER thay vì theo handover.
@@ -31,13 +32,14 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **Nhãn 2 công tắc profile là TEXT TĨNH, KHÔNG phản ánh trạng thái** (nút ghi "Bật" dù `is_foster_carer` đã true; "Tắt profile công khai" không bao giờ đổi) → đọc nhãn để đoán trạng thái là SAI, phải query Baserow. Đã đốt 2 vòng phiên này.
 - **`togglePrivate()` (`heroes/profile/[userId].astro:423-439`) hardcode `enabled:false`** — ONE-WAY, tắt rồi UI đó không bật lại được (alert chỉ đường "vào lại /heroes/profile").
 - **Dòng 432 `if (res.ok)` KHÔNG có else** → request fail là im lặng tuyệt đối, user không biết gì.
-- **Backfill u49**: `public_profile_enabled=false` (đăng ký foster TRƯỚC #16) → toggle "Tôi nhận nuôi tạm" OFF→ON hoặc tick tay Baserow.
+- **Backfill foster trước #16 — XONG**: u34 + u49 ĐÃ tick tay 17/07 (`public_profile_enabled`). Query toàn bảng: 9 foster → chỉ 2 user sống cần backfill, xong. **u34 là USER THẬT (không phải nick test) — bug gate đã dính người ngoài.**
 
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
-1. **Nút "Hồ sơ Pet Hero của tôi"** ở `dashboard.astro:332` (cạnh "Nhắn tin với VowVet", **NGOÀI ternary** `{!primaryPet}` → render MỌI user, CẢ 2 trạng thái — vị trí Bồ+Duy duyệt 17/07) → `/heroes/profile/{user.id}`. Đóng luôn nợ v346 (foster ≥1 bé mất nút share ở empty-state → vào hồ sơ lấy link). Sub-label: grep nút "Share" trên trang profile phát ra gì — phát URL profile thì giữ vế "Link chia sẻ nhận bé", phát thứ khác thì bỏ vế đó. SW v347, rebuild vowvet-web.
-2. (tồn cũ) Zalo ZNS (OTP/notify thật) · chặn hẳn phone-OTP backend (HỎI trước — đụng auth).
-3. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
-4. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
+1. **(CHƯA QUYẾT HƯỚNG) Chat 1 chiều**: chủ pet mặc định `public_profile_enabled=false` → `/heroes/profile/<id>` 404 → KHÔNG AI nhắn được họ. Foster thì #16 tự bật nên nhắn được. Chưa chốt hướng — Bồ/Duy quyết trước khi code.
+2. **(CHƯA QUYẾT HƯỚNG, chưa recon) Tìm hồ sơ người khác**: không có đường nào ngoài leaderboard `/heroes` → muốn nhắn ai phải gõ id tay. Chưa recon.
+3. (tồn cũ) Zalo ZNS (OTP/notify thật) · chặn hẳn phone-OTP backend (HỎI trước — đụng auth). **⚠️ 2 vế này ĐANG MÂU THUẪN** (ZNS tồn tại chỉ để gửi OTP qua phone; login giờ là Google + Zalo OAuth) → **quyết "phone OTP còn dùng không" TRƯỚC. Không → xoá cả 2 item (khỏi tốn Zalo OA + tích vàng + duyệt template + ~300đ/tin).**
+4. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
+5. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
 
 ## 📌 QUYẾT ĐỊNH KỸ THUẬT ĐÃ CHỐT
 - **Gate onboarding nằm ở `/me`** (`auth.ts` ~212): `is_onboarded = pets.length>0 || onboarded===true`. Mọi login endpoint ĐÃ dùng `getIsOnboarded` (đọc field `onboarded`) từ trước → fix 1 dòng /me là mắt xích thiếu duy nhất. Middleware chỉ đọc cookie, KHÔNG tự tính.
