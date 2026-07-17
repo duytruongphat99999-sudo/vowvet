@@ -21,13 +21,16 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **Ops**: PR #18 merged 17/07 — card "Hồ sơ Pet Hero của tôi" ở `dashboard.astro:332` (ngoài ternary, mọi user, cả 2 trạng thái) → `/heroes/profile/{user.id}`. SW v347. Đóng nợ v346. Eyeball tunnel PASS.
 - **Ops**: Vụ "chat phải F5" — **ĐÓNG 17/07, KHÔNG PHẢI BUG**. Eyeball tunnel: u27→u30 realtime, không F5, badge đỏ chạy. Nguyên nhân: test bằng nick Zalo sai (u49 ≠ u30). Full điều tra: survey read-only 16/07 (server/client/SW sạch, cache không phủ /conversations).
 - **Recon định vị pet** (trả lời câu hỏi): CHỈ có lost-pet network (last-seen + sightings + QR collar in giấy + OSM/Leaflet + Haversine). KHÔNG có GPS tracker/real-time — muốn có phải tích hợp phần cứng mới.
+- **Ops**: PR #20 merged 17/07 — A1: `foster-transfer.ts:90` + `conversations.ts:98` → `context_id=0` → findOrCreate match theo CẶP USER, 1 phòng/cặp (như Zalo). Zero migration (17 conv cũ giữ nguyên; 4 cặp mồ côi đều nick soft-delete). Verify sau-settle: A↔B 2 transfer → 1 conv #25 context=0. Bonus: fix dangling #7/#22.
 
 ## 🚧 ĐANG DỞ
 - Không có việc code dở — việc kế xem VIỆC TIẾP THEO (2 item đầu CHƯA QUYẾT HƯỚNG, cần Bồ/Duy chốt trước).
 
 ## ⚠️ BẪY MỚI (chưa vá)
 - ⛔ **CLAUDE.md §1 "Account test" STALE** — pet 12 / u10 / u18 đều CHẾT (query 17/07 xác nhận). Hook `protect-harness.sh` chặn agent sửa CLAUDE.md, chưa sửa tay được. → **Account test dùng `PROJECT.md` làm nguồn** (u26 chủ-pet · u30 Zalo/foster, kèm guard "account THẬT của Duy — chỉ đọc/login/probe GET"). **ĐỪNG tin §1 CLAUDE.md.**
-- **Mỗi transfer đẻ conversation MỚI cho cùng cặp user** (context_id = handover_id mới). Cặp 35↔37 đang có 3 conv: #11,12,15. Hiện 17 foster conv. Về sau sẽ tạo ĐÚNG triệu chứng "nhắn không thấy": A ở phòng cũ, B ở phòng mới. **HƯỚNG ĐÃ CHỐT (survey 17/07): A1 — gom theo CẶP USER, `context_id=0`, zero-migration** (A2 theo bé KHÔNG vá được: /messages chỉ hiện `otherUserName`, 2 phòng vẫn trùng tên). Sửa 2 điểm gọi `findOrCreateConversation("foster",…)`: `foster-transfer.ts:90` + nhánh `POST /conversations/foster`. 4 cặp trùng hiện tại (#11/12/15, #13/14, #17/18/21, #19/20) đều nick soft-delete → KHÔNG cần dọn.
+- ✅ **Bẫy "mỗi transfer đẻ conv mới" — VÁ XONG (A1, PR #20 merged)**. Còn 2 nợ liên quan (dưới).
+- **`findOrCreateConversation` là list-then-create, KHÔNG atomic** → 2 request cùng cặp <1s vẫn đẻ conv trùng (thấy thật: #26+#27 cách 191ms — transfer fire-forget + openFoster gọi 0ms sau). Pre-existing, A1 KHÔNG làm tệ hơn. Luồng FE thật có bước người bấm "Nhắn cho người nhận" (`pets/[id].astro:4550`) → cửa sổ race đóng. Diệt hẳn phải chạm `findOrCreate` hoặc uniqueness DB.
+- **`lib/conversations.ts:55-62` `.find()` trả conv ĐẦU TIÊN gặp (≈ id asc), KHÔNG đảm bảo là phòng CŨ NHẤT.** Data hiện tại chưa chạm. Cần chắc → `.sort()` theo `created_at` trước `.find()`.
 - **Test bằng nhiều nick Zalo** → nick Zalo app-scoped, tên khác nhau = TK khác nhau thật. Trước khi kết luận bug chat: query user + conversation của nick đang cầm TRƯỚC.
 - **"Thu hồi bé" (`foster-reclaim.ts:107-111`) XOÁ handover + hero_act + trừ foster_acts_count** → conv foster cũ trỏ `context_id` vào handover đã xoá (conv #7→17, #22→31 đang dangling); `POST /conversations/foster` với handover_id đó sẽ 404. Foster act ghi ĐÚNG (đối chiếu u33=1/1, u35=6/6, u39=6/6 khớp handovers) — u27=0 là do reclaim, KHÔNG phải bug ghi.
 - **Nhãn 2 công tắc profile là TEXT TĨNH, KHÔNG phản ánh trạng thái** (nút ghi "Bật" dù `is_foster_carer` đã true; "Tắt profile công khai" không bao giờ đổi) → đọc nhãn để đoán trạng thái là SAI, phải query Baserow. Đã đốt 2 vòng phiên này.
@@ -38,9 +41,13 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
 1. **(CHƯA QUYẾT HƯỚNG) Chat 1 chiều**: chủ pet mặc định `public_profile_enabled=false` → `/heroes/profile/<id>` 404 → KHÔNG AI nhắn được họ. Foster thì #16 tự bật nên nhắn được. Chưa chốt hướng — Bồ/Duy quyết trước khi code.
 2. **(CHƯA QUYẾT HƯỚNG, chưa recon) Tìm hồ sơ người khác**: không có đường nào ngoài leaderboard `/heroes` → muốn nhắn ai phải gõ id tay. Chưa recon.
-3. (tồn cũ) Zalo ZNS (OTP/notify thật) · chặn hẳn phone-OTP backend (HỎI trước — đụng auth). **⚠️ 2 vế này ĐANG MÂU THUẪN** (ZNS tồn tại chỉ để gửi OTP qua phone; login giờ là Google + Zalo OAuth) → **quyết "phone OTP còn dùng không" TRƯỚC. Không → xoá cả 2 item (khỏi tốn Zalo OA + tích vàng + duyệt template + ~300đ/tin).**
-4. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
-5. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
+3. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
+4. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
+
+## ✅ QUYẾT ĐỊNH CHỐT 17/07 — auth Zalo + mail, KHÔNG phone-OTP cho user
+- Duy xác nhận: "VowVet chỉ Zalo và mail". Không còn user login bằng phone.
+- **Zalo ZNS (OTP/notify thật) → BỎ HẲN.** Không ai cần nhận OTP ngoài → `ZALO_MODE=mock` đủ. Tiết kiệm: Zalo OA + tích vàng + duyệt template + ~300đ/tin.
+- **Route phone-OTP backend (`/auth/request-otp|verify-otp` + `/login?method=phone`) → GIỮ NGUYÊN, KHÔNG chặn.** Đó là **ĐƯỜNG CỨU ADMIN duy nhất**: mất quyền Gmail `vowvet.monminpet99@gmail.com` → thêm `ADMIN_PHONES=+84779029133` vào `.env` + force-recreate → login bằng phone, OTP đọc từ log container (mock, không cần ZNS thật). **Chặn route = mất admin vĩnh viễn.**
 
 ## 📌 QUYẾT ĐỊNH KỸ THUẬT ĐÃ CHỐT
 - **Gate onboarding nằm ở `/me`** (`auth.ts` ~212): `is_onboarded = pets.length>0 || onboarded===true`. Mọi login endpoint ĐÃ dùng `getIsOnboarded` (đọc field `onboarded`) từ trước → fix 1 dòng /me là mắt xích thiếu duy nhất. Middleware chỉ đọc cookie, KHÔNG tự tính.
