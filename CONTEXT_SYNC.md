@@ -1,7 +1,7 @@
 # CONTEXT SYNC — 2026-07-16 21:00
 
 ## 🎯 ĐANG LÀM GÌ
-Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng ký sạch không ép tạo bé (v344) → tự lấy link định danh (v346) → được trao bé qua link (v345). CẢ 3 EPIC XONG HẲN: code + verify HTTP + eyeball tunnel PASS + **PR #15 MERGED vào main**. Song song: vụ chat "phải F5 / gửi không ai thấy" **ĐÓNG HẲN 17/07 — KHÔNG PHẢI BUG** (polling 5s sống, eyeball tunnel u27→u30 realtime; nguyên nhân: nick Zalo sai u49 ≠ u30). Còn mở DUY NHẤT: nghiệm thu PR #16 bằng mắt (gate profile + nút "Nhắn tin").
+Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng ký sạch không ép tạo bé (v344) → tự lấy link định danh (v346) → được trao bé qua link (v345). CẢ 3 EPIC XONG HẲN: code + verify HTTP + eyeball tunnel PASS + **PR #15 MERGED vào main**. Song song: vụ chat "phải F5 / gửi không ai thấy" **ĐÓNG HẲN 17/07 — KHÔNG PHẢI BUG** (polling 5s sống, eyeball tunnel u27→u30 realtime; nguyên nhân: nick Zalo sai u49 ≠ u30). PR #16 (gate profile) **nghiệm thu PASS 17/07** (mắt + data) — merge cùng PR docs. Việc kế: nút "Hồ sơ Pet Hero của tôi" trên dashboard (VIỆC TIẾP THEO #1, vị trí đã duyệt).
 
 ## ✅ ĐÃ XONG PHIÊN NÀY
 - **v344 Foster onboarding** (commit `20d15a9`, verify HTTP 21/21):
@@ -16,25 +16,28 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
   - `web/src/pages/dashboard.astro` — empty-state foster thêm nút "Chia sẻ để nhận bé" (copy link `/heroes/profile/<id mình>`) + **fallback ô text** (webview Zalo hay chặn clipboard). KHÔNG cần đụng auth.ts (`user.id` có sẵn trong /me). SW v346.
 - **Ops**: 4 commit push nhánh `feat/foster-zalo-flow` → **PR #15 MERGED vào main (`23a9b9a`)**: `d50eb1e` + `20d15a9` + `4bc88ee` + `a44dea5`.
 - **Ops**: Eyeball tunnel PASS (Duy xác nhận): Google + Zalo, trao bé, thu hồi bé, nhắn tin, admin chen ngang xử lý — DONE hết.
-- **Survey gate profile + vá**: tìm ra gate `public_profile_enabled` chặn nút "Nhắn tin" + link v346 → **PR #16** (`fix(foster): bật public_profile_enabled khi set is_foster_carer`) — CHƯA merge, xem ĐANG DỞ.
+- **Survey gate profile + vá**: bug gate THẬT (16/07 22:29: `/heroes/profile/<id>` 404 với MỌI người lạ vì `public_profile_enabled=false` mặc định, chỉ hero act đầu bật `pet-heroes.ts:192`, foster KHÔNG bật → nút "Nhắn tin" chết + link v346 404) → **PR #16** (`fix(foster): bật public_profile_enabled khi set is_foster_carer`; verify 6/6 + regression u53 chủ-pet-thường vẫn private + verifier PASS).
+- **Ops**: PR #16 nghiệm thu PASS 17/07 (mắt + data): Duy bỏ tick TAY cả public_profile_enabled + is_foster_carer của u30 trong Baserow → /heroes/profile/30 → bấm "Bật" ở "Tôi nhận nuôi tạm" 1 lần → query lại: CẢ 2 = true. Code tự bật, không phải tay. Merged. Kèm: u27 (login thật) mở /heroes/profile/30 → THẤY nút "Nhắn tin" → KHÔNG có bug isOwner; lần trước không thấy là do browser đó chưa login. (Script recon/verify read-only còn ở `data/api/_recon_*.ts` + `_verify_*.ts` — untracked, KHÔNG commit.)
 - **Ops**: Vụ "chat phải F5" — **ĐÓNG 17/07, KHÔNG PHẢI BUG**. Eyeball tunnel: u27→u30 realtime, không F5, badge đỏ chạy. Nguyên nhân: test bằng nick Zalo sai (u49 ≠ u30). Full điều tra: survey read-only 16/07 (server/client/SW sạch, cache không phủ /conversations).
 - **Recon định vị pet** (trả lời câu hỏi): CHỈ có lost-pet network (last-seen + sightings + QR collar in giấy + OSM/Leaflet + Haversine). KHÔNG có GPS tracker/real-time — muốn có phải tích hợp phần cứng mới.
 
 ## 🚧 ĐANG DỞ
-- **Nghiệm thu PR #16 bằng mắt (gate profile + nút "Nhắn tin")** — bug gate là bug THẬT (16/07 22:29: `/heroes/profile/<id>` 404 với MỌI người lạ vì `public_profile_enabled=false` mặc định, chỉ hero act đầu bật `pet-heroes.ts:192`, foster KHÔNG bật → nút "Nhắn tin" chết + link v346 404; ảnh chụp + probe HTTP). ĐÃ VÁ — **PR #16** (verify 6/6 + regression u53 chủ-pet-thường vẫn private + verifier PASS) nhưng **CHƯA ai thấy nó sống bằng mắt**: lượt test 17/07 đi phòng foster #22 CÓ SẴN → không chạm gate, không chạm nút "Nhắn tin". Cách nghiệm thu: xem VIỆC TIẾP THEO #1.
-  - Script recon/verify read-only còn ở `data/api/_recon_chat*.ts`, `_recon_gate.ts`, `_verify_foster_public.ts` — untracked, KHÔNG commit.
+- Không có việc code dở — việc kế xem VIỆC TIẾP THEO #1 (nút "Hồ sơ Pet Hero của tôi", vị trí đã duyệt).
 
 ## ⚠️ BẪY MỚI (chưa vá)
 - **Mỗi transfer đẻ conversation MỚI cho cùng cặp user** (context_id = handover_id mới). Cặp 35↔37 đang có 3 conv: #11,12,15. Hiện 17 foster conv. Về sau sẽ tạo ĐÚNG triệu chứng "nhắn không thấy": A ở phòng cũ, B ở phòng mới. Cần findOrCreate theo CẶP USER thay vì theo handover.
 - **Test bằng nhiều nick Zalo** → nick Zalo app-scoped, tên khác nhau = TK khác nhau thật. Trước khi kết luận bug chat: query user + conversation của nick đang cầm TRƯỚC.
 - **"Thu hồi bé" (`foster-reclaim.ts:107-111`) XOÁ handover + hero_act + trừ foster_acts_count** → conv foster cũ trỏ `context_id` vào handover đã xoá (conv #7→17, #22→31 đang dangling); `POST /conversations/foster` với handover_id đó sẽ 404. Foster act ghi ĐÚNG (đối chiếu u33=1/1, u35=6/6, u39=6/6 khớp handovers) — u27=0 là do reclaim, KHÔNG phải bug ghi.
+- **Nhãn 2 công tắc profile là TEXT TĨNH, KHÔNG phản ánh trạng thái** (nút ghi "Bật" dù `is_foster_carer` đã true; "Tắt profile công khai" không bao giờ đổi) → đọc nhãn để đoán trạng thái là SAI, phải query Baserow. Đã đốt 2 vòng phiên này.
+- **`togglePrivate()` (`heroes/profile/[userId].astro:423-439`) hardcode `enabled:false`** — ONE-WAY, tắt rồi UI đó không bật lại được (alert chỉ đường "vào lại /heroes/profile").
+- **Dòng 432 `if (res.ok)` KHÔNG có else** → request fail là im lặng tuyệt đối, user không biết gì.
+- **Backfill u49**: `public_profile_enabled=false` (đăng ký foster TRƯỚC #16) → toggle "Tôi nhận nuôi tạm" OFF→ON hoặc tick tay Baserow.
 
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
-1. **Nghiệm thu PR #16 bằng mắt TRƯỚC, PASS mới merge** (container ĐANG chạy code #16 — test được ngay, không cần merge/Baserow UI): u30 → `/heroes/profile/30` → cuộn xuống → toggle "Tôi nhận nuôi tạm" OFF→ON (code mới tự bật public) → u27 mở `/heroes/profile/30` → **phải 200 + có nút "Nhắn tin"** (trước đó 404 "Profile riêng tư"). PASS → merge #16 → backfill tay u49 → `git checkout main && git pull && docker restart vowvet-api`. Còn 404 → chụp ảnh, KHÔNG merge. (Phòng direct mới sẽ tách khỏi phòng foster #22 — 2 dòng cùng 1 người trong /messages là BÌNH THƯỜNG.)
-2. **(đã ghi nợ v346)** Nút share-link cho foster ĐÃ nhận ≥1 bé (hiện chỉ ở empty-state → nhận bé xong là mất nút). Đặt ở hồ sơ `[userId].astro` hoặc settings.
-3. (tồn cũ) Zalo ZNS (OTP/notify thật) · chặn hẳn phone-OTP backend (HỎI trước — đụng auth).
-4. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
-5. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
+1. **Nút "Hồ sơ Pet Hero của tôi"** ở `dashboard.astro:332` (cạnh "Nhắn tin với VowVet", **NGOÀI ternary** `{!primaryPet}` → render MỌI user, CẢ 2 trạng thái — vị trí Bồ+Duy duyệt 17/07) → `/heroes/profile/{user.id}`. Đóng luôn nợ v346 (foster ≥1 bé mất nút share ở empty-state → vào hồ sơ lấy link). Sub-label: grep nút "Share" trên trang profile phát ra gì — phát URL profile thì giữ vế "Link chia sẻ nhận bé", phát thứ khác thì bỏ vế đó. SW v347, rebuild vowvet-web.
+2. (tồn cũ) Zalo ZNS (OTP/notify thật) · chặn hẳn phone-OTP backend (HỎI trước — đụng auth).
+3. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
+4. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
 
 ## 📌 QUYẾT ĐỊNH KỸ THUẬT ĐÃ CHỐT
 - **Gate onboarding nằm ở `/me`** (`auth.ts` ~212): `is_onboarded = pets.length>0 || onboarded===true`. Mọi login endpoint ĐÃ dùng `getIsOnboarded` (đọc field `onboarded`) từ trước → fix 1 dòng /me là mắt xích thiếu duy nhất. Middleware chỉ đọc cookie, KHÔNG tự tính.
