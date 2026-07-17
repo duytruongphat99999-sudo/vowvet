@@ -64,4 +64,6 @@
 - `gh pr merge` — không bao giờ.
 - `docker compose down` · `docker volume rm/prune` (bay dữ liệu Baserow).
 - `rm -rf` · `git reset --hard` · `DROP`/`TRUNCATE`/`DELETE` không `WHERE`.
-- Account test giữ nguyên: pet "min" id **12** (user **10**) · `lyvu2004DTP@gmail.com` (user **18**).
+- Account test (cập nhật 17/07/2026 — bản cũ pet 12/u10/u18 đã CHẾT): **u26** `minduyle33@gmail.com` (Google, 2 bé, chủ-pet) · **u30** Zalo `8904438583592084653` (foster, public=true, Zalo-thuần). Throwaway: identity MỚI mỗi lần, KHÔNG dùng lại account đã soft-delete.
+- ⚠️ **u26 + u30 là ACCOUNT THẬT của Duy** (u30 giữ foster conv #22 + tin nhắn thật với u27). CHỈ ĐỌC / login / probe GET. **CẤM ghi-xoá-transfer-reclaim** trên 2 account này. Cần ghi/xoá → tạo identity MỚI.
+- ⚠️ Dòng account test CÓ THỂ MỤC — query Baserow xác nhận còn sống TRƯỚC khi dùng, đừng tin mù.
