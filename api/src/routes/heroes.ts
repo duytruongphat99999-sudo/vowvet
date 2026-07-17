@@ -16,6 +16,7 @@ import { getCookie } from "hono/cookie";
 import { requireAuth } from "../middleware/auth.ts";
 import { verifySession } from "@shared/jwt.ts";
 import { SESSION_COOKIE } from "@shared/auth.ts";
+import { findUserById, isDeleted } from "../lib/users.ts";
 import {
   getLeaderboard,
   getHeroProfile,
@@ -51,8 +52,25 @@ heroesRoute.get("/profile/:userId{[0-9]+}", async (c) => {
   const viewerId = verifySession(getCookie(c, SESSION_COOKIE))?.sub;
   try {
     const profile = await getHeroProfile(userId, viewerId);
-    if (!profile) return c.json({ error: { code: "NOT_FOUND", message: "Profile riêng tư hoặc không tồn tại" } }, 404);
-    return c.json({ profile });
+    if (profile) return c.json({ profile });
+    // B2 — tách quyền "xem hồ sơ" ≠ "nhắn tin": người lạ ĐÃ LOGIN xem profile riêng tư →
+    // trả TÊN + avatar + cờ limited (FE ẩn badge/acts, giữ nút Nhắn tin). Guest → 404 như cũ.
+    // getHeroProfile null vì HAI lý do (private HOẶC không tồn tại/đã xoá) → phải tự loại
+    // user soft-delete, không thì lộ tên + nút nhắn của người đã xoá (nhắn vào hư vô).
+    if (viewerId) {
+      const u = await findUserById(userId);
+      if (u && !isDeleted(u)) {
+        return c.json({
+          profile: {
+            user_id: userId,
+            name: u.name || "Pet Hero ẩn danh",
+            avatar_url: u.avatar_url || null,
+            limited: true,
+          },
+        });
+      }
+    }
+    return c.json({ error: { code: "NOT_FOUND", message: "Profile riêng tư hoặc không tồn tại" } }, 404);
   } catch (err) {
     return c.json({ error: { code: "INTERNAL", message: "Lỗi" } }, 500);
   }
