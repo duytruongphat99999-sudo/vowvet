@@ -87,7 +87,9 @@ export async function transferPet(
   const foster = await recordFosterAct(fromUserId, petId, petName);
 
   // 5. Tạo foster chat A↔B (fire-and-forget — KHÔNG block/hỏng transfer nếu chat lỗi).
-  findOrCreateConversation("foster", fromUserId, toUserId, handover.id, "foster_handover")
+  // context_id=0: gom theo CẶP USER (1 phòng/cặp, như Zalo/Messenger) — mỗi transfer KHÔNG
+  // đẻ phòng mới. context_type giữ "foster_handover" làm nhãn loại phòng (không tham gia match).
+  findOrCreateConversation("foster", fromUserId, toUserId, 0, "foster_handover")
     .catch((err) => console.error("[transferPet] tạo foster chat lỗi (bỏ qua):", err?.message || err));
 
   return {
