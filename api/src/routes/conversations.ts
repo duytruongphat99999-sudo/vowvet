@@ -70,9 +70,9 @@ conversationsRoute.post("/support", async (c) => {
 });
 
 // POST /conversations/foster — tìm/tạo hội thoại foster người trao ↔ người nhận.
-// Input: { handover_id } (suy giver/receiver từ foster_handovers). Idempotent:
-// findOrCreateConversation match theo cặp user + context_id=handoverId → gọi lại trả conv cũ,
-// đồng thời VÁ ca transfer cũ fire-and-forget lỡ chưa tạo conv. Chỉ giver/receiver/admin gọi được.
+// Input: { handover_id } (suy giver/receiver từ foster_handovers, dùng để AUTH). Idempotent:
+// findOrCreateConversation match theo CẶP USER (context_id=0) → mọi lần trao giữa cùng cặp
+// trả CÙNG 1 conv. Chỉ giver/receiver/admin gọi được.
 conversationsRoute.post("/foster", async (c) => {
   const s = c.get("user");
   let body: any;
@@ -95,7 +95,9 @@ conversationsRoute.post("/foster", async (c) => {
     if (!isAdmin(c) && s.sub !== giverId && s.sub !== receiverId) {
       return c.json({ error: { code: "FORBIDDEN", message: "Không có quyền mở hội thoại này" } }, 403);
     }
-    const conversationId = await findOrCreateConversation("foster", giverId, receiverId, handoverId, "foster_handover");
+    // context_id=0: gom theo CẶP USER (1 phòng/cặp). handoverId chỉ dùng để auth (suy
+    // giver/receiver ở trên) — KHÔNG đưa vào match, nếu không mỗi handover đẻ 1 phòng.
+    const conversationId = await findOrCreateConversation("foster", giverId, receiverId, 0, "foster_handover");
     return c.json({ conversationId });
   } catch (err) {
     console.error("[conversations/foster] error:", err);
