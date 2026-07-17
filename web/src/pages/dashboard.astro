@@ -339,6 +339,19 @@ const fosterReceived: any[] = _fosterReceived?.received || [];
         </div>
         <span class="ml-auto text-gray-300">→</span>
       </button>
+
+      {/* Hồ sơ Pet Hero của mình — đường vào công tắc foster + link share (đóng nợ v346:
+          foster ≥1 bé mất nút share ở empty-state → vào hồ sơ lấy link qua nút "Share") */}
+      <a href={`/heroes/profile/${user.id}`} class="w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#d4a520] transition-colors text-left mt-3">
+        <span class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520] flex-shrink-0">
+          <FeatureIcon name="medal" class="w-5 h-5" strokeWidth={1.7} />
+        </span>
+        <div class="min-w-0">
+          <p class="font-semibold text-sm text-gray-900">Hồ sơ Pet Hero của tôi</p>
+          <p class="text-xs text-gray-400">Công tắc nhận nuôi tạm · Link chia sẻ nhận bé</p>
+        </div>
+        <span class="ml-auto text-gray-300">→</span>
+      </a>
       <script is:inline>
         async function startSupportChat() {
           try {
