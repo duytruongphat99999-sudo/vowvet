@@ -64,7 +64,7 @@ heroesRoute.get("/profile/:userId{[0-9]+}", async (c) => {
           profile: {
             user_id: userId,
             name: u.name || "Pet Hero ẩn danh",
-            avatar_url: (u as any).avatar_url || null,
+            avatar_url: u.avatar_url || null,
             limited: true,
           },
         });
