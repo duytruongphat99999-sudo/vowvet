@@ -287,7 +287,13 @@ export async function markOnboarded(userId: number): Promise<BaserowUser> {
  * Dùng cờ boolean is_foster_carer có sẵn — KHÔNG đụng schema.
  */
 export async function markOnboardedAsFoster(userId: number): Promise<BaserowUser> {
-  return updateRow<BaserowUser>("users", userId, { onboarded: true, is_foster_carer: true });
+  // public_profile_enabled=true: foster cần profile public để nhận bé qua link
+  // /heroes/profile/<id> (v346) — không bật thì người trao mở link ra 404 (gate pet-heroes.ts).
+  return updateRow<BaserowUser>("users", userId, {
+    onboarded: true,
+    is_foster_carer: true,
+    public_profile_enabled: true,
+  });
 }
 
 /** List pets của user (cho dashboard). */
