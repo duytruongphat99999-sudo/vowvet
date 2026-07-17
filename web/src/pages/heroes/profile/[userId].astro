@@ -54,7 +54,7 @@ const initialData = JSON.stringify({
 });
 ---
 
-<Layout title={`${profile.name} · Pet Hero`} description={`${profile.name} đã giúp ${profile.heroes_count} bé tìm về nhà`}>
+<Layout title={`${profile.name} · Pet Hero`} description={profile.limited ? `${profile.name} · Pet Hero` : `${profile.name} đã giúp ${profile.heroes_count} bé tìm về nhà`}>
   <main class="min-h-screen bg-mmp-cream px-4 py-6 pb-16">
     <div class="max-w-xl mx-auto" x-data={`heroProfile(${initialData})`} x-init="init()">
 
@@ -113,8 +113,8 @@ const initialData = JSON.stringify({
         </button>
       </template>
 
-      <!-- Stats (3 ô + count-up) + progress bar -->
-      <div class="bg-white rounded-2xl border border-black/5 p-5 mb-4 shadow-sm">
+      <!-- Stats (3 ô + count-up) + progress bar — B2: ẩn khi limited (profile riêng tư, chỉ hiện tên + nút nhắn) -->
+      <div x-show="!profile.limited" class="bg-white rounded-2xl border border-black/5 p-5 mb-4 shadow-sm">
         <div class="grid grid-cols-3 divide-x divide-black/10">
           <div class="px-2 text-center">
             <p class="text-2xl font-extrabold text-mmp-ink tabular-nums" x-text="disp.rescue"></p>
@@ -144,8 +144,8 @@ const initialData = JSON.stringify({
         </div>
       </div>
 
-      <!-- Badge grids: foster TRƯỚC, cứu hộ SAU -->
-      <div class="bg-white rounded-2xl border border-black/5 p-5 mb-4 shadow-sm">
+      <!-- Badge grids: foster TRƯỚC, cứu hộ SAU — B2: ẩn khi limited -->
+      <div x-show="!profile.limited" class="bg-white rounded-2xl border border-black/5 p-5 mb-4 shadow-sm">
         <p class="text-xs font-bold text-mmp-ink mb-3">Huy hiệu nuôi tạm</p>
         <div class="grid grid-cols-4 gap-2 mb-5">
           <template x-for="k in fosterOrder" :key="k">
@@ -216,7 +216,8 @@ const initialData = JSON.stringify({
         </div>
       </template>
 
-      <!-- Timeline -->
+      <!-- Timeline — B2: ẩn cả khối khi limited (acts của profile riêng tư) -->
+      <div x-show="!profile.limited">
       <h2 class="text-sm font-bold text-mmp-ink mb-3">Hoạt động gần đây</h2>
       <template x-if="acts.length === 0">
         <p class="text-xs text-mmp-brown italic text-center py-4">Chưa có hoạt động nào.</p>
@@ -240,6 +241,7 @@ const initialData = JSON.stringify({
             </template>
           </div>
         </template>
+      </div>
       </div>
 
       <!-- Footer CTA -->
