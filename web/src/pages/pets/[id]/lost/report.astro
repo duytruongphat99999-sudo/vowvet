@@ -40,10 +40,30 @@ try {
   }
 } catch (_) {}
 
+// N7: prefill reference photos từ ảnh góc ID của pet (face/profile/full_body/marks/eye_close_up/nose_print).
+// AI Lost-Pet dùng reference_photo_urls để so khớp — điền sẵn ảnh góc đã có (tối đa 5).
+// KHÔNG thay luồng thêm ảnh tươi: user vẫn thêm/xoá được (onRefPhotoChange/removeRefPhoto). Pet chưa có góc → rỗng.
+let prefillRefPhotos: string[] = [];
+try {
+  const res = await fetch(`${API_INTERNAL}/api/v1/pets/${petId}/photos`, { headers: { cookie: cookieHeader } });
+  if (res.ok) {
+    const j = await res.json();
+    prefillRefPhotos = (j.photos || [])
+      .filter((p: any) => {
+        const t = typeof p.photo_type === "object" ? p.photo_type?.value : p.photo_type;
+        return t && t !== "general";
+      })
+      .map((p: any) => p.photo_url)
+      .filter(Boolean)
+      .slice(0, 5);
+  }
+} catch (_) {}
+
 const initialData = JSON.stringify({
   pet: { id: pet.id, name: pet.name, photo_url: pet.photo_url, species: pet.species },
   activeReport,
   userPhone,
+  prefillRefPhotos,
 });
 ---
 
@@ -321,7 +341,7 @@ const initialData = JSON.stringify({
           reward_amount: 0,
           reward_tier: 'none',
           custom_reward_amount: 0,
-          reference_photo_urls: [],
+          reference_photo_urls: (initial.prefillRefPhotos || []).slice(0, 5), // N7: điền sẵn ảnh góc ID (user vẫn thêm/xoá được)
           broadcast_radius_km: 5,
         },
 
