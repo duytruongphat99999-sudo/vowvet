@@ -53,13 +53,21 @@ export async function findOrCreateConversation(
   context_type = ""
 ): Promise<number> {
   const res = await listRows<any>(CONVERSATIONS, { size: 200 });
-  const match = res.results.find((c) => {
+  const matches = res.results.filter((c) => {
     if (String(c.type) !== type) return false;
     if (context_id > 0 && Number(c.context_id) !== context_id) return false;
     const a = Number(c.user1_id), b = Number(c.user2_id);
     return (a === user1_id && b === user2_id) || (a === user2_id && b === user1_id);
   });
-  if (match) return match.id;
+  if (matches.length > 0) {
+    // N5: nếu race đã đẻ >1 phòng trùng cặp, LUÔN hội tụ về phòng CŨ NHẤT (created_at asc,
+    // tiebreak id) để mọi request sau vào cùng 1 phòng — KHÔNG .find() tuỳ thứ tự Baserow trả.
+    matches.sort((a, b) => {
+      const t = String(a.created_at || "").localeCompare(String(b.created_at || ""));
+      return t !== 0 ? t : Number(a.id) - Number(b.id);
+    });
+    return matches[0].id;
+  }
 
   const now = new Date().toISOString();
   const row = await createRow<any>(CONVERSATIONS, {

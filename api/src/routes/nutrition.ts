@@ -28,6 +28,7 @@ import {
   getWeightInsights,
   logWeight,
   listWeightLogs,
+  deleteWeightLog,
   loadFoodBrands,
   checkBrandCompatibility,
   getCompatibleBrandRecommendations,
@@ -163,6 +164,27 @@ petNutritionRoute.get("/:id{[0-9]+}/weight-logs", async (c) => {
     }
     console.error("[weight-logs] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi load history" } }, 500);
+  }
+});
+
+// DELETE /pets/:id/weight-log/:logId — xoá 1 bản ghi cân sai (owner only). L15.
+petNutritionRoute.delete("/:id{[0-9]+}/weight-log/:logId{[0-9]+}", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  const logId = Number(c.req.param("logId"));
+  try {
+    await getOwnedPet(petId, session.sub);
+    const ok = await deleteWeightLog(petId, logId);
+    if (!ok) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy bản ghi cân" } }, 404);
+    }
+    return c.json({ success: true });
+  } catch (err: any) {
+    if (err?.status === 404 || err?.status === 403) {
+      return c.json({ error: { code: err.code, message: err.message } }, err.status);
+    }
+    console.error("[weight-log/delete] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi xoá log cân" } }, 500);
   }
 });
 

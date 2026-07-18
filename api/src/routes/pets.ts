@@ -566,10 +566,16 @@ petsRoute.post("/:id{[0-9]+}/transfer", async (c) => {
 
 // GET: đọc cờ của 1 user (profile dùng cho badge read-only người khác + state ban đầu của chính mình).
 petsRoute.get("/foster/carer/:userId{[0-9]+}", async (c) => {
+  const session = c.get("user");
   const userId = Number(c.req.param("userId"));
   try {
-    const u = await getRow("users", userId);
-    return c.json({ is_foster_carer: (u as any)?.is_foster_carer === true });
+    const u = await getRow("users", userId) as any;
+    // L2: nick đã ẩn hồ sơ (public_profile_enabled=false) KHÔNG lộ cờ foster cho người khác —
+    // đồng bộ với gate ở getHeroProfile. Chính chủ vẫn đọc được state của mình.
+    if (u?.public_profile_enabled === false && Number(session?.sub) !== userId) {
+      return c.json({ is_foster_carer: false });
+    }
+    return c.json({ is_foster_carer: u?.is_foster_carer === true });
   } catch (err) {
     return petErrorResponse(c, err);
   }

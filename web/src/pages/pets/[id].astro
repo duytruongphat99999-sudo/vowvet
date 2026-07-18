@@ -2198,6 +2198,7 @@ const storyExcerpt = hasStory
                         <th class="text-right px-2 py-1">Cân (kg)</th>
                         <th class="text-right px-2 py-1">BCS</th>
                         <th class="text-left px-2 py-1">Ghi chú</th>
+                        <th class="px-2 py-1 w-8"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2207,6 +2208,12 @@ const storyExcerpt = hasStory
                           <td class="px-2 py-1.5 text-right font-medium" x-text="log.weight_kg.toFixed(2)"></td>
                           <td class="px-2 py-1.5 text-right" x-text="log.body_condition_score ?? '—'"></td>
                           <td class="px-2 py-1.5 text-slate-500 truncate max-w-[200px]" x-text="log.notes || '—'"></td>
+                          <td class="px-2 py-1.5 text-right">
+                            <button type="button" @click="deleteWeightLog(log.id)" title="Xoá bản ghi cân"
+                                    class="text-slate-300 hover:text-red-600 transition p-1 -m-1 leading-none">
+                              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            </button>
+                          </td>
                         </tr>
                       </template>
                     </tbody>
@@ -4266,6 +4273,24 @@ const storyExcerpt = hasStory
           if (res.ok) this.nutrition.insights = await res.json();
         } catch {} finally {
           this.nutrition.loading.insights = false;
+        }
+      },
+
+      // L15: xoá 1 bản ghi cân sai → insights (trend 30 ngày + bảng) tính lại.
+      async deleteWeightLog(logId) {
+        if (!confirm("Xoá bản ghi cân này? Xu hướng 30 ngày sẽ tính lại.")) return;
+        try {
+          const res = await fetch(`/api/v1/pets/${this.pet.id}/weight-log/${logId}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (res.ok) {
+            await this.fetchInsights();
+          } else {
+            alert("Không xoá được bản ghi. Thử lại.");
+          }
+        } catch (_) {
+          alert("Lỗi kết nối.");
         }
       },
 
