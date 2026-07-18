@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
 import { getRow } from "@shared/baserow.ts";
-import { findUserById } from "../lib/users.ts";
+import { findUserById, isDeleted } from "../lib/users.ts";
 import { isAdminIdentity } from "@shared/admin.ts";
 import {
   getConversations,
@@ -122,7 +122,8 @@ conversationsRoute.post("/direct", async (c) => {
   }
   try {
     const target = await findUserById(targetUserId);
-    if (!target) {
+    // L1: nick đã soft-delete → KHÔNG mở/tạo phòng chat với người dùng đã xoá (nhắn vào hư vô).
+    if (!target || isDeleted(target)) {
       return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy người dùng" } }, 404);
     }
     const conversationId = await findOrCreateConversation("direct", s.sub, targetUserId, 0, "direct");
