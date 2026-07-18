@@ -442,8 +442,10 @@ const initialData = JSON.stringify({
               body: JSON.stringify({ enabled: false }),
             });
             if (res.ok) {
-              alert("Đã tắt profile công khai. Vào lại bằng /heroes/profile nếu muốn bật lại.");
+              alert("Đã tắt hồ sơ Pet Hero công khai. Bật lại bằng cách bật \"nhận nuôi tạm\" hoặc ghi một hành động Hero mới.");
               window.location.href = '/dashboard';
+            } else {
+              alert("Không tắt được hồ sơ công khai. Thử lại.");
             }
           } catch (_) {
             alert("Lỗi kết nối.");

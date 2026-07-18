@@ -37,7 +37,7 @@ import {
 import { sendPush, getVapidPublicKey } from "../lib/web-push.ts";
 import { CITIES, DEFAULT_CITY } from "@shared/cities.ts";
 import { clearSessionCookie } from "../lib/session-cookie.ts";
-import { markNotified, getReclaimEligible, getUnnotifiedResolved } from "../lib/reclaim-requests.ts";
+import { markNotified, getReclaimEligible, getUnnotifiedResolved, getReclaimRequestById } from "../lib/reclaim-requests.ts";
 
 export const usersRoute = new Hono();
 usersRoute.use("*", requireAuth);
@@ -96,6 +96,7 @@ usersRoute.get("/me/foster-received", async (c) => {
 
 // ===== FOSTER Hướng B — chủ cũ tắt banner "yêu cầu đã được duyệt" trên dashboard =====
 usersRoute.post("/me/notifications/mark-read", async (c) => {
+  const session = c.get("user");
   let body: any;
   try { body = await c.req.json(); } catch { body = {}; }
   const requestId = Number(body?.requestId);
@@ -103,6 +104,15 @@ usersRoute.post("/me/notifications/mark-read", async (c) => {
     return c.json({ error: { code: "BAD_ID", message: "requestId không hợp lệ" } }, 400);
   }
   try {
+    // N1: chỉ chủ của yêu cầu (requester_id) mới được tắt banner của chính mình —
+    // requestId lấy từ body nên phải đối chiếu, tránh IDOR ghi đè notified của người khác.
+    const reqRow = await getReclaimRequestById(requestId);
+    if (!reqRow) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy yêu cầu" } }, 404);
+    }
+    if (Number(reqRow.requester_id) !== Number(session.sub)) {
+      return c.json({ error: { code: "FORBIDDEN", message: "Không có quyền" } }, 403);
+    }
     await markNotified(requestId);
     return c.json({ ok: true });
   } catch (err) {

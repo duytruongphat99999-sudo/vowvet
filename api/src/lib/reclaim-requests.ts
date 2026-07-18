@@ -157,6 +157,15 @@ export async function markNotified(requestId: number): Promise<void> {
   await updateRow(RECLAIM, requestId, { notified: true });
 }
 
+/** Lấy 1 reclaim request theo id (null nếu không tồn tại). Dùng để check ownership. */
+export async function getReclaimRequestById(requestId: number): Promise<ReclaimRequest | null> {
+  try {
+    return (await getRow<ReclaimRequest>(RECLAIM, requestId)) as ReclaimRequest;
+  } catch {
+    return null;
+  }
+}
+
 export interface ReclaimEligible {
   pet_id: number;
   pet_name: string;

@@ -11,7 +11,7 @@
  *   - calorieCache: per-pet, 12h TTL, invalidated on weight/activity update
  *   - brandsCache: 24h TTL (brands rarely change Phase 0)
  */
-import { listRows, createRow, updateRow } from "@shared/baserow.ts";
+import { listRows, createRow, updateRow, getRow, deleteRow } from "@shared/baserow.ts";
 import {
   calculateDER,
   generateMealPlan,
@@ -467,6 +467,26 @@ export async function listWeightLogs(petId: number, limit = 50): Promise<WeightL
     orderBy: "-logged_at",
   });
   return res.results.filter((r) => r.weight_kg != null).map(flatWeightLog);
+}
+
+/**
+ * Xoá 1 bản ghi cân — CHỈ khi log thuộc đúng petId (chống xoá chéo pet).
+ * Trả false nếu không tìm thấy / không thuộc pet. Bust calorie cache sau xoá.
+ * KHÔNG đụng pets.weight_kg (giá trị cân hiện tại do log mới nhất khác quyết định).
+ */
+export async function deleteWeightLog(petId: number, logId: number): Promise<boolean> {
+  let row: any;
+  try {
+    row = await getRow<any>("weight_logs", logId);
+  } catch {
+    return false;
+  }
+  const belongs = Array.isArray(row?.pet_id) &&
+    row.pet_id.some((v: any) => (v && typeof v === "object" ? v.id : v) === petId);
+  if (!belongs) return false;
+  await deleteRow("weight_logs", logId);
+  invalidateCalorieCache(petId);
+  return true;
 }
 
 // ============================================================
