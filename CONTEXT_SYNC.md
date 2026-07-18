@@ -23,6 +23,7 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **Recon định vị pet** (trả lời câu hỏi): CHỈ có lost-pet network (last-seen + sightings + QR collar in giấy + OSM/Leaflet + Haversine). KHÔNG có GPS tracker/real-time — muốn có phải tích hợp phần cứng mới.
 - **Ops**: PR #20 merged 17/07 — A1: `foster-transfer.ts:90` + `conversations.ts:98` → `context_id=0` → findOrCreate match theo CẶP USER, 1 phòng/cặp (như Zalo). Zero migration (17 conv cũ giữ nguyên; 4 cặp mồ côi đều nick soft-delete). Verify sau-settle: A↔B 2 transfer → 1 conv #25 context=0. Bonus: fix dangling #7/#22.
 - **Ops**: PR #22 merged 17/07 — B2: tách quyền xem hồ sơ ≠ nhắn tin. Fallback ở route `heroes.ts` GET /profile (KHÔNG đụng `getHeroProfile` → /acts + /my-stats + slug KHÔNG rò) → viewer ĐÃ LOGIN xem hồ sơ private = 200 + `{user_id, name, avatar_url, limited:true}`. Guest → vẫn 404. User soft-delete → 404. FE gate SERVER-SIDE (Astro omit markup + không fetch `is_foster_carer` khi limited) — KHÔNG dùng x-show vì `initialData` lộ view-source. SW v349. Verify 2 tầng API 7/7 + HTML 5/5, state u66 (foster+private) xác nhận thật.
+- **Ops**: PR #24 merged 17/07 — A1: bỏ nút "Xem các bé đang cần nhận nuôi" + phụ đề dối "kết nối với chủ hiện tại" khỏi empty-state foster (`dashboard.astro`). Nút "Chia sẻ để nhận bé" → PRIMARY (`bg-mmp-ink`). SW v350. Verify 3 nhánh (foster 0-bé · owner 0-bé · owner có-bé u26) + eyeball tunnel PASS.
 
 ## 🚧 ĐANG DỞ
 - Không có việc code dở — việc kế xem VIỆC TIẾP THEO (item 1 "tìm hồ sơ người khác" chưa recon/chưa quyết hướng).
@@ -42,10 +43,13 @@ Khép kín **vòng foster cho user Zalo-thuần** (không email/phone): đăng k
 - **`GET /pets/foster/carer/:id` (`pets.ts:568`) KHÔNG gate `public_profile_enabled`** → gọi thẳng vẫn rò foster status của user private. Độc lập B2 (trước B2 rò y hệt) — B2 chỉ đóng tầng UI.
 - **Hằng số trong `<script>`** ("Người nuôi tạm" `FOSTER_LABELS` · "Chưa có cấp" `HERO_TIERS`) LUÔN có trong HTML dù pill bị omit → grep chuỗi = **false-negative**. Phải grep MARKUP pill (container/template), không grep nhãn. (Đã dính lúc verify B2b — assertion sai, fix xong.)
 - **foster conv vs direct conv CÙNG CẶP USER = 2 phòng riêng** (type khác nhau → A1 chỉ match trong cùng type). u30↔u27 sẽ có #22 (foster) + phòng direct mới → `/messages` hiện 2 dòng trùng tên. Cùng lớp vấn đề A1 vừa vá, CHƯA đóng hết (A1 chỉ gom foster↔foster).
+- **/foster board = SHOWCASE MINH BẠCH cho người GÓP TIỀN** (lọc `foster_public=true` + `foster_orders` + leaderboard "lượt góp"), KHÔNG phải "bé cần người nhận". KHÔNG có field `seeking_foster`/`needs_foster`. Board đang RỖNG (0 bé `foster_public=true` toàn bảng). Nút v344 (đã bỏ ở A1) hứa luồng foster-tự-tìm-bé — luồng CHƯA TỪNG XÂY, mâu thuẫn owner-đẩy. → Muốn board "bé cần foster" = **EPIC**: Duy thêm field Baserow TAY trước (§4 cấm agent) + `owner_id` ra card + nút "Nhắn chủ" login-only. Chờ foster thật kêu mới làm.
+- **Sau A1, /foster KHÔNG còn đường vào nào từ user thường** (grep: chỉ `dashboard.astro:201` trỏ tới, đã bỏ). Board rỗng nên chưa mất gì. Owner nào bật `foster_public` đầu tiên → phải DỰNG LẠI đường vào (từ trang pet hoặc nav).
+- **Footer CTA "Cảm ơn `<name>` đã giúp cộng đồng! / Xem leaderboard" (`[userId].astro:258`) nằm NGOÀI `{!profile.limited}`** → hiện cả với profile limited. Cosmetic, 0 rò data (name có sẵn).
 
 ## 🎯 VIỆC TIẾP THEO (ưu tiên cao → thấp)
-1. **(CHƯA QUYẾT HƯỚNG, chưa recon) Tìm hồ sơ người khác**: không có đường nào ngoài leaderboard `/heroes` → muốn nhắn ai phải gõ id tay. Chưa recon.
-2. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin.
+1. ~~Tìm hồ sơ người khác / ô tìm kiếm~~ — **QUYẾT: KHÔNG LÀM** (Duy 17/07). User nhắn người CÓ LÝ DO (chủ bé / người trao / admin), không đi tìm người lạ. A1 đã bỏ lời hứa sai ở empty-state foster. Board "bé cần foster" = epic dưới, chờ nhu cầu thật.
+2. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) Hàng đợi **"foster XIN nhận → owner duyệt"** — hiện chỉ có mô hình owner-đẩy (owner chủ động trao); chưa có chiều foster chủ động xin. (= EPIC board "bé cần foster" ở BẪY MỚI: cần field Baserow mới + owner_id ra card + nút "Nhắn chủ" login-only.)
 3. (kiến trúc, tồn cũ — Bồ khôi phục 17/07, đã rớt khỏi bản trước) **Badge đa-admin**: `read_at` dùng chung — 1 admin đọc là CẢ TEAM hết unread (đếm đã vá theo `user1_id` trong `getAdminSupportUnread`, nhưng mark-read vẫn chung).
 
 ## ✅ QUYẾT ĐỊNH CHỐT 17/07 — auth Zalo + mail, KHÔNG phone-OTP cho user
