@@ -67,33 +67,42 @@ alertsRoute.get("/urgent/:petId{[0-9]+}", async (c) => {
       priority: number;
     }> = [];
 
-    // 1) Active lost-pet report = TOP priority
-    try {
-      const lost = await listRows<any>("lost_pet_reports", {
+    // L7: 4 nguồn cảnh báo ĐỘC LẬP → chạy SONG SONG (Promise.allSettled, fail-soft từng nhánh).
+    // Cuối vẫn sort theo priority (distinct 100/90/80/50) + slice(0,1) → thứ tự push vô nghĩa →
+    // output y hệt bản tuần tự cũ, chỉ nhanh hơn (~1.3s thay vì ~4×1.3s).
+    const [lostR, vaxR, cAlertsR, rewardsR] = await Promise.allSettled([
+      listRows<any>("lost_pet_reports", {
         filter: { pet_id__link_row_has: String(petId), status__single_select_equal: "active" },
         size: 1,
-      });
-      if (lost.results[0]) {
-        const slug = lost.results[0].public_url_slug;
-        urgent.push({
-          severity: "critical",
-          icon: "🚨",
-          title: "Pet đang bị mất",
-          message: "Xem sightings + mạng lưới Pet Hero gần bạn",
-          cta_link: slug ? `/lost/${slug}` : `/lost/nearby`,
-          cta_label: "Xem ngay",
-          priority: 100,
-        });
-      }
-    } catch (_) {}
-
-    // 2) Vaccines overdue (status = overdue)
-    try {
-      const vax = await listRows<any>("vaccines", {
+      }),
+      listRows<any>("vaccines", {
         filter: { pet_id__link_row_has: String(petId), status__single_select_equal: "overdue" },
         size: 5,
+      }),
+      listActiveAlertsForUser(session.sub),
+      listRows<any>("user_rewards", {
+        filter: { user_id__equal: String(session.sub), status__single_select_equal: "active" },
+        size: 10,
+      }),
+    ]);
+
+    // 1) Active lost-pet report = TOP priority
+    if (lostR.status === "fulfilled" && lostR.value.results[0]) {
+      const slug = lostR.value.results[0].public_url_slug;
+      urgent.push({
+        severity: "critical",
+        icon: "🚨",
+        title: "Pet đang bị mất",
+        message: "Xem sightings + mạng lưới Pet Hero gần bạn",
+        cta_link: slug ? `/lost/${slug}` : `/lost/nearby`,
+        cta_label: "Xem ngay",
+        priority: 100,
       });
-      const n = vax.results.length;
+    }
+
+    // 2) Vaccines overdue (status = overdue)
+    if (vaxR.status === "fulfilled") {
+      const n = vaxR.value.results.length;
       if (n > 0) {
         urgent.push({
           severity: "critical",
@@ -105,12 +114,11 @@ alertsRoute.get("/urgent/:petId{[0-9]+}", async (c) => {
           priority: 90,
         });
       }
-    } catch (_) {}
+    }
 
     // 3) Climate alerts CRITICAL active
-    try {
-      const cAlerts = await listActiveAlertsForUser(session.sub);
-      const critical = cAlerts.find((a: any) => {
+    if (cAlertsR.status === "fulfilled") {
+      const critical = cAlertsR.value.find((a: any) => {
         const sev = typeof a.severity === "object" ? a.severity?.value : a.severity;
         return sev === "critical";
       });
@@ -125,16 +133,12 @@ alertsRoute.get("/urgent/:petId{[0-9]+}", async (c) => {
           priority: 80,
         });
       }
-    } catch (_) {}
+    }
 
     // 4) Voucher expiring ≤3 days (user-scope, not per-pet)
-    try {
-      const rewards = await listRows<any>("user_rewards", {
-        filter: { user_id__equal: String(session.sub), status__single_select_equal: "active" },
-        size: 10,
-      });
+    if (rewardsR.status === "fulfilled") {
       const now = Date.now();
-      for (const r of rewards.results) {
+      for (const r of rewardsR.value.results) {
         if (!r.expires_at) continue;
         const daysLeft = Math.ceil((new Date(r.expires_at).getTime() - now) / 86_400_000);
         if (daysLeft > 0 && daysLeft <= 3) {
@@ -150,7 +154,7 @@ alertsRoute.get("/urgent/:petId{[0-9]+}", async (c) => {
           break;
         }
       }
-    } catch (_) {}
+    }
 
     urgent.sort((a, b) => b.priority - a.priority);
     return c.json({ alerts: urgent.slice(0, 1) });

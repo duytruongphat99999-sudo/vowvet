@@ -91,16 +91,23 @@ export async function getConversations(userId: number): Promise<Conversation[]> 
     .filter((c) => Number(c.user1_id) === userId || Number(c.user2_id) === userId)
     .sort((a, b) => String(b.last_msg_at || "").localeCompare(String(a.last_msg_at || "")));
 
-  const out: Conversation[] = [];
-  for (const c of mine) {
-    const otherId = Number(c.user1_id) === userId ? Number(c.user2_id) : Number(c.user1_id);
-    const msgs = await listRows<any>(MESSAGES, {
+  // L3: các query messages per-conv chạy SONG SONG (Promise.all) thay vì await tuần tự trong loop.
+  // GIỮ NGUYÊN query per-conv (size 200, -created_at) → output y hệt tuyệt đối, chỉ nhanh hơn.
+  const msgsPerConv = await Promise.all(mine.map((c) =>
+    listRows<any>(MESSAGES, {
       filter: { conversation_id__equal: String(c.id) },
       size: 200,
       orderBy: "-created_at",
-    });
-    const last = msgs.results[0];
-    const unread = msgs.results.filter((m) => !flat(m.read_at) && Number(m.sender_id) !== userId).length;
+    })
+  ));
+
+  const out: Conversation[] = [];
+  for (let i = 0; i < mine.length; i++) {
+    const c = mine[i];
+    const otherId = Number(c.user1_id) === userId ? Number(c.user2_id) : Number(c.user1_id);
+    const msgs = msgsPerConv[i].results;
+    const last = msgs[0];
+    const unread = msgs.filter((m) => !flat(m.read_at) && Number(m.sender_id) !== userId).length;
     out.push({
       id: c.id,
       type: flat(c.type) as ConversationType,
@@ -122,10 +129,12 @@ export async function getConversations(userId: number): Promise<Conversation[]> 
  * Hàm 3 — messages của conversation. afterId → chỉ id lớn hơn (polling). Chỉ < 30 ngày.
  */
 export async function getMessages(conversationId: number, afterId = 0): Promise<Message[]> {
+  // L6: lấy 200 tin MỚI NHẤT (orderBy desc) — khi conv >200 tin, tin mới không rớt khỏi cửa sổ.
+  // Reverse về created_at ASC sau khi lọc → GIỮ NGUYÊN thứ tự output (asc) như cũ. ≤200 tin: y hệt.
   const res = await listRows<any>(MESSAGES, {
     filter: { conversation_id__equal: String(conversationId) },
     size: 200,
-    orderBy: "created_at",
+    orderBy: "-created_at",
   });
   const cutoff = Date.now() - THIRTY_DAYS_MS;
   return res.results
@@ -134,6 +143,7 @@ export async function getMessages(conversationId: number, afterId = 0): Promise<
       const t = m.created_at ? new Date(m.created_at).getTime() : 0;
       return t >= cutoff;
     })
+    .reverse()
     .map((m) => ({
       id: m.id,
       conversation_id: Number(m.conversation_id),
@@ -179,8 +189,18 @@ export async function markMessagesRead(conversationId: number, readerId: number)
  * Hàm 6 — tổng unread mọi conversation của user (badge).
  */
 export async function getTotalUnread(userId: number): Promise<number> {
-  const convs = await getConversations(userId);
-  return convs.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  // L4: đếm nhẹ — KHÔNG enrich tên/last-msg như getConversations. Query messages per-conv SONG SONG
+  // rồi đếm unread. Kết quả = tổng unreadCount cũ (CÙNG query per-conv size 200) → y hệt, chỉ nhẹ hơn.
+  const res = await listRows<any>(CONVERSATIONS, { size: 200 });
+  const mine = res.results.filter((c) => Number(c.user1_id) === userId || Number(c.user2_id) === userId);
+  const counts = await Promise.all(mine.map((c) =>
+    listRows<any>(MESSAGES, {
+      filter: { conversation_id__equal: String(c.id) },
+      size: 200,
+      orderBy: "-created_at",
+    }).then((r) => r.results.filter((m) => !flat(m.read_at) && Number(m.sender_id) !== userId).length)
+  ));
+  return counts.reduce((a, b) => a + b, 0);
 }
 
 /**

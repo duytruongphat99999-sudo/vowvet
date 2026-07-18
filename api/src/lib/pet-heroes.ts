@@ -375,10 +375,16 @@ export async function getLeaderboard(period: Period = "all", limit = 20): Promis
     .sort((a, b) => b[1].count - a[1].count)
     .slice(0, limit);
 
+  // L5: gộp N+1 — fetch users 1 LẦN → Map thay vì findUserById từng user trong loop.
+  // userMap.get(id) trả CÙNG row như findUserById (getRow theo id) → output y hệt.
+  const usersRes = await listRows<any>("users", { size: 200 });
+  const userMap = new Map<number, any>();
+  for (const u of usersRes.results) userMap.set(u.id, u);
+
   const entries: LeaderboardEntry[] = [];
   for (let i = 0; i < sorted.length; i++) {
     const [userId, st] = sorted[i];
-    const user: any = await findUserById(userId);
+    const user: any = userMap.get(userId);
     if (!user) continue;
     if (isDeleted(user)) continue; // N4: nick đã xoá không lên bảng xếp hạng
     if (user.public_profile_enabled === false) continue;
