@@ -17,7 +17,7 @@ import { listRows, updateRow } from "@shared/baserow.ts";
 import { isAdminIdentity } from "@shared/admin.ts";
 import { getPlace, listPendingPlaces, verifyPlace, rejectPlace } from "../lib/places.ts";
 import { findUserById, softDeleteUser } from "../lib/users.ts";
-import { adminAnalyticsOverview } from "../lib/analytics.ts";
+import { adminAnalyticsOverview, aiCostSummary } from "../lib/analytics.ts";
 import { getZaloStatus, sendOtp } from "../lib/otp-sender.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import { listFosterOrders, updateOrderStatus, FosterOrderError } from "../lib/foster-orders.ts";
@@ -379,6 +379,8 @@ adminRoute.get("/stats", async (c) => {
       if (weeksAgo >= 0 && weeksAgo < 8) transfersByWeek[7 - weeksAgo]++;
     }
 
+    // L8: số chi phí AI thật đọc từ gemini-usage.log.jsonl (fail-soft → null nếu log lỗi).
+    const aiCost = await aiCostSummary().catch(() => null);
     return c.json({
       transfers: { total: handovers.length, thisWeek: transfersThisWeek },
       pendingReclaims,
@@ -417,8 +419,10 @@ adminRoute.get("/stats", async (c) => {
         total_check_ins_recent: checkInsRes.count,
       },
       ai_cost: {
-        today_usd: 0, // TODO M9: integrate gemini-usage.log.jsonl reader
-        note: "AI cost tracking defer M9 — xem /app/data/gemini-usage.log.jsonl",
+        today_usd: aiCost?.today_usd ?? 0,
+        week_usd: aiCost?.week_usd ?? 0,
+        month_usd: aiCost?.month_usd ?? 0,
+        note: "Đọc thật từ gemini-usage.log.jsonl (aiCostSummary).",
       },
       admin: {
         whitelist_count: ADMIN_PHONES.length,
