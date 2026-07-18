@@ -223,12 +223,7 @@ const TYPE_LABEL_VN: Record<string, string> = {
             Ảnh phân loại ID
             <span class="text-sm font-normal text-slate-500">({idCompleted}/{ID_SLOTS.length})</span>
           </h3>
-          <a href={`/pets/${petId}/profile/complete?focus=photos`}
-             class="text-xs font-semibold hover:underline inline-flex items-center gap-1"
-             style="color: var(--c-gold);">
-            Hoàn thiện
-            <FeatureIcon name="arrow" class="w-3 h-3" strokeWidth={2.4} />
-          </a>
+          <span class="text-xs text-slate-400">Bấm ô để chọn ảnh</span>
         </div>
 
         {/* Why-this-section card */}
@@ -258,14 +253,16 @@ const TYPE_LABEL_VN: Record<string, string> = {
           </div>
         </div>
 
-        {/* 6-slot grid — placeholders for missing slots */}
+        {/* 6-slot grid — N7: mỗi ô là input file, upload thẳng qua POST /photos type=<angle>.
+            Ảnh góc này được dùng làm reference cho AI Lost-Pet khi báo bé lạc (xem report.astro). */}
         <div class="grid grid-cols-3 gap-2 sm:gap-3">
           {ID_SLOTS.map((slot) => {
             const existing = idPhotoByAngle[slot.angle];
-            const href = `/pets/${petId}/profile/complete?focus=photos&angle=${slot.angle}`;
             return (
-              <a href={href}
-                 class="relative aspect-square rounded-2xl overflow-hidden bg-white group">
+              <label
+                 class="relative aspect-square rounded-2xl overflow-hidden bg-white group cursor-pointer block">
+                <input type="file" accept="image/jpeg,image/png,image/webp"
+                       class="id-slot-input sr-only" data-angle={slot.angle} />
                 {existing ? (
                   <>
                     <img src={existing.photo_url} alt={slot.label} loading="lazy"
@@ -284,18 +281,19 @@ const TYPE_LABEL_VN: Record<string, string> = {
                     )}
                   </div>
                 )}
-              </a>
+                {/* overlay hint khi hover — click để (thay) ảnh góc này */}
+                <span class="absolute inset-x-0 bottom-0 py-0.5 text-[9px] text-center font-semibold text-white bg-black/45 opacity-0 group-hover:opacity-100 transition">
+                  {existing ? "Đổi ảnh" : "Chọn ảnh"}
+                </span>
+              </label>
             );
           })}
         </div>
 
         {idRequiredCompleted < 3 && (
-          <a href={`/pets/${petId}/profile/complete?focus=photos`}
-             class="inline-flex items-center justify-center w-full gap-2 bg-mmp-ink text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition">
-            <FeatureIcon name="camera" class="w-4 h-4" strokeWidth={2} />
-            Hoàn thiện {3 - idRequiredCompleted} góc bắt buộc
-            <FeatureIcon name="arrow" class="w-3.5 h-3.5" strokeWidth={2.4} />
-          </a>
+          <p class="text-center text-xs text-slate-600 bg-mmp-cream/60 rounded-xl py-2.5 font-medium">
+            Còn <strong class="text-mmp-ink">{3 - idRequiredCompleted} góc bắt buộc</strong> — bấm ô còn trống phía trên để chọn ảnh.
+          </p>
         )}
       </section>
 
@@ -400,6 +398,40 @@ const TYPE_LABEL_VN: Record<string, string> = {
           submitBtn.disabled = false;
           submitLabel.textContent = "Đăng ảnh";
         }
+      });
+    })();
+  </script>
+
+  <!-- N7: upload ảnh góc ID — mỗi ô input file → POST /photos type=<angle> (backend đã sẵn PhotoTypeSchema).
+       Tách IIFE riêng để KHÔNG bị early-return của general-upload (khi album đầy). -->
+  <script is:inline define:vars={{ petId }}>
+    (() => {
+      document.querySelectorAll(".id-slot-input").forEach((inp) => {
+        inp.addEventListener("change", async () => {
+          const f = inp.files && inp.files[0];
+          if (!f) return;
+          if (f.size > 5 * 1024 * 1024) { alert("Ảnh quá 5MB. Chọn ảnh nhỏ hơn."); inp.value = ""; return; }
+          if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { alert("Chỉ chấp nhận JPG / PNG / WebP."); inp.value = ""; return; }
+          const angle = inp.getAttribute("data-angle");
+          const fd = new FormData();
+          fd.append("photo", f);
+          fd.append("type", angle);
+          try {
+            const res = await fetch(`/api/v1/pets/${petId}/photos`, { method: "POST", body: fd, credentials: "include" });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              alert((j && j.error && j.error.message) || `Upload thất bại (${res.status}).`);
+              inp.value = "";
+              return;
+            }
+            if (navigator.vibrate) navigator.vibrate(10);
+            window.location.reload();
+          } catch (err) {
+            console.warn("[photos/id-slot] upload error", err);
+            alert("Lỗi kết nối. Thử lại.");
+            inp.value = "";
+          }
+        });
       });
     })();
   </script>
