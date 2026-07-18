@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
+import { requireVet } from "../middleware/require-vet.ts";
 import { ipRateLimit } from "../lib/rate-limit.ts";
 import { getOwnedPet } from "../lib/pets.ts";
 import { getRow } from "@shared/baserow.ts";
@@ -637,6 +638,9 @@ lostPetsPublicRoute.post("/lost/:slug{[a-z0-9]{6,16}}/sighting", zValidator("jso
 // ============================================================
 export const vetScanRoute = new Hono();
 vetScanRoute.use("*", requireAuth);
+// N3 defense-in-depth: gate vet TƯỜNG MINH ngay tại route, không dựa vào middleware-bleed từ
+// vetRoutes mount chung prefix /api/v1/vet (đổi mount/reorder là mất gate mà không ai thấy).
+vetScanRoute.use("*", requireVet);
 
 vetScanRoute.get("/partners", async (c) => {
   try {

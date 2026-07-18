@@ -10,6 +10,7 @@
 import { Hono } from "hono";
 import { ipRateLimit } from "../lib/rate-limit.ts";
 import { getRow, listRows } from "@shared/baserow.ts";
+import { ownerIds } from "../lib/pets.ts";
 import { getDaysUntilBirthday, getAgeTurning, getAgeLabel, getNextBirthday, formatLocalDate } from "@shared/birthday-lib.ts";
 import { getPublicWall, addWish, getOrCreateEvent } from "../lib/birthday-events.ts";
 
@@ -27,6 +28,23 @@ birthdayWallRoute.get("/birthday-wall/:petId{[0-9]+}", async (c) => {
 
   try {
     const pet = await getRow<any>("pets", petId);
+
+    // N2: chặn enumerate PII — chỉ chủ pet (owner-only) xem được wall. Route public nên parse cookie thủ công.
+    let uid: number | null = null;
+    try {
+      const { verifySession } = await import("@shared/jwt.ts");
+      const { SESSION_COOKIE } = await import("@shared/auth.ts");
+      const cookieHeader = c.req.header("cookie") || "";
+      const m = cookieHeader.split(/;\s*/).find((p) => p.startsWith(`${SESSION_COOKIE}=`));
+      if (m) {
+        const token = m.slice(SESSION_COOKIE.length + 1);
+        const s = verifySession(token);
+        if (s?.sub) uid = Number(s.sub);
+      }
+    } catch { /* không có session hợp lệ → coi như guest */ }
+    if (uid === null || !ownerIds(pet).includes(uid)) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy thú cưng" } }, 404);
+    }
 
     const species = typeof pet.species === "object" ? pet.species?.value : pet.species;
     const days = pet.dob ? getDaysUntilBirthday(pet.dob) : null;

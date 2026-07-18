@@ -11,7 +11,7 @@
  * Pet Score gets a bonus signal via `pet_score_bonus` accumulator.
  */
 import { listRows, createRow, getRow, updateRow } from "@shared/baserow.ts";
-import { findUserById } from "./users.ts";
+import { findUserById, isDeleted } from "./users.ts";
 import { sendPush } from "./web-push.ts";
 
 export type HeroTier = "none" | "helper" | "hero" | "legend" | "guardian";
@@ -275,6 +275,8 @@ export interface HeroStats {
 export async function getHeroProfile(userId: number, viewerId?: number): Promise<HeroStats | null> {
   const user: any = await findUserById(userId);
   if (!user) return null;
+  // N4: nick đã soft-delete (deleted_at) KHÔNG lộ hồ sơ Hero công khai — kể cả chính chủ.
+  if (isDeleted(user)) return null;
   // Chủ (viewerId===userId) xem được profile private của chính mình; khách/người khác vẫn ẩn.
   if (user.public_profile_enabled === false && viewerId !== userId) return null;
   const actsRes = await listRows<HeroActRow>("hero_acts", {
@@ -378,6 +380,7 @@ export async function getLeaderboard(period: Period = "all", limit = 20): Promis
     const [userId, st] = sorted[i];
     const user: any = await findUserById(userId);
     if (!user) continue;
+    if (isDeleted(user)) continue; // N4: nick đã xoá không lên bảng xếp hạng
     if (user.public_profile_enabled === false) continue;
     entries.push({
       rank: i + 1,
