@@ -12,6 +12,7 @@
 import { readFile } from "node:fs/promises";
 import { listRows } from "@shared/baserow.ts";
 import { TRIAGE_SYMPTOMS, getSymptom } from "@shared/triage-symptoms.ts";
+import { tierToUrgency, tierIsRedFlag } from "@shared/triage-urgency.ts";
 
 const USAGE_LOG_PATH = process.env.GEMINI_USAGE_LOG || "/app/data/gemini-usage.log.jsonl";
 
@@ -224,8 +225,18 @@ export interface TriageSummary {
 }
 
 export async function triageSummary(): Promise<TriageSummary> {
-  const res = await listRows<any>("triage_sessions", { size: 200 });
-  const sessions = res.results.filter((r: any) => r.ai_urgency_level);
+  // Dual-read: bảng CŨ (M9.1 AI triage, có ai_urgency_level) + bảng MỚI (M31 tree, final_tier chữ).
+  const [oldRes, treeRes] = await Promise.all([
+    listRows<any>("triage_sessions", { size: 200 }),
+    listRows<any>("triage_tree_sessions", { size: 200 }).catch(() => ({ results: [] as any[] })),
+  ]);
+  const oldSessions = oldRes.results.filter((r: any) => r.ai_urgency_level);
+  // treeSessions: chỉ ca hoàn tất (final_tier hợp lệ → tierToUrgency>0), bỏ row tier rỗng —
+  // song song với filter r.ai_urgency_level của bảng cũ.
+  const treeSessions = treeRes.results.filter((r: any) => {
+    const t = r.final_tier && typeof r.final_tier === "object" ? r.final_tier.value : r.final_tier;
+    return tierToUrgency(t) > 0;
+  });
 
   const byUrgency: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   const actionBreakdown: Record<string, number> = {};
@@ -235,7 +246,7 @@ export async function triageSummary(): Promise<TriageSummary> {
   let last7Count = 0;
   const sevenDaysAgo = Date.now() - 7 * 24 * 3600_000;
 
-  for (const s of sessions) {
+  for (const s of oldSessions) {
     const urgency = Number(s.ai_urgency_level) || 0;
     if (urgency >= 1 && urgency <= 5) byUrgency[urgency]++;
 
@@ -267,6 +278,18 @@ export async function triageSummary(): Promise<TriageSummary> {
     // Phase 1 hack: use s.id descending heuristic
   }
 
+  // Tree-session (M31): góp by_urgency + red_flag_hits qua bậc chữ.
+  // KHÔNG góp cost (tree không gọi AI → cost=0 by design, tránh loãng mẫu số avg_cost)
+  // và KHÔNG góp symptoms/top_symptoms (tree không có symptom-id catalog).
+  // red_flag old = cờ sym.red_flag (symptom-catalog); red_flag tree = tier-based (emergency/urgent).
+  // Cùng field red_flag_hits nhưng 2 nguồn khác gốc — CHỦ Ý, không phải bug.
+  for (const s of treeSessions) {
+    const tier = s.final_tier && typeof s.final_tier === "object" ? s.final_tier.value : s.final_tier;
+    const urgency = tierToUrgency(tier);
+    if (urgency >= 1 && urgency <= 5) byUrgency[urgency]++;
+    if (tierIsRedFlag(tier)) redFlagHits++;
+  }
+
   // Top 10 symptoms
   const topSymptoms = [...symptomCounts.entries()]
     .sort(([, a], [, b]) => b - a)
@@ -277,15 +300,17 @@ export async function triageSummary(): Promise<TriageSummary> {
       count,
     }));
 
+  const totalSessions = oldSessions.length + treeSessions.length;
   return {
-    total_sessions: sessions.length,
+    total_sessions: totalSessions,
     by_urgency: byUrgency,
     red_flag_hits: redFlagHits,
     top_symptoms: topSymptoms,
     user_action_breakdown: actionBreakdown,
-    sessions_last_7_days: sessions.length, // Phase 0 approximation
+    sessions_last_7_days: totalSessions, // Phase 0 approximation (giữ == total_sessions như trước)
     avg_cost_usd:
-      sessions.length > 0 ? Math.round((totalCost / sessions.length) * 10_000) / 10_000 : 0,
+      // Mẫu số CHỈ oldSessions — tree cost=0 by design, KHÔNG kéo mẫu số (guard >0 giữ nguyên).
+      oldSessions.length > 0 ? Math.round((totalCost / oldSessions.length) * 10_000) / 10_000 : 0,
   };
 }
 

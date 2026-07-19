@@ -18,6 +18,7 @@ import { GoogleGenAI, type GenerateContentResponse } from "@google/genai";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { listRows, createRow, updateRow, getRow } from "@shared/baserow.ts";
+import { tierToUrgency } from "@shared/triage-urgency.ts";
 import { notifyAdmins } from "./admin-alerts.ts";
 import {
   CarePlanV2AiOutput,
@@ -118,15 +119,47 @@ async function summarizeRecentCheckins(petId: number): Promise<string> {
 
 async function getLastTriage(petId: number): Promise<{ urgency: number; days_ago: number; symptoms: string[] } | null> {
   try {
-    const res = await listRows<any>("triage_sessions", {
-      filter: { pet_id__link_row_has: String(petId) },
-      size: 5,
+    // Dual-read. Bảng cũ (triage_sessions) đóng băng từ M31 → mọi tree-session (bảng mới) chắc chắn
+    // mới hơn mọi old-session. Rule: có tree → ưu tiên tree mới nhất; không có → fallback old (id-proxy).
+    const [oldRes, treeRes] = await Promise.all([
+      listRows<any>("triage_sessions", {
+        filter: { pet_id__link_row_has: String(petId) },
+        size: 5,
+      }),
+      listRows<any>("triage_tree_sessions", {
+        filter: { pet_id__link_row_has: String(petId) },
+        size: 5,
+      }).catch(() => ({ results: [] as any[] })),
+    ]);
+
+    // --- Ưu tiên tree-session (M31) ---
+    const treeRows = treeRes.results.filter((r: any) => {
+      const t = r.final_tier && typeof r.final_tier === "object" ? r.final_tier.value : r.final_tier;
+      return tierToUrgency(t) > 0;
     });
-    const rows = res.results.filter((r: any) => r.ai_urgency_level);
+    if (treeRows.length > 0) {
+      // Tree có created_at ISO thật → days_ago tính CHÍNH XÁC (khác hack days_ago=0 của bảng cũ).
+      treeRows.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
+      const latest = treeRows[0];
+      const tier =
+        latest.final_tier && typeof latest.final_tier === "object" ? latest.final_tier.value : latest.final_tier;
+      const primary = typeof latest.primary_symptom === "string" ? latest.primary_symptom.trim() : "";
+      let daysAgo = 0;
+      const ts = Date.parse(latest.created_at);
+      if (!Number.isNaN(ts)) daysAgo = Math.max(0, Math.floor((Date.now() - ts) / (24 * 3600_000)));
+      return {
+        urgency: tierToUrgency(tier),
+        days_ago: daysAgo,
+        symptoms: primary ? [primary] : [], // guard null/rỗng → [], đừng nhét [null]/[""]
+      };
+    }
+
+    // --- Fallback: bảng cũ (id-proxy, days_ago=0 như trước) ---
+    const rows = oldRes.results.filter((r: any) => r.ai_urgency_level);
     if (rows.length === 0) return null;
     rows.sort((a: any, b: any) => b.id - a.id);
     const latest = rows[0];
-    // Triage không có created_at field — dùng id-based proxy
+    // Triage cũ không có created_at field — dùng id-based proxy
     let symptoms: string[] = [];
     try {
       if (latest.symptoms_json) {
