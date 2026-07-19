@@ -147,16 +147,20 @@ async function getLastVetVisit(petId: number): Promise<number | null> {
 
 async function hasRecentEmergencyTriage(petId: number): Promise<boolean> {
   try {
-    const res = await listRows<any>("triage_sessions", {
-      filter: { pet_id__link_row_has: String(petId) },
-      size: 50,
+    // #3: đọc CẢ 2 bảng — triage CŨ (M9.1: ai_urgency_level=5) HOẶC triage MỚI (M31: final_tier="emergency").
+    // Sau migration M9.1→M31 session mới ghi triage_tree_sessions → pet-score phải đọc bảng mới mới bắt
+    // được triage khẩn. GIỮ NGUYÊN cửa sổ "50 record gần nhất" (proxy Phase-0), KHÔNG đổi công thức điểm.
+    const [oldRes, newRes] = await Promise.all([
+      listRows<any>("triage_sessions", { filter: { pet_id__link_row_has: String(petId) }, size: 50 }),
+      listRows<any>("triage_tree_sessions", { filter: { pet_id__link_row_has: String(petId) }, size: 50 })
+        .catch(() => ({ results: [] as any[] })),
+    ]);
+    const oldEmergency = oldRes.results.some((s: any) => Number(s.ai_urgency_level) === 5);
+    const newEmergency = (newRes.results || []).some((s: any) => {
+      const tier = s.final_tier && typeof s.final_tier === "object" ? s.final_tier.value : s.final_tier;
+      return tier === "emergency";
     });
-    const rows = res.results.filter((s: any) => Number(s.ai_urgency_level) === 5);
-    if (rows.length === 0) return false;
-    // Phase 0 — triage_sessions không có proper created_at field
-    // Approximation: nếu có L5 trong 50 records gần nhất, coi như "recent"
-    // Future: filter by id range hoặc add timestamp field
-    return true;
+    return oldEmergency || newEmergency;
   } catch {
     return false;
   }
