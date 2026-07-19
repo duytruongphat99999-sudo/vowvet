@@ -323,6 +323,41 @@ const fosterReceived: any[] = _fosterReceived?.received || [];
         </>
       )}
 
+      {/* Hỏi bác sĩ — telehealth: card mở popup 2 kênh (in-app / Zalo OA). KHÁC support chat dưới.
+          Bio (kênh 3) ẩn tạm — chờ fix bio.monminpet.com; thêm lại 1 block <a> khi xong. */}
+      <button onclick="openVetPopup()" class="w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#d4a520] transition-colors text-left mt-4">
+        <span class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520] flex-shrink-0">
+          <FeatureIcon name="stethoscope" class="w-5 h-5" strokeWidth={1.7} />
+        </span>
+        <div class="min-w-0">
+          <p class="font-semibold text-sm text-gray-900">Hỏi bác sĩ</p>
+          <p class="text-xs text-gray-400">Tư vấn 1:1 miễn phí · chọn kênh</p>
+        </div>
+        <span class="ml-auto text-gray-300">→</span>
+      </button>
+
+      {/* Popup 3 kênh — vanilla JS toggle (dashboard không Alpine) */}
+      <div id="vet-popup" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center">
+        <div onclick="closeVetPopup()" class="absolute inset-0 bg-black/40"></div>
+        <div class="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm p-5 pb-8">
+          <div class="flex items-center justify-between mb-1">
+            <p class="font-semibold text-gray-900">Hỏi bác sĩ — chọn kênh</p>
+            <button onclick="closeVetPopup()" class="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+          </div>
+          <p class="text-xs text-gray-400 mb-4">Tư vấn 1:1 miễn phí · bác sĩ trực 9–18h.</p>
+          <div class="space-y-2">
+            <a href="/chat/new" class="flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-[#d4a520] transition">
+              <span class="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520]"><FeatureIcon name="stethoscope" class="w-5 h-5" strokeWidth={1.7} /></span>
+              <div><p class="text-sm font-semibold text-gray-900">Chat trong app</p><p class="text-xs text-gray-400">Bác sĩ trực trả trong giờ</p></div>
+            </a>
+            <a href="https://zalo.me/1136810892220003266" target="_blank" rel="noopener" class="flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-[#d4a520] transition">
+              <span class="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520]"><FeatureIcon name="mail" class="w-5 h-5" strokeWidth={1.7} /></span>
+              <div><p class="text-sm font-semibold text-gray-900">Zalo OA</p><p class="text-xs text-gray-400">Nhắn qua Zalo chính thức</p></div>
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Chat hỗ trợ VowVet — entry point (support/foster chat, KHÁC telehealth) */}
       <button onclick="startSupportChat()" class="w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#d4a520] transition-colors text-left mt-4">
         <span class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520] flex-shrink-0">
@@ -356,6 +391,8 @@ const fosterReceived: any[] = _fosterReceived?.received || [];
             else alert("Không tạo được hội thoại");
           } catch (e) { alert("Lỗi kết nối"); }
         }
+        function openVetPopup(){var e=document.getElementById("vet-popup");e.classList.remove("hidden");e.classList.add("flex");}
+        function closeVetPopup(){var e=document.getElementById("vet-popup");e.classList.add("hidden");e.classList.remove("flex");}
       </script>
 
       <!-- ─── Ecosystem nav ─── -->

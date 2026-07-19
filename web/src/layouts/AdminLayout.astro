@@ -8,7 +8,7 @@ import FeatureIcon from "../components/FeatureIcon.astro";
 
 interface Props {
   title: string;
-  currentPage: "overview" | "users" | "pets" | "places" | "foster" | "chat";
+  currentPage: "overview" | "users" | "pets" | "places" | "foster" | "chat" | "vet";
 }
 const { title, currentPage } = Astro.props;
 
@@ -22,6 +22,7 @@ const navItems = [
   { key: "places", label: "Địa điểm", href: "/admin/places", desc: "Duyệt địa điểm cộng đồng", badgeInit: "" },
   { key: "foster", label: "Foster", href: "/admin/foster-orders", desc: "Yêu cầu & trao bé", badgeInit: FOSTER_BADGE },
   { key: "chat", label: "Tin nhắn", href: "/admin/conversations", desc: "Chat với người dùng", badgeInit: CHAT_BADGE },
+  { key: "vet", label: "Bác sĩ hỗ trợ", href: "/vet/dashboard", desc: "Telehealth — trả câu hỏi khám", badgeInit: "" },
 ] as const;
 
 const activeCls = "bg-white/10 text-[#d4a520] border-l-2 border-[#d4a520] pl-[18px]";

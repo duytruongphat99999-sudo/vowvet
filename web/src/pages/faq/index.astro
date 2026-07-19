@@ -7,6 +7,7 @@
  */
 import Layout from "../../layouts/Layout.astro";
 import { getZaloLink } from "../../../../shared/contact-info.ts";
+import { FAQ_ARTICLES, FAQ_CATEGORY_LABEL_VI } from "../../../../shared/faq-articles.ts";
 
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
@@ -26,6 +27,12 @@ const initialData = JSON.stringify({
   categories,
   zaloUrl: getZaloLink(),
 });
+
+// L11: 16 bài long-form (M9.4, file tĩnh faq-articles) — gom nhóm theo category (data-driven),
+// nối link từ index (trước đây mồ côi, chỉ vào được qua self-ref). Thêm bài sau tự vào nhóm.
+const guideGroups = Object.entries(FAQ_CATEGORY_LABEL_VI)
+  .map(([key, label]) => ({ key, label, items: FAQ_ARTICLES.filter((a) => a.category === key) }))
+  .filter((g) => g.items.length > 0);
 ---
 
 <Layout title="📚 Câu hỏi thường gặp · VowVet" description="30+ câu hỏi về chăm sóc thú cưng, đáp án bởi đội ngũ VowVet">
@@ -110,6 +117,31 @@ const initialData = JSON.stringify({
           <p class="text-xs text-slate-500 mb-4">Hãy hỏi trực tiếp VowVet — đội ngũ phản hồi trong 1-2 ngày làm việc.</p>
         </div>
       </template>
+
+      <!-- L11: 📖 Cẩm nang chuyên sâu — 16 bài long-form gom 8 nhóm (data-driven), nối từ index -->
+      <section class="mt-8">
+        <div class="mb-3">
+          <h2 class="text-base font-bold text-mmp-ink">📖 Cẩm nang chuyên sâu</h2>
+          <p class="text-xs text-slate-500 mt-0.5">16 hướng dẫn chi tiết về dinh dưỡng, vaccine, hành vi &amp; chăm sóc.</p>
+          <p class="text-xs text-slate-500 mt-1">🔒 Đăng nhập để đọc các bài hướng dẫn</p>
+        </div>
+        <div class="space-y-4">
+          {guideGroups.map((g) => (
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{g.label}</p>
+              <div class="space-y-2">
+                {g.items.map((a) => (
+                  <a href={`/faq/${a.slug}`}
+                    class="block bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:border-slate-300 transition">
+                    <p class="font-semibold text-slate-900 leading-snug">{a.title_vi}</p>
+                    <p class="text-xs text-slate-500 leading-relaxed mt-1 line-clamp-2">{a.summary}</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <!-- Bottom CTA -->
       <div class="mt-8 p-5 rounded-2xl bg-mmp-cream border border-mmp-cream">

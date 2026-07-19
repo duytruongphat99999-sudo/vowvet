@@ -39,3 +39,7 @@ docs/CONTEXT_SYNC.md
 
 .claude/runs/
 .claude/.queue.lock
+
+data/api/
+_reverify_*.ts
+_probe_*
