@@ -16,6 +16,16 @@ try {
 
 if (!settings) return Astro.redirect("/login");
 
+// N9: link "Khu bác sĩ" chỉ hiện cho vet. /me KHÔNG expose is_vet → probe /vet/threads/queue
+// (200=vet, 403=non-vet), giống dashboard.astro. Gate SERVER-SIDE (omit markup, KHÔNG x-show).
+let isVet = false;
+try {
+  const vetProbe = await fetch(`${API_INTERNAL}/api/v1/vet/threads/queue?limit=1`, {
+    headers: { cookie: cookieHeader },
+  });
+  if (vetProbe.status === 200) isVet = true;
+} catch (_) {}
+
 const initialJson = JSON.stringify(settings);
 ---
 
@@ -27,6 +37,22 @@ const initialJson = JSON.stringify(settings);
         <h1 class="font-display italic text-xl font-semibold text-mmp-ink">Cài đặt</h1>
         <span class="w-16"></span>
       </header>
+
+      {/* N9: Khu bác sĩ telehealth — chỉ RENDER cho vet (gate SERVER-SIDE, omit markup nếu non-vet;
+          KHÔNG x-show vì view-source vẫn lộ). Probe is_vet qua /vet/threads/queue ở frontmatter. */}
+      {isVet && (
+        <a href="/vet/dashboard"
+          class="relative flex items-center gap-3 bg-mmp-ink text-white rounded-3xl p-5 mb-4 shadow-md hover:bg-slate-800 transition">
+          <span class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 ring-1 ring-white/20" aria-hidden="true">
+            <svg class="w-6 h-6 text-[#ecb921]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-10 2 5h6"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold">Khu bác sĩ (Vet workspace)</p>
+            <p class="text-xs text-white/75">Hàng đợi telehealth — nhận và trả lời câu hỏi khám từ xa</p>
+          </div>
+          <svg class="w-5 h-5 text-white/60 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      )}
 
       <!-- M11: PWA install (only show khi browser support + chưa installed) -->
       <section x-data="pwaInstallSection()" x-show="canInstall || installed"
