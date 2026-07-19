@@ -323,7 +323,8 @@ const fosterReceived: any[] = _fosterReceived?.received || [];
         </>
       )}
 
-      {/* Hỏi bác sĩ — telehealth: card mở popup 3 kênh (in-app / Zalo OA / Bio). KHÁC support chat dưới. */}
+      {/* Hỏi bác sĩ — telehealth: card mở popup 2 kênh (in-app / Zalo OA). KHÁC support chat dưới.
+          Bio (kênh 3) ẩn tạm — chờ fix bio.monminpet.com; thêm lại 1 block <a> khi xong. */}
       <button onclick="openVetPopup()" class="w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#d4a520] transition-colors text-left mt-4">
         <span class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520] flex-shrink-0">
           <FeatureIcon name="stethoscope" class="w-5 h-5" strokeWidth={1.7} />
@@ -352,10 +353,6 @@ const fosterReceived: any[] = _fosterReceived?.received || [];
             <a href="https://zalo.me/1136810892220003266" target="_blank" rel="noopener" class="flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-[#d4a520] transition">
               <span class="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520]"><FeatureIcon name="mail" class="w-5 h-5" strokeWidth={1.7} /></span>
               <div><p class="text-sm font-semibold text-gray-900">Zalo OA</p><p class="text-xs text-gray-400">Nhắn qua Zalo chính thức</p></div>
-            </a>
-            <a href="https://bio.monminpet.com" target="_blank" rel="noopener" class="flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-[#d4a520] transition">
-              <span class="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520]"><FeatureIcon name="external" class="w-5 h-5" strokeWidth={1.7} /></span>
-              <div><p class="text-sm font-semibold text-gray-900">Tư vấn BSTY (Bio)</p><p class="text-xs text-gray-400">Trang tư vấn dinh dưỡng</p></div>
             </a>
           </div>
         </div>
