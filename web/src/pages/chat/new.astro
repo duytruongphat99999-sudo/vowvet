@@ -18,6 +18,7 @@ import {
   getClinicInfo,
   isClinicOpenNow,
   getResponseTimeLabel,
+  getNextOpenTime,
 } from "../../../../shared/clinic-info.ts";
 
 const cookieHeader = Astro.request.headers.get("cookie") || "";
@@ -52,6 +53,7 @@ const clinic = getClinicInfo();
 const vet = clinic.vet;
 const isOpen = isClinicOpenNow();
 const responseTime = getResponseTimeLabel();
+const nextOpen = getNextOpenTime();
 ---
 
 <Layout title="Tin nhắn mới · VowVet" description="Tạo cuộc chat mới với BSTY Mon Min Pet">
@@ -109,6 +111,19 @@ const responseTime = getResponseTimeLabel();
             <p class="text-[10px] uppercase tracking-wider text-white/60 font-semibold">Phản hồi</p>
             <p class="text-sm font-bold" style="color: var(--c-gold);">{responseTime}</p>
           </div>
+        </div>
+      </div>
+
+      <!-- M9.3: giờ trực bác sĩ — set kỳ vọng trước khi gửi (helper clinic-info) -->
+      <div class="flex items-start gap-3 p-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <span class="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg bg-mmp-cream">
+          <FeatureIcon name="stethoscope" class="w-4 h-4" strokeWidth={1.8} style="color: var(--c-gold);" />
+        </span>
+        <div class="text-xs leading-relaxed flex-1 min-w-0">
+          <p class="font-bold text-mmp-ink">Bác sĩ trực {clinic.hours_weekday} hằng ngày <span class="text-slate-400 font-normal">(nghỉ lễ theo quy định)</span></p>
+          {isOpen
+            ? <p class="text-emerald-700 mt-0.5">Đang trong giờ trực — bác sĩ sẽ phản hồi sớm.</p>
+            : <p class="text-amber-700 mt-0.5">Hiện ngoài giờ trực — câu hỏi sẽ được trả vào {nextOpen}.</p>}
         </div>
       </div>
 
