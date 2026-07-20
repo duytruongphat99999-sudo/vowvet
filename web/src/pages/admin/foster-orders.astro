@@ -114,6 +114,86 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
           </tbody>
         </table>
       </div>
+
+      {/* FOSTER W3 — CHI tiền cho người nuôi (chỉ đơn đã THU tiền) */}
+      <div x-show="!loading && !forbidden" style="display:none;" class="mt-8">
+        <h2 class="font-bold text-slate-900 mb-1">Chi tiền cho người nuôi</h2>
+        <p class="text-xs text-slate-600 mb-3">Chỉ đơn đã thu tiền (paid). Kiểm tra STK trước khi bấm — chuyển tiền KHÔNG hoàn tác.</p>
+        <template x-if="payouts.length === 0">
+          <p class="text-sm text-slate-500">Chưa có đơn nào đã thu tiền.</p>
+        </template>
+        <div x-show="payouts.length > 0" style="display:none;" class="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-100 text-slate-600 text-left">
+              <tr>
+                <th class="px-3 py-2 font-semibold">Mã</th>
+                <th class="px-3 py-2 font-semibold">Bé</th>
+                <th class="px-3 py-2 font-semibold">Đã thu</th>
+                <th class="px-3 py-2 font-semibold">Người nhận (STK)</th>
+                <th class="px-3 py-2 font-semibold">Chi</th>
+                <th class="px-3 py-2 font-semibold">Trạng thái chi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="po in payouts" :key="po.order_code">
+                <tr class="border-t border-slate-100 align-top">
+                  <td class="px-3 py-2 font-mono text-xs font-bold" x-text="po.order_code"></td>
+                  <td class="px-3 py-2" x-text="po.pet_name || '—'"></td>
+                  <td class="px-3 py-2 font-mono" x-text="fmtPrice(po.amount_paid)"></td>
+                  <td class="px-3 py-2">
+                    <template x-if="po.payout_status === 'none' || po.payout_status === 'failed'">
+                      <div class="space-y-1">
+                        <input x-model="po.bin" placeholder="BIN (vd 970422)" class="border border-slate-300 rounded px-2 py-1 text-xs w-44 block" />
+                        <input x-model="po.account_no" placeholder="Số tài khoản" class="border border-slate-300 rounded px-2 py-1 text-xs w-44 block" />
+                        <input x-model="po.account_name" placeholder="Tên chủ TK" class="border border-slate-300 rounded px-2 py-1 text-xs w-44 block" />
+                      </div>
+                    </template>
+                    <template x-if="po.payout_status !== 'none' && po.payout_status !== 'failed'">
+                      <span class="text-xs text-slate-600" x-text="(po.account_name || '—') + ' · ' + (po.account_no || '')"></span>
+                    </template>
+                  </td>
+                  <td class="px-3 py-2">
+                    <template x-if="po.payout_status === 'none' || po.payout_status === 'failed'">
+                      <input type="number" x-model.number="po.payout_amount" class="border border-slate-300 rounded px-2 py-1 text-xs w-28 font-mono" />
+                    </template>
+                    <template x-if="po.payout_status !== 'none' && po.payout_status !== 'failed'">
+                      <span class="font-mono text-xs" x-text="po.payout_amount != null ? fmtPrice(po.payout_amount) : '—'"></span>
+                    </template>
+                  </td>
+                  <td class="px-3 py-2">
+                    <template x-if="po.payout_status === 'none' || po.payout_status === 'failed'">
+                      <div>
+                        <template x-if="po.payout_status === 'failed'">
+                          <p class="text-xs text-red-600 font-medium mb-1">✗ failed — duyệt lại:</p>
+                        </template>
+                        <button @click="doPayout(po)" :disabled="payingCode === po.order_code" class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                          <span x-show="payingCode !== po.order_code">Duyệt &amp; chuyển</span>
+                          <span x-show="payingCode === po.order_code" style="display:none;">Đang chi…</span>
+                        </button>
+                        <p x-show="po.err" style="display:none;" class="text-xs text-red-600 mt-1" x-text="po.err"></p>
+                      </div>
+                    </template>
+                    <template x-if="po.payout_status === 'sent' || po.payout_status === 'pending'">
+                      <div>
+                        <span class="text-xs font-medium" :class="po.payout_status === 'pending' ? 'text-amber-700' : 'text-sky-700'" x-text="po.payout_status === 'pending' ? '⏳ pending' : '↗ sent'"></span>
+                        <span class="block font-mono text-slate-400 text-xs" x-text="po.payout_ref || ''"></span>
+                        <button @click="reconcile(po)" :disabled="checkingCode === po.order_code" class="mt-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold px-3 py-1 rounded-lg">
+                          <span x-show="checkingCode !== po.order_code">Kiểm tra trạng thái</span>
+                          <span x-show="checkingCode === po.order_code" style="display:none;">Đang kiểm tra…</span>
+                        </button>
+                        <p x-show="po.err" style="display:none;" class="text-xs text-red-600 mt-1" x-text="po.err"></p>
+                      </div>
+                    </template>
+                    <template x-if="po.payout_status === 'success'">
+                      <span class="text-xs text-emerald-700 font-medium">✅ success<span class="block font-mono text-slate-400" x-text="po.payout_ref || ''"></span></span>
+                    </template>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
   <script is:inline>
@@ -130,6 +210,9 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
         reclaimErr: "",
         reclaimRequests: [],
         approvingId: null,
+        payouts: [],
+        payingCode: null,
+        checkingCode: null,
         async load() {
           this.loading = true; this.error = ""; this.forbidden = false;
           try {
@@ -143,6 +226,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
               const rr = await fetch("/api/v1/admin/reclaim-requests", { credentials: "include" });
               if (rr.ok) { const rj = await rr.json(); this.reclaimRequests = Array.isArray(rj.requests) ? rj.requests : []; }
             } catch (e2) {}
+            await this.loadPayouts();
           } catch (e) {
             this.error = "Lỗi kết nối";
           } finally {
@@ -162,6 +246,49 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
             if (!r.ok) { o.status = prev; this.error = "Đổi trạng thái thất bại"; }
           } catch (e) {
             o.status = prev; this.error = "Lỗi kết nối";
+          }
+        },
+        async loadPayouts() {
+          try {
+            const r = await fetch("/api/v1/admin/foster-payouts", { credentials: "include" });
+            if (r.ok) { const j = await r.json(); this.payouts = (Array.isArray(j.payouts) ? j.payouts : []).map(function (p) { p.err = ""; return p; }); }
+          } catch (e) {}
+        },
+        async doPayout(po) {
+          po.err = "";
+          if (!po.bin || !po.account_no || !po.account_name) { po.err = "Thiếu STK (BIN/số TK/tên)"; return; }
+          if (!po.payout_amount || po.payout_amount <= 0) { po.err = "Số tiền chi phải > 0"; return; }
+          if (po.payout_amount > po.amount_paid) { po.err = "Vượt số đã thu"; return; }
+          if (!confirm("Chuyển " + this.fmtPrice(po.payout_amount) + " tới " + po.account_name + " (" + po.account_no + ")?\nKHÔNG hoàn tác.")) return;
+          this.payingCode = po.order_code;
+          try {
+            const r = await fetch("/api/v1/admin/foster-orders/" + encodeURIComponent(po.order_code) + "/payout", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ bin: po.bin, accountNo: po.account_no, accountName: po.account_name, payout_amount: po.payout_amount })
+            });
+            const j = await r.json().catch(function () { return {}; });
+            if (!r.ok) { po.err = (j.error && j.error.message) || ("Chi thất bại (" + r.status + ")"); return; }
+            await this.loadPayouts();
+          } catch (e) {
+            po.err = "Lỗi kết nối";
+          } finally {
+            this.payingCode = null;
+          }
+        },
+        async reconcile(po) {
+          po.err = "";
+          this.checkingCode = po.order_code;
+          try {
+            const r = await fetch("/api/v1/admin/foster-orders/" + encodeURIComponent(po.order_code) + "/reconcile", { method: "PATCH", credentials: "include" });
+            const j = await r.json().catch(function () { return {}; });
+            if (!r.ok) { po.err = (j.error && j.error.message) || ("Kiểm tra thất bại (" + r.status + ")"); return; }
+            await this.loadPayouts();
+          } catch (e) {
+            po.err = "Lỗi kết nối";
+          } finally {
+            this.checkingCode = null;
           }
         },
         async reclaim() {

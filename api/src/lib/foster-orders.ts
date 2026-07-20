@@ -7,6 +7,7 @@
 import { listRows, createRow, getRow, updateRow } from "@shared/baserow.ts";
 import type { TableName } from "@shared/baserow-config.ts";
 import { findPetBySlug } from "./slug.ts";
+import { createPaymentLink } from "./payos.ts";
 
 // foster_orders chưa nằm trong union TableName (typing) — cast; runtime đọc theo config.
 const ORDERS = "foster_orders" as TableName;
@@ -52,7 +53,7 @@ export async function createFosterOrder(input: {
   package_title: string;
   package_price: number;
   donor_name?: string | null;
-}): Promise<{ order_code: string }> {
+}): Promise<{ order_code: string; checkout_url: string }> {
   const pet = (await findPetBySlug(input.pet_slug)) as any;
   if (!pet) throw new FosterOrderError("NOT_FOUND", "Không tìm thấy bé", 404);
   // GUARD: chỉ bé foster công khai mới nhận đơn.
@@ -62,7 +63,7 @@ export async function createFosterOrder(input: {
   let code = genCode();
   for (let i = 0; i < 5 && (await codeExists(code)); i++) code = genCode();
 
-  await createRow(ORDERS, {
+  const row = await createRow<any>(ORDERS, {
     order_code: code,
     pet_id: [pet.id], // link_row = mảng row id
     pet_owner_id: extractOwnerId(pet.user_id),
@@ -70,11 +71,82 @@ export async function createFosterOrder(input: {
     package_title: input.package_title,
     package_price: input.package_price,
     status: "mới",
+    payment_status: "pending",
     donor_name: (input.donor_name || "").trim() || null,
     created_at: new Date().toISOString(),
   });
 
-  return { order_code: code };
+  // Tạo link thanh toán THU. mock → /public/dev/mock-pay/<id>; live → PayOS hosted page.
+  const link = await createPaymentLink({
+    orderId: row.id,
+    amount: input.package_price,
+    description: `Góp ${input.package_title}`,
+  });
+  // payos_order_code = khóa map webhook-thu → đơn. mock: = row.id.
+  await updateRow(ORDERS, row.id, { payos_order_code: link.orderCode });
+
+  return { order_code: code, checkout_url: link.checkoutUrl };
+}
+
+/** Chuẩn hoá single_select/text Baserow → giá trị phẳng. */
+function flatVal(v: any): string {
+  if (v && typeof v === "object" && "value" in v) return String(v.value);
+  return v == null ? "" : String(v);
+}
+
+/** Tìm đơn theo payos_order_code (khóa map webhook-thu). null nếu không có. */
+export async function getOrderByPayosCode(orderCode: number): Promise<any | null> {
+  const r = await listRows<any>(ORDERS, {
+    filter: { payos_order_code__equal: String(orderCode) },
+    size: 1,
+  });
+  return r.results[0] || null;
+}
+
+export type MarkPaidResult =
+  | { ok: true; already: boolean; amount_paid: number; order_code: string }
+  | { ok: false; code: "NOT_FOUND" | "AMOUNT_MISMATCH"; message: string };
+
+/**
+ * Đánh dấu đơn ĐÃ THU tiền — HÀM DUY NHẤT mutate payment. webhook-thu THẬT + mock-pay đều gọi
+ * hàm này (mock/live chạy y hệt code mutation).
+ *  - IDEMPOTENT: đơn đã paid → no-op, already=true (PayOS retry webhook → route trả 200, KHÔNG cộng đôi).
+ *  - AMOUNT GUARD: ev.amount PHẢI == package_price. Lệch → KHÔNG set paid, cờ đối soát vào pay_ref + log.
+ *  - amount_paid = GÁN (không cộng) → kể cả 2 webhook đồng thời vẫn ra đúng 1 giá trị.
+ */
+export async function markOrderPaid(ev: {
+  orderCode: number;
+  amount: number;
+  ref: string;
+}): Promise<MarkPaidResult> {
+  const order = await getOrderByPayosCode(ev.orderCode);
+  if (!order) {
+    return { ok: false, code: "NOT_FOUND", message: `Không tìm thấy đơn payos_order_code=${ev.orderCode}` };
+  }
+
+  // Đã paid → idempotent no-op (KHÔNG ghi lại, KHÔNG cộng amount lần 2).
+  if (flatVal(order.payment_status) === "paid") {
+    return { ok: true, already: true, amount_paid: Number(order.amount_paid) || 0, order_code: order.order_code };
+  }
+
+  const expected = Number(order.package_price) || 0;
+  if (Number(ev.amount) !== expected) {
+    // Số tiền lệch → KHÔNG set paid; cờ đối soát; log. (Chống ghi tiền thiếu/sai thành "đã trả đủ".)
+    console.error(
+      `[markOrderPaid] AMOUNT MISMATCH order=${order.order_code} payos=${ev.orderCode} got=${ev.amount} expected=${expected}`
+    );
+    await updateRow(ORDERS, order.id, { pay_ref: `MISMATCH got=${ev.amount} expected=${expected} ${ev.ref}` });
+    return { ok: false, code: "AMOUNT_MISMATCH", message: `Số tiền lệch: nhận ${ev.amount} ≠ ${expected}` };
+  }
+
+  // Happy path — GÁN amount_paid (không cộng dồn).
+  await updateRow(ORDERS, order.id, {
+    payment_status: "paid",
+    amount_paid: Number(ev.amount),
+    paid_at: new Date().toISOString(),
+    pay_ref: ev.ref,
+  });
+  return { ok: true, already: false, amount_paid: Number(ev.amount), order_code: order.order_code };
 }
 
 /**
