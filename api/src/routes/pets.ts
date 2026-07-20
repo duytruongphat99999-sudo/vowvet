@@ -88,6 +88,7 @@ import {
   getPublicStats,
 } from "../lib/public-pets.ts";
 import { PublicEnableSchema, PublicUpdateSchema, FosterUpdateSchema } from "@shared/zod-schemas/public-pet.ts";
+import { sanitizePetFoster } from "@shared/public-pet-fields.ts";
 // Baserow raw helpers — needed for care_plan_completions reads/writes + activity timeline aggregation.
 // Previously omitted (regression from Phase 2.2 of Care Plan WOW), causing
 // ReferenceError: listRows is not defined → 500 → frontend "Lỗi mạng" toast.
@@ -601,6 +602,27 @@ petsRoute.post("/foster/toggle", async (c) => {
     return c.json({ ok: true, is_foster_carer: body.enabled });
   } catch (err) {
     return petErrorResponse(c, err);
+  }
+});
+
+// ===== GET /pets/foster-browse — danh sách bé CẦN FOSTER (W-E, auth qua petsRoute.use) =====
+// Chỉ bé foster_public + is_public + foster_status="cần tài trợ" + chưa xoá mềm.
+// Sanitize qua FOSTER_PUBLIC_FIELDS (KHÔNG leak field cấm). Route TĨNH — không đụng /:id{[0-9]+}.
+petsRoute.get("/foster-browse", async (c) => {
+  try {
+    const res = await listRows<any>("pets", { filter: { foster_public__boolean: "true" }, size: 200 });
+    const sel = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+    const valid = res.results.filter(
+      (p) =>
+        p.foster_public === true &&
+        p.is_public === true &&
+        sel(p.foster_status) === "cần tài trợ" &&
+        !p.deleted_at
+    );
+    return c.json({ pets: valid.map((p) => sanitizePetFoster(p)) });
+  } catch (err) {
+    console.error("[pets/foster-browse] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });
 

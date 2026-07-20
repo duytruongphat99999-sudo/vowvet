@@ -141,6 +141,14 @@ export async function enablePublicProfile(
   // FOSTER L1: bật/tắt cờ khoe bệnh án (default DB false). Chỉ ghi khi client gửi rõ.
   if (data.foster_public !== undefined) updates.foster_public = data.foster_public === true;
 
+  // W-E vá: bật foster_public mà pet CHƯA có foster_status → default "cần tài trợ"
+  // (để pet lên được danh sách /foster/browse). Đã có status → GIỮ nguyên, KHÔNG đè.
+  if (data.foster_public === true) {
+    const cur = (pet as any).foster_status;
+    const curVal = cur && typeof cur === "object" && "value" in cur ? cur.value : cur;
+    if (!curVal) updates.foster_status = "cần tài trợ";
+  }
+
   const updated = await updateRow("pets", petId, updates);
   return { slug, pet: updated };
 }
