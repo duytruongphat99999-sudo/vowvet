@@ -53,6 +53,7 @@ export async function createFosterOrder(input: {
   package_title: string;
   package_price: number;
   donor_name?: string | null;
+  donor_user_id?: number | null;
 }): Promise<{ order_code: string; checkout_url: string }> {
   const pet = (await findPetBySlug(input.pet_slug)) as any;
   if (!pet) throw new FosterOrderError("NOT_FOUND", "Không tìm thấy bé", 404);
@@ -73,6 +74,7 @@ export async function createFosterOrder(input: {
     status: "mới",
     payment_status: "pending",
     donor_name: (input.donor_name || "").trim() || null,
+    donor_user_id: input.donor_user_id ?? null, // W-A: từ session (KHÔNG tin body). Đơn cũ = null.
     created_at: new Date().toISOString(),
   });
 

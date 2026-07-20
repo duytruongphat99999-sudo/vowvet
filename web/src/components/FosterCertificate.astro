@@ -19,8 +19,9 @@ import { FOSTER_PACKAGES } from "../lib/foster-packages.ts";
 interface Props {
   pet: any;
   shareUrl?: string;
+  loggedIn?: boolean;
 }
-const { pet, shareUrl = "" } = Astro.props;
+const { pet, shareUrl = "", loggedIn = false } = Astro.props;
 
 const name = pet.name || "Bé";
 const petCode = pet.public_slug || (pet.id ? "VV-" + pet.id : ""); // mã bé cho lời nhắn Zalo (L4c)
@@ -218,7 +219,7 @@ const weightLine = hasChart
     )}
 
     {/* ===== CTA + MODAL gói (L4b) ===== */}
-    <div class="text-center mt-9" x-data={`fosterSponsor(${JSON.stringify(FOSTER_PACKAGES)}, ${JSON.stringify(name)}, ${JSON.stringify(petCode)}, ${JSON.stringify(shareUrl)})`}>
+    <div class="text-center mt-9" x-data={`fosterSponsor(${JSON.stringify(FOSTER_PACKAGES)}, ${JSON.stringify(name)}, ${JSON.stringify(petCode)}, ${JSON.stringify(shareUrl)}, ${loggedIn})`}>
       <button type="button" class="cert-cta" @click="open()">Góp gói nuôi {name}</button>
       <p class="cert-cta__note">Mỗi gói = thức ăn + chăm sóc thật, minh bạch qua hồ sơ trên.</p>
 
@@ -425,7 +426,7 @@ const weightLine = hasChart
 </script>
 
 <script is:inline>
-  function fosterSponsor(packages, petName, petCode, shareUrl) {
+  function fosterSponsor(packages, petName, petCode, shareUrl, loggedIn) {
     var list = Array.isArray(packages) ? packages : [];
     var pop = list.filter(function (p) { return p.popular; })[0];
     return {
@@ -441,7 +442,16 @@ const weightLine = hasChart
       zaloUrl: "https://zalo.me/1136810892220003266",
       lastMsg: "",
       donorName: "",
-      open: function () { this.show = true; this.notice = false; this.copyOk = false; document.body.style.overflow = "hidden"; },
+      loggedIn: !!loggedIn,
+      open: function () {
+        // W-A login-gate: chưa login → đẩy /login?return_to=<trang hiện tại> TRƯỚC khi mở modal.
+        if (!this.loggedIn) {
+          var path = window.location.pathname + window.location.search;
+          window.location.href = "/login?return_to=" + encodeURIComponent(path);
+          return;
+        }
+        this.show = true; this.notice = false; this.copyOk = false; document.body.style.overflow = "hidden";
+      },
       close: function () { this.show = false; document.body.style.overflow = ""; },
       select: function (id) { this.selectedId = id; },
       get selected() {
