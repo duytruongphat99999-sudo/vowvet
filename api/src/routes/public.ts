@@ -113,10 +113,10 @@ publicRoute.post("/payos/webhook-thu", async (c) => {
   }
 });
 
-// ===== DEV MOCK PAY (epic foster-payment W2) — CHỈ khi PAYOS_MODE=mock =====
-// Giả PayOS: dựng payload ĐÚNG package_price rồi gọi CÙNG markOrderPaid mà webhook-thu dùng
-// → mock + live chạy y hệt code mutation. Live thì route KHÔNG tồn tại (404).
-if (PAYOS_MODE === "mock") {
+// ===== DEV MOCK PAY (epic foster-payment W2) — CHỈ khi mock VÀ cờ opt-in PAYOS_ALLOW_MOCK_HTTP=1 =====
+// Giả PayOS: dựng payload ĐÚNG package_price rồi gọi CÙNG markOrderPaid mà webhook-thu dùng.
+// SECURITY: cờ opt-in tường minh → prod (KHÔNG set cờ) không phát route mock, kể cả lỡ để mode=mock.
+if (PAYOS_MODE === "mock" && process.env.PAYOS_ALLOW_MOCK_HTTP === "1") {
   publicRoute.post("/dev/mock-pay/:orderCode", async (c) => {
     const orderCode = Number(c.req.param("orderCode"));
     if (!orderCode || Number.isNaN(orderCode)) {
@@ -151,9 +151,9 @@ publicRoute.post("/payos/webhook-chi", async (c) => {
   }
 });
 
-// ===== DEV MOCK PAYOUT RESULT (epic foster-payment W4) — CHỈ khi PAYOS_MODE=mock =====
-// Test-only: đặt kết quả getPayoutStatus(ref) để verify nhánh success/failed. Live → route vắng mặt.
-if (PAYOS_MODE === "mock") {
+// ===== DEV MOCK PAYOUT RESULT (epic foster-payment W4) — CHỈ khi mock VÀ cờ PAYOS_ALLOW_MOCK_HTTP=1 =====
+// Test-only: đặt kết quả getPayoutStatus(ref) để verify nhánh success/failed. Prod (KHÔNG cờ) → route vắng.
+if (PAYOS_MODE === "mock" && process.env.PAYOS_ALLOW_MOCK_HTTP === "1") {
   publicRoute.post("/dev/mock-payout-result", async (c) => {
     let b: any;
     try { b = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
