@@ -13,6 +13,7 @@ import { createReclaimRequest } from "../lib/reclaim-requests.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import {
   getOwnedPet,
+  canViewPet,
   patchPet,
   hardDeletePet,
   PetAccessError,
@@ -199,7 +200,7 @@ petsRoute.get("/:id{[0-9]+}", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    const pet = await getOwnedPet(petId, session.sub);
+    const { pet } = await canViewPet(petId, session.sub);
     return c.json({ pet: toApiPet(pet) });
   } catch (err) {
     return petErrorResponse(c, err);
@@ -1376,7 +1377,7 @@ petsRoute.get("/:id{[0-9]+}/care-plan/completions/summary", async (c) => {
   const petId = Number(c.req.param("id"));
   const today = todayVNDate();
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
     const res = await listRows<any>("care_plan_completions", {
       filter: {
         user_id__equal: String(session.sub),
@@ -1740,7 +1741,7 @@ petsRoute.get("/:id{[0-9]+}/profile", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    const pet = await getOwnedPet(petId, session.sub);
+    const { pet, isOwner } = await canViewPet(petId, session.sub);
     // Trả raw row — frontend wizard cần all 50+ fields. Helper extract object values nếu single_select.
     const flat: Record<string, any> = {};
     for (const [k, v] of Object.entries(pet)) {
@@ -1755,7 +1756,7 @@ petsRoute.get("/:id{[0-9]+}/profile", async (c) => {
     // Species/gender: convert EN → VN cho UI
     if (flat.species) flat.species = speciesEnToVi(flat.species);
     if (flat.gender) flat.gender = genderEnToVi(flat.gender);
-    return c.json({ pet: flat });
+    return c.json({ pet: flat, is_owner: isOwner });
   } catch (err) {
     return petErrorResponse(c, err);
   }
@@ -1766,7 +1767,7 @@ petsRoute.get("/:id{[0-9]+}/climate-sensitivity", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    const pet = await getOwnedPet(petId, session.sub);
+    const { pet } = await canViewPet(petId, session.sub);
     const p = pet as any;
     const speciesValue = typeof pet.species === "object" ? pet.species?.value : pet.species;
     const fearsValue = Array.isArray(p.fears)
@@ -1828,7 +1829,7 @@ petsRoute.get("/:id{[0-9]+}/photos", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
     const photos = await listPetPhotos(petId);
     return c.json({ photos: photos.map(toApiPhoto) });
   } catch (err) {
@@ -2049,7 +2050,7 @@ petsRoute.get("/:id{[0-9]+}/activity", async (c) => {
   const days = Math.max(1, Math.min(60, Number.isFinite(daysRaw) ? daysRaw : 7));
 
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
 
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - days);

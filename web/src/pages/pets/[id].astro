@@ -45,6 +45,8 @@ const completionPct = completion?.pct ?? 0;
 const completionBadge = completion?.badge ?? null;
 const isLegacy = completionPct < 30;
 const profile: any = profileJson?.pet || {};
+// W-B: sponsor (is_owner=false) → ẩn UI mutation + banner read-only. Default true (fail-open UI; server 403 mới là gate thật).
+const isOwner = profileJson?.is_owner !== false;
 
 // Phase 3: SSR fetch MonMin supplements (live-fetch+cache backend). Defensive: lỗi → [] (KHÔNG vỡ trang).
 let supplements: any[] = [];
@@ -236,8 +238,15 @@ const storyExcerpt = hasStory
         </button>
       </div>
 
+      {!isOwner && (
+        <div class="no-print mb-4 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-3 flex items-start gap-3">
+          <span class="text-xl shrink-0" aria-hidden="true">👁</span>
+          <p class="text-sm text-sky-900 leading-relaxed">Bạn xem hồ sơ bé với tư cách <b>người tài trợ</b> — chế độ <b>chỉ đọc</b>, không sửa được thông tin bé.</p>
+        </div>
+      )}
+
       {/* BƯỚC 2-fix: re-confirm cam kết 6 tháng — banner MỀM, không chặn cứng */}
-      {pledgeIsReconfirm && (
+      {isOwner && pledgeIsReconfirm && (
         <div x-data="{ show: true, busy: false }" x-show="show" style="display:none;"
              class="no-print mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
           <svg class="w-5 h-5 shrink-0 text-amber-600 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
@@ -1163,7 +1172,8 @@ const storyExcerpt = hasStory
       <div data-page-tab="profile" class="mt-8" x-data="{ openSections: new Set() }">
         <h2 class="text-lg font-semibold text-slate-900 mb-3">Hồ sơ chi tiết</h2>
 
-        {/* FOSTER L3 — khu owner bật công khai hồ sơ foster (RIÊNG, không liên quan khu /share M12) */}
+        {/* FOSTER L3 — owner bật công khai foster. W-B: CHỈ owner (sponsor read-only KHÔNG thấy) */}
+        {isOwner && (
         <section class="bg-white border border-mmp-ink/12 rounded-2xl p-5 sm:p-6 mb-4 shadow-sm"
           x-data={`fosterAdmin(${petId}, "${appUrl}")`} x-init="load()">
           <div class="flex items-start gap-3">
@@ -1209,6 +1219,7 @@ const storyExcerpt = hasStory
             <p x-show="msg" x-text="msg" style="display:none;" class="text-xs text-mmp-ink/70 mt-2"></p>
           </div>
         </section>
+        )}
 
         <script is:inline>
           function fosterAdmin(petId, appUrl) {

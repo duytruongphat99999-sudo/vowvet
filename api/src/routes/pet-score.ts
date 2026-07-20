@@ -6,7 +6,7 @@
  */
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
-import { getOwnedPet } from "../lib/pets.ts";
+import { getOwnedPet, canViewPet } from "../lib/pets.ts";
 import { getPetScore, invalidatePetScore } from "../lib/pet-score.ts";
 import { SCORE_LEVELS } from "@shared/pet-score-formula.ts";
 
@@ -17,7 +17,7 @@ petScoreRoute.get("/:id{[0-9]+}/pet-score", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    const pet = await getOwnedPet(petId, session.sub);
+    const { pet } = await canViewPet(petId, session.sub);
     const result = await getPetScore(pet);
     return c.json(result);
   } catch (err: any) {
@@ -60,7 +60,7 @@ petScoreRoute.get("/:id{[0-9]+}/pet-score/trend", async (c) => {
   const petId = Number(c.req.param("id"));
   const days = Math.min(90, Math.max(7, Number(c.req.query("days") || 30)));
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
     const { getPetScoreTrend } = await import("../lib/pet-score-trend.ts");
     const trend = await getPetScoreTrend(petId, days);
     return c.json(trend);
@@ -77,7 +77,7 @@ petScoreRoute.get("/:id{[0-9]+}/pet-score/percentile", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
     const { getPercentileVsCommunity } = await import("../lib/pet-score-trend.ts");
     const result = await getPercentileVsCommunity(petId);
     return c.json(result);
