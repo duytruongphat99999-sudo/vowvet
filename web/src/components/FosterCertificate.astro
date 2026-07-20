@@ -253,6 +253,9 @@ const weightLine = hasChart
           <input type="text" x-model="donorName" maxlength="60" x-show="!notice" style="display:none;"
             placeholder="Tên bạn (không bắt buộc — bỏ trống = ẩn danh)" class="fp-donor" />
           <button type="button" class="fp-continue" @click="proceed()" x-show="!notice">Tiếp tục</button>
+          <p x-show="!notice" style="display:none; margin-top:12px; text-align:center;">
+            <a :href="zaloUrl" target="_blank" rel="noopener" style="font-size:12.5px; color:#8a7a52; text-decoration:underline;">Cần hỗ trợ? Nhắn Zalo MonMin</a>
+          </p>
 
           <div class="fp-notice" x-show="notice" style="display:none;">
             <p class="fp-notice__t" x-show="copyOk" style="display:none;">✓ Đã copy lời nhắn! Mở Zalo, dán (Ctrl/Cmd + V) rồi gửi cho MonMin để chốt gói nhé 💛</p>
@@ -454,8 +457,7 @@ const weightLine = hasChart
       },
       proceed: async function () {
         var p = this.selected;
-        // L5a: ghi đơn TRƯỚC để lấy mã. Lỗi ghi đơn KHÔNG chặn người góp (vẫn copy tin fallback).
-        var orderCode = "";
+        // W2: tạo đơn → redirect thẳng cổng thanh toán (mock: /public/dev/mock-pay; live: PayOS).
         try {
           var res = await fetch("/api/v1/public/foster-order", {
             method: "POST",
@@ -468,9 +470,13 @@ const weightLine = hasChart
               donor_name: this.donorName ? this.donorName.trim() : null
             })
           });
-          if (res.ok) { var j = await res.json(); orderCode = j.order_code || ""; }
-        } catch (e) { /* offline/lỗi → fallback tin không mã */ }
-        var msg = this.buildMessage(orderCode);
+          if (res.ok) {
+            var j = await res.json();
+            if (j.checkout_url) { window.location.href = j.checkout_url; return; }
+          }
+        } catch (e) { /* mạng lỗi → rơi xuống fallback Zalo, không kẹt donor */ }
+        // Fallback: chưa lấy được link thanh toán → giữ đường Zalo cũ.
+        var msg = this.buildMessage("");
         this.lastMsg = msg;
         this.notice = true;
         var self = this;

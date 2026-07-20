@@ -1,12 +1,12 @@
 /**
  * FOSTER L4b — config 4 gói "Góp gói nuôi" (HARDCODE tạm, 1 NGUỒN DUY NHẤT).
  * L4c sẽ thay nguồn này bằng fetch từ MonMin (giữ nguyên shape FosterPackage để FE không đổi).
- * Chưa nối thanh toán — modal "Tiếp tục" hiện placeholder.
+ * Đã nối PayOS (mock/live) — modal "Tiếp tục" → tạo đơn + redirect cổng thanh toán (W2).
  */
 export interface FosterPackage {
   id: number;
   title: string;        // câu KẾT QUẢ (chữ to) — nói bằng kết quả, không bằng thành phần
-  price: number;        // VND (number) — cho L4c/payment
+  price: number;        // VND (number) — amount gửi PayOS
   priceLabel: string;   // hiển thị
   contents: string;     // thành phần (chữ nhỏ)
   popular?: boolean;    // 1 gói nổi bật, chọn sẵn khi mở modal

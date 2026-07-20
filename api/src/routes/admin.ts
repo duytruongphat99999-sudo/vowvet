@@ -21,6 +21,7 @@ import { adminAnalyticsOverview, aiCostSummary } from "../lib/analytics.ts";
 import { getZaloStatus, sendOtp } from "../lib/otp-sender.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import { listFosterOrders, updateOrderStatus, FosterOrderError } from "../lib/foster-orders.ts";
+import { createPayout, getPayoutStatus } from "../lib/payos.ts";
 import { reclaimPet, reclaimPetByPassport } from "../lib/foster-reclaim.ts";
 import { getPendingRequests, approveRequest } from "../lib/reclaim-requests.ts";
 import { getAllConversations, getAdminSupportUnread } from "../lib/conversations.ts";
@@ -61,6 +62,210 @@ adminRoute.patch("/foster-orders/:code/status", async (c) => {
   } catch (err) {
     if (err instanceof FosterOrderError) return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 404 | 500);
     console.error("[admin/foster-orders status] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ============================================================
+// FOSTER W3 — CHI tiền cho người nuôi (PayOS payout). MONEY-CRITICAL.
+// Guard admin: đã bọc requireAuth + requireAdmin qua adminRoute.use("*") (reuse, KHÔNG tự chế).
+// ============================================================
+
+// Mutex serialize theo order_code — chống double-click chi 2 lần.
+// vowvet-api = 1 container/process → in-memory Map đủ. Release ở finally.
+const payoutLocks = new Map<string, Promise<void>>();
+async function withPayoutLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  while (payoutLocks.has(key)) { await payoutLocks.get(key); }
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  payoutLocks.set(key, gate);
+  try { return await fn(); }
+  finally { payoutLocks.delete(key); release(); }
+}
+const flatSel = (v: any): string =>
+  v && typeof v === "object" && "value" in v ? String(v.value) : v == null ? "" : String(v);
+
+// GET /admin/foster-payouts — đơn ĐÃ THU (paid) + prefill STK (snapshot beneficiary_* hoặc users.bank_*).
+adminRoute.get("/foster-payouts", async (c) => {
+  try {
+    const [ordersRes, usersRes] = await Promise.all([
+      listRows<any>("foster_orders" as any, { size: 200 }),
+      listRows<any>("users", { size: 200 }),
+    ]);
+    const bankByUser = new Map<number, { bin: string; no: string; name: string }>();
+    for (const u of usersRes.results) {
+      bankByUser.set(u.id, { bin: u.bank_bin || "", no: u.bank_account_no || "", name: u.bank_account_name || "" });
+    }
+    const payouts = ordersRes.results
+      .filter((o: any) => o.order_code && flatSel(o.payment_status) === "paid")
+      .map((o: any) => {
+        const ownerId = Number(o.pet_owner_id) || null;
+        const bank = ownerId ? bankByUser.get(ownerId) : null;
+        return {
+          order_code: o.order_code,
+          pet_name: Array.isArray(o.pet_id) && o.pet_id[0] ? o.pet_id[0].value || null : null,
+          amount_paid: Number(o.amount_paid) || 0,
+          payout_status: flatSel(o.payout_status) || "none",
+          payout_ref: o.payout_ref || null,
+          approved_by: o.approved_by || null,
+          approved_at: o.approved_at || null,
+          payout_amount: o.payout_amount != null ? Number(o.payout_amount) : Number(o.amount_paid) || 0,
+          bin: o.beneficiary_bank_bin || bank?.bin || "",
+          account_no: o.beneficiary_account_no || bank?.no || "",
+          account_name: o.beneficiary_account_name || bank?.name || "",
+        };
+      })
+      .sort((a: any, b: any) => String(b.approved_at || "").localeCompare(String(a.approved_at || "")));
+    return c.json({ payouts });
+  } catch (err) {
+    console.error("[admin/foster-payouts] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// PATCH /admin/foster-orders/:code/payout — DUYỆT & CHI. Sequencing claim-trước-send.
+adminRoute.patch("/foster-orders/:code/payout", async (c) => {
+  const session = c.get("user");
+  const code = c.req.param("code");
+  let body: any;
+  try { body = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
+  const bin = String(body?.bin || "").trim();
+  const accountNo = String(body?.accountNo ?? body?.account_no ?? "").trim();
+  const accountName = String(body?.accountName ?? body?.account_name ?? "").trim();
+  const payoutAmount = Number(body?.payout_amount);
+
+  // Guard 1: beneficiary đủ (fail sớm — KHÔNG gọi createPayout với TK rỗng).
+  if (!bin || !accountNo || !accountName) {
+    return c.json({ error: { code: "MISSING_BENEFICIARY", message: "Thiếu STK người nhận (BIN + số TK + tên)" } }, 400);
+  }
+
+  try {
+    return await withPayoutLock(code, async () => {
+      // 1. Đọc LẠI đơn từ Baserow (không tin payload/cache).
+      const r = await listRows<any>("foster_orders" as any, { filter: { order_code__equal: code }, size: 1 });
+      const order = r.results[0];
+      if (!order) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy đơn" } }, 404);
+
+      // 2. Guard trạng thái: paid + payout_status ∈ {none, failed}.
+      if (flatSel(order.payment_status) !== "paid") {
+        return c.json({ error: { code: "NOT_PAID", message: "Đơn chưa thu tiền (payment_status != paid)" } }, 409);
+      }
+      const ps = flatSel(order.payout_status) || "none";
+      if (ps !== "none" && ps !== "failed") {
+        return c.json({ error: { code: "PAYOUT_LOCKED", message: `Đơn đang/đã chi (payout_status='${ps}') — không chi lại` } }, 409);
+      }
+
+      // 3. Guard payout_amount: 0 < amount ≤ amount_paid.
+      const amountPaid = Number(order.amount_paid) || 0;
+      if (!Number.isFinite(payoutAmount) || payoutAmount <= 0) {
+        return c.json({ error: { code: "BAD_AMOUNT", message: "payout_amount phải > 0" } }, 400);
+      }
+      if (payoutAmount > amountPaid) {
+        return c.json({ error: { code: "AMOUNT_EXCEEDS", message: `payout_amount ${payoutAmount} > amount_paid ${amountPaid}` } }, 400);
+      }
+
+      // 4. CLAIM-TRƯỚC-SEND: snapshot beneficiary + approved + payout_status=pending → GHI Baserow TRƯỚC createPayout.
+      //    (Bấm lần 2 nếu qua được mutex sẽ thấy pending → guard bước 2 chặn 409.)
+      await updateRow("foster_orders" as any, order.id, {
+        beneficiary_bank_bin: bin,
+        beneficiary_account_no: accountNo,
+        beneficiary_account_name: accountName,
+        payout_amount: payoutAmount,
+        approved_by: String(session.sub),
+        approved_at: new Date().toISOString(),
+        payout_status: "pending",
+      });
+
+      // 5. createPayout — MONEY HAZARD nếu THROW/timeout: GIỮ pending, KHÔNG set failed, KHÔNG ref giả, KHÔNG retry.
+      //    (Lệnh có thể đã đi bên PayOS mà mất response → retry = chi 2 lần.)
+      let payout: { payoutId: string; status: string };
+      try {
+        payout = await createPayout({ bin, accountNo, accountName, amount: payoutAmount, ref: `foster-${code}` });
+      } catch (err) {
+        console.error(`[payout] createPayout THROW order=${code} id=${order.id} — GIỮ pending, đối soát tay:`, err);
+        return c.json({ error: { code: "PAYOUT_UNCONFIRMED", message: "Lệnh chi CHƯA xác nhận — đơn giữ 'pending'. Đối soát trên portal PayOS, KHÔNG bấm chi lại." } }, 502);
+      }
+
+      // 6. PayOS từ chối DỨT KHOÁT (status=failed, tiền KHÔNG đi) → set failed (mở lại duyệt).
+      if (payout.status === "failed") {
+        await updateRow("foster_orders" as any, order.id, { payout_status: "failed", payout_at: new Date().toISOString() });
+        return c.json({ error: { code: "PAYOUT_FAILED", message: "PayOS từ chối lệnh chi — đơn về 'failed', có thể duyệt lại." } }, 502);
+      }
+
+      // 7. OK → payout_status=sent (W4 đối soát sent→success/failed). Ghi ref + at.
+      await updateRow("foster_orders" as any, order.id, {
+        payout_status: "sent",
+        payout_ref: payout.payoutId,
+        payout_at: new Date().toISOString(),
+      });
+      return c.json({ ok: true, order_code: code, payout_status: "sent", payout_ref: payout.payoutId, payout_amount: payoutAmount }, 200);
+    });
+  } catch (err) {
+    console.error("[admin/foster-orders payout] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ============================================================
+// FOSTER W4 — ĐỐI SOÁT chi (poll reconcile + webhook-chi). Đưa sent/pending → success/failed.
+// ============================================================
+
+/**
+ * Settle 1 đơn payout theo kết quả `resolved` (success|failed|sent). DÙNG CHUNG reconcile (poll)
+ * + webhook-chi (push, import từ public.ts). CÙNG mutex W3 (payoutLocks) — không tạo mutex thứ 2.
+ *  - idempotent: đơn đã success/failed → no-op 200 (PayOS retry webhook → vẫn 200).
+ *  - chỉ flip đơn ∈ {sent, pending}; none/khác → 409.
+ *  - resolved=sent/pending (PayOS chưa xong) → GIỮ NGUYÊN, không đoán.
+ */
+export async function settleFosterPayout(
+  orderCode: string,
+  resolved: string
+): Promise<{ code: 200 | 404 | 409; body: any }> {
+  return withPayoutLock(orderCode, async () => {
+    const r = await listRows<any>("foster_orders" as any, { filter: { order_code__equal: orderCode }, size: 1 });
+    const order = r.results[0];
+    if (!order) return { code: 404 as const, body: { error: { code: "NOT_FOUND", message: "Không tìm thấy đơn" } } };
+    const ps = flatSel(order.payout_status) || "none";
+    if (ps === "success" || ps === "failed") {
+      return { code: 200 as const, body: { ok: true, already: true, order_code: orderCode, payout_status: ps } };
+    }
+    if (ps !== "sent" && ps !== "pending") {
+      return { code: 409 as const, body: { error: { code: "NOT_SETTLABLE", message: `payout_status='${ps}' — chưa chi, không có gì đối soát` } } };
+    }
+    if (resolved === "success") {
+      await updateRow("foster_orders" as any, order.id, { payout_status: "success", payout_at: new Date().toISOString() });
+      return { code: 200 as const, body: { ok: true, order_code: orderCode, payout_status: "success" } };
+    }
+    if (resolved === "failed") {
+      // failed → reopen (guard {none,failed} ở route chi cho duyệt lại). GIỮ payout_ref để đối soát.
+      await updateRow("foster_orders" as any, order.id, { payout_status: "failed", payout_at: new Date().toISOString() });
+      return { code: 200 as const, body: { ok: true, order_code: orderCode, payout_status: "failed", reopened: true } };
+    }
+    // resolved = sent/pending → PayOS chưa hoàn tất → giữ nguyên.
+    return { code: 200 as const, body: { ok: true, order_code: orderCode, payout_status: ps, pending: true, message: "Lệnh chi chưa hoàn tất bên PayOS" } };
+  });
+}
+
+// PATCH /admin/foster-orders/:code/reconcile — đối soát chủ động (poll PayOS theo ref).
+adminRoute.patch("/foster-orders/:code/reconcile", async (c) => {
+  const code = c.req.param("code");
+  try {
+    // Pre-read fail-fast (tránh query PayOS thừa cho đơn none/terminal). settle re-validate dưới mutex.
+    const pre = (await listRows<any>("foster_orders" as any, { filter: { order_code__equal: code }, size: 1 })).results[0];
+    if (!pre) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy đơn" } }, 404);
+    const preStatus = flatSel(pre.payout_status) || "none";
+    if (preStatus === "success" || preStatus === "failed") {
+      return c.json({ ok: true, already: true, order_code: code, payout_status: preStatus }, 200);
+    }
+    if (preStatus !== "sent" && preStatus !== "pending") {
+      return c.json({ error: { code: "NOT_RECONCILABLE", message: `payout_status='${preStatus}' — chưa chi, không có gì đối soát` } }, 409);
+    }
+    // Query PayOS theo ref suy từ order_code (KHÔNG đọc payout_ref — pending không có).
+    const resolved = await getPayoutStatus(`foster-${code}`);
+    const out = await settleFosterPayout(code, resolved);
+    return c.json(out.body, out.code);
+  } catch (err) {
+    console.error("[admin/foster-orders reconcile] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });

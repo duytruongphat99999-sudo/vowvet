@@ -1,0 +1,104 @@
+---
+/**
+ * /foster/my-supporters — chủ bé xem AI ĐÃ GÓP cho bé mình (FOSTER W5).
+ *
+ * AUTH: page tự gated bởi web middleware (KHÔNG nằm trong PUBLIC → chưa login = redirect /login).
+ * DATA: client-side fetch /api/v1/public/foster/my-supporters (route đó qua requireAuth per-route)
+ *   → CHỈ đơn paid mà pet_owner_id == user.sub. API map WHITELIST field — KHÔNG lộ STK/ref/approved_by.
+ */
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="Người góp nuôi · VowVet" description="Danh sách người đã góp gói nuôi cho bé của bạn">
+  <main class="min-h-screen bg-mmp-cream px-4 py-6 pb-20">
+    <div class="max-w-2xl mx-auto" x-data="mySupporters()" x-init="load()">
+
+      <header class="flex items-center justify-between mb-5 gap-3">
+        <a href="/dashboard" class="text-sm text-mmp-brown hover:text-mmp-ink">← Dashboard</a>
+        <h1 class="text-lg font-bold text-mmp-ink">Người góp nuôi</h1>
+        <span aria-hidden="true"></span>
+      </header>
+
+      <div class="text-center py-6 px-4 mb-5 rounded-3xl bg-white border border-black/5 shadow-sm">
+        <span class="inline-block text-[11px] font-bold tracking-widest uppercase text-mmp-brown mb-2">Cảm ơn</span>
+        <h2 class="font-display italic text-2xl font-semibold text-mmp-ink">Những người đã góp cho bé của bạn</h2>
+        <p class="text-sm text-mmp-brown mt-1.5">MonMin giao gói tới nơi chăm bé. Bạn không xử lý tiền mặt.</p>
+      </div>
+
+      <template x-if="loading">
+        <p class="text-mmp-brown text-sm text-center py-6">Đang tải…</p>
+      </template>
+
+      <template x-if="!loading && err">
+        <p class="text-sm text-red-600 text-center py-6" x-text="err"></p>
+      </template>
+
+      <template x-if="!loading && !err && supporters.length === 0">
+        <div class="bg-white border border-black/5 rounded-2xl p-8 text-center text-mmp-brown">
+          Chưa có ai góp cho bé của bạn. Chia sẻ chứng thư của bé để lan toả 💛
+        </div>
+      </template>
+
+      <div x-show="!loading && !err && supporters.length > 0" style="display:none;" class="space-y-2.5">
+        <template x-for="(s, i) in supporters" :key="i">
+          <div class="bg-white border border-black/5 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm">
+            <div class="min-w-0">
+              <p class="font-semibold text-mmp-ink truncate" x-text="s.donor_name"></p>
+              <p class="text-xs text-mmp-brown mt-0.5">
+                <span x-text="s.package_title || 'Gói góp nuôi'"></span>
+                <template x-if="s.pet_name"><span> · bé <span x-text="s.pet_name"></span></span></template>
+                <span> · <span x-text="fmtDate(s.paid_at)"></span></span>
+              </p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="font-mono font-bold text-mmp-ink" x-text="fmtPrice(s.amount_paid)"></p>
+              <p class="text-[11px] mt-0.5" :class="payoutClass(s.payout_status)" x-text="payoutLabel(s.payout_status)"></p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    function mySupporters() {
+      return {
+        supporters: [],
+        loading: true,
+        err: "",
+        async load() {
+          this.loading = true; this.err = "";
+          try {
+            const r = await fetch("/api/v1/public/foster/my-supporters", { credentials: "include" });
+            if (r.status === 401) { window.location.href = "/login?return_to=/foster/my-supporters"; return; }
+            if (!r.ok) { this.err = "Lỗi tải (" + r.status + ")"; return; }
+            const j = await r.json();
+            this.supporters = Array.isArray(j.supporters) ? j.supporters : [];
+          } catch (e) {
+            this.err = "Lỗi kết nối";
+          } finally {
+            this.loading = false;
+          }
+        },
+        fmtPrice(v) { try { return new Intl.NumberFormat("vi-VN").format(v) + "đ"; } catch (e) { return v + "đ"; } },
+        fmtDate(iso) {
+          if (!iso) return "";
+          var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return m ? (m[3] + "/" + m[2] + "/" + m[1]) : String(iso).slice(0, 10);
+        },
+        payoutLabel(s) {
+          if (s === "success") return "✅ Đã chuyển cho bạn";
+          if (s === "sent") return "↗ Đang chuyển cho bạn";
+          if (s === "pending") return "⏳ Đang xử lý";
+          if (s === "failed") return "✗ Chuyển lỗi — MonMin xử lý lại";
+          return "Đã nhận góp";
+        },
+        payoutClass(s) {
+          if (s === "success") return "text-emerald-600";
+          if (s === "failed") return "text-red-500";
+          return "text-mmp-brown";
+        }
+      };
+    }
+  </script>
+</Layout>

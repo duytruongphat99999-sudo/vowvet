@@ -19,8 +19,11 @@ import { listRows } from "@shared/baserow.ts";
 import { loadFoodBrands } from "../lib/nutrition.ts";
 import { loadMonMinSupplements } from "../lib/monmin-supplements.ts";
 import { getPublicPetBySlug, incrementViewCount, incrementShareCount, listFosterPets } from "../lib/public-pets.ts";
-import { createFosterOrder, getFosterLeaderboard, FosterOrderError } from "../lib/foster-orders.ts";
+import { createFosterOrder, getFosterLeaderboard, FosterOrderError, markOrderPaid, getOrderByPayosCode } from "../lib/foster-orders.ts";
 import { FosterOrderSchema } from "@shared/zod-schemas/public-pet.ts";
+import { PAYOS_MODE, verifyThuWebhook, verifyChiWebhook, __setMockPayoutStatus } from "../lib/payos.ts";
+import { settleFosterPayout } from "./admin.ts";
+import { requireAuth } from "../middleware/auth.ts";
 
 export const publicRoute = new Hono();
 
@@ -34,6 +37,42 @@ publicRoute.get("/foster", async (c) => {
     return c.json({ pets, leaderboard });
   } catch (err) {
     console.error("[public/foster] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER W5 — chủ bé xem donor của bé mình. AUTH-GATED per-route =====
+// ⚠ KHÁC các route /public/* khác: route NÀY qua requireAuth (publicRoute không auth mặc định).
+// Privacy: CHỈ đơn paid mà pet_owner_id == user.sub (owner check server-side, không tin client) +
+//   deleted_at null. Map WHITELIST field tay — CẤM lộ beneficiary_*/approved_by/pay_ref/payout_ref/payos_order_code.
+publicRoute.get("/foster/my-supporters", requireAuth, async (c) => {
+  const session = c.get("user");
+  const uid = Number(session.sub);
+  try {
+    const r = await listRows<any>("foster_orders" as any, { size: 200 });
+    const flat = (v: any): string => (v && typeof v === "object" && "value" in v ? String(v.value) : v == null ? "" : String(v));
+    const petName = (f: any): string | null => (Array.isArray(f) && f[0] ? (typeof f[0] === "object" ? f[0].value || null : null) : null);
+    const supporters = r.results
+      .filter(
+        (o: any) =>
+          o.order_code &&
+          Number(o.pet_owner_id) === uid && // OWNER check — chỉ đơn của pet do user này sở hữu
+          flat(o.payment_status) === "paid" && // chỉ đơn đã trả tiền (pending/bỏ giỏ KHÔNG hiện)
+          !o.deleted_at
+      )
+      .map((o: any) => ({
+        // WHITELIST — map tay, KHÔNG dump row nhạy cảm.
+        donor_name: o.donor_name || "Ẩn danh",
+        amount_paid: Number(o.amount_paid) || 0,
+        package_title: o.package_title || null,
+        paid_at: o.paid_at || null,
+        payout_status: flat(o.payout_status) || "none", // để chủ bé biết đã chuyển cho mình chưa
+        pet_name: petName(o.pet_id), // bé của CHÍNH chủ (không nhạy cảm)
+      }))
+      .sort((a, b) => String(b.paid_at || "").localeCompare(String(a.paid_at || "")));
+    return c.json({ supporters });
+  } catch (err) {
+    console.error("[public/foster/my-supporters] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });
@@ -53,6 +92,80 @@ publicRoute.post("/foster-order", async (c) => {
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
   }
 });
+
+// ===== PAYOS WEBHOOK THU (epic foster-payment W2) — MOUNT LUÔN (cần cho live) =====
+// LIVE: verifyThuWebhook = checksum PAYOS_CHECKSUM_KEY. Endpoint public trên internet →
+//   sai/thiếu chữ ký = 401, KHÔNG cho ai cũng POST "paid" lấy foster free.
+// MOCK: verifyThuWebhook passthrough (chủ đích).
+// ACK 200 kể cả already/mismatch/not-found → PayOS ngừng retry-storm; đã log/cờ nội bộ.
+publicRoute.post("/payos/webhook-thu", async (c) => {
+  let payload: any;
+  try { payload = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
+  const sig = c.req.header("x-payos-signature") || c.req.header("x-signature") || undefined;
+  const ev = verifyThuWebhook(payload, sig);
+  if (!ev) return c.json({ error: { code: "BAD_SIGNATURE", message: "Chữ ký không hợp lệ" } }, 401);
+  try {
+    const result = await markOrderPaid(ev);
+    return c.json({ received: true, result }, 200);
+  } catch (err) {
+    console.error("[public/payos/webhook-thu] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== DEV MOCK PAY (epic foster-payment W2) — CHỈ khi PAYOS_MODE=mock =====
+// Giả PayOS: dựng payload ĐÚNG package_price rồi gọi CÙNG markOrderPaid mà webhook-thu dùng
+// → mock + live chạy y hệt code mutation. Live thì route KHÔNG tồn tại (404).
+if (PAYOS_MODE === "mock") {
+  publicRoute.post("/dev/mock-pay/:orderCode", async (c) => {
+    const orderCode = Number(c.req.param("orderCode"));
+    if (!orderCode || Number.isNaN(orderCode)) {
+      return c.json({ error: { code: "BAD_CODE", message: "orderCode không hợp lệ" } }, 400);
+    }
+    const order = await getOrderByPayosCode(orderCode);
+    if (!order) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy đơn" } }, 404);
+    // mock gửi ĐÚNG package_price (Lock 3) → đi qua amount-guard giống live.
+    const ev = { orderCode, amount: Number(order.package_price) || 0, ref: `mock-thu-${orderCode}` };
+    const result = await markOrderPaid(ev);
+    return c.json({ mock: true, result }, 200);
+  });
+}
+
+// ===== PAYOS WEBHOOK CHI (epic foster-payment W4) — MOUNT LUÔN (cho live) =====
+// PayOS đẩy kết quả lệnh chi. Parse order_code từ ref → settle qua CÙNG mutex W3 (admin.ts).
+// LIVE: verifyChiWebhook = checksum → sai chữ ký 401. MOCK: passthrough.
+// ACK 200 kể cả already/not-found → PayOS ngừng retry.
+publicRoute.post("/payos/webhook-chi", async (c) => {
+  let payload: any;
+  try { payload = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
+  const sig = c.req.header("x-payos-signature") || c.req.header("x-signature") || undefined;
+  const ev = verifyChiWebhook(payload, sig);
+  if (!ev) return c.json({ error: { code: "BAD_SIGNATURE", message: "Chữ ký không hợp lệ" } }, 401);
+  const orderCode = ev.ref.replace(/^foster-/, ""); // ref = "foster-<order_code>"
+  try {
+    const out = await settleFosterPayout(orderCode, ev.status);
+    return c.json({ received: true, result: out.body }, 200);
+  } catch (err) {
+    console.error("[public/payos/webhook-chi] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== DEV MOCK PAYOUT RESULT (epic foster-payment W4) — CHỈ khi PAYOS_MODE=mock =====
+// Test-only: đặt kết quả getPayoutStatus(ref) để verify nhánh success/failed. Live → route vắng mặt.
+if (PAYOS_MODE === "mock") {
+  publicRoute.post("/dev/mock-payout-result", async (c) => {
+    let b: any;
+    try { b = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
+    const ref = String(b?.ref || "").trim();
+    const status = String(b?.status || "");
+    if (!ref || (status !== "sent" && status !== "success" && status !== "failed")) {
+      return c.json({ error: { code: "BAD", message: "cần ref + status(sent|success|failed)" } }, 400);
+    }
+    __setMockPayoutStatus(ref, status as any);
+    return c.json({ ok: true, ref, status }, 200);
+  });
+}
 
 // ===== GET /public/pets/:qr_code =====
 publicRoute.get("/pets/:qr_code", async (c) => {
