@@ -24,6 +24,7 @@ import Layout from "../../layouts/Layout.astro";
         <span class="inline-block text-[11px] font-bold tracking-widest uppercase text-mmp-brown mb-2">Cứu trợ</span>
         <h2 class="font-display italic text-2xl font-semibold text-mmp-ink">Những bé đang cần giúp</h2>
         <p class="text-sm text-mmp-brown mt-1.5">Xem hồ sơ bé, góp gói nuôi hoặc nhận nuôi tạm.</p>
+        <p x-show="homed > 0" style="display:none;" class="text-sm font-semibold text-emerald-700 mt-2" x-text="'❤️ Đã có ' + homed + ' bé tìm được nhà'"></p>
       </div>
 
       <template x-if="loading">
@@ -79,6 +80,7 @@ import Layout from "../../layouts/Layout.astro";
     function fosterBrowse() {
       return {
         pets: [],
+        homed: 0,
         loading: true,
         err: "",
         async load() {
@@ -89,6 +91,7 @@ import Layout from "../../layouts/Layout.astro";
             if (!r.ok) { this.err = "Lỗi tải (" + r.status + ")"; return; }
             const j = await r.json();
             this.pets = Array.isArray(j.pets) ? j.pets : [];
+            this.homed = Number(j.da_ve_nha) || 0;
           } catch (e) {
             this.err = "Lỗi kết nối";
           } finally {

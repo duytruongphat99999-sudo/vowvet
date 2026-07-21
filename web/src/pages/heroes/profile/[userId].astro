@@ -226,6 +226,15 @@ const initialData = JSON.stringify({
         </div>
       </template>
 
+      <!-- Entry-point foster — vào browse bé cần nhận nuôi tạm (mọi người thấy) -->
+      <a href="/foster/browse" class="block bg-white rounded-2xl border border-black/5 p-4 mb-4 flex items-center justify-between hover:border-mmp-gold transition">
+        <div>
+          <p class="text-sm font-bold text-mmp-ink">Bé cần foster</p>
+          <p class="text-[11px] text-mmp-brown">Xem các bé đang cần người nhận nuôi tạm</p>
+        </div>
+        <span class="text-mmp-gold text-lg leading-none">→</span>
+      </a>
+
       <!-- Timeline — B2: ẩn cả khối khi limited (acts của profile riêng tư) -->
       <div x-show="!profile.limited">
       <h2 class="text-sm font-bold text-mmp-ink mb-3">Hoạt động gần đây</h2>

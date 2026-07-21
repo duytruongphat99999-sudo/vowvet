@@ -516,7 +516,8 @@ petsRoute.patch("/:id{[0-9]+}/adoption-requests/:reqId{[0-9]+}", zValidator("jso
     const result = await decideAdoptionRequest(reqId, session.sub, action, async (req) => {
       if (currentOwner == null) throw new TransferError("NO_OWNER", "Bé chưa có chủ", 400);
       await transferPet(petId, currentOwner, req.requester_user_id); // fromUserId = chủ hiện tại
-      await applyFosterDisable(petId); // gỡ khỏi pool foster (bé đã có nhà mới)
+      await patchPet(petId, { foster_status: "đã về nhà" }); // đánh dấu vòng đời: bé đã tìm được nhà (nguồn đếm da_ve_nha)
+      await applyFosterDisable(petId); // gỡ khỏi pool foster (tắt foster_public + is_public)
     });
     if (!result.ok) {
       if (result.already) return c.json({ ok: false, already: true, reason: result.reason }, 200); // idempotent no-op
@@ -699,16 +700,21 @@ petsRoute.post("/foster/toggle", async (c) => {
 // Sanitize qua FOSTER_PUBLIC_FIELDS (KHÔNG leak field cấm). Route TĨNH — không đụng /:id{[0-9]+}.
 petsRoute.get("/foster-browse", async (c) => {
   try {
-    const res = await listRows<any>("pets", { filter: { foster_public__boolean: "true" }, size: 200 });
     const sel = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
-    const valid = res.results.filter(
+    const [pubRes, allRes] = await Promise.all([
+      listRows<any>("pets", { filter: { foster_public__boolean: "true" }, size: 200 }),
+      listRows<any>("pets", { size: 200 }), // đếm "đã về nhà" bỏ lọc foster_public (bé về nhà đã tắt public)
+    ]);
+    const valid = pubRes.results.filter(
       (p) =>
         p.foster_public === true &&
         p.is_public === true &&
         sel(p.foster_status) === "cần tài trợ" &&
         !p.deleted_at
     );
-    return c.json({ pets: valid.map((p) => sanitizePetFoster(p)) });
+    // foster_status single_select → Baserow __equal không lọc được → filter JS (cap size 200)
+    const da_ve_nha = allRes.results.filter((p) => sel(p.foster_status) === "đã về nhà" && !p.deleted_at).length;
+    return c.json({ pets: valid.map((p) => sanitizePetFoster(p)), dang_can: valid.length, da_ve_nha });
   } catch (err) {
     console.error("[pets/foster-browse] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);

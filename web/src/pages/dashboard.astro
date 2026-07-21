@@ -110,6 +110,10 @@ const reclaimResolved: any[] = _reclaimSummary?.resolved || [];
 // FOSTER #3 — bé user vừa NHẬN (receiver) trong 7 ngày → card "bé mới nhận"
 const _fosterReceived = await safeJson(`${API_INTERNAL}/api/v1/users/me/foster-received`);
 const fosterReceived: any[] = _fosterReceived?.received || [];
+
+// Entry-point foster — số bé đang cần (hiện cho MỌI user, kể cả không có pet)
+const _fosterBrowse = await safeJson(`${API_INTERNAL}/api/v1/pets/foster-browse`);
+const fosterNeedCount: number = Number(_fosterBrowse?.dang_can) || 0;
 ---
 
 <Layout title={`${primaryPet ? primaryPet.name + " · " : ""}VowVet`}>
@@ -382,6 +386,19 @@ const fosterReceived: any[] = _fosterReceived?.received || [];
         </div>
         <span class="ml-auto text-gray-300">→</span>
       </a>
+
+      {/* Entry-point foster — bé cần nhận nuôi tạm (NGOÀI nhánh có-pet → mọi user thấy, kể cả không-pet) */}
+      <a href="/foster/browse" class="w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#d4a520] transition-colors text-left mt-3">
+        <span class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-[#d4a520] flex-shrink-0">
+          <FeatureIcon name="heart" class="w-5 h-5" strokeWidth={1.7} />
+        </span>
+        <div class="min-w-0">
+          <p class="font-semibold text-sm text-gray-900">Bé cần foster</p>
+          <p class="text-xs text-gray-400">{fosterNeedCount > 0 ? `${fosterNeedCount} bé đang cần giúp` : "Xem các bé cần hỗ trợ"}</p>
+        </div>
+        <span class="ml-auto text-gray-300">→</span>
+      </a>
+
       <script is:inline>
         async function startSupportChat() {
           try {
