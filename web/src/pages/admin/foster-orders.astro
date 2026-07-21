@@ -36,6 +36,27 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
         </template>
       </div>
 
+      {/* FOSTER W-G — queue XIN NHẬN nuôi (chủ/admin duyệt → transferPet đổi chủ) */}
+      <div x-show="!loading && !forbidden && adoptionRequests.length > 0" style="display:none;" class="mb-5">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center gap-2">
+          <span class="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full" x-text="adoptionRequests.length"></span>
+          <span class="text-amber-800 text-sm font-medium">yêu cầu xin nhận nuôi đang chờ duyệt</span>
+        </div>
+        <template x-for="req in adoptionRequests" :key="req.id">
+          <div class="bg-white border border-slate-200 rounded-xl p-4 mb-2 flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-medium text-slate-900">Bé <span x-text="req.pet_name"></span></p>
+              <p class="text-sm text-slate-500">Người xin: <span x-text="req.requester_name"></span> · <span x-text="timeAgo(req.created_at)"></span></p>
+              <p x-show="req.message" style="display:none;" class="text-sm text-slate-600 mt-1 italic" x-text="'“' + req.message + '”'"></p>
+            </div>
+            <div class="shrink-0 flex gap-2">
+              <button @click="decideAdoption(req, 'approve')" :disabled="decidingId === req.id" class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm font-bold">Duyệt</button>
+              <button @click="decideAdoption(req, 'reject')" :disabled="decidingId === req.id" class="border border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-slate-700 px-3 py-2 rounded-lg text-sm font-bold">Từ chối</button>
+            </div>
+          </div>
+        </template>
+      </div>
+
       {/* FOSTER P3b — lấy lại khẩn; ẩn khi có queue yêu cầu (Bug 1 fix) */}
       <section x-show="!loading && !forbidden && reclaimRequests.length === 0" style="display:none;" class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
         <h2 class="font-bold text-slate-900 mb-1">Lấy lại khẩn (không qua yêu cầu)</h2>
@@ -209,7 +230,9 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
         reclaimMsg: "",
         reclaimErr: "",
         reclaimRequests: [],
+        adoptionRequests: [],
         approvingId: null,
+        decidingId: null,
         payouts: [],
         payingCode: null,
         checkingCode: null,
@@ -226,6 +249,11 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
               const rr = await fetch("/api/v1/admin/reclaim-requests", { credentials: "include" });
               if (rr.ok) { const rj = await rr.json(); this.reclaimRequests = Array.isArray(rj.requests) ? rj.requests : []; }
             } catch (e2) {}
+            // FOSTER W-G — queue xin nhận nuôi (không vỡ trang nếu lỗi)
+            try {
+              const ar = await fetch("/api/v1/admin/adoption-requests", { credentials: "include" });
+              if (ar.ok) { const aj = await ar.json(); this.adoptionRequests = Array.isArray(aj.requests) ? aj.requests : []; }
+            } catch (e3) {}
             await this.loadPayouts();
           } catch (e) {
             this.error = "Lỗi kết nối";
@@ -332,6 +360,27 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
             alert("Lỗi kết nối");
           } finally {
             this.approvingId = null;
+          }
+        },
+        async decideAdoption(req, action) {
+          if (this.decidingId) return;
+          var msg = action === "approve"
+            ? ("Duyệt cho " + (req.requester_name || ("user " + req.requester_user_id)) + " nhận bé " + (req.pet_name || ("#" + req.pet_id)) + "? Bé sẽ ĐỔI CHỦ.")
+            : ("Từ chối yêu cầu nhận bé " + (req.pet_name || ("#" + req.pet_id)) + "?");
+          if (!confirm(msg)) return;
+          this.decidingId = req.id;
+          try {
+            const r = await fetch("/api/v1/pets/" + req.pet_id + "/adoption-requests/" + req.id, {
+              method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+              body: JSON.stringify({ action: action })
+            });
+            const j = await r.json().catch(function () { return {}; });
+            if (!r.ok) { alert((j.error && j.error.message) || ("Thao tác thất bại (" + r.status + ")")); return; }
+            this.adoptionRequests = this.adoptionRequests.filter(function (x) { return x.id !== req.id; });
+          } catch (e) {
+            alert("Lỗi kết nối");
+          } finally {
+            this.decidingId = null;
           }
         },
         timeAgo(iso) {

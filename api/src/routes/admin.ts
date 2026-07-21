@@ -12,8 +12,14 @@
  */
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
-import { listRows, updateRow } from "@shared/baserow.ts";
+import { listRows, updateRow, getRow } from "@shared/baserow.ts";
+import { applyFosterEnable, applyFosterDisable } from "../lib/public-pets.ts";
+import { patchPet } from "../lib/pets.ts";
+import { listAllPending } from "../lib/adoption-requests.ts";
+import { FosterUpdateSchema } from "@shared/zod-schemas/public-pet.ts";
 import { isAdminIdentity } from "@shared/admin.ts";
 import { getPlace, listPendingPlaces, verifyPlace, rejectPlace } from "../lib/places.ts";
 import { findUserById, softDeleteUser } from "../lib/users.ts";
@@ -397,6 +403,74 @@ adminRoute.post("/pets/:petId/delete", async (c) => {
   }
 });
 
+// ===== FOSTER W-F — admin toàn quyền bật/tắt foster + đổi status (BẤT KỲ pet nào) =====
+// requireAdmin đã gate ở .use("*") → user thường gọi = 403. Core bỏ owner-check → thao tác pet không thuộc mình.
+const AdminFosterSchema = z.object({
+  foster_public: z.boolean().optional(),
+  foster_status: FosterUpdateSchema.shape.foster_status, // reuse enum 4 giá trị
+});
+adminRoute.patch("/pets/:id{[0-9]+}/foster", zValidator("json", AdminFosterSchema), async (c) => {
+  const petId = Number(c.req.param("id"));
+  const data = c.req.valid("json");
+  const hasPublic = data.foster_public !== undefined;
+  const hasStatus = data.foster_status !== undefined;
+  if (!hasPublic && !hasStatus) {
+    return c.json({ error: { code: "EMPTY", message: "Cần foster_public hoặc foster_status" } }, 400);
+  }
+  try {
+    if (hasPublic) {
+      if (data.foster_public === true) await applyFosterEnable(petId, { foster_public: true });
+      else await applyFosterDisable(petId);
+    }
+    if (hasStatus) {
+      await patchPet(petId, { foster_status: data.foster_status || null }); // độc lập, không đụng public
+    }
+    const pet = (await getRow<any>("pets", petId)) as any;
+    const flat = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+    return c.json({
+      pet: {
+        id: pet.id,
+        foster_public: pet.foster_public === true,
+        foster_status: flat(pet.foster_status) ?? null,
+        is_public: pet.is_public === true,
+        public_slug: pet.public_slug || null,
+      },
+    });
+  } catch (err) {
+    console.error("[admin/pet-foster] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER W-G — admin xem queue "xin nhận nuôi" (duyệt dùng chung PATCH /pets/:id/adoption-requests/:reqId) =====
+adminRoute.get("/adoption-requests", async (c) => {
+  try {
+    const pending = await listAllPending();
+    if (pending.length === 0) return c.json({ requests: [] });
+    const [petsRes, usersRes] = await Promise.all([
+      listRows<any>("pets", { size: 200 }),
+      listRows<any>("users", { size: 200 }),
+    ]);
+    const petName = new Map<number, string>();
+    for (const p of petsRes.results) petName.set(p.id, p.name || `bé ${p.id}`);
+    const userName = new Map<number, string>();
+    for (const u of usersRes.results) userName.set(u.id, u.name || u.phone || u.email || `user ${u.id}`);
+    const requests = pending.map((r) => ({
+      id: r.id,
+      pet_id: r.pet_id,
+      pet_name: petName.get(r.pet_id) || `bé ${r.pet_id}`,
+      requester_user_id: r.requester_user_id,
+      requester_name: userName.get(r.requester_user_id) || `user ${r.requester_user_id}`,
+      message: r.message,
+      created_at: r.created_at,
+    }));
+    return c.json({ requests });
+  } catch (err) {
+    console.error("[admin/adoption-requests] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
 // ===== ADMIN DASHBOARD — user detail (info + pets + lịch sử trao) =====
 adminRoute.get("/users/:id{[0-9]+}", async (c) => {
   const id = Number(c.req.param("id"));
@@ -466,6 +540,11 @@ adminRoute.get("/pets/:id{[0-9]+}", async (c) => {
         id: p.id, name: p.name, species: flat(p.species) || "other", qr_code: p.qr_code || "",
         ownerName: owner != null ? userName.get(Number(owner)) || "user " + owner : "—",
         created_at: p.created_at || null, deleted: !!p.deleted_at,
+        // W-F: trạng thái foster để admin xem trước khi sửa
+        foster_public: p.foster_public === true,
+        foster_status: flat(p.foster_status) ?? null,
+        is_public: p.is_public === true,
+        public_slug: p.public_slug || null,
       },
       handovers,
     });

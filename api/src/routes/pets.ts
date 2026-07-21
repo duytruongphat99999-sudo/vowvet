@@ -87,9 +87,13 @@ import {
   disablePublicProfile,
   updatePublicProfile,
   getPublicStats,
+  applyFosterDisable,
 } from "../lib/public-pets.ts";
 import { PublicEnableSchema, PublicUpdateSchema, FosterUpdateSchema } from "@shared/zod-schemas/public-pet.ts";
 import { sanitizePetFoster } from "@shared/public-pet-fields.ts";
+import { findPetBySlug } from "../lib/slug.ts";
+import { isAdminIdentity } from "@shared/admin.ts";
+import { createAdoptionRequest, listPendingForPet, decideAdoptionRequest, getAdoptionRequestById } from "../lib/adoption-requests.ts";
 // Baserow raw helpers — needed for care_plan_completions reads/writes + activity timeline aggregation.
 // Previously omitted (regression from Phase 2.2 of Care Plan WOW), causing
 // ReferenceError: listRows is not defined → 500 → frontend "Lỗi mạng" toast.
@@ -444,6 +448,89 @@ petsRoute.patch(
     }
   }
 );
+
+// ============================================================
+// FOSTER W-G — HT2: xin nhận nuôi từ browse → chủ/admin duyệt → transferPet.
+// ============================================================
+const FosterRequestSchema = z.object({
+  slug: z.string().trim().min(1).max(80),
+  message: z.string().trim().max(1000).nullable().optional(),
+});
+const AdoptionDecideSchema = z.object({ action: z.enum(["approve", "reject"]) });
+
+// POST /pets/foster-request — user xin nhận (theo public_slug, KHÔNG nhận pet_id từ client).
+// Non-numeric path → không đụng route "/:id{[0-9]+}".
+petsRoute.post("/foster-request", zValidator("json", FosterRequestSchema), async (c) => {
+  const session = c.get("user");
+  const { slug, message } = c.req.valid("json");
+  const pet = (await findPetBySlug(slug)) as any;
+  if (!pet) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy bé" } }, 404);
+  if (pet.foster_public !== true) {
+    return c.json({ error: { code: "NOT_FOSTER", message: "Bé này không mở nhận nuôi" } }, 400);
+  }
+  if (ownerIds(pet).includes(session.sub)) {
+    return c.json({ error: { code: "OWN_PET", message: "Đây là bé của bạn" } }, 400);
+  }
+  const result = await createAdoptionRequest(pet.id, session.sub, message ?? null);
+  if (!result.ok) return c.json({ error: { code: "DUP_PENDING", message: result.reason } }, 409); // 1 pending/user/pet
+  return c.json({ ok: true, id: result.id }, 201);
+});
+
+// GET /pets/:id/adoption-requests — chủ HOẶC admin xem request pending của bé.
+petsRoute.get("/:id{[0-9]+}/adoption-requests", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  const pet = (await getRow<any>("pets", petId).catch(() => null)) as any;
+  if (!pet) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy bé" } }, 404);
+  const isOwner = ownerIds(pet).includes(session.sub);
+  const isAdmin = isAdminIdentity(session.phone, session.email);
+  if (!isOwner && !isAdmin) return c.json({ error: { code: "FORBIDDEN", message: "Không có quyền" } }, 403);
+  const requests = await listPendingForPet(petId);
+  return c.json({ requests });
+});
+
+// PATCH /pets/:id/adoption-requests/:reqId — chủ HOẶC admin duyệt/từ chối.
+// approve → transferPet(petId, fromUserId=CHỦ HIỆN TẠI, toUserId=requester) → applyFosterDisable.
+// Idempotent: status≠pending → no-op 200. transfer chỉ chạy khi đang pending + approve.
+petsRoute.patch("/:id{[0-9]+}/adoption-requests/:reqId{[0-9]+}", zValidator("json", AdoptionDecideSchema), async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  const reqId = Number(c.req.param("reqId"));
+  const { action } = c.req.valid("json");
+
+  const pet = (await getRow<any>("pets", petId).catch(() => null)) as any;
+  if (!pet) return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy bé" } }, 404);
+  const owners = ownerIds(pet);
+  const currentOwner = owners[0] ?? null; // CHỦ HIỆN TẠI = fromUserId cho transfer (KHÔNG phải approver)
+  const isOwner = owners.includes(session.sub);
+  const isAdmin = isAdminIdentity(session.phone, session.email);
+  if (!isOwner && !isAdmin) return c.json({ error: { code: "FORBIDDEN", message: "Không có quyền duyệt" } }, 403);
+
+  // request phải thuộc đúng bé này
+  const existing = await getAdoptionRequestById(reqId);
+  if (!existing || existing.pet_id !== petId) {
+    return c.json({ error: { code: "NOT_FOUND", message: "Yêu cầu không thuộc bé này" } }, 404);
+  }
+
+  try {
+    const result = await decideAdoptionRequest(reqId, session.sub, action, async (req) => {
+      if (currentOwner == null) throw new TransferError("NO_OWNER", "Bé chưa có chủ", 400);
+      await transferPet(petId, currentOwner, req.requester_user_id); // fromUserId = chủ hiện tại
+      await applyFosterDisable(petId); // gỡ khỏi pool foster (bé đã có nhà mới)
+    });
+    if (!result.ok) {
+      if (result.already) return c.json({ ok: false, already: true, reason: result.reason }, 200); // idempotent no-op
+      return c.json({ error: { code: "CANNOT_DECIDE", message: result.reason } }, 404);
+    }
+    return c.json({ ok: true, status: result.status });
+  } catch (err) {
+    if (err instanceof TransferError) {
+      return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 403 | 404);
+    }
+    console.error("[adoption decide] error:", err);
+    return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
 
 // ===== POST /pets/:id/reclaim-request — chủ CŨ gửi yêu cầu lấy lại bé đã trao (Hướng B) =====
 // Không phải chủ hiện tại → dùng getRow (không getOwnedPet). Guard 72h + đúng người trao ở lib.
