@@ -58,10 +58,16 @@ import Layout from "../../layouts/Layout.astro";
               </div>
               <p class="text-xs text-mmp-brown mt-0.5" x-text="speciesLabel(p.species) + (p.breed ? (' · ' + p.breed) : '')"></p>
               <p class="text-sm text-mmp-ink/70 mt-2 flex-1" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;" x-show="p.adoption_story" x-text="p.adoption_story"></p>
-              <a :href="p.public_slug ? ('/p/' + p.public_slug) : '#'"
-                 class="mt-3 inline-flex items-center justify-center gap-1 bg-mmp-ink text-white text-sm font-bold px-4 py-2 rounded-xl">
-                Xem chi tiết →
-              </a>
+              <div class="mt-3 flex flex-col gap-2">
+                <a :href="p.public_slug ? ('/p/' + p.public_slug) : '#'"
+                   class="inline-flex items-center justify-center gap-1 bg-mmp-ink text-white text-sm font-bold px-4 py-2 rounded-xl">
+                  Xem chi tiết →
+                </a>
+                <button type="button" @click="requestAdopt(p)" :disabled="p.reqBusy || p.reqDone"
+                   class="inline-flex items-center justify-center gap-1 border border-mmp-ink/15 text-mmp-ink text-sm font-bold px-4 py-2 rounded-xl hover:bg-mmp-cream disabled:opacity-50"
+                   x-text="p.reqDone ? 'Đã gửi yêu cầu ✓' : (p.reqBusy ? 'Đang gửi…' : 'Xin nhận nuôi')"></button>
+                <p x-show="p.reqErr" x-text="p.reqErr" class="text-xs text-red-600" style="display:none;"></p>
+              </div>
             </div>
           </div>
         </template>
@@ -87,6 +93,26 @@ import Layout from "../../layouts/Layout.astro";
             this.err = "Lỗi kết nối";
           } finally {
             this.loading = false;
+          }
+        },
+        async requestAdopt(p) {
+          if (p.reqBusy || p.reqDone) return;
+          p.reqBusy = true; p.reqErr = "";
+          try {
+            const r = await fetch("/api/v1/pets/foster-request", {
+              method: "POST", credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ slug: p.public_slug })
+            });
+            const j = await r.json().catch(function () { return {}; });
+            if (r.status === 401) { window.location.href = "/login?return_to=/foster/browse"; return; }
+            if (r.status === 409) { p.reqDone = true; p.reqErr = "Bạn đã xin bé này rồi"; return; }
+            if (!r.ok) { p.reqErr = (j.error && j.error.message) || ("Lỗi (" + r.status + ")"); return; }
+            p.reqDone = true;
+          } catch (e) {
+            p.reqErr = "Lỗi kết nối";
+          } finally {
+            p.reqBusy = false;
           }
         },
         speciesLabel(s) {

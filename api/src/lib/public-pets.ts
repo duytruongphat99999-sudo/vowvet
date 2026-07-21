@@ -114,19 +114,20 @@ export function incrementShareCount(slug: string): void {
 }
 
 /**
- * Owner enable public profile.
- * Idempotent: nếu đã có slug, KHÔNG regenerate (giữ link cũ).
- * Set is_public=true + public_enabled_at=now + optional bio/quote.
+ * CORE bật public/foster — KHÔNG check owner (dùng chung: owner path SAU getOwnedPet + admin W-F).
+ * Idempotent: đã có slug → reuse (link không đổi). Set is_public + public_enabled_at + foster_public
+ * + VÁ W-E (foster_public bật mà chưa có foster_status → "cần tài trợ").
+ * @param prefetched pet đã fetch sẵn (owner path truyền từ getOwnedPet → không fetch 2 lần).
  */
-export async function enablePublicProfile(
+export async function applyFosterEnable(
   petId: number,
-  ownerId: number,
-  data: { public_bio?: string | null; public_quote?: string | null; foster_public?: boolean } = {}
+  data: { public_bio?: string | null; public_quote?: string | null; foster_public?: boolean } = {},
+  prefetched?: any
 ): Promise<{ slug: string; pet: any }> {
-  const pet = await getOwnedPet(petId, ownerId);
+  const pet: any = prefetched ?? (await getRow<any>("pets", petId));
 
   // Ensure slug — reuse existing nếu có (link không đổi khi re-enable)
-  let slug: string = (pet as any).public_slug || "";
+  let slug: string = pet.public_slug || "";
   if (!slug) {
     slug = await ensureUniqueSlug(pet.name || "pet");
   }
@@ -144,7 +145,7 @@ export async function enablePublicProfile(
   // W-E vá: bật foster_public mà pet CHƯA có foster_status → default "cần tài trợ"
   // (để pet lên được danh sách /foster/browse). Đã có status → GIỮ nguyên, KHÔNG đè.
   if (data.foster_public === true) {
-    const cur = (pet as any).foster_status;
+    const cur = pet.foster_status;
     const curVal = cur && typeof cur === "object" && "value" in cur ? cur.value : cur;
     if (!curVal) updates.foster_status = "cần tài trợ";
   }
@@ -153,11 +154,28 @@ export async function enablePublicProfile(
   return { slug, pet: updated };
 }
 
-/** Owner disable — set is_public=false, giữ slug để re-enable không đổi link. */
+/** CORE tắt public/foster — KHÔNG check owner. Tắt is_public + foster_public (không để cờ treo). */
+export async function applyFosterDisable(petId: number): Promise<void> {
+  await updateRow("pets", petId, { is_public: false, foster_public: false });
+}
+
+/**
+ * Owner enable public profile — check owner RỒI gọi core (hành vi y hệt, gồm vá W-E).
+ * Idempotent: nếu đã có slug, KHÔNG regenerate (giữ link cũ).
+ */
+export async function enablePublicProfile(
+  petId: number,
+  ownerId: number,
+  data: { public_bio?: string | null; public_quote?: string | null; foster_public?: boolean } = {}
+): Promise<{ slug: string; pet: any }> {
+  const pet = await getOwnedPet(petId, ownerId);
+  return applyFosterEnable(petId, data, pet); // pet prefetch → owner path chạy y như trước
+}
+
+/** Owner disable — check owner RỒI gọi core (giữ slug để re-enable không đổi link). */
 export async function disablePublicProfile(petId: number, ownerId: number): Promise<void> {
   await getOwnedPet(petId, ownerId); // verify ownership
-  // Tắt public = tắt luôn foster_public (không để cờ treo khi card đã ẩn).
-  await updateRow("pets", petId, { is_public: false, foster_public: false });
+  await applyFosterDisable(petId);
 }
 
 /** Owner update public_bio + public_quote. */

@@ -51,6 +51,39 @@ const speciesLabel = p.species === "cat" ? "Mèo" : p.species === "dog" ? "Chó"
     </div>
   </div>
 
+  <!-- W-F: admin toàn quyền bật/tắt foster + đổi trạng thái (bất kỳ pet nào) -->
+  <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6" x-data="fosterAdmin()">
+    <h3 class="text-sm font-bold text-gray-900 mb-4">Quản foster</h3>
+
+    <div class="flex items-center justify-between mb-4">
+      <div class="min-w-0">
+        <p class="text-sm text-gray-900">Chế độ foster công khai</p>
+        <p class="text-xs text-gray-400 mt-0.5" x-text="foster_public ? 'Đang bật — bé hiện trên danh sách cần foster' : 'Đang tắt'"></p>
+      </div>
+      <button type="button" @click="toggle()" :disabled="busy" :aria-pressed="foster_public ? 'true' : 'false'"
+        :class="foster_public ? 'bg-emerald-500' : 'bg-gray-300'"
+        class="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors disabled:opacity-40">
+        <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform" :class="foster_public ? 'translate-x-6' : ''"></span>
+      </button>
+    </div>
+
+    <div class="mb-3" x-show="foster_public">
+      <label class="text-xs text-gray-500 block mb-1">Trạng thái foster</label>
+      <div class="flex gap-2">
+        <select x-model="foster_status" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#d4a520]">
+          <option value="cần tài trợ">cần tài trợ</option>
+          <option value="đang foster">đang foster</option>
+          <option value="sắp có nhà">sắp có nhà</option>
+          <option value="đã về nhà">đã về nhà</option>
+        </select>
+        <button type="button" @click="saveStatus()" :disabled="busy" class="flex-shrink-0 text-sm font-medium border border-gray-200 rounded-xl px-4 py-2 hover:bg-gray-50 transition-colors disabled:opacity-40">Lưu trạng thái</button>
+      </div>
+    </div>
+
+    <a x-show="public_slug" :href="'/p/' + public_slug" target="_blank" rel="noopener" class="text-xs text-amber-600 hover:text-amber-700">Xem thẻ công khai →</a>
+    <p x-show="msg" x-text="msg" class="text-xs mt-3" :class="err ? 'text-red-500' : 'text-emerald-600'" style="display:none;"></p>
+  </div>
+
   <h3 class="text-sm font-bold text-gray-900 mb-3">Lịch sử trao bé ({handovers.length})</h3>
   {handovers.length === 0 ? (
     <p class="text-sm text-gray-400">Chưa có lịch sử trao.</p>
@@ -66,6 +99,66 @@ const speciesLabel = p.species === "cat" ? "Mèo" : p.species === "dog" ? "Chó"
     </ol>
   )}
 
+  <script is:inline set:html={`window.__adminPetFoster = ${JSON.stringify({
+    id: p.id,
+    foster_public: p.foster_public === true,
+    foster_status: p.foster_status ?? null,
+    public_slug: p.public_slug || null,
+  }).replace(/</g, "\\u003c")};`}></script>
+  <script is:inline>
+    function fosterAdmin() {
+      var s = window.__adminPetFoster || {};
+      return {
+        id: s.id,
+        foster_public: !!s.foster_public,
+        foster_status: s.foster_status || "cần tài trợ",
+        public_slug: s.public_slug || null,
+        busy: false,
+        msg: "",
+        err: false,
+        async patch(body) {
+          this.busy = true;
+          this.msg = "";
+          try {
+            var r = await fetch("/api/v1/admin/pets/" + this.id + "/foster", {
+              method: "PATCH",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            var j = await r.json().catch(function () { return {}; });
+            if (!r.ok) {
+              this.err = true;
+              this.msg = (j.error && j.error.message) || ("Lỗi (" + r.status + ")");
+              return null;
+            }
+            this.err = false;
+            return j.pet;
+          } catch (e) {
+            this.err = true;
+            this.msg = "Lỗi kết nối";
+            return null;
+          } finally {
+            this.busy = false;
+          }
+        },
+        async toggle() {
+          var pet = await this.patch({ foster_public: !this.foster_public });
+          if (!pet) return;
+          this.foster_public = pet.foster_public;
+          this.public_slug = pet.public_slug;
+          if (pet.foster_status) this.foster_status = pet.foster_status;
+          this.msg = this.foster_public ? "Đã bật foster công khai" : "Đã tắt foster";
+        },
+        async saveStatus() {
+          var pet = await this.patch({ foster_status: this.foster_status });
+          if (!pet) return;
+          if (pet.foster_status) this.foster_status = pet.foster_status;
+          this.msg = "Đã lưu trạng thái";
+        },
+      };
+    }
+  </script>
   <script is:inline>
     (() => {
       var b = document.getElementById("del-btn");

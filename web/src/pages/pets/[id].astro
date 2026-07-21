@@ -1221,6 +1221,74 @@ const storyExcerpt = hasStory
         </section>
         )}
 
+        {/* FOSTER-CARE W-G — Yêu cầu xin nhận nuôi (CHỦ duyệt → transferPet đổi chủ) */}
+        {isOwner && (
+        <section class="bg-white border border-mmp-ink/12 rounded-2xl p-5 sm:p-6 mb-4 shadow-sm"
+          x-data={`adoptionInbox(${petId})`} x-init="load()" x-show="requests.length > 0" style="display:none;">
+          <div class="flex items-start gap-3 mb-4">
+            <span class="shrink-0 w-9 h-9 rounded-full bg-mmp-cream flex items-center justify-center text-mmp-ink"><FeatureIcon name="paw" class="w-5 h-5" /></span>
+            <div class="min-w-0 flex-1">
+              <h3 class="font-display italic text-xl font-semibold text-mmp-ink leading-tight">Yêu cầu xin nhận bé</h3>
+              <p class="text-[11px] text-mmp-ink/60 leading-relaxed mt-0.5">Có người muốn nhận nuôi bé. Duyệt = TRAO bé (đổi chủ hẳn), bé sẽ được gỡ khỏi danh sách cần foster.</p>
+            </div>
+          </div>
+          <div class="space-y-3">
+            <template x-for="req in requests" :key="req.id">
+              <div class="rounded-xl border border-mmp-ink/10 bg-mmp-cream/30 p-3">
+                <p class="text-sm font-semibold text-mmp-ink" x-text="'Người xin: user #' + req.requester_user_id"></p>
+                <p x-show="req.message" style="display:none;" class="text-sm text-mmp-ink/70 italic mt-1" x-text="'“' + req.message + '”'"></p>
+                <div class="flex gap-2 mt-2">
+                  <button @click="decide(req, 'approve')" :disabled="decidingId === req.id"
+                    class="px-3 py-1.5 rounded-lg bg-mmp-ink text-white text-sm font-bold disabled:opacity-50">Duyệt &amp; trao</button>
+                  <button @click="decide(req, 'reject')" :disabled="decidingId === req.id"
+                    class="px-3 py-1.5 rounded-lg border border-mmp-ink/15 text-mmp-ink text-sm font-bold hover:bg-mmp-cream disabled:opacity-50">Từ chối</button>
+                </div>
+              </div>
+            </template>
+          </div>
+          <p x-show="err" x-text="err" style="display:none;" class="text-xs text-red-600 mt-2"></p>
+        </section>
+        )}
+        <script is:inline>
+          function adoptionInbox(petId) {
+            return {
+              petId: petId,
+              requests: [],
+              decidingId: null,
+              err: "",
+              async load() {
+                try {
+                  const r = await fetch("/api/v1/pets/" + this.petId + "/adoption-requests", { credentials: "include" });
+                  if (!r.ok) return;
+                  const j = await r.json();
+                  this.requests = Array.isArray(j.requests) ? j.requests : [];
+                } catch (e) {}
+              },
+              async decide(req, action) {
+                if (this.decidingId) return;
+                var msg = action === "approve" ? "Duyệt & TRAO bé cho người này? Bé sẽ đổi chủ." : "Từ chối yêu cầu này?";
+                if (!confirm(msg)) return;
+                this.decidingId = req.id;
+                this.err = "";
+                try {
+                  const r = await fetch("/api/v1/pets/" + this.petId + "/adoption-requests/" + req.id, {
+                    method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+                    body: JSON.stringify({ action: action })
+                  });
+                  const j = await r.json().catch(function () { return {}; });
+                  if (!r.ok) { this.err = (j.error && j.error.message) || ("Thất bại (" + r.status + ")"); return; }
+                  this.requests = this.requests.filter(function (x) { return x.id !== req.id; });
+                  if (action === "approve") { window.location.reload(); } // đổi chủ → reload cập nhật trạng thái trang
+                } catch (e) {
+                  this.err = "Lỗi kết nối";
+                } finally {
+                  this.decidingId = null;
+                }
+              }
+            };
+          }
+        </script>
+
         {/* FOSTER-CARE W-C — Nhật ký nuôi (feed): chủ đăng, owner+sponsor xem CHUNG */}
         <section class="bg-white border border-mmp-ink/12 rounded-2xl p-5 sm:p-6 mb-4 shadow-sm"
           x-data={`petFeed(${petId}, ${isOwner})`} x-init="load()">
