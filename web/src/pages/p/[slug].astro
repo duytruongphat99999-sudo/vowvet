@@ -23,6 +23,10 @@ const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 const APP_DOMAIN = import.meta.env.APP_DOMAIN || process.env.APP_DOMAIN || "https://vowvet.monminpet.com";
 const OG_FALLBACK = `${APP_DOMAIN}/og-pet-fallback.png`;
 
+// W-A: trạng thái login (SSR) → login-gate nút góp trong FosterCertificate.
+// Middleware set locals.user cả ở nhánh public (trước khi trả next()). UX gate, KHÔNG phải security gate (API requireAuth mới là gate thật).
+const loggedIn = !!Astro.locals.user;
+
 // Track which lookup attempts failed for richer error UX
 let publicPet: any = null;
 let legacyQrPet: any = null;
@@ -199,7 +203,7 @@ const gradient = mode === "public" ? speciesGradient(publicPet?.species) : "from
 
   {/* ===== MODE: FOSTER CERTIFICATE (L2b) — chỉ khi foster_public=true ===== */}
   {mode === "public" && publicPet && isFosterPublic && (
-    <FosterCertificate pet={publicPet} shareUrl={canonicalUrl} />
+    <FosterCertificate pet={publicPet} shareUrl={canonicalUrl} loggedIn={loggedIn} />
   )}
 
   {/* ===== MODE: M12 PUBLIC PROFILE (bé thường — giữ NGUYÊN) ===== */}

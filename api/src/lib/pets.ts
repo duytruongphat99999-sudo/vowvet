@@ -39,6 +39,35 @@ export async function getOwnedPet(petId: number, userId: number): Promise<Basero
   return pet;
 }
 
+/**
+ * W-B — quyền XEM pet (READ). Owner HOẶC sponsor (có foster_order PAID cho pet này,
+ * donor_user_id=userId, chưa xoá mềm). Trả {pet, isOwner}; else throw PetAccessError(403)
+ * GIỐNG getOwnedPet (giữ nguyên catch cũ ở route). CHỈ dùng cho GET đã duyệt — mutation vẫn getOwnedPet.
+ */
+export async function canViewPet(petId: number, userId: number): Promise<{ pet: BaserowPet; isOwner: boolean }> {
+  let pet: BaserowPet;
+  try {
+    pet = await getRow<BaserowPet>("pets", petId);
+  } catch (err: any) {
+    if (String(err?.message || "").includes("404")) {
+      throw new PetAccessError(404, "PET_NOT_FOUND", "Không tìm thấy thú cưng");
+    }
+    throw err;
+  }
+  if (ownerIds(pet).includes(userId)) return { pet, isOwner: true };
+  // Sponsor: đơn foster của pet này, ĐÃ THU (paid), donor_user_id=userId, deleted_at IS NULL.
+  const sel = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
+  const r = await listRows<any>("foster_orders" as any, {
+    filter: { pet_id__link_row_has: String(petId) },
+    size: 200,
+  });
+  const isSponsor = r.results.some(
+    (o) => sel(o.payment_status) === "paid" && Number(o.donor_user_id) === userId && !o.deleted_at
+  );
+  if (isSponsor) return { pet, isOwner: false };
+  throw new PetAccessError(403, "FORBIDDEN", "Bạn không có quyền với thú cưng này");
+}
+
 /** Cập nhật pet (caller đã verify ownership). */
 export async function patchPet(petId: number, data: Record<string, unknown>): Promise<BaserowPet> {
   return updateRow<BaserowPet>("pets", petId, data);

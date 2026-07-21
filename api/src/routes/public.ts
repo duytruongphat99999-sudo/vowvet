@@ -77,14 +77,16 @@ publicRoute.get("/foster/my-supporters", requireAuth, async (c) => {
   }
 });
 
-// ===== POST /public/foster-order — ghi đơn góp (FOSTER L5a, public) =====
-publicRoute.post("/foster-order", async (c) => {
+// ===== POST /public/foster-order — ghi đơn góp. W-A: BẮT AUTH (donor_user_id từ session) =====
+publicRoute.post("/foster-order", requireAuth, async (c) => {
+  const session = c.get("user"); // W-A: bắt login; donor_user_id LẤY TỪ SESSION (không tin body).
   let body: unknown;
   try { body = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
   const parsed = FosterOrderSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: { code: "VALIDATION", message: "Dữ liệu đơn không hợp lệ" } }, 400);
   try {
-    const result = await createFosterOrder(parsed.data);
+    // donor_user_id từ session.sub — KHÔNG từ body (FosterOrderSchema đã strip key lạ → chống giả mạo).
+    const result = await createFosterOrder({ ...parsed.data, donor_user_id: session.sub });
     return c.json(result, 201);
   } catch (err) {
     if (err instanceof FosterOrderError) return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 403 | 404 | 500);

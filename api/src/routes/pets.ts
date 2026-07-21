@@ -13,6 +13,7 @@ import { createReclaimRequest } from "../lib/reclaim-requests.ts";
 import { normalizePhone } from "@shared/auth.ts";
 import {
   getOwnedPet,
+  canViewPet,
   patchPet,
   hardDeletePet,
   PetAccessError,
@@ -29,7 +30,7 @@ import {
   stoolEnToVi,
 } from "@shared/enum-mappers.ts";
 import { parseHealthConditions } from "@shared/health-conditions.ts";
-import { uploadObject, imageExtFromMime } from "@shared/r2.ts";
+import { uploadObject, imageExtFromMime, videoExtFromMime } from "@shared/r2.ts";
 import {
   listPetPhotos,
   createPetPhoto,
@@ -93,6 +94,7 @@ import { sanitizePetFoster } from "@shared/public-pet-fields.ts";
 // Previously omitted (regression from Phase 2.2 of Care Plan WOW), causing
 // ReferenceError: listRows is not defined → 500 → frontend "Lỗi mạng" toast.
 import { listRows, createRow, updateRow, getRow } from "@shared/baserow.ts";
+import { postUpdate, listUpdates } from "../lib/pet-updates.ts";
 
 export const petsRoute = new Hono();
 
@@ -199,7 +201,7 @@ petsRoute.get("/:id{[0-9]+}", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    const pet = await getOwnedPet(petId, session.sub);
+    const { pet } = await canViewPet(petId, session.sub);
     return c.json({ pet: toApiPet(pet) });
   } catch (err) {
     return petErrorResponse(c, err);
@@ -623,6 +625,80 @@ petsRoute.get("/foster-browse", async (c) => {
   } catch (err) {
     console.error("[pets/foster-browse] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER-CARE W-C — feed update per-pet (chủ đăng, owner+sponsor xem) =====
+// POST = OWNER-ONLY (getOwnedPet → sponsor đăng giả 403). GET = owner+sponsor (canViewPet → lạ 403).
+const MAX_UPDATE_IMAGE = 5 * 1024 * 1024; // ảnh ≤ 5MB
+const MAX_UPDATE_VIDEO = 20 * 1024 * 1024; // video ≤ 20MB
+const MAX_UPDATE_BODY = 21 * 1024 * 1024; // chặn cứng #1: video 20MB + overhead multipart
+
+// W-D: multipart — text-only (W-C) HOẶC kèm media (ảnh/video). OWNER-ONLY.
+petsRoute.post("/:id{[0-9]+}/updates", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  // OWNER-ONLY (giữ W-C) — sponsor → 403. Check TRƯỚC khi đụng body.
+  try { await getOwnedPet(petId, session.sub); } catch (err) { return petErrorResponse(c, err); }
+
+  // CHẶN CỨNG #1: từ chối theo Content-Length TRƯỚC c.req.formData() (không nạp body vào RAM).
+  const clen = Number(c.req.header("content-length") || "0");
+  if (clen > MAX_UPDATE_BODY) {
+    return c.json({ error: { code: "FILE_TOO_LARGE", message: "File quá lớn (video ≤20MB, ảnh ≤5MB)" } }, 413);
+  }
+
+  let form: FormData;
+  try { form = await c.req.formData(); } catch { return c.json({ error: { code: "BAD_FORM", message: "Form không hợp lệ" } }, 400); }
+  const content = String(form.get("content") || "").trim();
+  const fileVal = form.get("media");
+  const hasFile = fileVal instanceof File && fileVal.size > 0;
+
+  if (content.length > 2000) return c.json({ error: { code: "TOO_LONG", message: "Nội dung quá dài (>2000)" } }, 400);
+  if (!hasFile && !content) return c.json({ error: { code: "EMPTY", message: "Cần nội dung hoặc ảnh/video" } }, 400);
+
+  let mediaUrl: string | null = null;
+  let mediaType: string | null = null;
+  if (hasFile) {
+    const f = fileVal as File;
+    const imgExt = imageExtFromMime(f.type);
+    const vidExt = videoExtFromMime(f.type);
+    let ext: string;
+    let cap: number;
+    if (imgExt) { ext = imgExt; cap = MAX_UPDATE_IMAGE; mediaType = "image"; }
+    else if (vidExt) { ext = vidExt; cap = MAX_UPDATE_VIDEO; mediaType = "video"; }
+    else return c.json({ error: { code: "BAD_MIME", message: "Chỉ ảnh (jpeg/png/webp) hoặc video (mp4/webm)" } }, 400);
+
+    const buffer = new Uint8Array(await f.arrayBuffer());
+    // CHẶN CỨNG #2: Content-Length có thể giả → verify byteLength THẬT.
+    if (buffer.byteLength > cap) {
+      return c.json({ error: { code: "FILE_TOO_LARGE", message: mediaType === "video" ? "Video quá 20MB" : "Ảnh quá 5MB" } }, 413);
+    }
+    try {
+      const key = `pet-updates/${session.sub}/${petId}/${Date.now()}.${ext}`;
+      mediaUrl = await uploadObject(key, buffer, f.type);
+    } catch (err) {
+      console.error("[pets/updates] upload media failed:", err);
+      return c.json({ error: { code: "UPLOAD_FAILED", message: "Upload media thất bại" } }, 500);
+    }
+  }
+
+  try {
+    const update = await postUpdate(petId, session.sub, content, mediaUrl, mediaType);
+    return c.json({ update }, 201);
+  } catch (err) {
+    return petErrorResponse(c, err);
+  }
+});
+
+petsRoute.get("/:id{[0-9]+}/updates", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  try {
+    await canViewPet(petId, session.sub); // owner + sponsor — lạ → 403
+    const updates = await listUpdates(petId);
+    return c.json({ updates });
+  } catch (err) {
+    return petErrorResponse(c, err);
   }
 });
 
@@ -1376,7 +1452,7 @@ petsRoute.get("/:id{[0-9]+}/care-plan/completions/summary", async (c) => {
   const petId = Number(c.req.param("id"));
   const today = todayVNDate();
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
     const res = await listRows<any>("care_plan_completions", {
       filter: {
         user_id__equal: String(session.sub),
@@ -1740,7 +1816,7 @@ petsRoute.get("/:id{[0-9]+}/profile", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    const pet = await getOwnedPet(petId, session.sub);
+    const { pet, isOwner } = await canViewPet(petId, session.sub);
     // Trả raw row — frontend wizard cần all 50+ fields. Helper extract object values nếu single_select.
     const flat: Record<string, any> = {};
     for (const [k, v] of Object.entries(pet)) {
@@ -1755,7 +1831,7 @@ petsRoute.get("/:id{[0-9]+}/profile", async (c) => {
     // Species/gender: convert EN → VN cho UI
     if (flat.species) flat.species = speciesEnToVi(flat.species);
     if (flat.gender) flat.gender = genderEnToVi(flat.gender);
-    return c.json({ pet: flat });
+    return c.json({ pet: flat, is_owner: isOwner });
   } catch (err) {
     return petErrorResponse(c, err);
   }
@@ -1766,7 +1842,7 @@ petsRoute.get("/:id{[0-9]+}/climate-sensitivity", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    const pet = await getOwnedPet(petId, session.sub);
+    const { pet } = await canViewPet(petId, session.sub);
     const p = pet as any;
     const speciesValue = typeof pet.species === "object" ? pet.species?.value : pet.species;
     const fearsValue = Array.isArray(p.fears)
@@ -1828,7 +1904,7 @@ petsRoute.get("/:id{[0-9]+}/photos", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
     const photos = await listPetPhotos(petId);
     return c.json({ photos: photos.map(toApiPhoto) });
   } catch (err) {
@@ -2049,7 +2125,7 @@ petsRoute.get("/:id{[0-9]+}/activity", async (c) => {
   const days = Math.max(1, Math.min(60, Number.isFinite(daysRaw) ? daysRaw : 7));
 
   try {
-    await getOwnedPet(petId, session.sub);
+    await canViewPet(petId, session.sub);
 
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - days);
