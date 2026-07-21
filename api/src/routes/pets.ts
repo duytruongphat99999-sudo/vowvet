@@ -94,6 +94,7 @@ import { sanitizePetFoster } from "@shared/public-pet-fields.ts";
 // Previously omitted (regression from Phase 2.2 of Care Plan WOW), causing
 // ReferenceError: listRows is not defined → 500 → frontend "Lỗi mạng" toast.
 import { listRows, createRow, updateRow, getRow } from "@shared/baserow.ts";
+import { postUpdate, listUpdates } from "../lib/pet-updates.ts";
 
 export const petsRoute = new Hono();
 
@@ -624,6 +625,37 @@ petsRoute.get("/foster-browse", async (c) => {
   } catch (err) {
     console.error("[pets/foster-browse] error:", err);
     return c.json({ error: { code: "INTERNAL", message: "Lỗi server" } }, 500);
+  }
+});
+
+// ===== FOSTER-CARE W-C — feed update per-pet (chủ đăng, owner+sponsor xem) =====
+// POST = OWNER-ONLY (getOwnedPet → sponsor đăng giả 403). GET = owner+sponsor (canViewPet → lạ 403).
+petsRoute.post("/:id{[0-9]+}/updates", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  let body: any;
+  try { body = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
+  const content = String(body?.content || "").trim();
+  if (!content) return c.json({ error: { code: "EMPTY", message: "Nội dung không được để trống" } }, 400);
+  if (content.length > 2000) return c.json({ error: { code: "TOO_LONG", message: "Nội dung quá dài (>2000)" } }, 400);
+  try {
+    await getOwnedPet(petId, session.sub); // OWNER-ONLY — sponsor → 403
+    const update = await postUpdate(petId, session.sub, content);
+    return c.json({ update }, 201);
+  } catch (err) {
+    return petErrorResponse(c, err);
+  }
+});
+
+petsRoute.get("/:id{[0-9]+}/updates", async (c) => {
+  const session = c.get("user");
+  const petId = Number(c.req.param("id"));
+  try {
+    await canViewPet(petId, session.sub); // owner + sponsor — lạ → 403
+    const updates = await listUpdates(petId);
+    return c.json({ updates });
+  } catch (err) {
+    return petErrorResponse(c, err);
   }
 });
 

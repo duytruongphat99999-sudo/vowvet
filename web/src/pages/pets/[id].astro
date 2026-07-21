@@ -1221,6 +1221,86 @@ const storyExcerpt = hasStory
         </section>
         )}
 
+        {/* FOSTER-CARE W-C — Nhật ký nuôi (feed): chủ đăng, owner+sponsor xem CHUNG */}
+        <section class="bg-white border border-mmp-ink/12 rounded-2xl p-5 sm:p-6 mb-4 shadow-sm"
+          x-data={`petFeed(${petId}, ${isOwner})`} x-init="load()">
+          <div class="flex items-start gap-3 mb-4">
+            <span class="shrink-0 w-9 h-9 rounded-full bg-mmp-cream flex items-center justify-center text-mmp-ink"><FeatureIcon name="file-text" class="w-5 h-5" /></span>
+            <div class="min-w-0 flex-1">
+              <h3 class="font-display italic text-xl font-semibold text-mmp-ink leading-tight">Nhật ký nuôi</h3>
+              <p class="text-[11px] text-mmp-ink/60 leading-relaxed mt-0.5">Cập nhật tình hình bé cho người tài trợ theo dõi.</p>
+            </div>
+          </div>
+
+          <template x-if="isOwner">
+            <div class="mb-4">
+              <textarea x-model="draft" rows="2" maxlength="2000" placeholder="Hôm nay bé thế nào?…"
+                class="w-full px-3 py-2 rounded-xl border border-mmp-ink/15 bg-mmp-cream/40 text-sm text-mmp-ink leading-relaxed"></textarea>
+              <div class="flex items-center gap-3 mt-2">
+                <button @click="post()" :disabled="busy || !draft.trim()"
+                  class="px-4 py-2 rounded-xl bg-mmp-ink text-white text-sm font-bold transition disabled:opacity-50">
+                  <span x-text="busy ? 'Đang đăng…' : 'Đăng'"></span>
+                </button>
+                <p x-show="err" x-text="err" style="display:none;" class="text-xs text-red-600"></p>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="loading"><p class="text-sm text-mmp-ink/50">Đang tải…</p></template>
+          <template x-if="!loading && updates.length === 0">
+            <p class="text-sm text-mmp-ink/50" x-text="isOwner ? 'Chưa có cập nhật nào. Đăng dòng đầu tiên nhé.' : 'Chủ bé chưa đăng cập nhật nào.'"></p>
+          </template>
+          <div x-show="!loading && updates.length > 0" style="display:none;" class="space-y-3">
+            <template x-for="u in updates" :key="u.id">
+              <div class="rounded-xl border border-mmp-ink/8 bg-mmp-cream/30 p-3">
+                <p class="text-sm text-mmp-ink leading-relaxed whitespace-pre-wrap" x-text="u.content"></p>
+                <p class="text-[11px] text-mmp-ink/50 mt-1.5" x-text="fmtDate(u.created_at)"></p>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <script is:inline>
+          function petFeed(petId, isOwner) {
+            return {
+              petId: petId,
+              isOwner: !!isOwner,
+              updates: [],
+              draft: "",
+              loading: true,
+              busy: false,
+              err: "",
+              async load() {
+                this.loading = true;
+                try {
+                  const r = await fetch("/api/v1/pets/" + this.petId + "/updates", { credentials: "include" });
+                  if (r.ok) { const j = await r.json(); this.updates = Array.isArray(j.updates) ? j.updates : []; }
+                } catch (e) { /* im lặng */ } finally { this.loading = false; }
+              },
+              async post() {
+                var text = (this.draft || "").trim();
+                if (!text) return;
+                this.busy = true; this.err = "";
+                try {
+                  const r = await fetch("/api/v1/pets/" + this.petId + "/updates", {
+                    method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                    body: JSON.stringify({ content: text })
+                  });
+                  const j = await r.json().catch(function () { return {}; });
+                  if (!r.ok) { this.err = (j.error && j.error.message) || ("Đăng thất bại (" + r.status + ")"); return; }
+                  this.draft = "";
+                  await this.load();
+                } catch (e) { this.err = "Lỗi kết nối"; } finally { this.busy = false; }
+              },
+              fmtDate(iso) {
+                if (!iso) return "";
+                var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                return m ? (m[3] + "/" + m[2] + "/" + m[1]) : String(iso).slice(0, 10);
+              }
+            };
+          }
+        </script>
+
         <script is:inline>
           function fosterAdmin(petId, appUrl) {
             return {
