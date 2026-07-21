@@ -89,6 +89,19 @@ export function imageExtFromMime(mime: string): string | null {
 }
 
 /**
+ * Suy ra extension từ MIME video (W-D feed pet_updates). CHỈ mp4/webm (phủ đủ, gọn).
+ * Trả null nếu không hỗ trợ (mov/avi… → từ chối).
+ */
+export function videoExtFromMime(mime: string): string | null {
+  const base = mime.toLowerCase().split(";")[0].trim();
+  const map: Record<string, string> = {
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+  };
+  return map[base] || null;
+}
+
+/**
  * Suy ra extension từ MIME type audio (dùng cho voice diary upload).
  * Trả null nếu MIME không được hỗ trợ.
  */

@@ -19,17 +19,25 @@ export interface PetUpdate {
   created_at: string;
 }
 
-/** Chủ đăng update. GATE owner-only Ở ROUTE (getOwnedPet trước khi gọi). */
-export async function postUpdate(petId: number, authorSub: number, content: string): Promise<PetUpdate> {
+/** Chủ đăng update (+ media W-D). GATE owner-only Ở ROUTE (getOwnedPet trước khi gọi). */
+export async function postUpdate(
+  petId: number,
+  authorSub: number,
+  content: string,
+  mediaUrl: string | null = null,
+  mediaType: string | null = null
+): Promise<PetUpdate> {
   const now = new Date().toISOString();
   const text = content.trim();
   const row = await createRow<any>(UPDATES, {
     pet_id: [petId], // link_row = mảng row id (khớp foster_orders)
     author_user_id: authorSub,
     content: text,
+    media_url: mediaUrl,
+    media_type: mediaType,
     created_at: now,
   });
-  return { id: row.id, content: text, author_user_id: authorSub, media_url: null, media_type: null, created_at: now };
+  return { id: row.id, content: text, author_user_id: authorSub, media_url: mediaUrl, media_type: mediaType, created_at: now };
 }
 
 /** Feed của pet, mới nhất trước. Bỏ soft-delete + row trống. GATE owner+sponsor Ở ROUTE (canViewPet). */
@@ -40,7 +48,7 @@ export async function listUpdates(petId: number): Promise<PetUpdate[]> {
     orderBy: "-created_at",
   });
   return r.results
-    .filter((u) => sel(u.content) && !u.deleted_at) // bỏ row trống mặc định + soft-delete
+    .filter((u) => (sel(u.content) || u.media_url) && !u.deleted_at) // giữ media-only; bỏ row trống + soft-delete
     .map((u) => ({
       id: u.id,
       content: sel(u.content) || "",

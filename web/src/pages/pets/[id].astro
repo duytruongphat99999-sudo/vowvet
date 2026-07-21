@@ -1236,11 +1236,16 @@ const storyExcerpt = hasStory
             <div class="mb-4">
               <textarea x-model="draft" rows="2" maxlength="2000" placeholder="Hôm nay bé thế nào?…"
                 class="w-full px-3 py-2 rounded-xl border border-mmp-ink/15 bg-mmp-cream/40 text-sm text-mmp-ink leading-relaxed"></textarea>
-              <div class="flex items-center gap-3 mt-2">
-                <button @click="post()" :disabled="busy || !draft.trim()"
+              <div class="flex items-center gap-3 mt-2 flex-wrap">
+                <button @click="post()" :disabled="busy || (!draft.trim() && !mediaFile)"
                   class="px-4 py-2 rounded-xl bg-mmp-ink text-white text-sm font-bold transition disabled:opacity-50">
                   <span x-text="busy ? 'Đang đăng…' : 'Đăng'"></span>
                 </button>
+                <label class="text-xs font-semibold text-mmp-brown underline cursor-pointer">
+                  + Ảnh/Video
+                  <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" class="hidden" @change="pickMedia($event)" />
+                </label>
+                <span x-show="mediaName" style="display:none;" class="text-xs text-mmp-ink/60 truncate max-w-[10rem]" x-text="mediaName"></span>
                 <p x-show="err" x-text="err" style="display:none;" class="text-xs text-red-600"></p>
               </div>
             </div>
@@ -1253,7 +1258,13 @@ const storyExcerpt = hasStory
           <div x-show="!loading && updates.length > 0" style="display:none;" class="space-y-3">
             <template x-for="u in updates" :key="u.id">
               <div class="rounded-xl border border-mmp-ink/8 bg-mmp-cream/30 p-3">
-                <p class="text-sm text-mmp-ink leading-relaxed whitespace-pre-wrap" x-text="u.content"></p>
+                <p x-show="u.content" class="text-sm text-mmp-ink leading-relaxed whitespace-pre-wrap" x-text="u.content"></p>
+                <template x-if="u.media_type === 'image'">
+                  <img :src="u.media_url" alt="" loading="lazy" class="mt-2 rounded-lg max-h-80 w-auto" />
+                </template>
+                <template x-if="u.media_type === 'video'">
+                  <video :src="u.media_url" controls preload="metadata" class="mt-2 rounded-lg max-h-80 w-auto"></video>
+                </template>
                 <p class="text-[11px] text-mmp-ink/50 mt-1.5" x-text="fmtDate(u.created_at)"></p>
               </div>
             </template>
@@ -1267,6 +1278,8 @@ const storyExcerpt = hasStory
               isOwner: !!isOwner,
               updates: [],
               draft: "",
+              mediaFile: null,
+              mediaName: "",
               loading: true,
               busy: false,
               err: "",
@@ -1277,18 +1290,25 @@ const storyExcerpt = hasStory
                   if (r.ok) { const j = await r.json(); this.updates = Array.isArray(j.updates) ? j.updates : []; }
                 } catch (e) { /* im lặng */ } finally { this.loading = false; }
               },
+              pickMedia(e) {
+                var f = e.target.files && e.target.files[0];
+                if (!f) { this.mediaFile = null; this.mediaName = ""; return; }
+                this.mediaFile = f; this.mediaName = f.name;
+              },
               async post() {
                 var text = (this.draft || "").trim();
-                if (!text) return;
+                if (!text && !this.mediaFile) return;
                 this.busy = true; this.err = "";
                 try {
+                  var fd = new FormData();
+                  fd.append("content", text);
+                  if (this.mediaFile) fd.append("media", this.mediaFile);
                   const r = await fetch("/api/v1/pets/" + this.petId + "/updates", {
-                    method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                    body: JSON.stringify({ content: text })
+                    method: "POST", credentials: "include", body: fd
                   });
                   const j = await r.json().catch(function () { return {}; });
                   if (!r.ok) { this.err = (j.error && j.error.message) || ("Đăng thất bại (" + r.status + ")"); return; }
-                  this.draft = "";
+                  this.draft = ""; this.mediaFile = null; this.mediaName = "";
                   await this.load();
                 } catch (e) { this.err = "Lỗi kết nối"; } finally { this.busy = false; }
               },

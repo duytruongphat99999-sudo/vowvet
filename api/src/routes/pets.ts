@@ -30,7 +30,7 @@ import {
   stoolEnToVi,
 } from "@shared/enum-mappers.ts";
 import { parseHealthConditions } from "@shared/health-conditions.ts";
-import { uploadObject, imageExtFromMime } from "@shared/r2.ts";
+import { uploadObject, imageExtFromMime, videoExtFromMime } from "@shared/r2.ts";
 import {
   listPetPhotos,
   createPetPhoto,
@@ -630,17 +630,60 @@ petsRoute.get("/foster-browse", async (c) => {
 
 // ===== FOSTER-CARE W-C — feed update per-pet (chủ đăng, owner+sponsor xem) =====
 // POST = OWNER-ONLY (getOwnedPet → sponsor đăng giả 403). GET = owner+sponsor (canViewPet → lạ 403).
+const MAX_UPDATE_IMAGE = 5 * 1024 * 1024; // ảnh ≤ 5MB
+const MAX_UPDATE_VIDEO = 20 * 1024 * 1024; // video ≤ 20MB
+const MAX_UPDATE_BODY = 21 * 1024 * 1024; // chặn cứng #1: video 20MB + overhead multipart
+
+// W-D: multipart — text-only (W-C) HOẶC kèm media (ảnh/video). OWNER-ONLY.
 petsRoute.post("/:id{[0-9]+}/updates", async (c) => {
   const session = c.get("user");
   const petId = Number(c.req.param("id"));
-  let body: any;
-  try { body = await c.req.json(); } catch { return c.json({ error: { code: "BAD_JSON", message: "Body không hợp lệ" } }, 400); }
-  const content = String(body?.content || "").trim();
-  if (!content) return c.json({ error: { code: "EMPTY", message: "Nội dung không được để trống" } }, 400);
+  // OWNER-ONLY (giữ W-C) — sponsor → 403. Check TRƯỚC khi đụng body.
+  try { await getOwnedPet(petId, session.sub); } catch (err) { return petErrorResponse(c, err); }
+
+  // CHẶN CỨNG #1: từ chối theo Content-Length TRƯỚC c.req.formData() (không nạp body vào RAM).
+  const clen = Number(c.req.header("content-length") || "0");
+  if (clen > MAX_UPDATE_BODY) {
+    return c.json({ error: { code: "FILE_TOO_LARGE", message: "File quá lớn (video ≤20MB, ảnh ≤5MB)" } }, 413);
+  }
+
+  let form: FormData;
+  try { form = await c.req.formData(); } catch { return c.json({ error: { code: "BAD_FORM", message: "Form không hợp lệ" } }, 400); }
+  const content = String(form.get("content") || "").trim();
+  const fileVal = form.get("media");
+  const hasFile = fileVal instanceof File && fileVal.size > 0;
+
   if (content.length > 2000) return c.json({ error: { code: "TOO_LONG", message: "Nội dung quá dài (>2000)" } }, 400);
+  if (!hasFile && !content) return c.json({ error: { code: "EMPTY", message: "Cần nội dung hoặc ảnh/video" } }, 400);
+
+  let mediaUrl: string | null = null;
+  let mediaType: string | null = null;
+  if (hasFile) {
+    const f = fileVal as File;
+    const imgExt = imageExtFromMime(f.type);
+    const vidExt = videoExtFromMime(f.type);
+    let ext: string;
+    let cap: number;
+    if (imgExt) { ext = imgExt; cap = MAX_UPDATE_IMAGE; mediaType = "image"; }
+    else if (vidExt) { ext = vidExt; cap = MAX_UPDATE_VIDEO; mediaType = "video"; }
+    else return c.json({ error: { code: "BAD_MIME", message: "Chỉ ảnh (jpeg/png/webp) hoặc video (mp4/webm)" } }, 400);
+
+    const buffer = new Uint8Array(await f.arrayBuffer());
+    // CHẶN CỨNG #2: Content-Length có thể giả → verify byteLength THẬT.
+    if (buffer.byteLength > cap) {
+      return c.json({ error: { code: "FILE_TOO_LARGE", message: mediaType === "video" ? "Video quá 20MB" : "Ảnh quá 5MB" } }, 413);
+    }
+    try {
+      const key = `pet-updates/${session.sub}/${petId}/${Date.now()}.${ext}`;
+      mediaUrl = await uploadObject(key, buffer, f.type);
+    } catch (err) {
+      console.error("[pets/updates] upload media failed:", err);
+      return c.json({ error: { code: "UPLOAD_FAILED", message: "Upload media thất bại" } }, 500);
+    }
+  }
+
   try {
-    await getOwnedPet(petId, session.sub); // OWNER-ONLY — sponsor → 403
-    const update = await postUpdate(petId, session.sub, content);
+    const update = await postUpdate(petId, session.sub, content, mediaUrl, mediaType);
     return c.json({ update }, 201);
   } catch (err) {
     return petErrorResponse(c, err);
