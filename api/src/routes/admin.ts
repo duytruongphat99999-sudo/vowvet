@@ -17,7 +17,7 @@ import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
 import { listRows, updateRow, getRow } from "@shared/baserow.ts";
 import { applyFosterEnable, applyFosterDisable } from "../lib/public-pets.ts";
-import { patchPet } from "../lib/pets.ts";
+import { patchPet, hardDeletePet } from "../lib/pets.ts";
 import { listAllPending } from "../lib/adoption-requests.ts";
 import { FosterUpdateSchema } from "@shared/zod-schemas/public-pet.ts";
 import { isAdminIdentity } from "@shared/admin.ts";
@@ -388,14 +388,18 @@ adminRoute.get("/pets", async (c) => {
   }
 });
 
-// ===== ADMIN DASHBOARD — soft-delete pet (set deleted_at, field 6599) =====
+// ===== ADMIN DASHBOARD — xoá pet (HARD delete, như owner-delete pets.ts) =====
+// Nợ 1 fix: pets KHÔNG có field deleted_at → updateRow cũ = no-op (pet không biến mất).
+// Dùng hardDeletePet (đúng cơ chế owner-delete). Giữ orphan refs (Phase-0, như owner) — dọn orphan là nợ riêng.
 adminRoute.post("/pets/:petId/delete", async (c) => {
   const petId = Number(c.req.param("petId"));
   if (!Number.isInteger(petId) || petId <= 0) {
     return c.json({ ok: false, reason: "ID không hợp lệ" }, 400);
   }
   try {
-    await updateRow("pets", petId, { deleted_at: new Date().toISOString() });
+    const pet = await getRow<any>("pets", petId).catch(() => null);
+    if (!pet) return c.json({ ok: false, reason: "Không tìm thấy bé" }, 404);
+    await hardDeletePet(petId);
     return c.json({ ok: true });
   } catch (err) {
     console.error("[admin/pet-delete] error:", err);
