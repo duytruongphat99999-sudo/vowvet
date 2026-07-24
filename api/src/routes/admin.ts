@@ -328,7 +328,7 @@ adminRoute.get("/users", async (c) => {
   try {
     const [usersRes, petsRes] = await Promise.all([
       listRows<any>("users", { size: 200 }),
-      listRows<any>("pets", { size: 200 }),
+      listRows<any>("pets", { filter: { deleted_at__empty: "" }, size: 200 }),
     ]);
     const petCount = new Map<number, number>();
     for (const p of petsRes.results) {
@@ -361,7 +361,7 @@ adminRoute.get("/users", async (c) => {
 adminRoute.get("/pets", async (c) => {
   try {
     const [petsRes, usersRes] = await Promise.all([
-      listRows<any>("pets", { size: 200 }),
+      listRows<any>("pets", { filter: { deleted_at__empty: "" }, size: 200 }),
       listRows<any>("users", { size: 200 }),
     ]);
     const userName = new Map<number, string>();
@@ -586,7 +586,7 @@ adminRoute.get("/stats", async (c) => {
   try {
     const [usersRes, petsRes, alertsRes, vaccinesRes, plansRes, checkInsRes, handoversRes, reclaimRes] = await Promise.all([
       listRows<any>("users", { size: 200 }),
-      listRows<any>("pets", { size: 200 }),
+      listRows<any>("pets", { filter: { deleted_at__empty: "" }, size: 200 }),
       listRows<any>("climate_alerts", { size: 200 }),
       listRows<any>("vaccines", { size: 200 }),
       listRows<any>("care_plans", { size: 50 }),
@@ -907,7 +907,7 @@ adminRoute.get("/export/users", async (c) => {
 // ============================================================
 adminRoute.get("/export/pets", async (c) => {
   try {
-    const res = await listRows<any>("pets", { size: 200 });
+    const res = await listRows<any>("pets", { filter: { deleted_at__empty: "" }, size: 200 });
     const rows = res.results.filter((p: any) => p.name);
     const headers = ["id", "name", "species", "breed", "dob", "gender", "weight_kg", "user_id", "qr_code", "created_at"];
     const csv = [

@@ -97,7 +97,7 @@ async function loadAllUsers(): Promise<UserRow[]> {
 /** Load pets của user qua link_row filter. */
 async function loadPetsForUser(userId: number): Promise<PetRow[]> {
   const res = await listRows<PetRow>("pets", {
-    filter: { user_id__link_row_has: String(userId) },
+    filter: { user_id__link_row_has: String(userId), deleted_at__empty: "" },
     size: 100,
   });
   return res.results;

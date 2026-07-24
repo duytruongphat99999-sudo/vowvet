@@ -70,7 +70,7 @@ export async function getLeaderboard(params: {
       // Fall back to first owned pet
       try {
         const pets = await listRows<any>("pets", {
-          filter: { user_id__link_row_has: String(u.id) },
+          filter: { user_id__link_row_has: String(u.id), deleted_at__empty: "" },
           size: 1,
         });
         petId = pets.results[0]?.id || null;

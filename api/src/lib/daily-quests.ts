@@ -331,7 +331,7 @@ export async function trackQuestTrigger(
 export async function assignDailyQuestsForAllPets(dateISO?: string): Promise<{ assigned: number; skipped: number }> {
   const date = (dateISO || new Date().toISOString()).slice(0, 10);
   // Find pets whose owner has push_subscription (proxy for "active user")
-  const pets = await listRows<any>("pets", { size: 200 });
+  const pets = await listRows<any>("pets", { filter: { deleted_at__empty: "" }, size: 200 });
   let assigned = 0, skipped = 0;
   for (const pet of pets.results) {
     const link = (pet.user_id || [])[0];

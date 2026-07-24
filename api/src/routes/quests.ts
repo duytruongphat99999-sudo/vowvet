@@ -33,7 +33,7 @@ questsRoute.use("*", requireAuth);
 async function getFirstPetIdForUser(userId: number): Promise<number | null> {
   try {
     const res = await listRows<any>("pets", {
-      filter: { user_id__link_row_has: String(userId) },
+      filter: { user_id__link_row_has: String(userId), deleted_at__empty: "" },
       size: 1,
     });
     return res.results[0]?.id ?? null;

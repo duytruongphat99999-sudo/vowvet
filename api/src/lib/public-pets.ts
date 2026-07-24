@@ -75,7 +75,7 @@ export async function getPublicPetBySlug(slug: string): Promise<PublicPetData | 
  * chi tiết + chart ở /p/[slug].
  */
 export async function listFosterPets(): Promise<Record<string, any>[]> {
-  const res = await listRows<any>("pets", { filter: { foster_public__boolean: "true" }, size: 200 });
+  const res = await listRows<any>("pets", { filter: { foster_public__boolean: "true", deleted_at__empty: "" }, size: 200 });
   const valid = res.results.filter((p) => p.foster_public === true && p.is_public === true);
   const counts = await countFosterOrdersByPetIds(valid.map((p) => p.id)); // 1 query, no N+1
   return valid.map((p) => {

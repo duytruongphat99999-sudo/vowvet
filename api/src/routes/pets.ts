@@ -702,7 +702,7 @@ petsRoute.get("/foster-browse", async (c) => {
   try {
     const sel = (v: any) => (v && typeof v === "object" && "value" in v ? v.value : v);
     const [pubRes, allRes] = await Promise.all([
-      listRows<any>("pets", { filter: { foster_public__boolean: "true" }, size: 200 }),
+      listRows<any>("pets", { filter: { foster_public__boolean: "true", deleted_at__empty: "" }, size: 200 }),
       listRows<any>("pets", { size: 200 }), // đếm "đã về nhà" bỏ lọc foster_public (bé về nhà đã tắt public)
     ]);
     const valid = pubRes.results.filter(

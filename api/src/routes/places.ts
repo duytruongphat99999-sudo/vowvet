@@ -221,7 +221,7 @@ placesRoute.post("/", requireAuth, async (c) => {
     const { checkFeatureAccess } = await import("../lib/feature-gates.ts");
     const { listRows } = await import("@shared/baserow.ts");
     const userPets = await listRows<any>("pets", {
-      filter: { user_id__link_row_has: String(session.sub) },
+      filter: { user_id__link_row_has: String(session.sub), deleted_at__empty: "" },
       size: 1,
     });
     const firstPet = userPets.results[0];

@@ -130,7 +130,7 @@ export async function runCarePlanRemindersJob(): Promise<CarePlanReminderReport>
 
       // Fetch pets for this user (link_row filter)
       const petsRes = await listRows<PetRow>("pets", {
-        filter: { user_id__link_row_has: String(user.id) },
+        filter: { user_id__link_row_has: String(user.id), deleted_at__empty: "" },
         size: 50,
       });
       const pets = petsRes.results;
