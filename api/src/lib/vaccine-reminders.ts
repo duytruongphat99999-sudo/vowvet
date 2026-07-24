@@ -122,7 +122,7 @@ export async function runVaccineRemindersJob(): Promise<VaccineReminderReport> {
 
       // Get pets của user
       const petsRes = await listRows<PetRow>("pets", {
-        filter: { user_id__link_row_has: String(user.id) },
+        filter: { user_id__link_row_has: String(user.id), deleted_at__empty: "" },
         size: 100,
       });
       const pets = petsRes.results;

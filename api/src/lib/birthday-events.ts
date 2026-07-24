@@ -267,7 +267,7 @@ export async function runBirthdayReminderJob(): Promise<{
   for (const user of users) {
     try {
       const petsRes = await listRows<PetRow>("pets", {
-        filter: { user_id__link_row_has: String(user.id) },
+        filter: { user_id__link_row_has: String(user.id), deleted_at__empty: "" },
         size: 50,
       });
 

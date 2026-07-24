@@ -353,7 +353,7 @@ export async function runDueNudges(): Promise<{ scanned: number; sent: number }>
   }
 
   // Find candidates: pets whose owner has push_subscription set (rough proxy for "active")
-  const pets = await listRows<any>("pets", { size: 200 });
+  const pets = await listRows<any>("pets", { filter: { deleted_at__empty: "" }, size: 200 });
   let scanned = 0, sent = 0;
 
   for (const pet of pets.results) {

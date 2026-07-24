@@ -361,7 +361,7 @@ lostPetsRoute.post("/:reportId{[0-9]+}/sightings/:sightingId{[0-9]+}/confirm", a
         const { checkAndUnlockAchievements } = await import("../lib/achievements.ts");
         const { listRows } = await import("@shared/baserow.ts");
         const helperPets = await listRows<any>("pets", {
-          filter: { user_id__link_row_has: String(sighting.reporter_user_id) },
+          filter: { user_id__link_row_has: String(sighting.reporter_user_id), deleted_at__empty: "" },
           size: 1,
         });
         const helperPetId = helperPets.results[0]?.id;
@@ -607,7 +607,7 @@ lostPetsPublicRoute.post("/lost/:slug{[a-z0-9]{6,16}}/sighting", zValidator("jso
       try {
         const { listRows } = await import("@shared/baserow.ts");
         const pets = await listRows<any>("pets", {
-          filter: { user_id__link_row_has: String(reporterUserId) },
+          filter: { user_id__link_row_has: String(reporterUserId), deleted_at__empty: "" },
           size: 1,
         });
         const spotterFirstPetId = pets.results[0]?.id;

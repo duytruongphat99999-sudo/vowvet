@@ -253,7 +253,7 @@ export async function findOrCreateUser(phone: string): Promise<{ user: BaserowUs
 /** Đếm số pet của user (qua link_row filter). */
 export async function countUserPets(userId: number): Promise<number> {
   const res = await listRows<BaserowPet>("pets", {
-    filter: { "user_id__link_row_has": String(userId) },
+    filter: { "user_id__link_row_has": String(userId), deleted_at__empty: "" },
     size: 1,
   });
   return res.count;
@@ -299,7 +299,7 @@ export async function markOnboardedAsFoster(userId: number): Promise<BaserowUser
 /** List pets của user (cho dashboard). */
 export async function listUserPets(userId: number, limit = 50): Promise<BaserowPet[]> {
   const res = await listRows<BaserowPet>("pets", {
-    filter: { "user_id__link_row_has": String(userId) },
+    filter: { "user_id__link_row_has": String(userId), deleted_at__empty: "" },
     size: limit,
     orderBy: "-created_at",
   });

@@ -60,7 +60,7 @@ export async function findPetBySlug(slug: string): Promise<any | null> {
   if (!slug) return null;
   try {
     const res = await listRows<any>("pets", {
-      filter: { public_slug__equal: slug },
+      filter: { public_slug__equal: slug, deleted_at__empty: "" },
       size: 1,
     });
     return res.results[0] || null;
