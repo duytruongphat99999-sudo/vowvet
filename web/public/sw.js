@@ -14,7 +14,7 @@
 // IMPORTANT: bump VERSION every release that ships HTML/CSS changes — otherwise
 // stale-while-revalidate keeps serving old cached HTML for /dashboard /chat /alerts /etc.
 // (root cause of "không thấy thay đổi" feedback during Brand Sync Pass 3.)
-const VERSION = "vowvet-v376-hero-toggle-clarity";
+const VERSION = "vowvet-v377-error-charset-utf8";
 const PRECACHE = `${VERSION}-precache`;
 const RUNTIME = `${VERSION}-runtime`;
 
