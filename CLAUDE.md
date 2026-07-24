@@ -32,7 +32,7 @@
   - `docker/docker-compose.yml`
   - `baserow-config.json` — **gitignored** (field IDs local). Migration script thì **committed**.
 - **Account test**:
-  - pet **"min" id 12** (user **10**) — Mèo Anh lông ngắn, 4.5kg, đã triệt sản, ~2 tuổi.
+  - pet **"min2" id 121** (user test **81**, `fixture@vowvet.test`) — Mèo British Shorthair, 4.5kg, ~2 tuổi. FIXTURE ghim, user test riêng (KHÔNG phải user thật). Account cũ pet 12/user 10 đã bị hard-delete — đừng tham chiếu.
   - `lyvu2004DTP@gmail.com` (user **18**, Google OAuth) — gmail test dùng vô hạn nhờ `/dev/reset-onboarding`.
 
 ---
@@ -44,6 +44,8 @@
 2. Có sửa `<script is:inline>` → `node --check` từng file. Inline script = **JS THUẦN**, không TS (vd `as number[]` → Alpine SyntaxError).
 3. **Bump SW version** `vXXX` trong `web/public/sw.js` (để qua cache PWA).
 4. Verify thật: trang cần login → mint session cookie, mở `localhost:4322`, **chụp/đo DOM thật + console SẠCH**. KHÔNG đoán "browser sẽ đúng".
+- **Verify destructive (xoá/ghi đè)**: PHẢI tự tạo fixture riêng trong chính script test rồi tự dọn. TUYỆT ĐỐI không lấy pet/user canonical ghim ở §1 làm mồi.
+- Sau mỗi verify destructive: đối chiếu fixture §1 còn tồn tại (`GET /pets/121` = 200) rồi mới báo PASS.
 5. **Phiên tương tác thường**: commit LOCAL, hỏi trước khi push. **Phiên /task, /epic**: verify → commit → nhánh `auto/*` → mở PR, KHÔNG hỏi (xem §0 ngoại lệ + §12).
 
 ---
@@ -52,7 +54,7 @@
 - **SW**: mỗi release UI bump `vXXX` (tăng dần).
 - **Commit msg**: conventional + đuôi version → `type: mô tả (vXXX)`
   (vd `perf: cache+parallelize loading + skeleton mượt mobile (v276)`).
-- **Co-author**: `Claude Opus 4.8 (1M context)`.
+- **Co-author**: Agent Claude Code (KHÔNG ghim tên/phiên bản model trong sổ). Trailer commit cố định: `Co-authored-by: Claude <noreply@anthropic.com>`
 - **Push**: `main` CẤM push thẳng (guard.sh chặn cứng). Nhánh `auto/*` và `epic/*` ĐƯỢC push để mở PR — đó là bàn giao chuẩn của /task, /epic. Phiên tương tác thường: hỏi trước khi push. **Secret-scan** trước mỗi commit.
 
 ---
