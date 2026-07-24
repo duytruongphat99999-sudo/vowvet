@@ -11,6 +11,15 @@ export function ownerIds(pet: BaserowPet): number[] {
   return pet.user_id.map((u) => u.id);
 }
 
+/**
+ * N4 — pet đã soft-delete? Sao y pattern users.isDeleted (JS-side, field `deleted_at`).
+ * Baserow getRow bỏ qua filter → phải check sau khi lấy row. `deleted_at` chưa có trong
+ * interface BaserowPet (khai ở users.ts, ngoài scope) → cast an toàn.
+ */
+export function isPetDeleted(pet: BaserowPet): boolean {
+  return !!(pet as { deleted_at?: string | null }).deleted_at;
+}
+
 /** Lỗi ownership/not-found với HTTP status. Caller bắt và return JSON tương ứng. */
 export class PetAccessError extends Error {
   constructor(public status: 404 | 403, public code: string, message: string) {
@@ -33,6 +42,9 @@ export async function getOwnedPet(petId: number, userId: number): Promise<Basero
     }
     throw err;
   }
+  if (isPetDeleted(pet)) {
+    throw new PetAccessError(404, "PET_NOT_FOUND", "Không tìm thấy thú cưng");
+  }
   if (!ownerIds(pet).includes(userId)) {
     throw new PetAccessError(403, "FORBIDDEN", "Bạn không có quyền với thú cưng này");
   }
@@ -53,6 +65,9 @@ export async function canViewPet(petId: number, userId: number): Promise<{ pet: 
       throw new PetAccessError(404, "PET_NOT_FOUND", "Không tìm thấy thú cưng");
     }
     throw err;
+  }
+  if (isPetDeleted(pet)) {
+    throw new PetAccessError(404, "PET_NOT_FOUND", "Không tìm thấy thú cưng");
   }
   if (ownerIds(pet).includes(userId)) return { pet, isOwner: true };
   // Sponsor: đơn foster của pet này, ĐÃ THU (paid), donor_user_id=userId, deleted_at IS NULL.
@@ -84,7 +99,9 @@ export async function findPetByQrCode(qrCode: string): Promise<BaserowPet | null
     filter: { qr_code__equal: qrCode },
     size: 1,
   });
-  return res.results[0] || null;
+  const pet = res.results[0];
+  if (!pet || isPetDeleted(pet)) return null;
+  return pet;
 }
 
 /** Mask phone +84xxxxxxxxx → "+84***xxx" (giữ 3 đầu + 3 cuối). */
