@@ -47,15 +47,24 @@ export function generatePetSlug(petName: string): string {
 export async function ensureUniqueSlug(petName: string, maxRetries = 5): Promise<string> {
   for (let i = 0; i < maxRetries; i++) {
     const candidate = generatePetSlug(petName);
-    const existing = await findPetBySlug(candidate);
-    if (!existing) return candidate;
+    // N4 Wave 2a: uniqueness-check PHẢI thấy CẢ pet đã soft-delete → query UNFILTERED,
+    // KHÔNG dùng findPetBySlug (hàm đó lọc deleted_at cho public-lookup). Nếu lọc: pet đã
+    // xoá "nhả" slug → pet mới cùng tên lấy trùng → khôi phục pet cũ = 2 pet 1 slug.
+    // Sao y pattern uniqueness của qr.ts:49-50 (listRows size:1, KHÔNG deleted_at__empty).
+    const dup = await listRows<any>("pets", { filter: { public_slug__equal: candidate }, size: 1 });
+    if (dup.results.length === 0) return candidate;
   }
   // Cuối cùng: append timestamp để đảm bảo unique
   const base = removeVietnameseDiacritics(petName).slice(0, 30);
   return `${base}-${Date.now().toString(36).slice(-6)}`;
 }
 
-/** Lookup pet by public_slug. Return raw Baserow row or null. */
+/**
+ * Lookup pet by public_slug (trang PUBLIC). Lọc pet đã soft-delete (deleted_at__empty)
+ * — trang public KHÔNG được hiện pet đã xoá.
+ * ⚠ KHÁC ensureUniqueSlug: uniqueness-check CỐ TÌNH không lọc (xem comment ở đó) để pet
+ * đã xoá không nhả slug. ĐỪNG "hợp nhất cho nhất quán" 2 chỗ — sẽ tái tạo bug N4.
+ */
 export async function findPetBySlug(slug: string): Promise<any | null> {
   if (!slug) return null;
   try {
