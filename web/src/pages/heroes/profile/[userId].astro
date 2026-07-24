@@ -11,17 +11,27 @@ import { getZaloLink } from "../../../../../shared/contact-info.ts";
 const userId = Number(Astro.params.userId);
 const API_INTERNAL = process.env.API_INTERNAL_URL || "http://vowvet-api:3000";
 
+const user = Astro.locals.user;
+const isOwner = user?.sub === userId;
+
 let profile: any = null;
 let acts: any[] = [];
+let publicEnabled = false;
 // Forward cookie để BE nhận diện chủ (viewerId) → chủ xem được profile private của mình.
 const cookie = Astro.request.headers.get("cookie") || "";
 try {
-  const [pRes, aRes] = await Promise.all([
+  const [pRes, aRes, gRes] = await Promise.all([
     fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}`, { headers: { cookie } }),
     fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}/acts`, { headers: { cookie } }),
+    // Nợ 3: state ban đầu cho toggle public (owner-only). HeroStats không trả cờ public_profile_enabled
+    // → dùng chính endpoint public KHÔNG forward cookie (goc nhìn khách): 200 = đang bật, 404 = đang tắt.
+    isOwner
+      ? fetch(`${API_INTERNAL}/api/v1/heroes/profile/${userId}`).catch(() => null)
+      : Promise.resolve(null),
   ]);
   if (pRes.ok) profile = (await pRes.json()).profile;
   if (aRes.ok) acts = (await aRes.json()).acts || [];
+  publicEnabled = !!(gRes && gRes.ok);
 } catch (_) {}
 
 if (!profile) {
@@ -30,9 +40,6 @@ if (!profile) {
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 }
-
-const user = Astro.locals.user;
-const isOwner = user?.sub === userId;
 
 // Cờ "nhận nuôi tạm" (is_foster_carer) — đọc qua API (route đọc cờ, auth); forward cookie SSR.
 // B2: profile limited (người lạ xem hồ sơ riêng tư) → KHÔNG fetch, KHÔNG đưa is_foster_carer
@@ -54,6 +61,7 @@ const initialData = JSON.stringify({
   zaloUrl: getZaloLink(),
   isOwner,
   isFosterCarer,
+  publicEnabled,
   loggedIn: !!user,
   targetUserId: userId,
 });
@@ -195,33 +203,32 @@ const initialData = JSON.stringify({
         </div>
       </div>
 
-      <!-- Privacy toggle (owner only) -->
+      <!-- Privacy toggle (owner only) — Nợ 3: switch 2 chiều + dòng trạng thái rõ (mẫu admin/pets) -->
       <template x-if="isOwner">
-        <div class="bg-white rounded-2xl border border-black/5 p-4 mb-4 flex items-center justify-between">
-          <div>
+        <div class="bg-white rounded-2xl border border-black/5 p-4 mb-4 flex items-center justify-between gap-3">
+          <div class="min-w-0">
             <p class="text-sm font-bold text-mmp-ink">Hiển thị công khai profile</p>
-            <p class="text-[11px] text-mmp-brown">Người khác có thể xem badge + acts của bạn</p>
+            <p class="text-[11px] text-mmp-brown" x-text="publicEnabled ? 'Đang bật — người khác xem được badge + hoạt động của bạn' : 'Đang tắt — chỉ mình bạn thấy hồ sơ này'"></p>
           </div>
-          <button @click="togglePrivate()" :disabled="toggling"
-            class="bg-mmp-ink hover:bg-mmp-ink/90 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
-            <span x-show="!toggling">Tắt profile công khai</span>
-            <span x-show="toggling">...</span>
+          <button type="button" @click="togglePrivate()" :disabled="toggling" :aria-pressed="publicEnabled ? 'true' : 'false'"
+            :class="publicEnabled ? 'bg-mmp-ink' : 'bg-mmp-ink/15'"
+            class="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors disabled:opacity-40">
+            <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" :class="publicEnabled ? 'translate-x-6' : ''"></span>
           </button>
         </div>
       </template>
 
-      <!-- Foster carer toggle (owner only) -->
+      <!-- Foster carer toggle (owner only) — Nợ 3: nhãn trạng thái rõ, giữ flow server-confirmed -->
       <template x-if="isOwner">
-        <div class="bg-white rounded-2xl border border-black/5 p-4 mb-4 flex items-center justify-between">
-          <div>
+        <div class="bg-white rounded-2xl border border-black/5 p-4 mb-4 flex items-center justify-between gap-3">
+          <div class="min-w-0">
             <p class="text-sm font-bold text-mmp-ink">Tôi nhận nuôi tạm</p>
-            <p class="text-[11px] text-mmp-brown">Đánh dấu bạn sẵn sàng nhận nuôi tạm các bé</p>
+            <p class="text-[11px] text-mmp-brown" x-text="isFosterCarer ? 'Đang bật — bạn sẵn sàng nhận nuôi tạm các bé' : 'Đang tắt — bật để đánh dấu bạn sẵn sàng nhận nuôi tạm'"></p>
           </div>
-          <button @click="toggleFosterCarer()" :disabled="fosterToggling"
-            :class="isFosterCarer ? 'bg-mmp-gold text-mmp-ink' : 'bg-mmp-cream text-mmp-brown border border-black/10'"
-            class="disabled:opacity-50 text-xs font-bold px-3 py-1.5 rounded-lg min-w-[64px]">
-            <span x-show="!fosterToggling" x-text="isFosterCarer ? 'Bật' : 'Tắt'"></span>
-            <span x-show="fosterToggling">...</span>
+          <button type="button" @click="toggleFosterCarer()" :disabled="fosterToggling" :aria-pressed="isFosterCarer ? 'true' : 'false'"
+            :class="isFosterCarer ? 'bg-mmp-ink' : 'bg-mmp-ink/15'"
+            class="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors disabled:opacity-40">
+            <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" :class="isFosterCarer ? 'translate-x-6' : ''"></span>
           </button>
         </div>
       </template>
@@ -320,6 +327,7 @@ const initialData = JSON.stringify({
         zaloUrl: initial.zaloUrl,
         isOwner: initial.isOwner,
         isFosterCarer: initial.isFosterCarer,
+        publicEnabled: initial.publicEnabled === true,
         loggedIn: initial.loggedIn,
         targetUserId: initial.targetUserId,
         toggling: false,
@@ -442,19 +450,23 @@ const initialData = JSON.stringify({
         },
 
         async togglePrivate() {
+          if (this.toggling) return;
+          const next = !this.publicEnabled;
+          // Nợ 3: confirm CHỈ chiều TẮT (hệ quả hướng ngoài — profile biến mất với người khác).
+          if (!next && !confirm("Tắt hồ sơ công khai? Người khác sẽ không xem được hồ sơ Pet Hero của bạn.")) return;
           this.toggling = true;
           try {
             const res = await fetch('/api/v1/heroes/toggle-public', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
-              body: JSON.stringify({ enabled: false }),
+              body: JSON.stringify({ enabled: next }),
             });
             if (res.ok) {
-              alert("Đã tắt hồ sơ Pet Hero công khai. Bật lại bằng cách bật \"nhận nuôi tạm\" hoặc ghi một hành động Hero mới.");
-              window.location.href = '/dashboard';
+              const j = await res.json();
+              this.publicEnabled = j.enabled === true; // server-confirmed, không optimistic
             } else {
-              alert("Không tắt được hồ sơ công khai. Thử lại.");
+              alert("Không cập nhật được. Thử lại.");
             }
           } catch (_) {
             alert("Lỗi kết nối.");
@@ -474,6 +486,8 @@ const initialData = JSON.stringify({
             if (res.ok) {
               const j = await res.json();
               this.isFosterCarer = j.is_foster_carer === true;
+              // Server tự bật public_profile_enabled khi bật foster (pets.ts /foster/toggle) → đồng bộ switch public
+              if (this.isFosterCarer) this.publicEnabled = true;
             } else {
               alert("Không cập nhật được. Thử lại.");
             }
